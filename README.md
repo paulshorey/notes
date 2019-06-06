@@ -30,7 +30,7 @@ Login, create and edit a "space", add some notes or pages, then click on the "cu
 #### One issue, not GitBook's fault, but GitHub's special markdown format  
 Github markdown flavor is dumb. It ignores linebreaks, except for lines which have **two spaces** on the end.  
   
-I fixed this by using this custom bash function to commit my code. Others available [here, in my CLI Shortcuts file](https://github.com/paulshorey/notes/raw/master/files/linked/CLIShortcuts.sh).  
+I fixed this by using this custom bash function to commit my code. Others available [in my CLI Shortcuts file](https://github.com/paulshorey/notes/raw/master/files/linked/CLIShortcuts.sh).  
   
 ```  
   

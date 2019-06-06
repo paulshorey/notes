@@ -39,7 +39,7 @@ Cmd+1           open (or focus on) project file navigation
 #### Gotchas, stuff to remember  
 besides things fixed by the settings file:  
   
-1. By default, WebStorm will not open a file for editing when you simply click once on the file in navigation. You have to double-click to open a file. To make a file opened with one click (like in Sublime/VsCode), click the little gear icon in top right Project menu (file navigation), and select "Autoscroll to Source".  
+1. By default, WebStorm will not open a file for editing when you simply click once on the file in navigation. You have to double-click to open a file. To make a file opened with one click (like in Sublime/VsCode), click the little gear icon in top right Project menu (file navigation), and select "Autoscroll to Source". Also check "Autoscroll from Source".  
   
   
   

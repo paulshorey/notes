@@ -9,8 +9,8 @@
   
 ## CLI  
   
-* [everyday commands](cli/everyday.md)  
-* [filesystem commands](cli/filesystem.md)  
+* [Everyday](cli/everyday.md)  
+* [File](cli/file.md)  
   
 ## GIT  
   
@@ -28,9 +28,9 @@
   
 ## Dev-Ops  
   
-* [Config a new Ubuntu](dev-ops/untitled.md)  
-* [Config Ngin-X](dev-ops/config-ngin-x.md)  
-* [MongoDB](dev-ops/mongodb.md)  
+* [new Ubuntu](dev-ops/new ubuntu.md)  
+* [new Ngin-X](dev-ops/new nginx.md)  
+* [new MongoDB](dev-ops/new mongodb.md)  
   
 ## Javascript  
   

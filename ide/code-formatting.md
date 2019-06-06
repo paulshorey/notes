@@ -1,4 +1,4 @@
-> I challenge anyone to give me a valid reason why **spaces** are better than **tabs**. I still have not heard a reason besides **"everyone uses spaces, so you should too"**. But that is a valid reason. IDE defaults, online examples, most companies' in-progress code bases usually use spaces. So, at my day job, I use spaces like everyone else 🤐.  
+> I challenge anyone to give me a valid reason why **spaces** are better than **tabs**. I still have not heard a reason besides **"everyone uses spaces, so you should too"**. But that is a valid reason. Most IDE defaults, online examples, companies' in-progress code bases usually use spaces. So, at my day job, I use spaces 🤐.  
   
   
 #### Make sure your text-editor or IDE does not do strange things  
