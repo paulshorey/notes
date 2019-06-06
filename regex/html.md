@@ -1,23 +1,26 @@
 # HTML examples  
 > To quickly accomplish stuff in the IDE, or for reading content when web crawling.  
   
-search `(\s*)</script>` replace `</script>` puts all closing tags on same line  
+put all closing tags on same line  
+`(\s*)</script>`  
+`</script>`  
   
+match all tag attributes starting with with or without leading spaces  
 `\ ?data-(.*?)"(.*?)" `  
 `\ ?tabindex=(".*") `  
-match all tag attributes starting with with or without leading spaces  
   
-  
-`li\ class(.*?)"(.*?)" `  
 strip out class attribute from matching elements  
+`li\ class(.*?)"(.*?)" `  
   
+find comments containing period "."  
 `<!--(.*?)\.(.*?)-->`  
-match comments containing phrase "."  
   
-search `href="(.*?)"` replace `href=""` clears all href attributes  
+clear all href attributes  
+`href="(.*?)"`  
+`href=""`  
   
-search `(\ *?)((?!\ ).*?)><span(.*?)</span> `  
-replace `$1$2>\n$1  <span$3\n$1  </span> `  
-to add indent span elements  
+add indent span elements  
+`(\ *?)((?!\ ).*?)><span(.*?)</span> `  
+`$1$2>\n$1  <span$3\n$1  </span> `  
   
   
