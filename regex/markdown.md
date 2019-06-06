@@ -20,8 +20,12 @@ $1**`$2`**$3
 ```  
   
 **Remove whitespace between the left of bold stars until the first character**  
-**`\*\*\s?([^\s])`**  
-``**`**$1`**``  
+```  
+\*\*\s?([^\s])  
+```  
+```  
+**$1  
+```  
   
   
   
