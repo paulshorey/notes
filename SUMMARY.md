@@ -9,7 +9,8 @@
   
 ## CLI  
   
-* [common commands](cli/ls-grep.md)  
+* [everyday commands](cli/everyday.md)  
+* [filesystem commands](cli/filesystem.md)  
   
 ## GIT  
   
