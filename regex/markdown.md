@@ -19,9 +19,9 @@ but at least it will not match code snippets which are already bolded, or multi-
 $1**`$2`**$3  
 ```  
   
-#### Remove whitespace between the left of bold stars until the first character  
+**Remove whitespace between the left of bold stars until the first character**  
 **`\*\*\s?([^\s])`**  
-**`**$1`**  
+``**`**$1`**``  
   
   
   
