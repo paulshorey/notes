@@ -1,7 +1,6 @@
 ### Welcome to my Javascript fansite  
 **A searchable collection of ideas, notes, and code snippets.**  
 If I (or a team mate) has not dealt with an issue in a while and forgot how to do it, quickly look it up here (instead of spending time Googling).  
-Written in [Markdown](https://dillinger.io/), stored on my [Github](https://github.com/paulshorey/notes), hosted by [Gitbook](https://www.gitbook.com/), publically viewable at [notes.paulshorey.com](https://notes.paulshorey.com).  
   
 ### To document a "code base", the best solution is probably still [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md)  
 ```javascript  
@@ -16,6 +15,9 @@ Written in [Markdown](https://dillinger.io/), stored on my [Github](https://gith
 ```  
   
 ### About this notes/documentation setup  
+  
+**Written in [Markdown](https://dillinger.io/), stored on my [Github](https://github.com/paulshorey/notes), hosted by [Gitbook](https://www.gitbook.com/), publically viewable at [notes.paulshorey.com](https://notes.paulshorey.com).**  
+  
 I've been messing around with different documentation technologies for a while now. All frustrating. Confluence, the leader, is awkward and painful to use and to navigate! Others have their own advantages/disadvantages. So far, GitBook, integrated with GitHub, is by far the best (maybe perfect?) setup.  
   
 GitBook does not require you to connect your GitHub repository. It is a standalone service. Free for one user/space. Starting at $35/month for a company. But, its online web interface is not up to my standards (I'm very annoyed by most web apps). I recently discovered its ability to publish a GitHub repository of Markdown files, as a website, on your domain!  
