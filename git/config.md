@@ -3,10 +3,10 @@
 1.  **Install ssh key on new device**  
     `echo "{paste your ssh key contents}" >> ~/.ssh/newssh  `  
     chmod -R 600 ~/.ssh/newssh  
-    <br />  
+    ,  
 2.  **then, every time the CLI starts:**  
-    eval "$(ssh-agent -s)"  
-    ssh-add ~/.ssh/newssh`  
+    `eval "$(ssh-agent -s)"`  
+    `ssh-add ~/.ssh/newssh`  
   
 #### Set a value in global config:  
 ```git config --global user.name Paul\ Shorey```  
