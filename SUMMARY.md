@@ -10,7 +10,7 @@
 ## CLI  
   
 * [Everyday](cli/everyday.md)  
-* [File](cli/file.md)  
+* [Files](cli/files.md)  
   
 ## GIT  
   
