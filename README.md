@@ -22,5 +22,11 @@ GitBook does not require you to connect your GitHub repository. It is a standalo
   
 It feels like home, a sigh of relief. So easy to use. Edit your documentation the same way you edit any code. Save it to GitHub the same way you save any other code. After you push to github, GitBook instantly converts your Markdown folder/files/navigation content to a website, and it is instantly available at their url, or your custom domain.  
   
-[GitBook.com](http://gitbook.com)  
-Login, create and edit a "space", add some notes or pages, then click on the "cube" icon (integrations) on the left side and connect your github. Then click their "sliders" icon (advanced) to connect your domain. Then, you will never have to login or use their app "http://gitbook.com" ever again. Just use your own git repository, and it will show up at your own domain.
+### [GitBook.com](http://gitbook.com)  
+Login, create and edit a "space", add some notes or pages, then click on the "cube" icon (integrations) on the left side and connect your github. Then click their "sliders" icon (advanced) to connect your domain. Then, you will never have to login or use their app "http://gitbook.com" ever again. Just use your own git repository, and it will show up at your own domain.  
+  
+#### One issue, not GitBook's fault, but GitHub's special markdown format  
+Github markdown flavor is dumb. It ignores linebreaks, unless the previous line has at least **two spaces** at the end of it.  
+  
+I fixed this by using this custom bash function to commit my code. Others available [here, in my CLI Shortcuts page](/cli/shortcut-functions.md).  
+  
