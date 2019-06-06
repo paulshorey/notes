@@ -2,7 +2,7 @@
   
 ## IDE  
   
-* [Indentation](ide/code-formatting.md)  
+* [Code Formatting](ide/code-formatting.md)  
 * [RegEx for IDEs](ide/regex.md)  
 * [EDITOR=ne](ide/editor-ne.md)  
 * [EDITOR=emacs](ide/editor-emacs.md)  
