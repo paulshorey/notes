@@ -7,7 +7,7 @@
 ```  
 $1**`$2`**$3  
 ```  
-> This will not match a code snippet if it is the very first thing in the file,  
+> This will not match a code snippet if it is the very first character in the file,  
 but at least it will not match code snippets which are already bolded, or multi-line ones  
 > This RegEx is for JavaScript and JS IDEs only! Perl examples at bottom.  
   
