@@ -7,7 +7,6 @@
   
 ## REGEX  
   
-* [Intro](regex/introduction.md)  
 * [HTML](regex/html.md)  
 * [Javascript](regex/javascript.md)  
 * [Markdown](regex/markdown.md)  
