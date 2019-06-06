@@ -1,4 +1,4 @@
-Lets say we want to find/replace file extensions in our entire codebase,  
+> Lets say we want to find/replace file extensions in our entire codebase,  
 from `.md` to `.html`...  
   
 #### in IDE:  
