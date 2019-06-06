@@ -34,7 +34,7 @@ git commit # to commit, as usual, but without having to use Vim
 4. **`echo 'KEY {CODE} {ACTION}' >> ~/.ne/.keys`**  
   
 > **`fn + a`**  
-> To convert any key (`delete`) to fn-key (`fn + delete`), just add a prefix **`0x`** before the key code.  
+> To convert any key (**`delete`**) to fn-key (**`fn + delete`**), just add a prefix **`0x`** before the key code.  
 > Key code for **`delete`** is **`115`**. So, key code for **`fn + delete`** would be **`0x115`**.  
   
 **Documentation:** http://www.emerson.emory.edu/services/editors/ne/Key_Bindings.html  

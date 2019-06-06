@@ -10,10 +10,10 @@ Change startup options for CLI:
 in **`~/.zprofile`** or **`.bashrc`** if you did not install ZSH  
   
 List running node processes:  
-`ps cax | grep node`  
+**`ps cax | grep node`**  
   
 Then see more details about each process:  
-`ps -Flww -p THE_PID`  
+**`ps -Flww -p THE_PID`**  
   
 **on Login:**  
 Copy the following to the bottom of **`~/.zprofile`**  

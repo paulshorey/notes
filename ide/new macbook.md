@@ -3,4 +3,5 @@
 3. Homebrew  
 4. **`brew install zsh`**  
   
+**`whoami`**  
 **`whoami`**

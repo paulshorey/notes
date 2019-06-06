@@ -17,19 +17,19 @@ chmod a+x /usr/local/bin/rsub
   
 _Install rsub Sublime3 package:_  
   
-`Cmd-Shift-P` **`install`** **`rsub`** **`enter`**  
+**`Cmd-Shift-P`** **`install`** **`rsub`** **`enter`**  
   
 _Add proxy:_  
   
-`echo "RemoteForward 52698 localhost:52698" >> ~/.ssh/config`  
+**`echo "RemoteForward 52698 localhost:52698" >> ~/.ssh/config`**  
   
 _Connect to remote server:_  
   
-`# ssh user@host`  
+**`# ssh user@host`**  
   
 **On server, when connected, send file to local:**  
   
-`rsub ~/.profile`  
+**`rsub ~/.profile`**  
   
   
   

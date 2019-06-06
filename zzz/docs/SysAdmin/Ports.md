@@ -12,7 +12,7 @@ netstat -tulpn
   
 **That's ok, we can run our server on port 1080 instead.**  
   
-But if we want to run the server at just `http://localhost`, not `http://localhost:1080`? Then we have to redirect all incoming requests from port 80 to port 1080:  
+But if we want to run the server at just **`http://localhost`**, not **`http://localhost:1080`**? Then we have to redirect all incoming requests from port 80 to port 1080:  
   
 ```  
 iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 1080  

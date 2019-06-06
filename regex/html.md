@@ -1,25 +1,25 @@
 # HTML examples  
   
 put all closing tags on same line  
-`(\s*)</script>`  
-`</script>`  
+**`(\s*)</script>`**  
+**`</script>`**  
   
 match all tag attributes starting with with or without leading spaces  
-`\ ?data-(.*?)"(.*?)" `  
-`\ ?tabindex=(".*") `  
+**`\ ?data-(.*?)"(.*?)" `**  
+**`\ ?tabindex=(".*") `**  
   
 strip out class attribute from matching elements  
-`li\ class(.*?)"(.*?)" `  
+**`li\ class(.*?)"(.*?)" `**  
   
 find comments containing period "."  
-`<!--(.*?)\.(.*?)-->`  
+**`<!--(.*?)\.(.*?)-->`**  
   
 clear all href attributes  
-`href="(.*?)"`  
-`href=""`  
+**`href="(.*?)"`**  
+**`href=""`**  
   
 add indent span elements  
-`(\ *?)((?!\ ).*?)><span(.*?)</span> `  
-`$1$2>\n$1  <span$3\n$1  </span> `  
+**`(\ *?)((?!\ ).*?)><span(.*?)</span> `**  
+**`$1$2>\n$1  <span$3\n$1  </span> `**  
   
   

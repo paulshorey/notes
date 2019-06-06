@@ -5,4 +5,4 @@
   
 https://www.networkworld.com/article/3337516/the-linux-command-line-cheat-sheet.html  
   
-****`whoami`****
+**`whoami`**

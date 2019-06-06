@@ -13,16 +13,16 @@ cd /Volumes/Media/Photos\ 2018      # escape spaces with back-slash
 ```  
   
 **`open .`** open something (follow by path of file to open)  
-        `open -t ~/.ssh/newssh.pub` open in default desktop text editor, outside of terminal  
+        **`open -t ~/.ssh/newssh.pub`** open in default desktop text editor, outside of terminal  
   
 copy text file to memory:  
 **`cat ~/ssh/newssh.pub | pbcopy`**  
   
 **`Ctrl C`** quit running process (to re-gain control of the CLI)  
-**`fg`** resume suspended process, after accidentally doing `Ctrl X`  
+**`fg`** resume suspended process, after accidentally doing **`Ctrl X`**  
   
-* `ls` prints out contents of current directory  
-* `pwd` see the full path of current directory  
+* **`ls`** prints out contents of current directory  
+* **`pwd`** see the full path of current directory  
 <br /><br />  
   
   
