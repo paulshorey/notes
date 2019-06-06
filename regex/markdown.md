@@ -2,7 +2,7 @@
   
 **Bold every inline code snippet**  
 ```  
-([\s\n])**`([^\n`**]*)`([\s\n]?)  
+([\s\n])`([^\n`]*)`([\s\n]?)  
 ```  
 ```  
 $1**`$2`**$3  
@@ -26,14 +26,3 @@ $1**`$2`**$3
 ```  
 **$1  
 ```  
-  
-  
-  
-# Perl (oldschool, command line tool)  
-work differently than in Javascript and Electron based IDEs.  
-```  
-perl -pi -e 's/[\s]*?\n/\ \ \n/g' *.md; # add trailing spaces for GitHub  
-perl -pi -e 's/**`([^`**]+)**`/**`**$1`**/g' *.md; # bold all inline code snippets!  
-perl -pi -e 's/\*\*\*\*/**/g' *.md; # bugfix: quadruple asterisk created by last line,  
-# perl does not work well for linebreaks  
-```

@@ -112,26 +112,12 @@ function yaa() {
 
 # FIX MARKDOWN for GitHub flavor
  function ghmd() {
-    # .*
- 	perl -pi -e 's/[\s]*?\n/\ \ \n/g' *.md; # add trailing spaces for GitHub
-    perl -pi -e 's/`([^`]+)`/**`$1`**/g' *.md; # bold all inline code snippets!
-    perl -pi -e 's/\*\*\*\*/**/g' *.md; # bugfix: quadruple asterisk created by last line, because perl does not work well for linebreaks
-    # ./docs/*
+ 	perl -pi -e 's/[\s]*?\n/\ \ \n/g' *.md;
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*.md;
-    perl -pi -e 's/`([^`]+)`/**`$1`**/g' */*.md;
-    perl -pi -e 's/\*\*\*\*/**/g' */*.md;
-    # ./docs/category/*
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*.md;
-    perl -pi -e 's/`([^`]+)`/**`$1`**/g' */*/*.md;
-    perl -pi -e 's/\*\*\*\*/**/g' */*/*.md;
-    # ./docs/category/subcategory/*
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*.md;
-    perl -pi -e 's/`([^`]+)`/**`$1`**/g' */*/*/*.md;
-    perl -pi -e 's/\*\*\*\*/**/g' */*/*/*.md;
-    # ./docs/category/subcategory/sub-subcategory/*
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*/*.md;
-    perl -pi -e 's/`([^`]+)`/**`$1`**/g' */*/*/*/*.md;
-    perl -pi -e 's/\*\*\*\*/**/g' */*/*/*/*.md;
+ 	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*/*/*.md;
  }
 
 # SAVE (BUT FIRST RUN DOCS)
