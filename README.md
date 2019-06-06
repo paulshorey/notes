@@ -28,7 +28,7 @@ A sigh of relief. So easy to use. Edit your documentation the same way you edit 
 Login, create and edit a "space", add some notes or pages, then click on the "cube" icon (integrations) on the left side and connect your github. Then click their "sliders" icon (advanced) to connect your domain. Then, you will never have to login or use their app "http://gitbook.com" ever again. Just use your own git repository, and it will show up at your own domain.  
   
 #### One issue, not GitBook's fault, but GitHub's special markdown format  
-Github markdown flavor is dumb. It ignores linebreaks, unless the previous line has at least **two spaces** at the end of it.  
+Github markdown flavor is dumb. It ignores linebreaks, except for lines which have **two spaces** on the end.  
   
 I fixed this by using this custom bash function to commit my code. Others available [here, in my CLI Shortcuts file](https://github.com/paulshorey/notes/raw/master/files/linked/CLIShortcuts.sh).  
   
