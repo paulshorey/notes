@@ -7,7 +7,7 @@
 Install ZSH and OH-MY-ZSH, and Nice Editor  
   
 Change startup options for CLI:  
-in `~/.zprofile` or `.bashrc` if you did not install ZSH  
+in **`~/.zprofile`** or **`.bashrc`** if you did not install ZSH  
   
 List running node processes:  
 `ps cax | grep node`  
@@ -16,7 +16,7 @@ Then see more details about each process:
 `ps -Flww -p THE_PID`  
   
 **on Login:**  
-Copy the following to the bottom of `~/.zprofile`  
+Copy the following to the bottom of **`~/.zprofile`**  
   
 ```text  
 eval "$(ssh-agent -s)";  
@@ -33,7 +33,7 @@ echo "service nginx restart";
 ```  
   
 **on Startup or on Schedule:**  
-Add something like the following to the bottom of `/etc/crontab`:  
+Add something like the following to the bottom of **`/etc/crontab`**:  
   
 ```text  
 30 2   1 root bash /www/ps-api/_cron/weekly.sh  
@@ -42,7 +42,7 @@ Add something like the following to the bottom of `/etc/crontab`:
 @reboot root bash /www/ps-api/_cron/deploy.sh  
 ```  
   
-**NOTE:** the "/www/ps-api" in this path - replace this with the path to your project. Unfortunately, the neat trick to automatically use the server name `$(hostname)` does not work in this Cron file.  
+**NOTE:** the "/www/ps-api" in this path - replace this with the path to your project. Unfortunately, the neat trick to automatically use the server name **`$(hostname)`** does not work in this Cron file.  
   
-**PROBLEM:** how to put `/etc/crontab` and `~/.zprofile` settings into version control  
+**PROBLEM:** how to put **`/etc/crontab`** and **`~/.zprofile`** settings into version control  
   

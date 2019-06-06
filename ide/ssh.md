@@ -17,7 +17,7 @@ chmod a+x /usr/local/bin/rsub
   
 _Install rsub Sublime3 package:_  
   
-`Cmd-Shift-P` `install` `rsub` `enter`  
+`Cmd-Shift-P` **`install`** **`rsub`** **`enter`**  
   
 _Add proxy:_  
   
