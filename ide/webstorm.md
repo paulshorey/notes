@@ -11,7 +11,7 @@
 or you can use the same .prettierrc file as your teammates do with their Sublime/VsCode. Just install the Prettier plugin.  
   
 #### Get started fast:  
-[Download my exported settings file](https://github.com/paulshorey/notes/raw/master/files/linked/WebStormSettings.zip), which adds useful shortcuts for people used to Sublime Text / VS Code.  
+[Download my exported settings file](https://github.com/paulshorey/notes/raw/master/files/linked/WebStormSettings.zip), which adds useful shortcuts for people used to Sublime Text or VS Code.  
   
 WebStorm lets you search KeyBindings by name, OR by the pressing the keyboard keys and find out what that combination does (and re-map it to the thing you want it to do).  
   

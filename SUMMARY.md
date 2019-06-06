@@ -17,10 +17,6 @@
 * [config](git/config.md)  
 * [best practices / shortcuts](git/commands.md)  
   
-## Front-end  
-  
-* [CSS Frameworks](front-end/bootstrap.md)  
-  
 ## Back-end  
   
 * [RegEx](back-end/regex.md)  
