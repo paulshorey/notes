@@ -9,7 +9,7 @@
     **`ssh-add ~/.ssh/newssh`**  
   
 #### Set a value in global config:  
-`**`**`**git config --global user.name Paul\ Shorey**`**`**`  
+**`**`****`**git config --global user.name Paul\ Shorey**`****`**`**  
 **Without **`--global`**, it edits local **`./.git/config`** file.**  
   
 #### Or edit **`~/.gitconfig`**:  
