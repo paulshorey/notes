@@ -3,8 +3,9 @@
 ## IDE  
   
 * [Code Formatting](ide/code-formatting.md)  
+* [Best Javascript IDE](ide/webstorm.md)  
+* [Best Terminal/CLI editor](ide/editor-ne.md)  
 * [RegEx for IDEs](ide/regex.md)  
-* [EDITOR=ne](ide/editor-ne.md)  
 * [EDITOR=emacs](ide/editor-emacs.md)  
 * [Editing over SSH](ide/editing-over-ssh.md)  
   
