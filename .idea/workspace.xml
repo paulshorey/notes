@@ -59,7 +59,7 @@
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="FIRST">
               <first_editor relative-caret-position="160">
-                <caret line="8" column="22" selection-start-line="8" selection-start-column="22" selection-end-line="8" selection-end-column="22" />
+                <caret line="8" column="5" selection-start-line="8" selection-start-column="5" selection-end-line="8" selection-end-column="5" />
               </first_editor>
               <second_editor />
             </state>
@@ -84,11 +84,15 @@
     <findStrings>
       <find>([\ ]*?)\n</find>
       <find>(.md)</find>
+      <find>([\s\n])`([^\n`]*)`([\s\n])</find>
+      <find>([\s\n])\*\*`([^\n`]*)`\*\*([\s\n])</find>
     </findStrings>
     <replaceStrings>
       <replace />
       <replace>\n</replace>
       <replace>$1.html$2</replace>
+      <replace>$1**`$2`**$3</replace>
+      <replace>$1`$2`$3</replace>
     </replaceStrings>
     <dirStrings>
       <dir>$PROJECT_DIR$</dir>
@@ -227,12 +231,12 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1559843705317</updated>
-      <workItem from="1559843706627" duration="11491000" />
+      <workItem from="1559843706627" duration="12145000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="11491000" />
+    <option name="totallyTimeSpent" value="12145000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-1080" y="-817" width="1080" height="1333" extended-state="0" />
@@ -512,7 +516,7 @@
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="FIRST">
           <first_editor relative-caret-position="160">
-            <caret line="8" column="22" selection-start-line="8" selection-start-column="22" selection-end-line="8" selection-end-column="22" />
+            <caret line="8" column="5" selection-start-line="8" selection-start-column="5" selection-end-line="8" selection-end-column="5" />
           </first_editor>
           <second_editor />
         </state>
