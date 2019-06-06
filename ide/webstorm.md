@@ -6,6 +6,8 @@
 * If you're using 4 spaces for indentation. Other editors will make you delete one at a time for certain file types (so, press delete 4 times per tab! just use tabs, please!). WebStorm detects indentation correctly for every file type. Also, by default, when you hit delete on a new indented line, it can delete ALL the indents on that line and the line break, to bring you back to the end of the last line's code.  
 * Its styles/themes/menus can take some effort to set up, but once you figure it out (or use the Settings file below), it looks more pleasant and easier to read than Sublime/VsCode, but this one is purely an opinion. The others points will actually 100% make you more productive.  
   
+#### It has powerful customizable options for code-formatting,  
+or you can use the same .prettierrc file as your teammates do with their Sublime/VsCode. Just install the Prettier plugin.  
   
 #### Get started fast:  
 [Download my exported settings file](https://github.com/paulshorey/notes/raw/master/files/linked/WebStormSettings.zip), which adds useful shortcuts for people used to Sublime Text / VS Code.  
