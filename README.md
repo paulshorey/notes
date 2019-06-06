@@ -1,6 +1,6 @@
 ### Welcome to my Javascript fansite  
 **A searchable collection of ideas, notes, and code snippets.**  
-If I (or a team mate) has not dealt with an issue in a while and forgot how to do it, quickly look it up here (instead of spending time Googling).  
+If I (or a team mate) have not dealt with an issue in a while and forgot how to do it, quickly look it up here (instead of spending time Googling).  
   
 ### To document a "code base", the best solution is probably still [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md)  
 ```javascript  

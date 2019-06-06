@@ -16,7 +16,7 @@ git commit # to commit, as usual, but without having to use Vim
 [NiceEditorDocs.pdf](https://github.com/paulshorey/notes/raw/b3a1b95c4ebd57301a28c5b25ae9520d3735e44d/files/linked/NiceEditorDocs.pdf)  
   
 ## Keyboard Shortcuts:  
-(when using the custom ~/.ne/.keys configuration below)  
+(when using the custom `~/.ne/.keys` configuration below)  
   
 > **^s**, **^q** - save, quit  
 > **^z**, **^r**  - undo, redo  
@@ -40,7 +40,7 @@ git commit # to commit, as usual, but without having to use Vim
 **Documentation:** http://www.emerson.emory.edu/services/editors/ne/Key_Bindings.html  
 **Defaults:** https://github.com/vigna/ne/blob/master/doc/default.keys​  
   
-## Sample ~/.ne/.keys file:  
+## Sample `~/.ne/.keys` file:  
   
     # [delete]  
     KEY     0x7f    Backspace  
