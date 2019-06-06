@@ -1,4 +1,4 @@
-#### GIT Config  
+# GIT Config  
   
 1.  **Install ssh key on new device**  
     `echo "{paste your ssh key contents}" >> ~/.ssh/newssh  `  
