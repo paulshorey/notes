@@ -1,5 +1,4 @@
 # HTML examples  
-> To quickly accomplish stuff in the IDE, or for reading content when web crawling.  
   
 put all closing tags on same line  
 `(\s*)</script>`  
