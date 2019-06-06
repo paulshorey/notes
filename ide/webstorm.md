@@ -1,5 +1,5 @@
 # [WebStorm](https://www.jetbrains.com/webstorm/) is the smartest Javascript IDE  
-* It actually indents JSX correctly! Even Prettier does not do a perfect job every time.  
+* It actually indents JSX correctly! Even Prettier which at least doesn't break it, can't indent it. Spaces or tabs, doesn't matter.  
 * It allows you to choose your indentation style (inline, each bracket on its own line), and lets you use multiple styles in the same project! So, you don't have to have ALL your brackets squished onto one line, or taking up your whole vertical screen each on their own line. You, as the human, may decide if you want a particular block of code squished or expanded.  
 * When you rename a file, it can rename all references (links/imports) to that file  
 * Nested curly-brackets/parenthesis get separate colors, so you can see where a nested bracket starts/ends without tracing through the entire mess of brackets  
