@@ -2,11 +2,11 @@
   
 ## IDE  
   
-* [Indentation](editor/code-formatting.md)  
-* [RegEx for IDEs](editor/regex.md)  
-* [EDITOR=ne](editor/editor-ne.md)  
-* [EDITOR=emacs](editor/editor-emacs.md)  
-* [Editing over SSH](editor/editing-over-ssh.md)  
+* [Indentation](ide/code-formatting.md)  
+* [RegEx for IDEs](ide/regex.md)  
+* [EDITOR=ne](ide/editor-ne.md)  
+* [EDITOR=emacs](ide/editor-emacs.md)  
+* [Editing over SSH](ide/editing-over-ssh.md)  
   
 ## CLI  
   
