@@ -1,5 +1,3 @@
-# Edit Markdown in IDE  
-  
 **Bold every inline code snippet**  
 ```  
 (\s)`([^\n`]+)`  
