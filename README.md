@@ -49,15 +49,14 @@ function ys() {
 	# First, go through and fix markdown files to be GitHub compatible  
 	ghmd;  
   
-    # Then, pull, commit, push to current branch, with given argument as commit message  
 	branch=$(git symbolic-ref --short HEAD);  
-    if [ $branch = dev ] || [ $branch = staging ] || [ $branch = master ]  
-	then  
-	    echo You should not save directly to $branch;  
-	elif [ $1 = dev ] || [ $1 = staging ] || [ $1 = master ]  
-	then  
-		echo You should not merge to $1;  
-	else  
+	# if [ $branch = dev ]  
+	# then  
+	# 	echo cannot merge $branch;  
+	# elif [ $1 = staging ] || [ $1 = master ]  
+	# then  
+	# 	echo cannot merge to $1;  
+	# else  
 		echo COMMITTING $1;  
 		echo "\n\n";  
 		# pull  
@@ -70,12 +69,12 @@ function ys() {
 		git commit -m $1;  
 		# push  
 		echo "\n\n";  
-		echo PUSHING TO $branch;  
+		echo PUSHING TO ${branch};  
 		git push;  
 		# log  
 		echo "\n\n";  
 		echo "STATUS:";  
 		git status;  
-	fi;  
+	# fi;  
 }  
 ```
