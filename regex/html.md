@@ -3,9 +3,6 @@
 put all closing tags on same line  
 **`(\s*)</script>`**  
 **`</script>`**  
-or  
-**`(\s*)</([a-zA-Z]+)>`**  
-**`</$2>`**  
   
 match all tag attributes starting with with or without leading spaces  
 **`\ ?data-(.*?)"(.*?)" `**  
