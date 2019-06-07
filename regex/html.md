@@ -1,6 +1,9 @@
 # HTML examples  
   
 put all closing tags on same line  
+**`(\s*)</script>`**  
+**`</script>`**  
+or  
 **`(\s*)</([a-zA-Z]+)>`**  
 **`</$2>`**  
   
