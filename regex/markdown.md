@@ -1,4 +1,4 @@
-# **`Edit Markdown in IDE`**  
+# Edit Markdown in IDE  
   
 **Bold every inline code snippet**  
 ```  
@@ -19,19 +19,23 @@ but at least it will not match code snippets which are already bolded, or multi-
 $1**`$2`**$3  
 ```  
   
-**Remove **`whitespace`** **`between`** the left of bold stars until the first character**  
+**Remove whitespace between the left of bold stars until the first character**  
 ```  
 \*\*\s?([^\s])  
 ```  
 ```  
 **$1  
 ```  
-**`test`**  
-**`test`**  
-**`test`**  
-**`test`**  
-**`test`**  
-**`test`**  
-**`test`**  
-**`test`**  
-**`test`**
+  
+# Edit files in Perl  
+  
+**The above "Bold every inline code snippet" converted to Perl:**  
+```  
+perl -0777pi -e 's/([\s\n]+)`([^\n`]+)`/$1**`$2`**/gm' */*.md;  
+```  
+Perl performs this operation to each line by default, ignoring linebreak characters. This "0777" added to -pi, and "m" added to /g, tells Perl to do the operation on the multiple lines of the entire file.  
+  
+**Also, in Perl, add two spaces to every line, ignoring already existing whitespace:**  
+```  
+perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*.md;  
+```  
