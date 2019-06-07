@@ -110,14 +110,19 @@ function yaa() {
 	git status;
 }
 
-# FIX MARKDOWN for GitHub flavor
+# FIX MARKDOWN for GitHub flavor (the 2 spaces at end of every line)
+# AND bold all inline code snippets (they're not visible enough otherwise)
  function ghmd() {
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' *.md;
+ 	perl -0777pi -e 's/([\s\n]+)`([^\n`]+)`/$1**`$2`**/gm' *.md;
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*.md;
+ 	perl -0777pi -e 's/([\s\n]+)`([^\n`]+)`/$1**`$2`**/gm' */*.md;
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*.md;
+ 	perl -0777pi -e 's/([\s\n]+)`([^\n`]+)`/$1**`$2`**/gm' */*/*.md;
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*.md;
+ 	perl -0777pi -e 's/([\s\n]+)`([^\n`]+)`/$1**`$2`**/gm' */*/*/*.md;
  	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*/*.md;
- 	perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*/*/*.md;
+ 	perl -0777pi -e 's/([\s\n]+)`([^\n`]+)`/$1**`$2`**/gm' */*/*/*/*.md;
  }
 
 # SAVE (BUT FIRST RUN DOCS)
