@@ -20,12 +20,8 @@ $1**`$2`**$3
 ```  
   
 **Make sure each line has exactly two trailing spaces**  
-```  
-([\ ]*?)\n  
-```  
-```  
-  \n  
-```  
+**`([\ ]*?)\n`**  
+**`  \n`** <- two spaces, backslash, n  
   
 # Edit files in Perl  
   
