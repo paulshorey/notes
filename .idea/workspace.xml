@@ -3,7 +3,6 @@
   <component name="ChangeListManager">
     <list default="true" id="bc8b2b4b-8f55-4ba1-ab99-fbb6b6a63407" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/regex/markdown.md" beforeDir="false" afterPath="$PROJECT_DIR$/regex/markdown.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/zzz/docs/Pro Tips/Dev/RegEx/Basics.md" beforeDir="false" afterPath="$PROJECT_DIR$/zzz/docs/Pro Tips/Dev/RegEx/Basics.md" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/.tmp/" />
     <ignored path="$PROJECT_DIR$/temp/" />
@@ -59,8 +58,8 @@
         <entry file="file://$PROJECT_DIR$/regex/markdown.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="FIRST">
-              <first_editor relative-caret-position="520">
-                <caret line="26" column="4" selection-start-line="26" selection-start-column="4" selection-end-line="26" selection-end-column="4" />
+              <first_editor relative-caret-position="780">
+                <caret line="37" column="69" selection-start-line="37" selection-start-column="69" selection-end-line="37" selection-end-column="69" />
               </first_editor>
               <second_editor />
             </state>
@@ -72,7 +71,7 @@
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="FIRST">
               <first_editor relative-caret-position="160">
-                <caret line="8" lean-forward="true" selection-start-line="8" selection-end-line="8" />
+                <caret line="8" selection-start-line="8" selection-end-line="8" />
               </first_editor>
               <second_editor />
             </state>
@@ -341,7 +340,7 @@
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="16567000" />
+    <option name="totallyTimeSpent" value="16599000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-1080" y="-817" width="1080" height="1333" extended-state="0" />
@@ -600,7 +599,7 @@
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="FIRST">
           <first_editor relative-caret-position="160">
-            <caret line="8" lean-forward="true" selection-start-line="8" selection-end-line="8" />
+            <caret line="8" selection-start-line="8" selection-end-line="8" />
           </first_editor>
           <second_editor />
         </state>
@@ -609,8 +608,8 @@
     <entry file="file://$PROJECT_DIR$/regex/markdown.md">
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="FIRST">
-          <first_editor relative-caret-position="520">
-            <caret line="26" column="4" selection-start-line="26" selection-start-column="4" selection-end-line="26" selection-end-column="4" />
+          <first_editor relative-caret-position="780">
+            <caret line="37" column="69" selection-start-line="37" selection-start-column="69" selection-end-line="37" selection-end-column="69" />
           </first_editor>
           <second_editor />
         </state>

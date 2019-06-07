@@ -35,7 +35,7 @@ perl -0777pi -e 's/([\s\n]+)`([^\n`]+)`/$1**`$2`**/gm' */*.md;
 ```  
 Perl performs this operation to each line by default, ignoring linebreak characters. This "0777" added to -pi, and "m" added to /g, tells Perl to do the operation on the multiple lines of the entire file.  
   
-**Also, in Perl, add two spaces to every line, ignoring already existing whitespace:**  
+**Also in Perl, "Make sure each line has exactly two trailing spaces":**  
 ```  
 perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*.md;  
 ```  
