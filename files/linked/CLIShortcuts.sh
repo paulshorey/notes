@@ -65,10 +65,10 @@ function ydd() {
 	echo DELETING REMOTE $1;
 	echo "\n\n";
 	# delete
-	if [ "$1" = "master" ]
+	if [[ "$1" = "master" ]]
 	then
 		echo cannot delete master;
-	elif [ "$1" = "dev" ]
+	elif [[ "$1" = "dev" ]]
 	then
 		echo CANNOT DELETE DEV;
 	else
@@ -83,7 +83,7 @@ function ya() {
 	echo "\n";
 	# update
 	git fetch;
-	if [ $1 ]
+	if [[ $1 ]]
 	then
 		git checkout $1;
 		git pull;
@@ -137,7 +137,7 @@ function ys() {
 	# First, go through and fix markdown files to be GitHub compatible
 	ghmd;
 
-	# branch=$(git symbolic-ref --short HEAD);
+	branch=$(git symbolic-ref --short HEAD);
 	# if [ $branch = dev ]
 	# then
 	# 	echo cannot merge $branch;
@@ -157,7 +157,7 @@ function ys() {
 		git commit -m $1;
 		# push
 		echo "\n\n";
-		echo PUSHING TO $branch;
+		echo PUSHING TO ${branch};
 		git push;
 		# log
 		echo "\n\n";
@@ -169,7 +169,7 @@ function yss() {
 	# First, go through and fix markdown files to be GitHub compatible
 	ghmd;
 
-	# branch=$(git symbolic-ref --short HEAD);
+	branch=$(git symbolic-ref --short HEAD);
 	# if [ $branch = dev ]
 	# then
 	# 	echo cannot merge $branch;
@@ -188,7 +188,7 @@ function yss() {
 		git commit -m $1;
 		# push
 		echo "\n\n";
-		echo PUSHING TO $branch;
+		echo PUSHING TO ${branch};
 		git push;
 		# log
 		echo "\n\n";
@@ -200,7 +200,7 @@ function yss() {
 # MERGE
 function ym() {
 	branch=$(git symbolic-ref --short HEAD);
-	echo MERGING $branch TO $1;
+	echo MERGING ${branch} TO $1;
 	echo "\n\n";
 
 	# if [ $branch = dev ]
@@ -210,22 +210,22 @@ function ym() {
 	# then
 	# 	echo cannot merge to $1;
 	# else
-		if [ $1 ]
+		if [[ $1 ]]
 		then
 
 			git fetch;
 			git checkout $1;
 			git pull;
 
-			if [ $2 ]
+			if [[ $2 ]]
 			then
-				2=merging\ $branch\ $2;
+				2=merging\ ${branch}\ $2;
 			else
-				2=merging\ $branch;
+				2=merging\ ${branch};
 			fi;
 
 			echo $2;
-			git merge $branch -m $2;
+			git merge ${branch} -m $2;
 			git push;
 
 			# log
