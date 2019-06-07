@@ -49,6 +49,7 @@ function ys() {
 	# First, go through and fix markdown files to be GitHub compatible  
 	ghmd;  
   
+    # Then, pull, commit, push to current branch, with given argument as commit message  
 	branch=$(git symbolic-ref --short HEAD);  
 	# if [ $branch = dev ]  
 	# then  
