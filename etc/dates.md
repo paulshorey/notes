@@ -35,8 +35,8 @@ visualizeUTC_asLocalTime(now);
 By "UTC", people generally mean "standard world time with no timezones" \(ISO format string\).
 
 ```text
-// There is no way to represent UTC other than as an ISO string.
-// In JS, the Date() object always uses your local timezone.
+// In JS, there is no way to represent UTC other than as a (ISO) string.
+// Because in JS, the Date() object always uses your local timezone.
 ```
 
 **ISO =**   
