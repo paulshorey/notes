@@ -37,7 +37,7 @@
 * [Editing over SSH](ide/ssh.md)
 * [new Macbook](ide/new-macbook.md)
 
-## Etc.
+## Etc
 
-* [Dates: UTC/ISO/GMT/Local](etc./dates.md)
+* [Dates: UTC/ISO/GMT/Local](etc/dates.md)
 
