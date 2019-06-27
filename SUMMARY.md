@@ -39,5 +39,5 @@
 
 ## Etc
 
-* [Dates: UTC/ISO/GMT/Local](etc/dates.md)
+* [Dates: UTC/ISO/GMT/Local time](etc/dates.md)
 
