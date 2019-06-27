@@ -23,6 +23,7 @@
 
 * [types](javascript/types.md)
 * [typescript](javascript/typescript.md)
+* [NPM](javascript/npm.md)
 
 ## GIT
 

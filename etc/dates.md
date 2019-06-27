@@ -50,6 +50,10 @@ now.toISOString();
 "2019-06-27T17:37:12.699Z"
 ```
 
+ISO string follows "RFC 3339" standard.   
+"T" in the middle is optionally replaced by a space " ".  
+"Z" at the end is also optional, denotes UTC time. Leave it out to convert to local time!
+
 -----------------------------------------------------
 
 ### Use case \#1 ~ Allow users from multiple time-zones to edit the same date.
@@ -122,6 +126,4 @@ const postData = {
 So now it works, but only with the help of 2 functions. One to convert UTC &gt; Local. Another to convert Local &gt; UTC. Remember, that in JavaScript Date object, the timezone is always your Local time! So, even if you convert the date to UTC/GMT/England time, the timezone will still say "Pacific Standard Time" or wherever your are.
 
 -----------------------------------------------------
-
-
 
