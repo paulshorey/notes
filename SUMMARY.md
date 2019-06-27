@@ -34,3 +34,8 @@
 * [Best Terminal/CLI editor](ide/ne.md)  
 * [Editing over SSH](ide/ssh.md)  
 * [new Macbook](ide/new macbook.md)  
+
+## Etc.
+
+* [Dates: UTC/ISO/GMT/Local](etc/dates.md)
+  
