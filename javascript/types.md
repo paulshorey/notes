@@ -17,20 +17,20 @@ This is why tools such as Typescript are often a mandate. Using it is wise. But,
 #### Convert to number:
 
 ```text
-var two = "2";  
+var n = "2";  
 
 // Best (easiest for others to read):
-    Number('1') // 1
+    Number(n) // 2
 
 // Works:  
-    +two // add a plus sign before the  
-    two | 0 // even better, add a default value  
+    +n // add a plus sign before the  
+    n | 0 // even better, add a default value  
     undefined | 0 // returns 0  
     null | 0 // returns 0  
     true | 0 // returns 1  
 
 // Error:  
-    Using 'one' instead of '1' with any of these methods, yields NaN
+    Using string 'two' instead of string '2' with any of these methods, yields NaN
 ```
 
 #### Convert to string:
