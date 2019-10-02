@@ -1,10 +1,6 @@
 # types
 
-description: &gt;-  
-Use Typescript and prop types, BUT, do also get comfortable with the "types"  
-of variables in JavaScript, and how to switch between them. Life will be
-
-### easier.
+Use Typescript and prop types, BUT, do also get comfortable with the "types" of variables in JavaScript, and how to switch between them.  
 
 ## Type safety
 
