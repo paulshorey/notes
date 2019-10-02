@@ -1,6 +1,6 @@
 # Code Formatting
 
-> I challenge anyone to give me a valid reason why **spaces** are better than **tabs**. I still have not heard a reason besides **"everyone uses spaces, so you should too"**. But that is a valid reason. Most IDE defaults, online examples, companies' in-progress code bases usually use spaces. So, at my day job, I use spaces 🤐.
+> I challenge anyone to give me a valid reason why **spaces** are better than **tabs**. I still have not heard a reason besides **"everyone uses spaces, so you should too"**. But that is a valid reason. Most IDE defaults, online examples, javascript code bases use 2 spaces. So, at my day job, I use spaces 🤐. Not-my-favorite convention is better than no convention.
 
 ## Make sure your IDE does not do strange things
 
