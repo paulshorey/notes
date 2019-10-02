@@ -88,7 +88,7 @@ Now, user does not want to view/edit the local representation of the date, but i
 
 Generally it would be fine to show each of them their Local time \(and convert it easily to ISO when saving in the Database\). Multiple people could still collaborate on the same date/time. They would just view it relative to their time-zone, but it would still represent the same time. If they edit the time relative to their timezone, it will still be converted to "world time" which is UTC/ISO.
 
-But, lets say they all are collaborating on some time specific to England \(like when the London Stock Market opens, or some internal Business event is scheduled, in England\). 
+But, lets say they all are collaborating on some time specific to England \(like when the London Stock Market opens, or some internal Business event is scheduled, in England\). Or, maybe the users are scientists (meteorologists, geologists), who want to share time among themselves as a copy/paste string - then it makes sense to keep the time as GMT (UTC).
 
 **Back-end:** store date in UTC \(ISO\) in database.  
 **Front-end:** display date in UTC \(GMT Local time\), allow user to edit the UTC \(GMT Local time\). 
