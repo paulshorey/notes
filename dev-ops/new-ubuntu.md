@@ -44,5 +44,5 @@ Add something like the following to the bottom of **`/etc/crontab`**:
 
 **NOTE:** the "/www/ps-api" in this path - replace this with the path to your project. Unfortunately, the neat trick to automatically use the server name **`$(hostname)`** does not work in this Cron file.
 
-**PROBLEM:** how to put **`/etc/crontab`** and **`~/.zprofile`** settings into version control
+**QUESTION:** How to put **`/etc/crontab`** and **`~/.zprofile`** settings into version control ?
 
