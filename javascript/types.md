@@ -23,14 +23,14 @@ var n = "2";
     Number(n) // 2
 
 // Works:  
-    +n // add a plus sign before the  
+    +n // 2
     n | 0 // even better, add a default value  
     undefined | 0 // returns 0  
     null | 0 // returns 0  
     true | 0 // returns 1  
 
 // Error:  
-    Using string 'two' instead of string '2' with any of these methods, yields NaN
+    Using 'two' instead of '2' with any of these methods, yields NaN
 ```
 
 #### Convert to string:
@@ -40,11 +40,10 @@ var three = 3;
 var arr = [3,2,1];  
 
 // Works:  
-    three +"" // add a string to anything to make it a string  
-    arr +"" // returns string "3,2,1"  
-    [] +"" // returns empty string  
-    undefined || "" // returns empty string  
-    three+"" || "default value" // even better
+    three +"" // "3"  
+    arr +"" //  "3,2,1"  
+    [] +"" // ""  
+    three+"" || "default" // assign default
 ```
 
 The following are not for type "safety", but only for consciously converting one to another:
@@ -55,9 +54,9 @@ The following are not for type "safety", but only for consciously converting one
 var obj = {first:"stuff", second:"more stuff"};  
 
 // Works:  
-    Object.keys(obj) // returns array of keys  
-    Object.values(obj) // array of values  
-    Object.entries(obj) // array of arrays [ key, value ]  
+    Object.keys(obj) // ['first','second'] 
+    Object.values(obj) // ['stuff','more stuff']
+    Object.entries(obj) // [['first','stuff'],['second','more stuff']]
 
 // Works with strings too!  
     Object.values("hi") // ['h','i']
