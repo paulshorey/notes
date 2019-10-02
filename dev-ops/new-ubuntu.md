@@ -3,7 +3,7 @@
 **Digital Ocean's basics:**  
 [https://www.digitalocean.com/community/tutorials/initial-server-setup-with-ubuntu-16-04](https://www.digitalocean.com/community/tutorials/initial-server-setup-with-ubuntu-16-04)
 
-**My settings:**  
+**My personal settings:**  
 Install ZSH and OH-MY-ZSH, and Nice Editor
 
 Change startup options for CLI:  
