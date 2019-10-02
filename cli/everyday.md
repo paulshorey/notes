@@ -18,3 +18,9 @@ chown options owner-user:owner-group file
 
 **`sudo chown -R $(id -u):$(id -g) .`** take ownership of . directory
 
+## Running processes
+
+```
+ps -ef     # list all running processes
+ps -ef | grep node      # list only "node" processses
+```
