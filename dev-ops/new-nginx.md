@@ -8,7 +8,7 @@ kill 1234
 ```text
 vim /etc/nginx/sites-available/default
 ```
-Then, restart nginx:
+**Then, restart nginx:**
 ```
 echo "service nginx restart";
 ```
