@@ -19,6 +19,9 @@ This is why tools such as Typescript are often a mandate. Using it is wise. But,
 ```text
 var two = "2";  
 
+// Best (easiest for others to read):
+    Number('1') // 1
+
 // Works:  
     +two // add a plus sign before the  
     two | 0 // even better, add a default value  
@@ -26,8 +29,8 @@ var two = "2";
     null | 0 // returns 0  
     true | 0 // returns 1  
 
-// Oops:  
-    +"two" // NaN
+// Error:  
+    Using 'one' instead of '1' with any of these methods, yields NaN
 ```
 
 #### Convert to string:
