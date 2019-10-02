@@ -1,16 +1,15 @@
-# new Ngin-X
-
-### description: 'First, remove all running node processes!'
-
-## Config Ngin-X
-
+**First, kill any running node processes!**
 ```text
 ps cax | grep node;
+kill 1234
 ```
 
+**Modify config:**
 ```text
-echo "TIPS:"  
-echo "vim /etc/nginx/sites-available/default";  
+vim /etc/nginx/sites-available/default
+```
+Then, restart nginx:
+```
 echo "service nginx restart";
 ```
 
