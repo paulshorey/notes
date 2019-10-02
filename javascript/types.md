@@ -1,6 +1,6 @@
 # types
 
-Use Typescript and prop types, BUT, do also get comfortable with the "types" of variables in JavaScript, and how to switch between them.  
+Use Typescript and prop types, BUT for assigning an old value to a new variable, its useful to force or convert types.
 
 ## Type safety
 
