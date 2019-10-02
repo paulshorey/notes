@@ -1,10 +1,5 @@
-# new MongoDB
 
-### description: v4 on Ubuntu
-
-## MongoDB
-
-New DB and User:
+#### Run mongo on CLI:
 
 `mongo;    
 use whateverDatabaseYouWant;    
