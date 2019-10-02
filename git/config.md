@@ -6,7 +6,7 @@
 
    chmod -R 600 ~/.ssh/newssh  
 
-   .  
+   
 
 2. **then, every time the CLI starts:**  
 
@@ -16,7 +16,7 @@
 
 ## Set a value in global config:
 
-**\`**`****`**git config --global user.name Paul Shorey**`****`**\`**  
+`git config --global user.name Paul Shorey`  
 **Without** `--global`**, it edits local** `./.git/config` **file.**
 
 ## Or edit **`~/.gitconfig`**:
