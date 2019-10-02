@@ -84,7 +84,7 @@ Just use `new Date(dateFromAPI)` then `date.toISOString()`
 
 ### Use case \#2 ~ User has to edit the date, as it appears in England.
 
-Now, user does not want to view/edit just any representation of the date, but instead, view and edit the date in UTC/GMT \(as it appears in England\). This may happen if your platform is a global product, which people access from multiple time-zones. 
+Now, user does not want to view/edit the local representation of the date, but instead, view and edit the date in UTC/GMT \(as it appears in England\). This may happen if your platform is a global product, which people access from multiple time-zones. 
 
 Generally it would be fine to show each of them their Local time \(and convert it easily to ISO when saving in the Database\). Multiple people could still collaborate on the same date/time. They would just view it relative to their time-zone, but it would still represent the same time. If they edit the time relative to their timezone, it will still be converted to "world time" which is UTC/ISO.
 
