@@ -24,3 +24,7 @@ chown options owner-user:owner-group file
 ps -ef     # list all running processes
 ps -ef | grep node      # list only "node" processses
 ```
+
+## Networking
+
+**`dig +short myip.opendns.com @resolver1.opendns.com`** see public IP address
