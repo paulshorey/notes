@@ -9,9 +9,11 @@
 
 ## REGEX
 
+* [general](regex/general.md)
 * [HTML](regex/html.md)
 * [Javascript](regex/javascript.md)
 * [Markdown](regex/markdown.md)
+* [Text](regex/text.md)
 
 ## Dev-Ops
 
