@@ -1,5 +1,10 @@
 # HTML
 
+select link text of every anchor tag (of > 5 characters, so no "edit" or "[1]" links)
+```
+(.*?)<a(.*?)>(.{5,}?)</a>(.*?)
+```
+
 put all closing tags on same line  
 **`(\s*)</script>`**  
 **`</script>`**
