@@ -1,11 +1,15 @@
 # Everyday
 
-> open/edit a file in the terminal:  
+> best in-terminal text editor (alternative to vim):  
 > **`ne ~/.gitconfig`** using [Nice Editor](../ide/ne.md)  
 > **`^s ^q`** save changes and exit  
 > **`^q`**, then **`y`** to confirm exit without saving changes
 
 [https://www.networkworld.com/article/3337516/the-linux-command-line-cheat-sheet.html](https://www.networkworld.com/article/3337516/the-linux-command-line-cheat-sheet.html)
+
+## Switch directories
+**`pushd .`** # save current working directory
+**`popd`** # go back to saved directory
 
 ## Chown command
 
