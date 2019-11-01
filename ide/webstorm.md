@@ -6,7 +6,7 @@
 * Nested curly-brackets/parenthesis get separate colors, so you can see where a nested bracket starts/ends without tracing through the entire mess of brackets  
 * If you're using 4 spaces for indentation. Other editors will make you delete one at a time for certain file types \(so, press delete 4 times per tab! just use tabs, please!\). WebStorm detects indentation correctly for every file type. Also, by default, when you hit delete on a new indented line, it can delete ALL the indents on that line and the line break, to bring you back to the end of the last line's code.  
 * It alerts you \(with a little linting underline\) when you're trying to use a variable which is misspelled, or import a file which doesn't exist. Its integration with Linters is very sophisticated - tooltips are useful but not distracting. Code hints look noticeable but not annoying.  
-* Its styles/themes/menus can take some effort to set up, but once you figure it out \(or use the Settings file below\), it looks more pleasant and easier to read than Sublime/VsCode, but this one is purely an opinion. The others points will actually 100% make you more productive.  
+* Its styles/colors are not as nice out-of-the-box, but you can change it. I changed mine to **`Monokai Pro`**, and removed unnecessary menus. See my export file below for these settings, and also improved shortcuts and menus.
 
 ## It has powerful customizable options for code-formatting,
 
