@@ -31,3 +31,6 @@
     git config --global submodule.recurse=true
 ```
 
+## Shortcuts
+These shortcuts are similar to `Magit` for Emacs, though much less sophisticated. Haha. But, they've been getting the job done for me for years. Limitations: 1) no multiline commit messages 2) no rebase. But, see the code, it automates everything else very nicely:
+[Download .aliases.sh](https://github.com/paulshorey/notes/raw/master/files/linked/.aliases.sh)
