@@ -35,7 +35,7 @@ while (match != null) {
 ```text
 /*
  * Same as above, but,
- * thank you to ES2020
+ * will only be available in ES2020
  */
 const string = "one two 3 four";
 const regexp = /([a-z]+)/g;
