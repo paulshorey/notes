@@ -4,8 +4,8 @@ description: All about Dates on the World Wide Web
 
 # Dates: UTC/ISO/GMT/Local time
 
-**Local time =**   
-the time in your time zone, in am/pm or 24hr format, doesn't matter,   
+**Local time =**  
+the time in your time zone, in am/pm or 24hr format, doesn't matter,  
 **Always includes the timezone**, which is just offset \(+ or -\) number of hours from GMT
 
 ```text
@@ -15,7 +15,7 @@ const now = new Date()
 // ^ Current time in California (where I am typing)
 ```
 
-**GMT =**   
+**GMT =**  
 Also local time, but in the Greenwich Mean Time \(GMT\) timezone \(time in England\). **Includes timezone, because this is local time.** It is simply local time in a specific timezone.
 
 ```text
@@ -29,7 +29,7 @@ visualizeUTC_asLocalTime(now);
 // ^ Notice, this is 7 hours ahead (time in England)
 ```
 
-~~**UTC =**~~   
+~~**UTC =**~~  
 ~~your Local time converted to GMT.  
 **No time zone information. Same as GMT, but without the timezone.**~~  
 By "UTC", people generally mean "standard world time with no timezones" \(ISO format string\).
@@ -39,7 +39,7 @@ By "UTC", people generally mean "standard world time with no timezones" \(ISO fo
 // Because in JS, the Date() object always uses your local timezone.
 ```
 
-**ISO =**   
+**ISO =**  
 UTC time represented as a string, in a specific format.  
 Allows us to represent and share dates across the world, without having to convert between timezones.  
 **This is very important: There is no such thing as a UTC format or data structure, except for ISO string. When you do `.toISOString()`, JavaScript converts your Local time to UTC time.**
@@ -50,13 +50,11 @@ now.toISOString();
 "2019-06-27T17:37:12.699Z"
 ```
 
-ISO string follows "RFC 3339" standard.   
+ISO string follows "RFC 3339" standard.  
 "T" in the middle is optionally replaced by a space " ".  
 "Z" at the end is also optional, denotes UTC time. Leave it out to convert to local time!
 
------------------------------------------------------
-
-### Use case \#1 ~ Allow users from multiple time-zones to edit the same date.
+## Use case \#1 ~ Allow users from multiple time-zones to edit the same date.
 
 No problem. This is what Local time was made to do. It makes the "world time", or UTC/ISO appear relative to the user's location. When it is stored in the DB/API, it is converted back to UTC "world time".
 
@@ -76,22 +74,20 @@ const postData = {
 
 No effort!  
 Getting the date **FROM the server**, we convert it **from ISO to Local time**.  
-Sending the date **TO the server**,  we convert it **from Local time to ISO**.  
+Sending the date **TO the server**, we convert it **from Local time to ISO**.  
 Javascript does it all automatically.  
 Just use `new Date(dateFromAPI)` then `date.toISOString()`
 
------------------------------------------------------
+## Use case \#2 ~ User has to edit the date, as it appears in England.
 
-### Use case \#2 ~ User has to edit the date, as it appears in England.
-
-Now, user does not want to view/edit the local representation of the date, but instead, view and edit the date in UTC/GMT \(as it appears in England\). This may happen if your platform is a global product, which people access from multiple time-zones. 
+Now, user does not want to view/edit the local representation of the date, but instead, view and edit the date in UTC/GMT \(as it appears in England\). This may happen if your platform is a global product, which people access from multiple time-zones.
 
 Generally it would be fine to show each of them their Local time \(and convert it easily to ISO when saving in the Database\). Multiple people could still collaborate on the same date/time. They would just view it relative to their time-zone, but it would still represent the same time. If they edit the time relative to their timezone, it will still be converted to "world time" which is UTC/ISO.
 
-But, lets say they all are collaborating on some time specific to England \(like when the London Stock Market opens, or some internal Business event is scheduled, in England\). Or, maybe the users are scientists (meteorologists, geologists), who want to share time among themselves as a copy/paste string - then it makes sense to keep the time as GMT (UTC).
+But, lets say they all are collaborating on some time specific to England \(like when the London Stock Market opens, or some internal Business event is scheduled, in England\). Or, maybe the users are scientists \(meteorologists, geologists\), who want to share time among themselves as a copy/paste string - then it makes sense to keep the time as GMT \(UTC\).
 
 **Back-end:** store date in UTC \(ISO\) in database.  
-**Front-end:** display date in UTC \(GMT Local time\), allow user to edit the UTC \(GMT Local time\). 
+**Front-end:** display date in UTC \(GMT Local time\), allow user to edit the UTC \(GMT Local time\).
 
 Unfortunately, JS Date object can not be converted to any timezone other than the one the user's computer/browser is using. **So, we'll have to hack it.**  
 [https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone](https://stackoverflow.com/questions/15141762/how-to-initialize-a-javascript-date-to-a-particular-time-zone)
@@ -124,8 +120,4 @@ const postData = {
 ```
 
 So now it works, but only with the help of 2 functions. One to convert UTC &gt; Local. Another to convert Local &gt; UTC. Remember, that in JavaScript Date object, the timezone is always your Local time! So, even if you convert the date to UTC/GMT/England time, the timezone will still say "Pacific Standard Time" or wherever your are.
-
------------------------------------------------------
-
-
 

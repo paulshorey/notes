@@ -1,6 +1,6 @@
 # Everyday
 
-> best in-terminal text editor (alternative to vim):  
+> best in-terminal text editor \(alternative to vim\):  
 > **`ne ~/.gitconfig`** using [Nice Editor](../ide/ne.md)  
 > **`^s ^q`** save changes and exit  
 > **`^q`**, then **`y`** to confirm exit without saving changes
@@ -8,8 +8,8 @@
 [https://www.networkworld.com/article/3337516/the-linux-command-line-cheat-sheet.html](https://www.networkworld.com/article/3337516/the-linux-command-line-cheat-sheet.html)
 
 ## Switch directories
-**`pushd .`** # save current working directory
-**`popd`** # go back to saved directory
+
+**`pushd .`** \# save current working directory **`popd`** \# go back to saved directory
 
 ## Chown command
 
@@ -24,7 +24,7 @@ chown options owner-user:owner-group file
 
 ## Running processes
 
-```
+```text
 ps -ef     # list all running processes
 ps -ef | grep node      # list only "node" processses
 ```
@@ -32,3 +32,4 @@ ps -ef | grep node      # list only "node" processses
 ## Networking
 
 **`dig +short myip.opendns.com @resolver1.opendns.com`** see public IP address
+

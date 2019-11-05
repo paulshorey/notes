@@ -1,4 +1,4 @@
-# WebStorm JavaScript IDE from JetBrains
+# Best Javascript IDE
 
 * It actually indents JSX correctly and reliably! Even Prettier can't indent JSX. Others sometimes totally break it.  
 * It allows you to choose your indentation style \(inline, each bracket on its own line\), and lets you use multiple styles in the same project! So, you don't have to have ALL your brackets squished onto one line, or taking up your whole vertical screen each on their own line. You, as the human, may decide if you want a particular block of code squished or expanded.  

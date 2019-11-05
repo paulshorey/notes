@@ -10,7 +10,7 @@ But it can make people lazy and sloppy. Beginners may not understand the pitfall
 
 This is why tools such as Typescript are often a mandate. Using it is wise. But, if it is not possible, or will be too troublesome to install, we can at least be aware of variable types, and "drive defensively"...
 
-#### Convert to number:
+### Convert to number:
 
 ```text
 var n = "2";  
@@ -29,7 +29,7 @@ var n = "2";
     Using 'two' instead of '2' with any of these methods, yields NaN
 ```
 
-#### Convert to string:
+### Convert to string:
 
 ```text
 var three = 3;  
@@ -44,7 +44,7 @@ var arr = [3,2,1];
 
 The following are not for type "safety", but only for consciously converting one to another:
 
-#### Convert to array:
+### Convert to array:
 
 ```text
 var obj = {first:"stuff", second:"more stuff"};  
@@ -58,13 +58,13 @@ var obj = {first:"stuff", second:"more stuff"};
     Object.values("hi") // ['h','i']
 ```
 
-#### Convert to object:
+### Convert to object:
 
 ```text
 Object.assign({}, ["h","i"]) // {0:'h', 1:'i'}
 ```
 
-#### **Shallow copy object:**
+### **Shallow copy object:**
 
 ```text
 Object.assign({}, someObject) // shallow copy  
@@ -73,7 +73,7 @@ Object.assign({}, someObject) // shallow copy
 
 But wait, there's more! ES6 also has new Set\(\) and new Map\(\) which are \(like Array\) also objects. Like all objects, they are assigned by reference! And more, they can not even be shallow-copied using Object.assign or spread operator.
 
-#### Deep copy \(immutably, without assigning anything by reference\):
+### Deep copy \(immutably, without assigning anything by reference\):
 
 ```text
 /* Currently only 2 layers deep! Refactored version coming soon,  
