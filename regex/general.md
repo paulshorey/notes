@@ -52,12 +52,6 @@ for (const match of matches) {
 
 
 
-```text
-\n"(.*?)     ->     \n["$1
-```
-
-
-
 
 
 
