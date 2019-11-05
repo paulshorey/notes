@@ -5,7 +5,7 @@
 Reminder: q-mark`?` makes the search "not-greedy". Otherwise `.*` will match the whole line! 
 
 ```text
-TLD\n?(.*?)\n?(.*?)([0-9]+)
+href="/.*? title="(.*?)"   // finds titles of local site links
 ```
 
 There are multiple ways to use RegEx in JavaScript:
@@ -49,6 +49,18 @@ for (const match of matches) {
 ```text
 /([a-z]+)/.test('1235')   // false
 ```
+
+
+
+```text
+\n"(.*?)     ->     \n["$1
+```
+
+
+
+
+
+
 
 
 
