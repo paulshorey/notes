@@ -23,6 +23,7 @@
 
 ## Javascript
 
+* [loops](javascript/loops.md)
 * [types](javascript/types.md)
 * [typescript](javascript/typescript.md)
 * [NPM](javascript/npm.md)
