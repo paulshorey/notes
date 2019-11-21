@@ -1,8 +1,16 @@
 # Javascript
 
-Replace all console.logs \(or .warn .error, etc\):  
-**`(\s*)console.(.*)(\s?)`**  
-**`\n`**
+**Replace all console.logs \(or .warn .error, etc\) with empty line:  
+`(\s*)console.(.*)(\s?)`  
+`\n`**
 
-> This removes the entire line, and assumes every statement is on its own line!
+**Convert Array Tuple structure to simple Object:**  
+`["([\w]+)","(.*?)"],`   
+`"$1":"$2",`
+
+
+
+
+
+
 
