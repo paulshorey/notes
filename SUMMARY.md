@@ -48,4 +48,5 @@
 ## Etc
 
 * [Dates: UTC/ISO/GMT/Local time](etc/dates.md)
+* [JS Interview Qs](etc/js-interview-qs.md)
 
