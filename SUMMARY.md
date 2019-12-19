@@ -35,7 +35,7 @@
 ## GIT
 
 * [config](git/config.md)
-* [best practices / shortcuts](git/commands.md)
+* [basics](git/commands.md)
 
 ## IDE
 
