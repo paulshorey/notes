@@ -112,3 +112,17 @@ window.deepCopy = function(state) {
 };
 ```
 
+### Using "Array" as an "Object"
+
+This is actually useful, but confusing, so to be saved as last possible option.  
+Should be not just "clearly documented", but "obnoxiously in-your-face documented".
+
+```text
+let arr = [1,2,3,4];
+arr.width = 5;
+
+console.log(arr); // [1, 2, 3, 4, width: 5]
+console.log(arr.toString()) // "1,2,3,4"
+console.log(JSON.stringify(arr)) // "[1,2,3,4]"
+```
+
