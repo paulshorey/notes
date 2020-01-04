@@ -115,7 +115,11 @@ window.deepCopy = function(state) {
 ### Using "Array" as an "Object"
 
 This is actually useful, but confusing, so to be saved as last possible option.  
-Should be not just "clearly documented", but "obnoxiously in-your-face documented".
+Should be not just "clearly documented", but "obnoxiously in-your-face documented".  
+  
+Iterate using `for of` to get valid standard ARRAY values, with keys 0,1,2,3,4 only.  
+Iterate using `forEach` also works the same.  
+Iterate using `for in` to get ALL keys, including added \[\].custom properties.
 
 ```text
 let arr = [1,2,3,4];
