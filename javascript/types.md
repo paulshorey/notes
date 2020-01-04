@@ -130,3 +130,5 @@ console.log(arr.toString()) // "1,2,3,4"
 console.log(JSON.stringify(arr)) // "[1,2,3,4]"
 ```
 
+Any properties added to an Array are temporary. They can not be saved to JSON.
+
