@@ -27,6 +27,7 @@
 * [types](javascript/types.md)
 * [typescript](javascript/typescript.md)
 * [NPM](javascript/npm.md)
+* [url functions](javascript/url-functions.md)
 
 ## UI
 
