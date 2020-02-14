@@ -22,7 +22,7 @@ If I \(or a team mate\) have not used a basic command or code snippet in a while
 
 Unfortunately, the popular Confluence \(from Atlassian, like Jira\) is so awkward, clunky, buggy, and painful to edit and navigate! GitBook is so much easier to use and navigate! It's like night and day. Just because something is deemed "enterprise level software", doesn't mean it is "good software".
 
-If I can get just one future client to adopt GitBook versus Atlassian's Confluence, then writing this page was worth it!
+**If I can get just one future client to adopt GitBook versus Atlassian's Confluence, then writing this page was worth it!** \(BTW, client is boss. If the client insists on using Confluence, I will not object or insist, but merely suggest the alternative, and then use their Confluence if I have to. Awkward documentation is better than no documentation!\)
 
 ## About this notes/documentation setup:
 
