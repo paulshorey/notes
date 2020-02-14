@@ -3,7 +3,7 @@
 ## Welcome to my Javascript fansite
 
 **A searchable collection of ideas, notes, and code snippets.**  
-If I \(or a team mate\) have not dealt with an issue in a while and forgot how to do it, quickly look it up here \(instead of spending time Googling\).
+If I \(or a team mate\) have not used a basic command or code snippet in a while and forgot how to do it, quickly look it up here \(instead of spending time on Google/StackOverflow\).
 
 ## To document a "code base", the best solution is probably still [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md)
 
@@ -18,25 +18,29 @@ If I \(or a team mate\) have not dealt with an issue in a while and forgot how t
     }
 ```
 
-## About this notes/documentation setup
+**However, this sort of documentation site is still very useful,** because it can document more than just functions, but entire concepts! I suggest every tech team to use something for general documentation/notes.
 
-**Written in** [**Markdown**](https://dillinger.io/)**, stored on my** [**Github**](https://github.com/paulshorey/notes)**, hosted by** [**Gitbook**](https://www.gitbook.com/)**, publically viewable at** [**notes.paulshorey.com**](https://notes.paulshorey.com)**.**
+Unfortunately, the popular Confluence \(from Atlassian, like Jira\) is so awkward, clunky, buggy, and painful to edit and navigate! GitBook is so much easier to use and navigate! It's like night and day. Just because something is deemed "enterprise level software", doesn't mean it is "good software".
 
-I've been messing around with different documentation technologies for a while now. All frustrating. Confluence, the leader, is awkward and painful to use and to navigate! Others have their own advantages/disadvantages. So far, GitBook, integrated with GitHub, is by far the best.
+If I can get just one future client to adopt GitBook versus Atlassian's Confluence, then writing this page was worth it!
 
-GitBook does not require you to connect your GitHub repository. It is a standalone service. Free for one user/space. Starting at $35/month for a company. But, its online web interface is not up to my standards \(I'm very annoyed by most web apps\). I recently discovered its ability to publish a GitHub repository of Markdown files, as a website, on your domain!
+## About this notes/documentation setup:
 
-A sigh of relief. So easy to use. Edit your documentation the same way you edit any code. Save it to GitHub the same way you save any other code. After you push to github, GitBook instantly converts your Markdown folder/files/navigation content to a website, and it is instantly available at their url, or your custom domain.
+**Written in** [**Markdown**](https://dillinger.io/)**, stored on my** [**Github**](https://github.com/paulshorey/notes)**, hosted by** [**GitBook**](https://www.gitbook.com/)**, publicly viewable at** [**notes.paulshorey.com**](https://notes.paulshorey.com)**.**
 
-## [GitBook.com](http://gitbook.com)
+GitBook does not require you to connect your GitHub repository. It is a standalone service. Free for one user/space. **But you can connect it to your Github "wiki" or "api" or "docs" folder.**
 
-Login, create and edit a "space", add some notes or pages, then click on the "cube" icon \(integrations\) on the left side and connect your github. Then click their "sliders" icon \(advanced\) to connect your domain. Then, you will never have to login or use their app "[http://gitbook.com](http://gitbook.com)" ever again. Just use your own git repository, and it will show up at your own domain.
+Collaborators can edit as they view each document. To save new revision, `Cmd + S`, to merge revision to master \(publish your GitBook edit to web\), `Cmd + Shift + S`. 
 
-### One issue, not GitBook's fault, but GitHub's special markdown format
+Only takes a second! So easy to write documentation now!
 
-Github markdown flavor is dumb. It ignores linebreaks, except for lines which have **two spaces** on the end.
+## Advanced:
 
-I fixed this by using this custom bash function to commit my code. Others available [in my CLI Shortcuts file](https://github.com/paulshorey/notes/raw/master/files/linked/CLIShortcuts.sh).
+You can view/edit GitBook docs on their site. You can also view/edit in your own GitHub repository.
+
+**Note: GitHub.com markdown flavor is dumb.** It ignores linebreaks, except for lines which have **two spaces** on the end. GitBook unfortunately uses the same rule as GitHub, so your notes will look the same on GitBook.com/@yoursite as on GitHub.com/yoursite. **This is not a GitBook issue, but GitHub's.**
+
+I fixed this by using this custom bash function before I commit my code. Your system must support Perl.
 
 ```text
 # FIX MARKDOWN for GitHub flavor  
@@ -47,41 +51,10 @@ I fixed this by using this custom bash function to commit my code. Others availa
      perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*.md;  
      perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*/*.md;  
      perl -pi -e 's/[\s]*?\n/\ \ \n/g' */*/*/*/*/*.md;  
- }  
-
-# SAVE  
-function ys() {  
-    # First, go through and fix markdown files to be GitHub compatible  
-    ghmd;  
-
-    # Then, pull, commit, push to current branch, with given argument as commit message  
-    branch=$(git symbolic-ref --short HEAD);  
-    # if [ $branch = dev ]  
-    # then  
-    #     echo cannot merge $branch;  
-    # elif [ $1 = staging ] || [ $1 = master ]  
-    # then  
-    #     echo cannot merge to $1;  
-    # else  
-        echo COMMITTING $1;  
-        echo "\n\n";  
-        # pull  
-        git pull;  
-        # git stash;  
-        # git pull;  
-        # git stash pop;  
-        # save  
-        git add .;  
-        git commit -m $1;  
-        # push  
-        echo "\n\n";  
-        echo PUSHING TO ${branch};  
-        git push;  
-        # log  
-        echo "\n\n";  
-        echo "STATUS:";  
-        git status;  
-    # fi;  
-}
+ }
 ```
+
+I've been using this for years now, even on clients' codebases, with no detrimental effects, except for an extra few milliseconds lag whenever I commit to GIT.
+
+See [my other CLI shortcuts](https://github.com/paulshorey/notes/raw/master/files/linked/CLIShortcuts.sh). I have a function to `git add`, `git commit`, and `git push`. But it does some fancy things to make sure I have the latest code and no merge conflicts. Before executing the `commit`, it executes `ghmd` command, to make any and all `.md` files compatible with GitHub.com's custom markdown rule \(add two spaces at the end of every line\).
 
