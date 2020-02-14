@@ -40,6 +40,7 @@
 
 ## IDE
 
+* [Keyboard Shortcuts](ide/keymapping.md)
 * [Code Formatting](ide/code-formatting.md)
 * [Best Javascript IDE](ide/webstorm.md)
 * [Best Terminal/CLI editor](ide/ne.md)
