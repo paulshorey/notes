@@ -28,11 +28,11 @@ If I can get just one future client to adopt GitBook versus Atlassian's Confluen
 
 **Written in** [**Markdown**](https://dillinger.io/)**, stored on my** [**Github**](https://github.com/paulshorey/notes)**, hosted by** [**GitBook**](https://www.gitbook.com/)**, publicly viewable at** [**notes.paulshorey.com**](https://notes.paulshorey.com)**.**
 
-GitBook does not require you to connect your GitHub repository. It is a standalone service. Free for one user/space. **But you can connect it to your Github "wiki" or "api" or "docs" folder.**
+GitBook does not require you to connect your GitHub repository. It can host your content. **But, you may connect it to your Github "wiki" or "api" or "docs" folder**, and edit your docs from your own IDE/codebase.
 
-Collaborators can edit as they view each document. To save new revision, `Cmd + S`, to merge revision to master \(publish your GitBook edit to web\), `Cmd + Shift + S`. 
+Collaborators can edit while they view each document. To save new revision, hit `Cmd + S`. To merge revision to master \(publish your GitBook edit to web\), hit `Cmd + Shift + S`. 
 
-Only takes a second! So easy to write documentation now!
+Only takes a second! **Writing documentation is so painless now!**
 
 ## Advanced:
 
