@@ -56,5 +56,5 @@ I fixed this by using this custom bash function before I commit my code. Your sy
 
 I've been using this for years now, even on clients' codebases, with no detrimental effects, except for an extra few milliseconds lag whenever I commit to GIT.
 
-See [my other CLI shortcuts](https://github.com/paulshorey/notes/raw/master/files/linked/CLIShortcuts.sh). I have a function to `git add`, `git commit`, and `git push`. But it does some fancy things to make sure I have the latest code and no merge conflicts. Before executing the `commit`, it executes `ghmd` command, to make any and all `.md` files compatible with GitHub.com's custom markdown rule \(add two spaces at the end of every line\).
+See [my other CLI shortcuts](http://paulshorey.com/files/.aliases.sh). I have a function to `git add`, `git commit`, and `git push`. But it does some fancy things to make sure I have the latest code and no merge conflicts. Before executing the `commit`, it executes `ghmd` command, to make any and all `.md` files compatible with GitHub.com's custom markdown rule \(add two spaces at the end of every line\).
 
