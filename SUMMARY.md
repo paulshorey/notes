@@ -29,6 +29,10 @@
 * [NPM](javascript/npm.md)
 * [url functions](javascript/url-functions.md)
 
+## React
+
+* [Snippets](react/snippets.md)
+
 ## UI
 
 * [Libraries](ui/libraries.md)
