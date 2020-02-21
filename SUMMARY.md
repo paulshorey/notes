@@ -31,7 +31,7 @@
 
 ## React
 
-* [Snippets](react/snippets.md)
+* [Advanced Useful Snippets](react/advanced-useful-snippets.md)
 
 ## UI
 
