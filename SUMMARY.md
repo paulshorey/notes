@@ -61,3 +61,7 @@
 * [JS Interview Qs](etc/js-interview-qs.md)
 * [Chrome Network](etc/chrome-network.md)
 
+## Interviews
+
+* [JS Discussion Questions](interviews/js-discussion-questions.md)
+
