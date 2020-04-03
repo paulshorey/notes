@@ -1,4 +1,4 @@
-# Introduction
+# Notes
 
 ## Welcome to my Javascript fansite
 
