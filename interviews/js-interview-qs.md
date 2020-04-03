@@ -1,4 +1,4 @@
-# JS Basic Skills
+# JS Technical skills assessment
 
 How would you sort a list of words by number of syllables, ascending?
 

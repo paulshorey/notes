@@ -63,5 +63,5 @@
 ## Interviews
 
 * [JS Discussion Questions](interviews/js-discussion-questions.md)
-* [JS Basic Skills](interviews/js-interview-qs.md)
+* [JS Technical skills assessment](interviews/js-interview-qs.md)
 
