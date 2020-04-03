@@ -58,10 +58,10 @@
 ## Etc
 
 * [Dates: UTC/ISO/GMT/Local time](etc/dates.md)
-* [JS Interview Qs](etc/js-interview-qs.md)
 * [Chrome Network](etc/chrome-network.md)
 
 ## Interviews
 
 * [JS Discussion Questions](interviews/js-discussion-questions.md)
+* [JS Basic Skills](interviews/js-interview-qs.md)
 

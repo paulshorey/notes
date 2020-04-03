@@ -1,4 +1,4 @@
-# JS Interview Qs
+# JS Basic Skills
 
 How would you sort a list of words by number of syllables, ascending?
 
