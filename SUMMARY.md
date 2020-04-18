@@ -29,6 +29,7 @@
   * [new Ubuntu](backend-development/basic-linux-web-server/new-ubuntu.md)
 * [SQL](backend-development/sql/README.md)
   * [Intermediate commands](backend-development/sql/intermediate-commands.md)
+  * [Functions](backend-development/sql/functions.md)
 
 ## FrontEnd Development <a id="frontend"></a>
 
