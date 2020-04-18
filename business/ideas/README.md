@@ -1,2 +1,2 @@
-# Feasibility Research
+# Brainstorming Ideas
 
