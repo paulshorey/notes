@@ -1,2 +1,2 @@
-# Ideas
+# Feasibility Research
 
