@@ -27,6 +27,8 @@
   * [MongoDB](backend-development/basic-linux-web-server/new-mongodb.md)
   * [NginX](backend-development/basic-linux-web-server/new-nginx.md)
   * [new Ubuntu](backend-development/basic-linux-web-server/new-ubuntu.md)
+* [SQL](backend-development/sql/README.md)
+  * [Intermediate commands](backend-development/sql/intermediate-commands.md)
 
 ## FrontEnd Development <a id="frontend"></a>
 
