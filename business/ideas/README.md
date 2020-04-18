@@ -1,2 +1,2 @@
-# Brainstorming Ideas
+# Ideas
 

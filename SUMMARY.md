@@ -64,7 +64,7 @@
 
 ## Business
 
-* [Brainstorming Ideas](business/ideas/README.md)
+* [Ideas](business/ideas/README.md)
   * [Links / Lists / Snippets](business/ideas/links-lists-snippets.md)
   * [NLP.domains](business/ideas/nlp.domains.md)
   * [Platform to create Mobile Delivery App ?](business/ideas/platform-to-create-mobile-delivery-app.md)
