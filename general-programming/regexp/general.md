@@ -2,7 +2,7 @@
 
 [https://javascript.info/regexp-groups](https://javascript.info/regexp-groups) \(nice explanation of grouping using match\)
 
-Reminder: q-mark`?` makes the search "not-greedy". Otherwise `.*` will match the whole line! 
+Reminder: q-mark`?` makes the search "not-greedy". Otherwise `.*` will match the whole line!
 
 ```text
 href="/.*? title="(.*?)"   // finds titles of local site links
@@ -40,7 +40,7 @@ while (match != null) {
 const string = "one two 3 four";
 const regexp = /([a-z]+)/g;
 const matches = string.matchAll(regexp);
-    
+
 for (const match of matches) {
   console.log(match);
 }
@@ -49,12 +49,4 @@ for (const match of matches) {
 ```text
 /([a-z]+)/.test('1235')   // false
 ```
-
-
-
-
-
-
-
-
 

@@ -7,11 +7,7 @@
 
 ```
 
-
-
-#### 
-
-#### How to open &lt;Select /&gt; dropdown programmatically?
+## How to open &lt;Select /&gt; dropdown programmatically?
 
 ```text
 constructor(){
@@ -33,16 +29,4 @@ render(){
      )
 }
 ```
-
-
-
-
-
-
-
-
-
-
-
-
 

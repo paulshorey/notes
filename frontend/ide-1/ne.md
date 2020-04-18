@@ -61,6 +61,6 @@ KEY     0x04    DL
 # [ctrl]+[w]=(start of line)  
 KEY     0x17    SOL  
 # [ctrl]+[e]=(end of line)  
-KEY     0x05    EOL  
+KEY     0x05    EOL
 ```
 

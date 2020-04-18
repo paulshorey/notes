@@ -5,14 +5,10 @@
 `\n`**
 
 **Convert Array Tuple structure to simple Object:**  
-`["([\w]+)","(.*?)"],`   
+`["([\w]+)","(.*?)"],`  
 `"$1":"$2",`
 
 **Flip Object key/value:**  
 `"(.?)": ?"(.?)",`  
 `"$2": "$1",`
-
-
-
-
 

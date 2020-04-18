@@ -55,5 +55,3 @@ Serve
 bash /www/name/_startup/serve.sh
 ```
 
-
-

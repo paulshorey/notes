@@ -115,8 +115,8 @@ window.deepCopy = function(state) {
 ### Using "Array" to store "Object"-like properties:
 
 This is actually useful, but confusing, so to be saved as last possible option.  
-Should be not just "clearly documented", but "obnoxiously in-your-face documented".  
-  
+Should be not just "clearly documented", but "obnoxiously in-your-face documented".
+
 Iterate using `for of` to get valid standard ARRAY values, with keys 0,1,2,3,4 only.  
 Iterate using `forEach` also works the same.  
 Iterate using `for in` to get ALL keys, including added \[\].custom properties.
@@ -130,7 +130,7 @@ console.log(arr.toString()) // "1,2,3,4"
 console.log(JSON.stringify(arr)) // "[1,2,3,4]"
 ```
 
-**Any properties added to an Array are temporary.**   
+**Any properties added to an Array are temporary.**  
 They can not be saved to JSON.  
 They also can not be shallow-copied `[...myArr]` or deep-copied `JSON.parse(JSON.stringify(myArr))` - well, they can, but will lose their custom properties.
 

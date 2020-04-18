@@ -16,13 +16,12 @@ sudo add-apt-repository universe
 sudo add-apt-repository ppa:certbot/certbot -y
 
 sudo apt install certbot python-certbot-apache
-
 ```
 
 **Configure server:**  
-Add **`ServerName api.wordsalad.ai`** to file `/etc/apache2/apache2.conf`   
+Add **`ServerName api.wordsalad.ai`** to file `/etc/apache2/apache2.conf`  
 `sudo service apache2 restart` to restart server.  
 `sudo apache2ctl configtest` to test configuration.
 
-`sudo certbot --apache`  
+`sudo certbot --apache`
 

@@ -6,7 +6,7 @@ Replace all lines in an Object .JS file, where keys are uppercase
 "([A-Z]+)":".*",\n
 ```
 
-Find all occurrences of  _**some word**_ , including linebreaks and matches on the same line
+Find all occurrences of _**some word**_ , including linebreaks and matches on the same line
 
 ```text
 \n*(.*)(\*\*\*.*?\*\*\*)(.*)\n*

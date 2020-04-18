@@ -6,10 +6,6 @@ Lets find all link title attributes in an html page:
 
 ```
 
-
-
-
-
 select link text of every anchor tag \(of &gt; 5 characters, so no "edit" or "\[1\]" links\)
 
 ```text

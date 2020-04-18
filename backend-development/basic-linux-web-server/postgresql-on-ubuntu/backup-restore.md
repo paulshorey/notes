@@ -16,16 +16,16 @@ description: '*** on Ubuntu 18, Postgres v 12 ***'
 
 ### **Restore specific schema:**
 
-**FIRST,**   
+**FIRST,**  
 `sudo -i -u postgres`, `psql words`, `DROP SCHEMA data CASCADE;`**, don't leave out the semicolon!**  
-Wait for confirmation response "DROP SCHEMA".  
-  
+Wait for confirmation response "DROP SCHEMA".
+
 **THEN,**  
 `CREATE SCHEMA data AUTHORIZATION nodejs;`**, again, don't leave out the semicolon!**  
 Wait for confirmation response "DROP SCHEMA".
 
-**THEN,**   
-`\q`,  don't forget this bit!  
+**THEN,**  
+`\q`, don't forget this bit!  
 `pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose --schema "data" "/www/secret/words-data-recent.sql"`
 
 \*\*\*\*
@@ -45,11 +45,5 @@ Wait for confirmation response "DROP SCHEMA".
 
 **Restore specific schema:**  
 \(Must drop-cascade tables first\)  
-`pg_restore --host "localhost" --port "5432" --username "postgres" --no-password --dbname "words" --verbose --schema "data" "/www/words.data.sql"` 
-
-
-
-
-
-
+`pg_restore --host "localhost" --port "5432" --username "postgres" --no-password --dbname "words" --verbose --schema "data" "/www/words.data.sql"`
 

@@ -30,7 +30,7 @@ Unfortunately, the popular Confluence \(from Atlassian, like Jira\) is so awkwar
 
 GitBook does not require you to connect your GitHub repository. It can host your content. **But, you may connect it to your Github "wiki" or "api" or "docs" folder**, and edit your docs from your own IDE/codebase.
 
-Collaborators can edit while they view each document. To save new revision, hit `Cmd + S`. To merge revision to master \(publish your GitBook edit to web\), hit `Cmd + Shift + S`. 
+Collaborators can edit while they view each document. To save new revision, hit `Cmd + S`. To merge revision to master \(publish your GitBook edit to web\), hit `Cmd + Shift + S`.
 
 Only takes a second! **Writing documentation is so painless now!**
 
