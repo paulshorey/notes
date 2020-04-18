@@ -21,6 +21,7 @@
   * [Set it up in Terminal](backend-development/basic-linux-web-server/set-it-up-in-terminal.md)
   * [Install PostgreSQL](backend-development/basic-linux-web-server/install-postgresql.md)
   * [Backup/Restore PostgreSQL](backend-development/basic-linux-web-server/backup-restore-postgresql.md)
+  * [PostgreSQL users and security](backend-development/basic-linux-web-server/postgresql-users-and-security.md)
   * [new MongoDB](backend-development/basic-linux-web-server/new-mongodb.md)
   * [new Ngin-X](backend-development/basic-linux-web-server/new-nginx.md)
   * [new Ubuntu](backend-development/basic-linux-web-server/new-ubuntu.md)
