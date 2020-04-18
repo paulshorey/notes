@@ -1,67 +1,58 @@
 # Table of contents
 
-* [Notes](README.md)
+* [Documentation](README.md)
 
-## Dev Environment
+## General Programming
 
-* [React Dev Environments](dev-environment/react-dev-environments.md)
+* [CLI](general-programming/cli/README.md)
+  * [Everyday](general-programming/cli/everyday.md)
+  * [Files](general-programming/cli/files.md)
+* [RegExp](general-programming/regexp/README.md)
+  * [general](general-programming/regexp/general.md)
+  * [HTML](general-programming/regexp/html.md)
+  * [Javascript](general-programming/regexp/javascript.md)
+  * [Markdown](general-programming/regexp/markdown.md)
+  * [Text](general-programming/regexp/text.md)
 
-## CLI
+## BACKEND DEVELOPMENT
 
-* [Everyday](cli/everyday.md)
-* [Files](cli/files.md)
+* [Basic Linux Web Server](backend-development/basic-linux-web-server/README.md)
+  * [new MongoDB](backend-development/basic-linux-web-server/new-mongodb.md)
+  * [new Ngin-X](backend-development/basic-linux-web-server/new-nginx.md)
+  * [new Ubuntu](backend-development/basic-linux-web-server/new-ubuntu.md)
 
-## REGEX
+## FrontEnd Development <a id="frontend"></a>
 
-* [general](regex/general.md)
-* [HTML](regex/html.md)
-* [Javascript](regex/javascript.md)
-* [Markdown](regex/markdown.md)
-* [Text](regex/text.md)
+* [JavaScript](frontend/javascript-1/README.md)
+  * [loops](frontend/javascript-1/loops.md)
+  * [types](frontend/javascript-1/types.md)
+  * [typescript](frontend/javascript-1/typescript.md)
+  * [NPM](frontend/javascript-1/npm.md)
+  * [url functions](frontend/javascript-1/url-functions.md)
+* [React](frontend/react-1/README.md)
+  * [React Dev Environments](frontend/react-1/react-dev-environments.md)
+  * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
+* [UI](frontend/ui/README.md)
+  * [Libraries](frontend/ui/libraries.md)
+* [GIT](frontend/git-1/README.md)
+  * [config](frontend/git-1/config.md)
+  * [basics](frontend/git-1/commands.md)
+* [IDE](frontend/ide-1/README.md)
+  * [Best Javascript IDE](frontend/ide-1/webstorm.md)
+  * [Best Terminal/CLI editor](frontend/ide-1/ne.md)
+  * [Keyboard Shortcuts](frontend/ide-1/keymapping.md)
+  * [Code Formatting](frontend/ide-1/code-formatting.md)
+  * [new Macbook](frontend/ide-1/new-macbook.md)
+  * [Editing over SSH](frontend/ide-1/ssh.md)
+* [Etc](frontend/etc-1/README.md)
+  * [Chrome Network](frontend/etc-1/chrome-network.md)
+  * [Dates: UTC/ISO/GMT/Local time](frontend/etc-1/dates.md)
+* [Interviews](frontend/interviews/README.md)
+  * [JS Basic Technical skills](frontend/interviews/js-interview-qs.md)
+  * [JS Discussion Questions](frontend/interviews/js-discussion-questions.md)
 
-## Dev-Ops
+## Business
 
-* [new Ubuntu](dev-ops/new-ubuntu.md)
-* [new Ngin-X](dev-ops/new-nginx.md)
-* [new MongoDB](dev-ops/new-mongodb.md)
-
-## Javascript
-
-* [loops](javascript/loops.md)
-* [types](javascript/types.md)
-* [typescript](javascript/typescript.md)
-* [NPM](javascript/npm.md)
-* [url functions](javascript/url-functions.md)
-
-## React
-
-* [Advanced Useful Snippets](react/advanced-useful-snippets.md)
-
-## UI
-
-* [Libraries](ui/libraries.md)
-
-## GIT
-
-* [config](git/config.md)
-* [basics](git/commands.md)
-
-## IDE
-
-* [Keyboard Shortcuts](ide/keymapping.md)
-* [Code Formatting](ide/code-formatting.md)
-* [Best Javascript IDE](ide/webstorm.md)
-* [Best Terminal/CLI editor](ide/ne.md)
-* [Editing over SSH](ide/ssh.md)
-* [new Macbook](ide/new-macbook.md)
-
-## Etc
-
-* [Dates: UTC/ISO/GMT/Local time](etc/dates.md)
-* [Chrome Network](etc/chrome-network.md)
-
-## Interviews
-
-* [JS Discussion Questions](interviews/js-discussion-questions.md)
-* [JS Basic Technical skills](interviews/js-interview-qs.md)
+* [Ideas](business/ideas/README.md)
+  * [Platform to create Mobile Delivery App ?](business/ideas/platform-to-create-mobile-delivery-app.md)
 
