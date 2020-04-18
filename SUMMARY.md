@@ -1,6 +1,6 @@
 # Table of contents
 
-* [Documentation](README.md)
+* [Document Everything](README.md)
 
 ## General Programming
 

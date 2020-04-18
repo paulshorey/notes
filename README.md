@@ -1,4 +1,10 @@
-# Documentation
+---
+description: >-
+  How to make this collaborative? Set up an organization, $32/mo. Todo when I
+  have more devs.
+---
+
+# Document Everything
 
 ## Welcome to my Javascript fansite
 
