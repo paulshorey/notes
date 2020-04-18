@@ -1,6 +1,10 @@
+---
+description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
+---
+
 # CLI
 
-### Files
+## Files
 
 `cat ./filename` show contents of file  
 `echo $(cat ./filename) > ./file2` copy contents of file into another file  
@@ -14,7 +18,10 @@
 
 **`sudo chown -R $(id -u):$(id -g) .`** take ownership of . directory, recursively
 
-### Running processes
+## Running processes
+
+**`ps cax | grep node`** - list running node processes:  
+**`ps -Flww -p THE_PID`** - see more details about each process:
 
 **`ps -ef`** list all running processes  
 **`ps -ef | grep node`** list only "node" processes  
@@ -28,5 +35,5 @@
 
 ### Networking
 
-**`dig +short myip.opendns.com @resolver1.opendns.com`** see public IP address
+**\`\`**
 
