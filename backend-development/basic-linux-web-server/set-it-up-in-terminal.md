@@ -1,4 +1,4 @@
-# Set it up in Terminal
+# Ubuntu
 
 **Setup** server
 
@@ -16,7 +16,10 @@ echo 'ssh-add /www/secret/newssh' >> ~/.profile;
 echo 'cd /www' >> ~/.profile;
 ```
 
-To allow **GIT ACCESS**, copy SSH key from local to remote  
+**My personal settings:**  
+Install ZSH and OH-MY-ZSH, and Nice Editor ASAP!
+
+**To allow GIT ACCESS**, copy SSH key from local to remote  
 `scp newssh root@142.93.251.57:/www/files` \(do this on local\)
 
 or, **DO THIS ON REMOTE:**

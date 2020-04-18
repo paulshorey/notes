@@ -2,7 +2,7 @@
 description: '*** on Ubuntu 18, Postgres v 12 ***'
 ---
 
-# Backup/Restore PostgreSQL
+# backup / restore
 
 ## **First, copy backup file to server:**
 

@@ -1,4 +1,4 @@
-# PostgreSQL users and security
+# users and security
 
 Login as new user:  
 `sudo -i -u username`    

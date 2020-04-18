@@ -1,4 +1,4 @@
-# new Ngin-X
+# NginX
 
 **First, kill any running node processes!**
 

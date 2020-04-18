@@ -1,4 +1,4 @@
-# new MongoDB
+# MongoDB
 
 ```text
 mongo;    
