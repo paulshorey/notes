@@ -7,6 +7,7 @@
 * [CLI](general-programming/cli/README.md)
   * [Everyday](general-programming/cli/everyday.md)
   * [Files](general-programming/cli/files.md)
+  * [Ports / Networking](general-programming/cli/ports-networking.md)
 * [RegExp](general-programming/regexp/README.md)
   * [general](general-programming/regexp/general.md)
   * [HTML](general-programming/regexp/html.md)
