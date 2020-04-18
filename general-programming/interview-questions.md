@@ -1,7 +1,7 @@
 ---
 description: >-
-  Questions to ask the interviewer, or interviewee, either way, it's speed
-  dating. Let's ask what matters.
+  Questions to ask your future team mates - as the interviewer - or as the
+  interviewee!
 ---
 
 # Interview questions
