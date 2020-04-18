@@ -18,6 +18,7 @@
 ## BACKEND DEVELOPMENT
 
 * [Basic Linux Web Server](backend-development/basic-linux-web-server/README.md)
+  * [Set it up in Terminal](backend-development/basic-linux-web-server/set-it-up-in-terminal.md)
   * [new MongoDB](backend-development/basic-linux-web-server/new-mongodb.md)
   * [new Ngin-X](backend-development/basic-linux-web-server/new-nginx.md)
   * [new Ubuntu](backend-development/basic-linux-web-server/new-ubuntu.md)
