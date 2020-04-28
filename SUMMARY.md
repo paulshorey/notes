@@ -32,6 +32,7 @@
   * [Intermediate commands](backend-development/sql/intermediate-commands.md)
   * [Functions](backend-development/sql/functions.md)
 * [Microsoft Azure](backend-development/microsoft-azure.md)
+* [C-Panel](backend-development/c-panel.md)
 
 ## FrontEnd Development <a id="frontend"></a>
 
