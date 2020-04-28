@@ -14,3 +14,13 @@ What is my internet IP address?
 Find and kill what's blocking a port:  
 **`kill -9 $(lsof -i TCP:8000 | grep LISTEN | awk '{print $2}')`**
 
+## Network requests
+
+```text
+curl --header "Ocp-Apim-Subscription-Key: xxx" 
+https://api.cognitive.microsoft.com/bing/v7.0/spellcheck\?text\=moticum\&mode\=spell\&mkt\=en-us
+ -w "\n\n%{time_starttransfer}\n"
+```
+
+The last `-w ""` part is to log time request took to come back.
+
