@@ -4,6 +4,9 @@ description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
 
 # CLI
 
+`pbcopy < ~/.ssh/myssh.pub` copy contents of file  
+`pbpaste` paste, or use paste to file: `pbpaste > pastetest.txt` 
+
 ## Files
 
 `cat ./filename` show contents of file  
