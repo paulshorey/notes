@@ -60,7 +60,7 @@
 * [Etc](frontend/etc-1/README.md)
   * [Chrome Network](frontend/etc-1/chrome-network.md)
   * [Dates: UTC/ISO/GMT/Local time](frontend/etc-1/dates.md)
-* [Interviews](frontend/interviews/README.md)
+* [Interview questions](frontend/interviews/README.md)
   * [JS Basic Technical skills](frontend/interviews/js-interview-qs.md)
   * [JS Discussion Questions](frontend/interviews/js-discussion-questions.md)
 
