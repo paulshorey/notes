@@ -24,3 +24,22 @@ https://api.cognitive.microsoft.com/bing/v7.0/spellcheck\?text\=moticum\&mode\=s
 
 The last `-w ""` part is to log time request took to come back.
 
+## Flush DNS cache
+
+Mac:  
+`sudo killall -HUP mDNSResponder;sudo killall mDNSResponderHelper;sudo dscacheutil -flushcache`
+
+Linux:  
+`sudo service nscd restart` or   
+`/etc/rc.d/init.d/nscd stop; /etc/rc.d/init.d/nscd start` 
+
+
+
+
+
+
+
+
+
+
+
