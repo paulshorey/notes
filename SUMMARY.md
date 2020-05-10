@@ -1,6 +1,6 @@
 # Table of contents
 
-* [Document Everything](README.md)
+* [Document everything!](README.md)
 
 ## General Programming
 
@@ -15,6 +15,13 @@
   * [Markdown](general-programming/regexp/markdown.md)
   * [Text](general-programming/regexp/text.md)
 * [Interview questions](general-programming/interview-questions.md)
+* [IDE](general-programming/ide-1/README.md)
+  * [Best Javascript IDE](general-programming/ide-1/webstorm.md)
+  * [Best Terminal/CLI editor](general-programming/ide-1/ne.md)
+  * [Keyboard Shortcuts](general-programming/ide-1/keymapping.md)
+  * [Code Formatting](general-programming/ide-1/code-formatting.md)
+  * [new Macbook](general-programming/ide-1/new-macbook.md)
+  * [Editing over SSH](general-programming/ide-1/ssh.md)
 
 ## BACKEND
 
@@ -55,13 +62,6 @@
 * [GIT](frontend/git-1/README.md)
   * [config](frontend/git-1/config.md)
   * [basics](frontend/git-1/commands.md)
-* [IDE](frontend/ide-1/README.md)
-  * [Best Javascript IDE](frontend/ide-1/webstorm.md)
-  * [Best Terminal/CLI editor](frontend/ide-1/ne.md)
-  * [Keyboard Shortcuts](frontend/ide-1/keymapping.md)
-  * [Code Formatting](frontend/ide-1/code-formatting.md)
-  * [new Macbook](frontend/ide-1/new-macbook.md)
-  * [Editing over SSH](frontend/ide-1/ssh.md)
 * [Etc](frontend/etc-1/README.md)
   * [Chrome Network](frontend/etc-1/chrome-network.md)
   * [Dates: UTC/ISO/GMT/Local time](frontend/etc-1/dates.md)

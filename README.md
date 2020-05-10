@@ -4,14 +4,12 @@ description: >-
   have more devs.
 ---
 
-# Document Everything
+# Document everything!
 
-## Welcome to my Javascript fansite
+**This is a searchable collection of ideas, notes, and code snippets...**  
+Instead of searching on Google or StackOverflow, if I remember that I've deal with an issue in the past \(and recently have been writing them down\), then I just search here and get exactly what I need. Still brainstorming how to make this more collaborative - but then that is what StackOverflow is for. This GitBook platform is really excellent for teams. When I have other programmers in my team, I can upgrade this to a collaborative environment. Have already done it with my partner and wife - not for programming, but for linguistic stuff - and it worked great! Collaborating on this thing is great! And taking notes on it is great too!
 
-**A searchable collection of ideas, notes, and code snippets.**  
-If I \(or a team mate\) have not used a basic command or code snippet in a while and forgot how to do it, quickly look it up here \(instead of spending time on Google/StackOverflow\).
-
-## To document a "code base", the best solution is probably still [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md)
+## To document a code base, consider [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md)
 
 ```javascript
     /**  
@@ -24,13 +22,9 @@ If I \(or a team mate\) have not used a basic command or code snippet in a while
     }
 ```
 
-**However, this sort of documentation site is still very useful,** because it can document more than just functions, but entire concepts! I suggest every tech team to use something for general documentation/notes.
+My IDE \(IntelliJ WebStorm\) even adds syntax coloring to the comment block, and then lints my code against the rules set in the comment block. It also lets me right click a function call from any file, to see its documentation. Very useful. [Read more about IDEs...](general-programming/ide-1/)
 
-Unfortunately, the popular Confluence \(from Atlassian, like Jira\) is so awkward, clunky, buggy, and painful to edit and navigate! GitBook is so much easier to use and navigate! It's like night and day. Just because something is deemed "enterprise level software", doesn't mean it is "good software".
-
-**If I can get just one future client to adopt GitBook versus Atlassian's Confluence, then writing this page was worth it!** \(BTW, client is boss. If the client insists on using Confluence, I will not object or insist, but merely suggest the alternative, and then use their Confluence if I have to. Awkward documentation is better than no documentation!\)
-
-## About this notes/documentation setup:
+## GitBook
 
 **Written in** [**Markdown**](https://dillinger.io/)**, stored on my** [**Github**](https://github.com/paulshorey/notes)**, hosted by** [**GitBook**](https://www.gitbook.com/)**, publicly viewable at** [**notes.paulshorey.com**](https://notes.paulshorey.com)**.**
 
