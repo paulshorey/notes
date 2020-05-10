@@ -4,7 +4,7 @@
 
 Instead of searching through Google or StackOverflow every time, wouldn't it be nice to search just one knowledge base? Programming stuff is easy to forget. So, whenever I look something up, discover a new gotcha, or have a new idea, I document everything in my [GitBook](https://gitbook.com). 
 
-Markdown works well, but it's not the easiest to write, read, and navigate. It takes a lot of getting used to. This GitBook uses Markdown, and can even sync to **.md** files on your private Git repository. It has the most streamlined and intuitive interface, and is good for anything from personal notes to a large corporate knowledge base. 
+Markdown works well, but it's not the easiest to write, read, and navigate. It takes a lot of getting used to. This GitBook uses Markdown, and can even sync to **.md** files on your private Git repository. It has the most streamlined and intuitive interface, and is good for anything from personal notes to a large enterprise knowledge base. 
 
 Confluence is extremely tedious to use - so what ends up happening is the team forced to use it does not actually use it often or well, and you end up with incomplete or inaccurate documentation. [GitBook](https://gitbook.com) is easy and fun to use, so you will actually end up with a complete documentation or knowledge base.
 
