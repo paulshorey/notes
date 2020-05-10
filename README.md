@@ -46,7 +46,7 @@ Confluence is so tedious and cumbersome! Yet, most major companies use it, just 
 
 **Note: GitHub.com markdown flavor is dumb.** It ignores linebreaks, except for lines which have _**two spaces**_ on the end. So, you must end each markdown line with _**two**_ spaces, or GitHub will ignore your linebreak. That's weird. GitBook unfortunately uses the same rule as GitHub, to keep it consistent. So your notes will look the same on GitBook.com/@yoursite as on GitHub.com/yoursite. 
 
-**This is not a GitBook issue, but GitHub's.** I fixed this by running this custom bash function before I commit my code. Your system must support Perl for this to work, because regular expressions in bash are not as sophisticated.
+**This is not a GitBook issue, but GitHub's.** I'm a human, and don't want to keep track of which lines have one or two spaces. This is a robot's job. So, I fixed this by making this custom bash function, and running it as a pre-commit hook \(whenever I commit my code, it will run\). Your system must support Perl for this to work, because regular expressions in bash are not as sophisticated.
 
 ```text
 # FIX MARKDOWN for GitHub flavor  
