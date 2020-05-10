@@ -20,6 +20,7 @@
 
 * [Node JS](backend-development/node-js/README.md)
   * [debugging](backend-development/node-js/debugging.md)
+  * [EZ Continuous Integration](backend-development/node-js/ez-continuous-integration.md)
 * [basic Linux server](backend-development/basic-linux-web-server/README.md)
   * [setup new UNIX environment](backend-development/basic-linux-web-server/new-ubuntu.md)
   * [SSH](backend-development/basic-linux-web-server/ssh.md)
