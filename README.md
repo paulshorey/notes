@@ -1,9 +1,3 @@
----
-description: >-
-  How to make this collaborative? Set up an organization, $32/mo. Todo when I
-  have more devs.
----
-
 # Document everything!
 
 **This is my searchable collection of ideas, notes, and code snippets -** [**PaulShorey.com**](http://paulshorey.com)\*\*\*\*
