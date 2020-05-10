@@ -6,8 +6,11 @@ description: >-
 
 # Document everything!
 
-**This is a searchable collection of ideas, notes, and code snippets...**  
-Instead of searching on Google or StackOverflow, if I remember that I've deal with an issue in the past \(and recently have been writing them down\), then I just search here and get exactly what I need. Still brainstorming how to make this more collaborative - but then that is what StackOverflow is for. This GitBook platform is really excellent for teams. I have not used GitBook at any employer/team yet. This service is very new \(at least their new re-built improved version is\), and I only recently re-discovered it. But, I have already used it to collaborate on the linguistic prep for NLPThesaurus and NLP.domains - and it worked great! It should work just as well with many people. Collaborating on this thing is easy!
+**This is a searchable collection of ideas, notes, and code snippets...**
+
+Instead of searching on Google or StackOverflow, use just one knowledge base. Document all your stuff, not in random **.md** files in your codebase which nobody will read, but in this organized navigate-able website. Log in to edit content. After you save, it syncs the content into **.md** files into your own repository. Unlike Confluence, which is really tedious to use, your team will actually love to use this.
+
+This GitBook platform is really excellent for teams. I have not used GitBook at any employer/team yet. This service is very new \(at least their new re-built improved version is\), and I only recently re-discovered it. But, I have already used it to collaborate on the linguistic prep for NLPThesaurus and NLP.domains - and it worked great! It should work just as well with many people. Collaborating on this thing is easy!
 
 ## To document the details of a codebase, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md) !
 
