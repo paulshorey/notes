@@ -65,5 +65,5 @@ I've been using this for years now, even on clients' codebases, with no detrimen
 
 **See my other** [**CLI shortcuts**](http://paulshorey.com/files/.aliases.sh)**.** I have a function to `git add`, `git commit`, and `git push`. But it does some fancy things to make sure I have the latest code and no merge conflicts. Before executing the `commit`, it executes `ghmd` command, to make any and all `.md` files compatible with GitHub.com's custom markdown rule \(add two spaces at the end of every line\).
 
-**See my previous and current projects -** [**PaulShorey.com**](http://PaulShorey.com)\*\*\*\*
+**See my previous and current projects at** [**PaulShorey.com**](http://PaulShorey.com)\*\*\*\*
 
