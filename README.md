@@ -40,11 +40,13 @@ Confluence is so tedious and cumbersome! Yet, most major companies use it, just 
 
 ## Advanced:
 
-You can view/edit GitBook docs on their site. You can also view/edit in your own GitHub repository.
+**Sync GitBook with your GitHub.** Edit from either one, and the content will sync.
 
-**Note: GitHub.com markdown flavor is dumb.** It ignores linebreaks, except for lines which have **two spaces** on the end. GitBook unfortunately uses the same rule as GitHub, so your notes will look the same on GitBook.com/@yoursite as on GitHub.com/yoursite. **This is not a GitBook issue, but GitHub's.**
+**Publish your GitBook to a custom domain.** Or subdomain. Then, easily share your documentation with clients, or inside your own team if your space is private.
 
-I fixed this by using this custom bash function before I commit my code. Your system must support Perl.
+**Note: GitHub.com markdown flavor is dumb.** It ignores linebreaks, except for lines which have _**two spaces**_ on the end. So, you must end each markdown line with _**two**_ spaces, or GitHub will ignore your linebreak. That's weird. GitBook unfortunately uses the same rule as GitHub, to keep it consistent. So your notes will look the same on GitBook.com/@yoursite as on GitHub.com/yoursite. 
+
+**This is not a GitBook issue, but GitHub's.** I fixed this by running this custom bash function before I commit my code. Your system must support Perl for this to work, because regular expressions in bash are not as sophisticated.
 
 ```text
 # FIX MARKDOWN for GitHub flavor  
@@ -60,5 +62,5 @@ I fixed this by using this custom bash function before I commit my code. Your sy
 
 I've been using this for years now, even on clients' codebases, with no detrimental effects, except for an extra few milliseconds lag whenever I commit to GIT.
 
-See [my other CLI shortcuts](http://paulshorey.com/files/.aliases.sh). I have a function to `git add`, `git commit`, and `git push`. But it does some fancy things to make sure I have the latest code and no merge conflicts. Before executing the `commit`, it executes `ghmd` command, to make any and all `.md` files compatible with GitHub.com's custom markdown rule \(add two spaces at the end of every line\).
+**See my other** [**CLI shortcuts**](http://paulshorey.com/files/.aliases.sh)**.** I have a function to `git add`, `git commit`, and `git push`. But it does some fancy things to make sure I have the latest code and no merge conflicts. Before executing the `commit`, it executes `ghmd` command, to make any and all `.md` files compatible with GitHub.com's custom markdown rule \(add two spaces at the end of every line\).
 
