@@ -1,4 +1,4 @@
-# new Ubuntu
+# setup new UNIX environment
 
 **Digital Ocean's basics:**  
 [https://www.digitalocean.com/community/tutorials/initial-server-setup-with-ubuntu-16-04](https://www.digitalocean.com/community/tutorials/initial-server-setup-with-ubuntu-16-04)
@@ -16,7 +16,7 @@ Then see more details about each process:
 **`ps -Flww -p THE_PID`**
 
 **on Login:**  
-Copy the following to the bottom of **`~/.zprofile`**
+Copy the following to the bottom of `~/.zprofile` or whatever else you want on login...
 
 ```text
 eval "$(ssh-agent -s)";  
