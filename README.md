@@ -7,7 +7,7 @@ description: >-
 # Document everything!
 
 **This is a searchable collection of ideas, notes, and code snippets...**  
-Instead of searching on Google or StackOverflow, if I remember that I've deal with an issue in the past \(and recently have been writing them down\), then I just search here and get exactly what I need. Still brainstorming how to make this more collaborative - but then that is what StackOverflow is for. This GitBook platform is really excellent for teams. When I have other programmers in my team, I can upgrade this to a collaborative environment. Have already done it with my partner and wife - not for programming, but for linguistic stuff - and it worked great! Collaborating on this thing is easy, not frustrating at all!
+Instead of searching on Google or StackOverflow, if I remember that I've deal with an issue in the past \(and recently have been writing them down\), then I just search here and get exactly what I need. Still brainstorming how to make this more collaborative - but then that is what StackOverflow is for. This GitBook platform is really excellent for teams. When I have other programmers in my team, I can upgrade this to a collaborative environment. Have already done it with my partner and wife - not for programming, but for linguistic stuff - and it worked great! Collaborating on this thing is easy! Not tedious!
 
 ## To document the details of a codebase, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md) !
 
