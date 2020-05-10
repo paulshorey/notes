@@ -18,7 +18,8 @@
 
 ## BACKEND DEVELOPMENT
 
-* [Node JS](backend-development/node-js.md)
+* [Node JS](backend-development/node-js/README.md)
+  * [Debugging](backend-development/node-js/debugging.md)
 * [Basic Linux Web Server](backend-development/basic-linux-web-server/README.md)
   * [SSH](backend-development/basic-linux-web-server/ssh.md)
   * [Ubuntu](backend-development/basic-linux-web-server/set-it-up-in-terminal.md)
