@@ -1,4 +1,4 @@
-# Advanced SQL
+# advanced SQL
 
 ## where **"=" multiple values**
 

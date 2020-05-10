@@ -1,4 +1,4 @@
-# Debugging
+# debugging
 
 Instead of running `node myApp.js`, run `node --inspect=0.0.0.0:9229 myApp.js`
 

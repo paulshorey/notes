@@ -19,8 +19,8 @@
 ## BACKEND DEVELOPMENT
 
 * [Node JS](backend-development/node-js/README.md)
-  * [Debugging](backend-development/node-js/debugging.md)
-* [Basic Linux Web Server](backend-development/basic-linux-web-server/README.md)
+  * [debugging](backend-development/node-js/debugging.md)
+* [basic Linux server](backend-development/basic-linux-web-server/README.md)
   * [setup new UNIX environment](backend-development/basic-linux-web-server/new-ubuntu.md)
   * [SSH](backend-development/basic-linux-web-server/ssh.md)
   * [Ubuntu](backend-development/basic-linux-web-server/set-it-up-in-terminal.md)
@@ -32,9 +32,11 @@
     * [backup / restore](backend-development/db/postgresql-on-ubuntu/backup-restore.md)
     * [users and security](backend-development/db/postgresql-on-ubuntu/users-and-security.md)
   * [MongoDB](backend-development/db/new-mongodb.md)
-  * [Advanced SQL](backend-development/db/intermediate-commands.md)
-* [Microsoft Azure](backend-development/microsoft-azure.md)
-* [C-Panel](backend-development/c-panel.md)
+  * [advanced SQL](backend-development/db/intermediate-commands.md)
+* [APIs](backend-development/apis/README.md)
+  * [Microsoft Azure](backend-development/apis/microsoft-azure.md)
+* [easy web server](backend-development/easy-web-server/README.md)
+  * [C-Panel](backend-development/easy-web-server/c-panel.md)
 
 ## FrontEnd Development <a id="frontend"></a>
 
