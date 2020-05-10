@@ -8,7 +8,9 @@ description: >-
 
 **This is a searchable collection of ideas, notes, and code snippets...**
 
-Instead of searching on Google or StackOverflow, use just one knowledge base. Document all your stuff, not in random **.md** files in your codebase which nobody will read, but in this organized navigate-able website. Log in to edit content. After you save, it syncs the content into **.md** files into your own repository. Unlike Confluence, which is really tedious to use, your team will actually love to use this.
+Instead of searching through Google or StackOverflow every time, wouldn't it be nice to search just one knowledge base? Programming stuff is easy to forget. So, whenever I look something up, discover a new gotcha, or have a new idea, I document everything in my [GitBook](https://gitbook.com). 
+
+Markdown works well, but it's not the easiest to write, read, and navigate, especially for less-experienced team mates. This **GitBook uses Markdown**, and can even sync to **.md** files on your private Git repository. But, it provides an intuitive, streamlined visual interface. Log in to edit content. After you save, it syncs the content into **.md** files into your own repository. Confluence is extremely tedious to use - so what ends up happening is the team forced to use it does not actually use it often or well, and you end up with incomplete or inaccurate documentation. This \([GitBook](https://gitbook.com)\) is easy and fun to use, so you will actually end up with a complete documentation or knowledge base.
 
 This GitBook platform is really excellent for teams. I have not used GitBook at any employer/team yet. This service is very new \(at least their new re-built improved version is\), and I only recently re-discovered it. But, I have already used it to collaborate on the linguistic prep for NLPThesaurus and NLP.domains - and it worked great! It should work just as well with many people. Collaborating on this thing is easy!
 
