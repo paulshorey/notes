@@ -26,15 +26,17 @@ It's industry standard, and there is no other competing standard. JavaScript lib
 
 My IDE \(IntelliJ WebStorm\) adds syntax coloring to the comment block, and even lints my code against the rules set in the comment block \(warns me when something is not documented, or I'm not following my own documentation, for inputs/outputs\). It also lets me right click a function call from any file, to see its documentation. Very useful. [Read more about IDEs...](general-programming/ide-1/)
 
-## GitBook for 
+## Consider using GitBook, to document more abstract concepts.
 
-**Written in** [**Markdown**](https://dillinger.io/)**, stored on my** [**Github**](https://github.com/paulshorey/notes)**, hosted by** [**GitBook**](https://www.gitbook.com/)**, publicly viewable at** [**notes.paulshorey.com**](https://notes.paulshorey.com)**.**
+**Written in** [**Markdown**](https://dillinger.io/)**, stored on my** [**Github**](https://github.com/paulshorey/notes)**, hosted by** [**GitBook**](https://www.gitbook.com/)**, publicly viewable at** [**notes.paulshorey.com**](https://notes.paulshorey.com)**. So easy to edit and collaborate. So easy to publish.**
 
 GitBook does not require you to connect your GitHub repository. It can host your content. **But, you may connect it to your Github "wiki" or "api" or "docs" folder**, and edit your docs from your own IDE/codebase.
 
-Collaborators can edit while they view each document. To save new revision, hit `Cmd + S`. To merge revision to master \(publish your GitBook edit to web\), hit `Cmd + Shift + S`.
+Collaborators can edit while they view each document. It uses GIT to manage conflicts, and even gives you a diff view, to decide which version of the conflicted code to keep. Usually you won't have conflicts, but it's nice to know that if you and a team mate edit the same paragraph or code block, you can resolve that issue! 
 
-Only takes a second! **Writing documentation is so painless now!**
+`Cmd + Shift + S` to save changes and merge. Then keep on editing!  So easy to browse, view, search. Make it public or private \(password-protected, for your team only\). I am not affiliated with GitBook, but just love it so much! 
+
+Confluence is so tedious and cumbersome! Yet, most major companies use it, just because it's been around a long time, and uses the same login as Jira \(another terrible software by Atlassian\). They also make BitBucket, for a complete suite of software engineering tools under the same login. BitBucket is not bad. But please get away from Confluence or Jira. Having only one login/authentication to manage is not worth the extra effort and loss of productivity for your engineers. Your one IT person has to set it up once. But your multiple engineers have to use it every day. So, who's convenience is more important?
 
 ## Advanced:
 
