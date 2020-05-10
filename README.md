@@ -14,7 +14,7 @@ Markdown works well, but it's not the easiest to write, read, and navigate, espe
 
 This GitBook platform is really excellent for teams. I have not used GitBook with a large team yet. This service is pretty new \(at least their new re-built improved version is\), and I only recently re-discovered it. But, I have already used it to collaborate on the linguistic prep for NLPThesaurus and NLP.domains, and it worked great! It should work just as well with a large team. Collaborating on this thing is easy!
 
-## To document the details of a codebase, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md) !
+## To document the functions of a codebase, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md) !
 
 ```javascript
     /**  
