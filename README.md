@@ -9,7 +9,7 @@ description: >-
 **This is a searchable collection of ideas, notes, and code snippets...**  
 Instead of searching on Google or StackOverflow, if I remember that I've deal with an issue in the past \(and recently have been writing them down\), then I just search here and get exactly what I need. Still brainstorming how to make this more collaborative - but then that is what StackOverflow is for. This GitBook platform is really excellent for teams. When I have other programmers in my team, I can upgrade this to a collaborative environment. Have already done it with my partner and wife - not for programming, but for linguistic stuff - and it worked great! Collaborating on this thing is great! And taking notes on it is great too!
 
-## To document a code base, consider [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md)
+## To document the details of a codebase, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md) !
 
 ```javascript
     /**  
@@ -22,9 +22,11 @@ Instead of searching on Google or StackOverflow, if I remember that I've deal wi
     }
 ```
 
-My IDE \(IntelliJ WebStorm\) even adds syntax coloring to the comment block, and then lints my code against the rules set in the comment block. It also lets me right click a function call from any file, to see its documentation. Very useful. [Read more about IDEs...](general-programming/ide-1/)
+It's industry standard, and there is no other competing standard. JavaScript libraries use it. Even EcmaScript uses it to document its methods \(.splice, .length, JSON.stringify, etc\). So if you learn how to use it in your IDE, you can quickly right-click \(or similar shortcut\) to see documentation of JavaScript prototypes, instead of looking it up online every time.
 
-## GitBook
+My IDE \(IntelliJ WebStorm\) adds syntax coloring to the comment block, and even lints my code against the rules set in the comment block \(warns me when something is not documented, or I'm not following my own documentation, for inputs/outputs\). It also lets me right click a function call from any file, to see its documentation. Very useful. [Read more about IDEs...](general-programming/ide-1/)
+
+## GitBook for 
 
 **Written in** [**Markdown**](https://dillinger.io/)**, stored on my** [**Github**](https://github.com/paulshorey/notes)**, hosted by** [**GitBook**](https://www.gitbook.com/)**, publicly viewable at** [**notes.paulshorey.com**](https://notes.paulshorey.com)**.**
 
