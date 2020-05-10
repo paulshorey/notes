@@ -1,0 +1,2 @@
+# easiest CI setup
+

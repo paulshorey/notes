@@ -16,30 +16,30 @@
   * [Text](general-programming/regexp/text.md)
 * [Interview questions](general-programming/interview-questions.md)
 
-## BACKEND DEVELOPMENT
+## BACKEND
 
-* [Node JS](backend-development/node-js/README.md)
-  * [debugging](backend-development/node-js/debugging.md)
-  * [EZ Continuous Integration](backend-development/node-js/ez-continuous-integration.md)
-* [basic Linux server](backend-development/basic-linux-web-server/README.md)
-  * [setup new UNIX environment](backend-development/basic-linux-web-server/new-ubuntu.md)
-  * [SSH](backend-development/basic-linux-web-server/ssh.md)
-  * [Ubuntu](backend-development/basic-linux-web-server/set-it-up-in-terminal.md)
-  * [SSL](backend-development/basic-linux-web-server/ssl/README.md)
-    * [Old notes](backend-development/basic-linux-web-server/ssl/old-notes.md)
-  * [NginX](backend-development/basic-linux-web-server/new-nginx.md)
-* [DB](backend-development/db/README.md)
-  * [PostgreSQL on Ubuntu](backend-development/db/postgresql-on-ubuntu/README.md)
-    * [backup / restore](backend-development/db/postgresql-on-ubuntu/backup-restore.md)
-    * [users and security](backend-development/db/postgresql-on-ubuntu/users-and-security.md)
-  * [MongoDB](backend-development/db/new-mongodb.md)
-  * [advanced SQL](backend-development/db/intermediate-commands.md)
-* [APIs](backend-development/apis/README.md)
-  * [Microsoft Azure](backend-development/apis/microsoft-azure.md)
-* [easy web server](backend-development/easy-web-server/README.md)
-  * [C-Panel](backend-development/easy-web-server/c-panel.md)
+* [Node JS](backend/node-js/README.md)
+  * [debugging](backend/node-js/debugging.md)
+  * [easiest CI setup](backend/node-js/ez-continuous-integration.md)
+* [basic Linux server](backend/basic-linux-web-server/README.md)
+  * [setup new UNIX environment](backend/basic-linux-web-server/new-ubuntu.md)
+  * [SSH](backend/basic-linux-web-server/ssh.md)
+  * [Ubuntu](backend/basic-linux-web-server/set-it-up-in-terminal.md)
+  * [SSL](backend/basic-linux-web-server/ssl/README.md)
+    * [Old notes](backend/basic-linux-web-server/ssl/old-notes.md)
+  * [NginX](backend/basic-linux-web-server/new-nginx.md)
+* [DB](backend/db/README.md)
+  * [PostgreSQL on Ubuntu](backend/db/postgresql-on-ubuntu/README.md)
+    * [backup / restore](backend/db/postgresql-on-ubuntu/backup-restore.md)
+    * [users and security](backend/db/postgresql-on-ubuntu/users-and-security.md)
+  * [MongoDB](backend/db/new-mongodb.md)
+  * [advanced SQL](backend/db/intermediate-commands.md)
+* [APIs](backend/apis/README.md)
+  * [Microsoft Azure](backend/apis/microsoft-azure.md)
+* [easy web server](backend/easy-web-server/README.md)
+  * [C-Panel](backend/easy-web-server/c-panel.md)
 
-## FrontEnd Development <a id="frontend"></a>
+## FrontEnd
 
 * [JavaScript](frontend/javascript-1/README.md)
   * [loops](frontend/javascript-1/loops.md)
@@ -68,11 +68,4 @@
 * [Interview questions](frontend/interviews/README.md)
   * [JS Basic Technical skills](frontend/interviews/js-interview-qs.md)
   * [JS Discussion Questions](frontend/interviews/js-discussion-questions.md)
-
-## Business
-
-* [Ideas](business/ideas/README.md)
-  * [Links / Lists / Snippets](business/ideas/links-lists-snippets.md)
-  * [NLP.domains](business/ideas/nlp.domains.md)
-  * [Platform to create Mobile Delivery App ?](business/ideas/platform-to-create-mobile-delivery-app.md)
 

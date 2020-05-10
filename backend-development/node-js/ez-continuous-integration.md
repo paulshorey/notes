@@ -1,2 +1,0 @@
-# EZ Continuous Integration
-
