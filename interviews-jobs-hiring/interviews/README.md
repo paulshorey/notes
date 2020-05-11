@@ -1,4 +1,4 @@
-# Interview questions
+# JavaScript quiz
 
 ## What's your favorite way to iterate \(loop over\) ...
 

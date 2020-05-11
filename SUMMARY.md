@@ -25,7 +25,6 @@
   * [Javascript](general-programming/regexp/javascript.md)
   * [Markdown](general-programming/regexp/markdown.md)
   * [Text](general-programming/regexp/text.md)
-* [Interview questions](general-programming/interview-questions.md)
 * [Chrome Debugger](general-programming/chrome-debugger.md)
 
 ## JavaScript
@@ -69,7 +68,11 @@
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
 * [UI](frontend/ui/README.md)
   * [Libraries](frontend/ui/libraries.md)
-* [Interview questions](frontend/interviews/README.md)
-  * [JS Basic Technical skills](frontend/interviews/js-interview-qs.md)
-  * [JS Discussion Questions](frontend/interviews/js-discussion-questions.md)
+
+## Interviews / Jobs / Hiring
+
+* [General discussion](interviews-jobs-hiring/interview-questions.md)
+* [JavaScript quiz](interviews-jobs-hiring/interviews/README.md)
+  * [JS Basic Technical skills](interviews-jobs-hiring/interviews/js-interview-qs.md)
+  * [JS Discussion Questions](interviews-jobs-hiring/interviews/js-discussion-questions.md)
 
