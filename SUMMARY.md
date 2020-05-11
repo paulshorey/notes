@@ -30,6 +30,7 @@
 ## JavaScript
 
 * [quirks](javascript/quirks.md)
+* [coding conventions](javascript/coding-conventions.md)
 * [not so basic basics](javascript/not-so-basic-basics/README.md)
   * [loops](javascript/not-so-basic-basics/loops.md)
   * [url params](javascript/not-so-basic-basics/url-functions.md)
