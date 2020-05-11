@@ -8,7 +8,7 @@
   * [Everyday](general-programming/cli/everyday.md)
   * [Files](general-programming/cli/files.md)
   * [Ports / Networking](general-programming/cli/ports-networking.md)
-  * [Node.JS](general-programming/cli/node.js.md)
+  * [in Node.JS](general-programming/cli/node.js.md)
 * [RegExp](general-programming/regexp/README.md)
   * [general](general-programming/regexp/general.md)
   * [HTML](general-programming/regexp/html.md)
