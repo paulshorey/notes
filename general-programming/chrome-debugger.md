@@ -9,7 +9,8 @@ to filter out any OPTIONS or GET requests
 Chrome black-boxing supports regular express for the file name. Simply use the a Negative Lookahead `(?!your script)`.  
 eg. `^((?!myscript).)*$` will blackboxing any other script except myscript
 
-
+**Other good stuff:**  
+[https://raygun.com/javascript-debugging-tips](https://raygun.com/javascript-debugging-tips)
 
 
 
