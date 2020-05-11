@@ -1,4 +1,4 @@
-# Chrome Network
+# Chrome Debugger
 
 In "filter" funnel icon, text field, enter:  
 `-method:OPTIONS -method:GET` to filter out any OPTIONS or GET requests  
