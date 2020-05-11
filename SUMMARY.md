@@ -34,10 +34,10 @@
 * [not so basic basics](javascript/not-so-basic-basics/README.md)
   * [loops](javascript/not-so-basic-basics/loops.md)
   * [url params](javascript/not-so-basic-basics/url-functions.md)
-  * [typescript](javascript/not-so-basic-basics/typescript.md)
   * [types](javascript/not-so-basic-basics/types.md)
   * [NPM](javascript/not-so-basic-basics/npm.md)
   * [Dates: UTC/ISO/GMT/Local time](javascript/not-so-basic-basics/dates.md)
+* [typescript](javascript/typescript.md)
 
 ## BACKEND
 
