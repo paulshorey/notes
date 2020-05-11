@@ -24,6 +24,16 @@
   * [new Macbook](general-programming/ide-1/new-macbook.md)
   * [Editing over SSH](general-programming/ide-1/ssh.md)
 
+## JavaScript
+
+* [quirks](javascript/quirks.md)
+* [not so basic basics](javascript/not-so-basic-basics/README.md)
+  * [url functions](javascript/not-so-basic-basics/url-functions.md)
+  * [NPM](javascript/not-so-basic-basics/npm.md)
+  * [typescript](javascript/not-so-basic-basics/typescript.md)
+  * [types](javascript/not-so-basic-basics/types.md)
+  * [loops](javascript/not-so-basic-basics/loops.md)
+
 ## BACKEND
 
 * [Node JS](backend/node-js/README.md)
@@ -49,12 +59,6 @@
 
 ## FrontEnd
 
-* [JavaScript](frontend/javascript-1/README.md)
-  * [loops](frontend/javascript-1/loops.md)
-  * [types](frontend/javascript-1/types.md)
-  * [typescript](frontend/javascript-1/typescript.md)
-  * [NPM](frontend/javascript-1/npm.md)
-  * [url functions](frontend/javascript-1/url-functions.md)
 * [React](frontend/react-1/README.md)
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
