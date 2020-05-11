@@ -1,0 +1,2 @@
+# quirks and coding conventions
+

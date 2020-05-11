@@ -29,8 +29,10 @@
 
 ## JavaScript
 
-* [quirks](javascript/quirks.md)
-* [coding conventions](javascript/coding-conventions.md)
+* [quirks and coding conventions](javascript/quirks/README.md)
+  * [Global Variables](javascript/quirks/global-variables.md)
+  * [JS Without Semicolons](javascript/quirks/coding-conventions.md)
+  * [Quotes around object keys](javascript/quirks/quotes-around-object-keys.md)
 * [not so basic basics](javascript/not-so-basic-basics/README.md)
   * [loops](javascript/not-so-basic-basics/loops.md)
   * [url params](javascript/not-so-basic-basics/url-functions.md)
