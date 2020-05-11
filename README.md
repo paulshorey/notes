@@ -10,7 +10,7 @@ Confluence is extremely tedious to use - so what ends up happening is the team f
 
 This GitBook platform is really excellent for teams. It syncs with your GIT repository. Every time someone makes a change on GitBook.com, it actually commits and pushes to GIT. If two people edit the same line, the app will bring up a prompt to review \(diff\) and resolve the conflict. :D
 
-If you like this guide, agree with most of the sentiments expressed, and would like to use it as your own - that is add to it, feel free to edit it, and express your own ideas - [then please contact me!](http://paulshorey.com#contact) I'll add you to this organization as an equal collaborator.
+If you like this guide, agree with most of the sentiments expressed, and would like to use it as your own - that is add to it, feel free to edit it, and express your own ideas - [then please contact me!](http://paulshorey.com#contact) I'll add you to this organization as an equal collaborator. ~~ [PaulShorey.com](http://paulshorey.com)
 
 ## To document your functions/methods, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md) !
 
