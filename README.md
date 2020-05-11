@@ -2,7 +2,7 @@
 
 **This is a searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 
-Instead of searching through Google or StackOverflow every time, wouldn't it be nice to search just one knowledge base? Programming stuff is easy to forget. So, whenever I look something up, discover a new gotcha, or have a new idea, I document everything in my [GitBook](https://gitbook.com). 
+Instead of searching through Google or StackOverflow every time, wouldn't it be nice to search just one knowledge base? Programming stuff is easy to forget. So, whenever I look something up, discover a new gotcha, or have a new idea, I document it here in my [GitBook](https://gitbook.com). 
 
 Markdown works well, but it's not the easiest to write, read, and navigate. It takes a lot of getting used to. This GitBook uses Markdown, and can even sync to **.md** files on your private Git repository. It has the most streamlined and intuitive interface, and is good for everything from personal note taking to a large enterprise knowledge base. 
 
