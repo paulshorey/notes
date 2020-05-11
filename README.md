@@ -1,6 +1,6 @@
 # Document everything!
 
-**This is my searchable collection of ideas, notes, and code snippets...**
+**This is a searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 
 Instead of searching through Google or StackOverflow every time, wouldn't it be nice to search just one knowledge base? Programming stuff is easy to forget. So, whenever I look something up, discover a new gotcha, or have a new idea, I document everything in my [GitBook](https://gitbook.com). 
 
