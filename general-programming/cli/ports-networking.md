@@ -24,6 +24,11 @@ https://api.cognitive.microsoft.com/bing/v7.0/spellcheck\?text\=moticum\&mode\=s
 
 The last `-w ""` part is to log time request took to come back.
 
+## DNS
+
+Ping a website - find its IP, and if it is active:  
+`ping -c 1 -i 10 bit.ly`  
+
 ## Flush DNS cache
 
 Mac:  
