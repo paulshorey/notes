@@ -27,7 +27,7 @@ The last `-w ""` part is to log time request took to come back.
 ## DNS
 
 Ping a website - find its IP, and if it is active:  
-`ping -c 1 -i 10 bit.ly`   
+`ping -c 1 -i 1 bit.ly`   
 -c  = call only N times  
 -i = timeout and quit after N seconds
 
