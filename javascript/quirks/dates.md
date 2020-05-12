@@ -2,7 +2,7 @@
 description: All about Dates on the World Wide Web
 ---
 
-# Dates: UTC/ISO/GMT/Local time
+# Date: UTC/ISO/GMT/local
 
 **Local time =**  
 the time in your time zone, in am/pm or 24hr format, doesn't matter,  

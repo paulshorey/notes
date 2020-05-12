@@ -33,12 +33,12 @@
   * [Global Variables](javascript/quirks/global-variables.md)
   * [JS Without Semicolons](javascript/quirks/coding-conventions.md)
   * [Quotes around object keys](javascript/quirks/quotes-around-object-keys.md)
+  * [Date: UTC/ISO/GMT/local](javascript/quirks/dates.md)
 * [not so basic basics](javascript/not-so-basic-basics/README.md)
   * [loops](javascript/not-so-basic-basics/loops.md)
   * [url params](javascript/not-so-basic-basics/url-functions.md)
   * [types](javascript/not-so-basic-basics/types.md)
   * [NPM](javascript/not-so-basic-basics/npm.md)
-  * [Dates: UTC/ISO/GMT/Local time](javascript/not-so-basic-basics/dates.md)
 * [typescript](javascript/typescript.md)
 
 ## BACKEND
