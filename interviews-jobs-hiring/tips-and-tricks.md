@@ -1,4 +1,4 @@
-# rant and vent
+# Rant
 
 ## Tips for employees \(starting a new job\):
 
