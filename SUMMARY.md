@@ -46,6 +46,7 @@
 * [Node JS](backend/node-js/README.md)
   * [debugging](backend/node-js/debugging.md)
   * [easiest CI setup](backend/node-js/ez-continuous-integration.md)
+  * [fs](backend/node-js/fs.md)
 * [basic Linux server](backend/basic-linux-web-server/README.md)
   * [setup new UNIX environment](backend/basic-linux-web-server/new-ubuntu.md)
   * [SSH](backend/basic-linux-web-server/ssh.md)
