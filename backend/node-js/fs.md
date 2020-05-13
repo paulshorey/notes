@@ -11,7 +11,7 @@ const fsPromises = fs.promises
 ;(async function() {
 
   try {
-    await fsPromises.writeFile("./myfile.js", 'cool!', { flag: "w" })
+    await fsPromises.writeFile("./myfile.txt", 'cool!', { flag: "w" })
   } catch (e) {
     debug.error(e)
   }
