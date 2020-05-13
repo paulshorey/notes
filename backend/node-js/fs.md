@@ -2,7 +2,7 @@
 
 {% embed url="https://nodejs.org/api/fs.html\#fs\_fs\_writefilesync\_file\_data\_options" %}
 
-## Important trick!!! Use \`fs.promises\`...
+## Important new trick!!! Use \`fs.promises\`...
 
 ```text
 import fs from "fs"
