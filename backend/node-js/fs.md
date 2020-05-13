@@ -24,5 +24,5 @@ const fsPromises = fs.promises
 
 ## ALSO IMPORTANT:
 
-File path is relative to your CLI, dir you ran the script from. NOT to the node file itself.
+File path is relative to your CLI - dir you ran the script from. NOT to the node file itself.
 
