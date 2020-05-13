@@ -22,5 +22,7 @@ const fsPromises = fs.promises
 * use flag "w" to create a file if it does not exist
 * use try/catch to debug errors
 
+## ALSO IMPORTANT:
 
+File path is relative to your CLI, dir you ran the script from. NOT to the node file itself.
 
