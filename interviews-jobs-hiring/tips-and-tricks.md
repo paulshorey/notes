@@ -1,6 +1,6 @@
 # rant and vent
 
-## Tips for employees \(starting a new job\):
+## Tips for employees:
 
 Do not assume things will always be like when you started or interviewed. If a company is "remote-friendly" or has a laid back relaxing environment, this can change quickly, as management changes or the company grows. Do not trust promises your employer makes, unless it is in a legal contract. This goes especially for \*policies\* like "one remote workday per week". Policies change. I've had little perks like this disappear very soon after I moved and started a job. 
 
@@ -10,7 +10,7 @@ Be flexible. Be open minded to new ideas, new ways of doing things. You may know
 
 Be strong. Sometimes your team mates misunderstand or over-think a problem, and get emotionally attached to their inferior solutions. If it's the majority are "wrong", that's just democracy. Nothing is perfect. But if it's just one or even two on the team being stubborn, it is your responsibility to stand up for what is right. This is the same on a two-person team, or in the entire nation of millions of citizens. You need to show that your case has popular support. You can usually find "reinforcements" on the internet, in the form of articles, blogs, tutorials, and documentation. A personal argument "I'm right. ...No, I'm right" is not productive. Instead, if you must find other people who confirm that your way is better. If you can not find those resources, then maybe your way is not better!
 
-## Tips for employers \(hiring new web engineer\):
+## Tips for employers:
 
 Do not assume the skills listed on the candidate's resume are accurate. Even if the person didn't consciously exaggerate, you would be surprised how many people "think" they know a technology, but are not doing it right or just know it on the surface. Anybody can quickly "learn" something over a weekend, but I've met people that have been doing something for many years \(and I've been that person!\), who are not actually very good at that technology. In my case, I come from a fine-art background, and for the longest time have not been taking JavaScript and programming seriously. So, I've been learning just enough to get by, just enough to get a job. Many people are the same. When I realized JavaScript is here to stay for the foreseeable future, my productivity went up. As soon as I started actively trying to figure out what I do not know, actively trying to get better, hustling on my own project on the evenings and weekends, my productivity and quality of work both doubled. It's hard to distinguish between someone that knows enough to talk about it, and someone that has reached the next level. The person's attitude is a key factor - not just how much hustle they have, but how diligently they approach the craft, how much respect they have for the power of technology. The best way, however, to determine the level of a programmer is simple. The better programmers know that they don't know a lot. Lesser programmers think they know the best way to do something, but are actually not doing it the best way. A better programmer, even if he/she already has an excellent solution, is open minded to new ways to solve it, and is actively seeking better ways to understand the problem and new ways to solve it. This attitude is much easier to test for than knowledge of every technique.
 
