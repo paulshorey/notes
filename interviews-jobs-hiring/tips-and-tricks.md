@@ -1,8 +1,22 @@
-# Rant
+# rant and vent
 
 ## Tips for employees \(starting a new job\):
 
 Do not assume things will always be like when you started or interviewed. If a company is "remote-friendly" or has a laid back relaxing environment, this can change quickly, as management changes or the company grows. Do not trust promises your employer makes, unless it is in a legal contract. This goes especially for \*policies\* like "one remote workday per week". Policies change. I've had little perks like this disappear very soon after I moved and started a job. 
 
 California is over-rated. There are plenty of great jobs in other states, like Virginia or Utah. California tech companies are neurotic, pretentious, and terrible organizations to be a part of. Unless you already live and work in California, and are ok with this culture, do yourself a favor and stay away. In my experience, NYC \(known for its hustle and neurotic people\) has been much more relaxed, and the people there have been much more human, warm, kind, and pleasant than in California. IT IS NOT BECAUSE of "the liberals". Conservatives in Cali are also crazy and terrible. It is not limited to the tech industry. It is the people and culture itself. Everybody just seems like they are hunting each other and ready to fight. Everything feels like a contest. Driving and crossing the street feels dangerous. California far from the hippie surfer heaven it was in the past. There are still good communities of peaceful people, like in Pasadena. That town is special - not just to live and work - but also to go out at night. Glendale is the complete opposite. Utah in my experience had the best people to work. Less egos. That was actually why NYC is great - New Yorkers do not get credit for how humble they are. In NYC, you're forced to be humble. It's because you're constantly interacting with people smarter than yourself - and unlike in California, where it feels like a contest, in NYC, nobody is looking at you, so you don't feel the need to prove yourself.
+
+## Tips for employers \(hiring new web engineer\):
+
+Do not assume the skills listed on the candidate's resume are accurate. Even if the person didn't consciously exaggerate, you would be surprised how many people "think" they know a technology, but are not doing it right or just know it on the surface. Anybody can quickly "learn" something over a weekend, but I've met people that have been doing something for many years \(and I've been that person!\), who are not actually very good at that technology. In my case, I come from a fine-art background, and for the longest time have not been taking JavaScript and programming seriously. So, I've been learning just enough to get by, just enough to get a job. Many people are the same. When I realized JavaScript is here to stay for at least the next 2 decades, and programming is not such a bad career - my productivity went up! As soon as I got fed up with an annoying job and started actively trying to figure out what I don't know, actively trying to get better, hustling on my own thing on the evenings and weekends, my productivity tripled. It's hard to distinguish between someone that knows enough to talk about it, and someone that has reached the next level.
+
+\*\*\*\*
+
+\*\*\*\*
+
+
+
+
+
+
 
