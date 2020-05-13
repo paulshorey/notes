@@ -75,9 +75,9 @@
 
 ## Interviews / Jobs / Hiring
 
-* [Tips and tricks](interviews-jobs-hiring/tips-and-tricks.md)
 * [General discussion](interviews-jobs-hiring/interview-questions.md)
 * [JavaScript quiz](interviews-jobs-hiring/interviews/README.md)
   * [JS Basic Technical skills](interviews-jobs-hiring/interviews/js-interview-qs.md)
   * [JS Discussion Questions](interviews-jobs-hiring/interviews/js-discussion-questions.md)
+* [rant and vent](interviews-jobs-hiring/tips-and-tricks.md)
 
