@@ -1,6 +1,6 @@
 # quirks and coding conventions
 
-First, here are some quirky benefits which other programming languages wish they had...
+First, here are some quirky benefits which other programming languages wish they had. But it's ok. "Real" programming languages don't know what they're missing, so they'll be fine thinking they're so great!
 
 ## Break out of an "if" statement.
 
