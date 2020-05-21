@@ -75,8 +75,11 @@
 
 ## Interviews / Jobs / Hiring
 
-* [General discussion](interviews-jobs-hiring/interview-questions.md)
 * [JavaScript quiz](interviews-jobs-hiring/interviews/README.md)
   * [JS Basic Technical skills](interviews-jobs-hiring/interviews/js-interview-qs.md)
   * [JS Discussion Questions](interviews-jobs-hiring/interviews/js-discussion-questions.md)
+* [Topics for Discussion](interviews-jobs-hiring/interview-questions/README.md)
+  * [General technical topics](interviews-jobs-hiring/interview-questions/general-technical-topics.md)
+  * [JavaScript](interviews-jobs-hiring/interview-questions/javascript.md)
+  * [React](interviews-jobs-hiring/interview-questions/react.md)
 
