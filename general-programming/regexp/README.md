@@ -28,7 +28,7 @@ When parsing before/after a delimiter, left side add ? mark to avoid . wildcard 
 
 ## Swap JS object key &lt;-&gt; value
 
-Must account for quotes - because modern javascript standards are stupid.  
+Must account for some lines not having quotes - because modern javascript standards are stupid.  
 Notice no quote after the **$2**, that is because second part of selector captures the ending quote into the **$2**. So, this is not the time to be fancy and change quotes. If using single-quotes in file, then use single-quotes in regex.
 
 ```text
