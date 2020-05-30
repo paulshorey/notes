@@ -34,5 +34,9 @@ First, add this line to your .prettierrc file: `"quoteProps": "consistent",` and
 (.*?):\s ?(.*),        ->        	$2: $1,
 ```
 
+## Convert object to array of \[key,value\] tuples
 
+```text
+(.*?):\s?(.*?),\n     ->    [$1, $2],
+```
 
