@@ -26,7 +26,7 @@ _**Before parsing entire file, add a linebreak at top and bottom of file.**_
 _**Don't forget to sanitize special character before adding special character \(double quotes\).**  
 When parsing before/after a delimiter, left side add ? mark to avoid . wildcard from including delimiter._
 
-## Swap JS object key &lt;-&gt; value
+#### Swap JS object key &lt;-&gt; value
 
 First, add this line to your .prettierrc file: `"quoteProps": "consistent",` and double-check that object keys of type "string" are now using quotes. Re-format file with new prettier setting if necessary. 
 
@@ -37,6 +37,6 @@ First, add this line to your .prettierrc file: `"quoteProps": "consistent",` and
 ## Convert object to array of \[key,value\] tuples
 
 ```text
-(.*?):\s?(.*?),\n     ->    [$1, $2],
+(.*?):\s?(.*?),\n     ->    [$1, $2],\n
 ```
 
