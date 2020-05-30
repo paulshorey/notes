@@ -28,11 +28,11 @@ When parsing before/after a delimiter, left side add ? mark to avoid . wildcard 
 
 ## Swap JS object key &lt;-&gt; value
 
-Must account for some keys with quotes, some without.  
-Notice no quote after the **$2**, that is because second part of selector captures the ending quote into the **$2**. So, this is not the time to be fancy and change quotes. If using single-quotes in file, then use single-quotes in regex.
+First, add this line to your .prettierrc file: `"quoteProps": "consistent",`  
+because consistency is required for RegEx, and very very helpful for programming in general.
 
 ```text
-"?(.*?)"?:\s ?"?(.*)"?,        ->        	"$2: "$1",
+"?(.*?)"?:\s ?"?(.*)"?,        ->        	$2: "$1",
 ```
 
 
