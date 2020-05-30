@@ -29,7 +29,7 @@ When parsing before/after a delimiter, left side add ? mark to avoid . wildcard 
 ## Swap JS object key &lt;-&gt; value
 
 First, add this line to your .prettierrc file: `"quoteProps": "consistent",`  
-because consistency is required for RegEx, and very very helpful for programming in general.
+because consistency is required for stuff like this to work, and for programming efficiently.
 
 ```text
 "?(.*?)"?:\s ?"?(.*)"?,        ->        	$2: "$1",
