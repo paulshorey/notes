@@ -31,6 +31,7 @@
 
 * [RegExp](data/regexp/README.md)
   * [Convert text / object / array](data/regexp/convert-text-object-array.md)
+  * [Cleanup](data/regexp/cleanup.md)
 
 ## JavaScript
 
