@@ -28,7 +28,11 @@ When parsing before/after a delimiter, left side add ? mark to avoid . wildcard 
 
 ## Swap JS object key &lt;-&gt; value
 
+Must account for quotes - because modern javascript standards are stupid:
 
+```text
+"?(.*?)"?:\s ?"?(.*)"?,        ->        	"$2: "$1",
+```
 
 
 
