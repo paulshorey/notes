@@ -9,6 +9,9 @@ account for more than one type of dash/hyphen
 remove periods, and any spaces before/after  
 `\ ?\.\ ?` -&gt; 
 
+remove "or" and any spaces before/after  
+`\s ?or` -&gt;
+
 remove parentheses \(and content inside parenthesis\) and any spaces before/after  
 `\s?((.*))\s?` -&gt; 
 
