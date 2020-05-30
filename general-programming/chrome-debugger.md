@@ -8,7 +8,7 @@ to filter out any OPTIONS or GET requests
 
 ## **Ignore script files, which you don't care about debugging:**
 
-Chrome black-boxing supports regular express for the file name. Simply use the a Negative Lookahead `^((?! regex to whitelist your scripts go here ).)*$`.  
+Chrome black-boxing supports regular expressions for the file name. But, if you're too lazy to make a regex for every 3rd party framework, including NodeJS internals, then use the a Negative Lookahead:`^((?! regex to whitelist your scripts go here ).)*$`   
 **Ex: `^((?!name/api).)*$` will blackboxing any scripts that are not in the `name/api` folder.**
 
 \*\*\*\*
