@@ -28,8 +28,7 @@ When parsing before/after a delimiter, left side add ? mark to avoid . wildcard 
 
 ## Swap JS object key &lt;-&gt; value
 
-First, add this line to your .prettierrc file: `"quoteProps": "consistent",` and double-check that object keys of type "string" are now using quotes. Re-format file with new prettier setting if necessary.   
-Keep quotes with the key/value, because some keys/values may be numbers/boolean/etc.
+First, add this line to your .prettierrc file: `"quoteProps": "consistent",` and double-check that object keys of type "string" are now using quotes. Re-format file with new prettier setting if necessary. 
 
 ```text
 (.*?):\s ?(.*),        ->        	$2: $1,
