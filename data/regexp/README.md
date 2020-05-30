@@ -4,11 +4,8 @@
 
 ## Reminders:
 
-Question mark `?` makes the search "not-greedy". Otherwise `.*` will match the whole line!
-
-```text
-href="/.*? title="(.*?)"   // finds titles of tags which have href
-```
+Question mark **`?`** makes the search "not-greedy". Otherwise `.*` will match the whole line!  
+**`href="/.? title="(.?)"`**  to find titles of tags which have href
 
 ## Use in JavaScript
 
