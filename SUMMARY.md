@@ -27,6 +27,11 @@
   * [Text](general-programming/regexp/text.md)
 * [Chrome Debugger](general-programming/chrome-debugger.md)
 
+## Data
+
+* [RegExp](data/regexp/README.md)
+  * [Convert text / object / array](data/regexp/convert-text-object-array.md)
+
 ## JavaScript
 
 * [quirks and coding conventions](javascript/quirks/README.md)
