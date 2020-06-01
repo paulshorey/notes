@@ -78,6 +78,7 @@
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
 * [UI](frontend/ui/README.md)
   * [Libraries](frontend/ui/libraries.md)
+* [Icons](frontend/icons.md)
 
 ## Interviews / Jobs / Hiring
 
