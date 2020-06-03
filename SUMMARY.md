@@ -26,6 +26,7 @@
   * [Markdown](general-programming/regexp/markdown.md)
   * [Text](general-programming/regexp/text.md)
 * [Chrome Debugger](general-programming/chrome-debugger.md)
+* [Interview Code Samples](interview-code-samples.md)
 
 ## Data
 

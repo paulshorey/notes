@@ -1,5 +1,9 @@
 # Chrome Debugger
 
+## **Launch automatically from WebStorm IDE**
+
+Click  "run -&gt; debug",  but first, must configure it with "run -&gt; edit configurations...". There, setup "browser" "after launch". For NodeJS process, I auto-open "devtools://devtools/bundled/inspector.html". Then, using Chrome extension "Node.js V8 --inspector Manager \(NiM\)", this opens up the NodeJS inspector devtool immediately, every time I start a Node process from the IDE.
+
 ## **Ignore REST requests, which you don't care about debugging:**
 
 In "filter" funnel icon, text field, enter: `-method:OPTIONS -method:GET`   
