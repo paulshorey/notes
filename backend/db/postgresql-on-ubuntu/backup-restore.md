@@ -4,7 +4,7 @@ description: '*** on Ubuntu 18, Postgres v 12 ***'
 
 # backup / restore
 
-## **First, copy backup file to server:**
+## First, on local: **Copy backup file to server:**
 
 `scp /www/words-data-recent.sql root@142.93.251.57:/www/secret/words-data-recent.sql`
 

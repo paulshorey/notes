@@ -26,27 +26,6 @@
   * [Markdown](general-programming/regexp/markdown.md)
   * [Text](general-programming/regexp/text.md)
 * [Chrome Debugger](general-programming/chrome-debugger.md)
-* [Interview Code Samples](interview-code-samples.md)
-
-## Data
-
-* [RegExp](data/regexp/README.md)
-  * [Convert text / object / array](data/regexp/convert-text-object-array.md)
-  * [Cleanup](data/regexp/cleanup.md)
-
-## JavaScript
-
-* [quirks and coding conventions](javascript/quirks/README.md)
-  * [Global Variables](javascript/quirks/global-variables.md)
-  * [JS Without Semicolons](javascript/quirks/coding-conventions.md)
-  * [Quotes around object keys](javascript/quirks/quotes-around-object-keys.md)
-  * [Date: UTC/ISO/GMT/local](javascript/quirks/dates.md)
-* [not so basic basics](javascript/not-so-basic-basics/README.md)
-  * [loops](javascript/not-so-basic-basics/loops.md)
-  * [url params](javascript/not-so-basic-basics/url-functions.md)
-  * [types](javascript/not-so-basic-basics/types.md)
-  * [NPM](javascript/not-so-basic-basics/npm.md)
-* [typescript](javascript/typescript.md)
 
 ## BACKEND
 
@@ -72,6 +51,26 @@
 * [easy web server](backend/easy-web-server/README.md)
   * [C-Panel](backend/easy-web-server/c-panel.md)
 
+## Data
+
+* [RegExp](data/regexp/README.md)
+  * [Convert text / object / array](data/regexp/convert-text-object-array.md)
+  * [Cleanup](data/regexp/cleanup.md)
+
+## JavaScript
+
+* [quirks and coding conventions](javascript/quirks/README.md)
+  * [Global Variables](javascript/quirks/global-variables.md)
+  * [JS Without Semicolons](javascript/quirks/coding-conventions.md)
+  * [Quotes around object keys](javascript/quirks/quotes-around-object-keys.md)
+  * [Date: UTC/ISO/GMT/local](javascript/quirks/dates.md)
+* [not so basic basics](javascript/not-so-basic-basics/README.md)
+  * [loops](javascript/not-so-basic-basics/loops.md)
+  * [url params](javascript/not-so-basic-basics/url-functions.md)
+  * [types](javascript/not-so-basic-basics/types.md)
+  * [NPM](javascript/not-so-basic-basics/npm.md)
+* [typescript](javascript/typescript.md)
+
 ## FrontEnd
 
 * [React](frontend/react-1/README.md)
@@ -90,4 +89,9 @@
   * [General technical topics](interviews-jobs-hiring/interview-questions/general-technical-topics.md)
   * [JavaScript](interviews-jobs-hiring/interview-questions/javascript.md)
   * [React](interviews-jobs-hiring/interview-questions/react.md)
+* [Interview Code Samples](interviews-jobs-hiring/interview-code-samples.md)
+
+## Managing a Website
+
+* [Captcha](managing-a-website/captcha.md)
 
