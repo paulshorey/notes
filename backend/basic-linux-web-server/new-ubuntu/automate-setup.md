@@ -20,6 +20,17 @@ apt install git
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 
 #
+# Install specific Node version
+#
+# note the "$(dpkg --print-architecture)" inside this link
+cd /tmp
+wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+nvm install node 13.12.0
+
+#
 # On login, each time...
 #
 mkdir /www
@@ -33,13 +44,6 @@ echo 'ssh-add ~/.ssh/newssh;' > ~/.zprofile   # whatever SSH key is used in Gith
 source ~/.zprofile
 git clone git@github.com:paulshorey/nlp.domains.git /www/nlp.domains
 
-#
-# Install specific Node version
-#
-# note the "$(dpkg --print-architecture)" inside this link
-wget -P /tmp https://deb.nodesource.com/node_13.x/pool/main/n/nodejs/nodejs_13.12.0-1nodesource1_$(dpkg --print-architecture).deb
-apt install rlwrap
-dpkg -i /tmp/nodejs_13.12.0-1nodesource1_$(dpkg --print-architecture).deb
 
 
 
