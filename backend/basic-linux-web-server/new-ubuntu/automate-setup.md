@@ -13,6 +13,7 @@ description: >-
 #
 # New server setup...
 #
+cd /tmp
 apt update
 apt install ne
 apt install -y zsh
