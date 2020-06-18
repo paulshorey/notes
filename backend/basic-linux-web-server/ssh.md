@@ -5,6 +5,7 @@
   
 **2. Copy local public SSH key to the remote:**  
 `ssh-copy-id -i ~/.ssh/newssh root@96.9.209.156`    
+  
 **Test it by connecting, using same key:**  
 `ssh -i ~/.ssh/newssh root@96.9.209.156`  
 
