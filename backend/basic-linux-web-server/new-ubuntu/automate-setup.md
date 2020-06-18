@@ -18,10 +18,9 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/mas
 
 # Login tasks
 mkdir /www
-printf 'cd /www;' > ~/.zprofile
+echo 'cd /www;' > ~/.zprofile
+
 
 
 ```
-
-
 
