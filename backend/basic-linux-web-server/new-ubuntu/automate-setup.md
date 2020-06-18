@@ -46,7 +46,9 @@ echo 'ssh-add ~/.ssh/newssh;' > ~/.zprofile   # whatever SSH key is used in Gith
 source ~/.zprofile
 git clone git@github.com:paulshorey/nlp.domains.git /www/nlp.domains
 
-
+#
+# Nginx + SSL
+#
 
 
 
