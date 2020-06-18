@@ -3,7 +3,8 @@
 **1\) Connect to the server:**  
 `ssh root@1.2.3.456 -p 9000` \(using specific port 9000, for example\)  
   
-**2 \(public key\). Copy local public SSH key to the remote server:**  
+**2 \(public key\). Copy local public SSH key to the remote server.**  
+This will enable it to always trust your local computer, without having to use ssh-agent.  
 `ssh-copy-id -i ~/.ssh/newssh root@96.9.209.156`    
   
 Test it by connecting, using same key:  
