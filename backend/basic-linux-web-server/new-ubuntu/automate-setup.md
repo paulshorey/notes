@@ -7,9 +7,11 @@ description: >-
 
 # automate setup
 
+
+
 ```
 #
-# One time, new server setup...
+# New server setup...
 #
 apt update
 apt install ne
