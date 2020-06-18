@@ -4,7 +4,7 @@ What is my LAN IP address?
 `ipconfig getifaddr en0`
 
 What is my internet IP address?  
-`curl -4 icanhazip.com`     
+`curl -4 icanhazip.com`  or   
 `dig +short myip.opendns.com @resolver1.opendns.com`
 
 ## What process is using a port?
