@@ -1,7 +1,7 @@
 # SSH
 
 **1\) Connect to the server without a password:**  
-`ssh root@1.2.3.456 -p 9000`   
+`ssh root@1.2.3.456 -p 9000` \(using specific port 9000\)  
   
 **2. Copy local public SSH key to the remote:**  
 [https://www.hostinger.com/tutorials/ssh/how-to-set-up-ssh-keys](https://www.hostinger.com/tutorials/ssh/how-to-set-up-ssh-keys)  
