@@ -49,7 +49,9 @@ git clone git@github.com:paulshorey/nlp.domains.git /www/nlp.domains
 #
 # Nginx + SSL
 #
-
+apt install nginx -y
+apt install ufw -y
+ufw allow 'Nginx Full'
 
 
 
