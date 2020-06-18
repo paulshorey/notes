@@ -25,3 +25,9 @@ Add **`ServerName api.wordsalad.ai`** to file `/etc/apache2/apache2.conf`
 
 `sudo certbot --apache`
 
+## Generate CSR
+
+[https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/](https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/)  
+For when buying a SSL such as RapidSSL through Name.com...  
+"Common Name" or "domain name" should start with "www." or wildcard "\*".
+
