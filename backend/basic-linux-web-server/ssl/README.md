@@ -1,5 +1,9 @@
 # SSL
 
+{% embed url="https://www.godaddy.com/garage/how-to-install-an-ssl-certificate-on-ubuntu-for-nginx/" %}
+
+\*\*\*\*
+
 **Documentation:**  
 [https://certbot.eff.org/docs/using.html](https://certbot.eff.org/docs/using.html#plugins)  
 `certbot renew --pre-hook "service nginx stop" --post-hook "service nginx start"`
