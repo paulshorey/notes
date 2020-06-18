@@ -1,10 +1,11 @@
 # Ports / Networking
 
 What is my LAN IP address?  
-**`ipconfig getifaddr en0`**
+`ipconfig getifaddr en0`
 
 What is my internet IP address?  
-**`dig +short myip.opendns.com @resolver1.opendns.com`**
+`curl -4 icanhazip.com`     
+`dig +short myip.opendns.com @resolver1.opendns.com`
 
 ## What process is using a port?
 
