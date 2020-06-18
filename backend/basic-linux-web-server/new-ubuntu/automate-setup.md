@@ -37,9 +37,9 @@ git clone git@github.com:paulshorey/nlp.domains.git /www/nlp.domains
 # Install specific Node version
 #
 # note the "$(dpkg --print-architecture)" inside this link
-curl -s -O https://deb.nodesource.com/node_13.x/pool/main/n/nodejs/nodejs_13.12.0-1nodesource1~trusty1_$(dpkg --print-architecture).deb
+wget -P /tmp https://deb.nodesource.com/node_13.x/pool/main/n/nodejs/nodejs_13.12.0-1nodesource1_$(dpkg --print-architecture).deb
 apt install rlwrap
-dpkg -i nodejs_13.12.0-1nodesource1~trusty1_$(dpkg --print-architecture)
+dpkg -i /tmp/nodejs_13.12.0-1nodesource1_$(dpkg --print-architecture).deb
 
 
 
