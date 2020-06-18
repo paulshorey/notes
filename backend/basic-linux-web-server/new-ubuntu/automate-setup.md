@@ -17,6 +17,7 @@ apt install git
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 
 # Login tasks
+mkdir /www
 printf 'cd /www;' > ~/.zprofile
 
 
