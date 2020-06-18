@@ -8,6 +8,7 @@ description: >-
 # automate setup
 
 ```
+# One time, new server...
 apt update
 apt install ne
 apt install -y zsh
@@ -16,9 +17,11 @@ apt install curl
 apt install git
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
 
-# Login tasks
+# On login, each time...
 mkdir /www
 echo 'cd /www;' > ~/.zprofile
+echo 'eval $(ssh-agent -s);' > ~/.zprofile
+echo 'ssh-add ~/.ssh/newssh;' > ~/.zprofile
 
 
 
