@@ -2,36 +2,11 @@
 
 {% embed url="https://www.godaddy.com/garage/how-to-install-an-ssl-certificate-on-ubuntu-for-nginx/" %}
 
-\*\*\*\*
-
-**Documentation:**  
-[https://certbot.eff.org/docs/using.html](https://certbot.eff.org/docs/using.html#plugins)  
-`certbot renew --pre-hook "service nginx stop" --post-hook "service nginx start"`
-
-**Install:**  
-Using Apache?:  
-[https://www.digitalocean.com/community/tutorials/how-to-secure-apache-with-let-s-encrypt-on-ubuntu-18-04](https://www.digitalocean.com/community/tutorials/how-to-secure-apache-with-let-s-encrypt-on-ubuntu-18-04)  
-[https://www.serverlab.ca/tutorials/linux/web-servers-linux/using-lets-encrypt-with-apache-on-ubuntu-18-04/](https://www.serverlab.ca/tutorials/linux/web-servers-linux/using-lets-encrypt-with-apache-on-ubuntu-18-04/)
-
-```text
-sudo apt update
-sudo apt install software-properties-common
-sudo add-apt-repository universe
-sudo add-apt-repository ppa:certbot/certbot -y
-
-sudo apt install certbot python-certbot-apache
-```
-
-**Configure server:**  
-Add **`ServerName api.wordsalad.ai`** to file `/etc/apache2/apache2.conf`  
-`sudo service apache2 restart` to restart server.  
-`sudo apache2ctl configtest` to test configuration.
-
-`sudo certbot --apache`
-
-## Generate CSR
+## Generate CSR:
 
 [https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/](https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/)  
 For when buying a SSL such as RapidSSL through Name.com...  
 "Common Name" or "domain name" should start with "www." or wildcard "\*".
+
+
 
