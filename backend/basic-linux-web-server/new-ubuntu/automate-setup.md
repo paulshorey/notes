@@ -60,9 +60,33 @@ git clone git@github.com:paulshorey/nlp.domains.git /www/nlp.domains
 apt install nginx -y
 apt install ufw -y
 ufw allow 'Nginx Full'
-
-
-
+echo "\n\
+  server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name nlp.domains www.nlp.domains;
+  
+    return 301 https://$server_name$request_uri;
+  }
+  
+  server {
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
+    server_name nlp.domains www.nlp.domains;
+  
+    ssl on;
+    ssl_certificate /www/ssl/server.crt;
+    ssl_certificate_key /www/ssl/server.key;
+  
+    #access_log /var/log/nginx/nginx.vhost.access.log;
+    #error_log /var/log/nginx/nginx.vhost.error.log;
+  
+    location / {
+      root /www/nlp.domains/public;
+      index index.html;
+    }
+  }
+" > /etc/nginx/sites-available/default
 ```
 
 
