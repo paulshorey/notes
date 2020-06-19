@@ -12,7 +12,8 @@ Test it by connecting, using same key:
 ****`ssh -i ~/.ssh/newssh root@96.9.209.156`  
 
 **2 \(optional, private key\).** If the server will need to clone/pull from Github, also give it a private key, which corresponds to the public key on Github. This doesn't have to be the same pair as done previously.  
-`scp ~/.ssh/newssh.pub root@96.9.209.156:~/.ssh/` 
+`scp ~/.ssh/newssh.pub root@96.9.209.156:~/.ssh/`   
+`scp ~/.ssh/newssh root@96.9.209.156:~/.ssh/` 
 
 **3. Then, disable password authentication to server \(for security\)**  
 Once connected into remote server, do this:  

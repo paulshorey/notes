@@ -13,12 +13,13 @@ description: >-
 #
 cd /tmp
 apt update
-apt install ne
+apt install ne -y
 apt install -y zsh
 chsh -s $(which zsh)
-apt install curl
-apt install git
+apt install curl -y
+apt install git -y
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/robbyrussell/oh-my-zsh/master/tools/install.sh)"
+# how to automatically say "yes"? chsh did not do the trick
 
 #
 # Install specific Node version
@@ -51,6 +52,7 @@ echo '\\\n\
 #
 source ~/.zprofile
 git clone git@github.com:paulshorey/nlp.domains.git /www/nlp.domains
+# how to automatically say "yes"?
 
 #
 # Nginx + SSL
@@ -91,7 +93,7 @@ echo "\
 #
 echo "\
 @reboot root bash /www/nlp.domains/_startup/start.sh\
-" > /etc/crontab
+" >> /etc/crontab
 
 #
 # Codebase
