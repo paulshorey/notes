@@ -40,10 +40,11 @@ echo "\
 cd /www;\
 eval $(ssh-agent -s);\
 ssh-add ~/.ssh/newssh;\
-\
-echo 'NGINX:\
-echo 'ne /etc/nginx/sites-available/default'\
-service nginx restart\
+echo '
+    NGINX:\n\
+    ne /etc/nginx/sites-available/default\n\
+    service nginx restart\n\
+';\
 " > ~/.zprofile
 
 #
