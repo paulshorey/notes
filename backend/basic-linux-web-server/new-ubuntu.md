@@ -68,7 +68,7 @@ echo "\
     listen [::]:80 default_server;
     server_name nlp.domains www.nlp.domains;
   
-    return 301 https://$server_name$request_uri;
+    return 301 https://\$server_name\$request_uri;
   }
   
   server {
