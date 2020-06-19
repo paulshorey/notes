@@ -36,9 +36,15 @@ nvm install 13.12.0
 # On login, each time...
 #
 mkdir /www
-echo 'cd /www;' > ~/.zprofile
-echo 'eval $(ssh-agent -s);' > ~/.zprofile
-echo 'ssh-add ~/.ssh/newssh;' > ~/.zprofile   # whatever SSH key is used in Github
+echo "\
+cd /www;\
+eval $(ssh-agent -s);\
+ssh-add ~/.ssh/newssh;\
+\
+echo 'NGINX:\
+echo 'ne /etc/nginx/sites-available/default'\
+service nginx restart\
+" > ~/.zprofile
 
 #
 # Load new login config, and continue with new server setup...
