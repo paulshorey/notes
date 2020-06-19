@@ -58,7 +58,7 @@ git clone git@github.com:paulshorey/nlp.domains.git /www/nlp.domains
 apt install nginx -y
 apt install ufw -y
 ufw allow 'Nginx Full'
-echo "\n\
+echo "\
   server {
     listen 80 default_server;
     listen [::]:80 default_server;
@@ -85,6 +85,14 @@ echo "\n\
     }
   }
 " > /etc/nginx/sites-available/default
+
+#
+# Crontab
+#
+echo "\
+@reboot root bash /www/name/_startup/start.sh\
+" > /etc/nginx/sites-available/default
+
 ```
 
 
