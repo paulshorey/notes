@@ -90,7 +90,7 @@ echo "\
 # Crontab
 #
 echo "\
-@reboot root bash /www/name/_startup/start.sh\
+@reboot root bash /www/nlp.domains/_startup/start.sh\
 " > /etc/nginx/sites-available/default
 
 ```
