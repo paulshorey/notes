@@ -91,7 +91,13 @@ echo "\
 #
 echo "\
 @reboot root bash /www/nlp.domains/_startup/start.sh\
-" > /etc/nginx/sites-available/default
+" > /etc/crontab
+
+#
+# Codebase
+#
+cd /www
+git clone 
 
 ```
 
