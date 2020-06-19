@@ -6,6 +6,7 @@
 **2 \(public key\). Copy local public SSH key to the remote server.**  
 This will enable it to always trust your local computer, without having to use ssh-agent.  
 `ssh-copy-id -i ~/.ssh/newssh root@96.9.209.156`    
+Read  more: [https://www.ssh.com/ssh/copy-id](https://www.ssh.com/ssh/copy-id)  
   
 Test it by connecting, using same key:  
 ****`ssh -i ~/.ssh/newssh root@96.9.209.156`  
