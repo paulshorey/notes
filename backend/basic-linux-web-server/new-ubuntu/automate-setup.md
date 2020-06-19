@@ -34,16 +34,17 @@ nvm install 13.12.0
 
 #
 # On login, each time...
+# Change directory, print out some instructions...
 #
 mkdir /www
-echo "\
-cd /www;\
-eval $(ssh-agent -s);\
-ssh-add ~/.ssh/newssh;\
-echo '
-    NGINX:\n\
-    ne /etc/nginx/sites-available/default\n\
-    service nginx restart\n\
+echo "\n\
+cd /www;\n\
+eval \$(ssh-agent -s);\n\
+ssh-add ~/.ssh/newssh;\n\
+echo '\\\n\
+    NGINX:\\\n\
+    ne /etc/nginx/sites-available/default\\\n\
+    service nginx restart\\\n\
 ';\
 " > ~/.zprofile
 
