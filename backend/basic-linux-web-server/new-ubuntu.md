@@ -5,7 +5,9 @@ description: >-
   when connecting to each IP.
 ---
 
-# automate setup
+# setup new UNIX environment
+
+**Automate setup:**
 
 ```
 #
@@ -103,8 +105,4 @@ rm -rf /www/nlp.domains
 git clone git@github.com:paulshorey/nlp.domains.git nlp.domains
 
 ```
-
-
-
-
 
