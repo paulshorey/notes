@@ -97,7 +97,7 @@ echo "\
 # Codebase
 #
 cd /www
-git clone 
+git clone git@github.com:paulshorey/nlp.domains.git nlp.domains
 
 ```
 
