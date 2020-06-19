@@ -1,8 +1,8 @@
 ---
 description: >-
-  On Ubuntu ... First, see how to connect using SSH + password, install SSH
-  public key to remote, then disable password authentication, for security. Do
-  this manually, when connecting to each IP.
+  On Ubuntu ... First, connect using SSH + password, install SSH public key to
+  remote, then disable password authentication, for security. Do this manually,
+  when connecting to each IP.
 ---
 
 # automate setup
