@@ -36,7 +36,7 @@ nvm install 13.12.0
 #
 mkdir /www
 echo "\n\
-cd /www;\n\
+cd /www/nlp.domains;\n\
 eval \$(ssh-agent -s);\n\
 ssh-add ~/.ssh/newssh;\n\
 echo '\\\n\
@@ -97,6 +97,7 @@ echo "\
 # Codebase
 #
 cd /www
+rm -rf /www/nlp.domains
 git clone git@github.com:paulshorey/nlp.domains.git nlp.domains
 
 ```
