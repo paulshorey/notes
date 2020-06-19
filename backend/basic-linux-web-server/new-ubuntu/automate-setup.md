@@ -7,8 +7,6 @@ description: >-
 
 # automate setup
 
-
-
 ```
 #
 # New server setup...
