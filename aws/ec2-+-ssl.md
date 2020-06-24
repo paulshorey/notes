@@ -9,6 +9,14 @@ HTTPS on EC2 instance:
 * 
 
 
+**Allow root login**
+
+\(temporarily, to do things like: `scp ~/.ssh/local root@1.1.1.1:~.ssh/remote`\)
+
+`cp ~ubuntu/.ssh/authorized_keys ~root/.ssh/authorized_keys`   
+
+\*\*\*\*
+
 **Other useful things for later...**
 
 * Associate an elastic IP address
