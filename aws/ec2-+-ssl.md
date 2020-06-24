@@ -1,17 +1,14 @@
-# EC2 + SSL
+# EC2 web server
 
-[https://iwearshorts.com/blog/add-ssl-to-ec2-instance/](https://iwearshorts.com/blog/add-ssl-to-ec2-instance/)
+[aws.amazon.com/ec2](https://aws.amazon.com/ec2)
 
-HTTPS on EC2 instance:
-
-* Set up a new instance on EC2 \([aws.amazon.com/ec2](https://aws.amazon.com/ec2)\)
-  * in your security group, open port 443  to “0.0.0.0/0”
-* 
+**Allow SSH port incoming traffic:**  
+in EC2 security group, open port 443  to “0.0.0.0/0”
 
 
-**Allow root SSH login:**
 
-\(temporarily, to do things like: `scp ~/.ssh/local root@1.1.1.1:~.ssh/remote`\)
+**Allow root SSH login:**  
+\(temporarily, to do things like: `scp ~/.path2local root@1.1.1.1:~.path2remote`\)
 
 `cp ~ubuntu/.ssh/authorized_keys ~root/.ssh/authorized_keys`   
 
