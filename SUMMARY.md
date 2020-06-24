@@ -9,6 +9,7 @@
   * [Files](general-programming/cli/files.md)
   * [Ports / Networking](general-programming/cli/ports-networking.md)
   * [in Node.JS](general-programming/cli/node.js.md)
+  * [SSH](general-programming/cli/ssh.md)
 * [GIT](general-programming/git-1/README.md)
   * [config](general-programming/git-1/config.md)
   * [basics](general-programming/git-1/commands.md)
