@@ -98,5 +98,5 @@
 
 ## AWS
 
-* [EC2 web server](aws/ec2-+-ssl.md)
+* [EC2 Simple web server](aws/ec2-+-ssl.md)
 

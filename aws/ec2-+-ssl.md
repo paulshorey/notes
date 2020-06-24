@@ -1,6 +1,8 @@
-# EC2 web server
+# EC2 Simple web server
 
 [aws.amazon.com/ec2](https://aws.amazon.com/ec2)
+
+
 
 **Allow SSH port incoming traffic:**  
 in EC2 security group, open port 443  to “0.0.0.0/0”
