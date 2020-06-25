@@ -1,5 +1,7 @@
 # Files
 
+Show hidden files: `ls -a .`  
+
 **`cat ~/ssh/newssh.pub`** read file text, output to STDOUT  
 **`sudo echo "some text" >> /some/file`** write 'text' to bottom of file
 
