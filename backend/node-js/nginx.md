@@ -1,5 +1,6 @@
 # Nginx
 
+**Configuration file:**  
 [https://www.techrepublic.com/article/how-to-enable-ssl-on-nginx/](https://www.techrepublic.com/article/how-to-enable-ssl-on-nginx/)
 
 ```text
