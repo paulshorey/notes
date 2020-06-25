@@ -1,8 +1,8 @@
 # basic Linux server
 
-`scp` is a very powerful command!
+`scp from to` is a very powerful command!
 
-`scp -r` will transfer an entire directory between local/remote
+`scp -r from to` will transfer an entire directory between local/remote
 
 
 
