@@ -1,7 +1,7 @@
 # SSH
 
 To simply upload some files to the server, use SCP:  
-`scp -r /path/to root@18.217.8.193:/path/to` 
+`scp -r /path/to/* root@18.217.8.193:/path/to` 
 
 {% tabs %}
 {% tab title="1. Connect to local to server" %}
