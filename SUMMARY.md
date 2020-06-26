@@ -18,7 +18,6 @@
   * [Best Terminal/CLI editor](general-programming/ide-1/ne.md)
   * [Keyboard Shortcuts](general-programming/ide-1/keymapping.md)
   * [Code Formatting](general-programming/ide-1/code-formatting.md)
-  * [new Macbook](general-programming/ide-1/new-macbook.md)
   * [Editing over SSH](general-programming/ide-1/ssh.md)
 * [RegExp](general-programming/regexp/README.md)
   * [general](general-programming/regexp/general.md)
