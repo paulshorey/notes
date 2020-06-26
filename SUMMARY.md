@@ -71,6 +71,7 @@
   * [types](javascript/not-so-basic-basics/types.md)
   * [NPM](javascript/not-so-basic-basics/npm.md)
 * [typescript](javascript/typescript.md)
+* [webpack](javascript/webpack.md)
 
 ## FrontEnd
 
