@@ -1,8 +1,10 @@
 # Editing over SSH
 
-### description: How to edit remote files in Sublime Text
+## With VS Code \(best way\):
 
-## Editing over SSH
+[https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.vscode-remote-extensionpack](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.vscode-remote-extensionpack)
+
+## With Sublime Text:
 
 **On server,**
 
