@@ -1,8 +1,6 @@
-# basic Linux server
+# Linux Web server
 
-`scp from to` is a very powerful command!
-
-`scp -r from to` will transfer an entire directory between local/remote
+[Setup SSH](ssh.md)
 
 
 

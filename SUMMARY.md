@@ -34,7 +34,7 @@
   * [easiest CI setup](backend/node-js/ez-continuous-integration.md)
   * [fs](backend/node-js/fs.md)
   * [Nginx](backend/node-js/nginx.md)
-* [basic Linux server](backend/basic-linux-web-server/README.md)
+* [Linux Web server](backend/basic-linux-web-server/README.md)
   * [SSH](backend/basic-linux-web-server/ssh.md)
   * [setup new UNIX environment](backend/basic-linux-web-server/new-ubuntu.md)
   * [Ubuntu](backend/basic-linux-web-server/set-it-up-in-terminal.md)
