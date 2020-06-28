@@ -25,5 +25,9 @@ symbolic link all the files, except default, which is already linked...
 \* `ln -s /etc/nginx/sites-available/paulshorey.com /etc/nginx/sites-enabled`   
 \* `service nginx restart` 
 
+Crontab  
+Put whatever bash scripts, run by a specific user, to run whenever the server boots:  
+`@reboot root bash /srv/public/_start.sh` 
+
 
 
