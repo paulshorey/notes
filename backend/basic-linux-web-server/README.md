@@ -9,8 +9,13 @@ Upload some initial/configuration files to the server \(from local\):
 \* `scp -r ~/.ssh/newssh root@178.128.233.183:~/.ssh/newssh`  
 
 Use the newly uploaded files \(on remote\):  
-\* `mv /tmp/_server ~/.zprofile`   
+\* `mv /tmp/_server/zprofile ~/.zprofile`   
+\* `source ~/.zprofile`    
 \* `bash /tmp/_server/install`  
+
+Clone files to serve  
+`cd /srv`   
+`git clone git@github.com:paulshorey/public.git` 
 
 Setup Nginx  
 \* `mv _nginx/* /etc/nginx/sites-available`   
