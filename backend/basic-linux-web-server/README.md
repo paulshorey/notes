@@ -18,10 +18,11 @@ Clone files to serve
 `git clone git@github.com:paulshorey/public.git` 
 
 Setup Nginx  
+Note: in these config files, all paths have to be absolute. No `~`  
 \* `mv _nginx/* /etc/nginx/sites-available`   
 \* `mv /etc/nginx/sites-available/default /etc/nginx/sites-available/example`   
 \* `mv /etc/nginx/sites-available/default /etc/nginx/sites-available/example`   
-symbolic link all the files, except default, which is already linked...  
+Symbolic link all the files, except default, which is already linked...  
 \* `ln -s /etc/nginx/sites-available/paulshorey.com /etc/nginx/sites-enabled`   
 \* `service nginx restart` 
 
