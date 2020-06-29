@@ -18,7 +18,7 @@
 `git clone git@github.com:paulshorey/public.git` 
 
 **Setup Nginx**  
-Note: in these config files, all paths have to be absolute. No `~`  
+Note: in these config files, all paths have to be absolute. No "`~`".  
 \* `mv _nginx/* /etc/nginx/sites-available`   
 \* `mv /etc/nginx/sites-available/default /etc/nginx/sites-available/example`   
 \* `mv /etc/nginx/sites-available/default /etc/nginx/sites-available/example`   
@@ -29,6 +29,11 @@ Symbolic link all the files, except default, which is already linked...
 **Crontab**  
 Put whatever bash scripts, run by a specific user, to run whenever the server boots:  
 `@reboot root bash /srv/public/_start.sh` 
+
+
+
+  
+
 
 
 
