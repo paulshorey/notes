@@ -1,4 +1,4 @@
-# Best Terminal/CLI editor
+# Nice Editor for Terminal
 
 A "nice" editor. By far the most intuitive CLI editor to use, supports some basic features and bindings. **`Ctr S`** to save. **`Ctr Q`** to quit. **`Esc Esc`** for an actual dropdown UI, right in the terminal. It's magic!
 
