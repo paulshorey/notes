@@ -11,7 +11,9 @@
 For when buying a SSL such as RapidSSL through Name.com...  
 "Common Name" or "domain name" should start with "www." or wildcard "\*".
 
+### Once you have the "key" and "certificate" files, 
 
+put them on the server, and point Nginx to them.
 
 
 
