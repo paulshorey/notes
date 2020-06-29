@@ -5,7 +5,7 @@ description: >-
   when connecting to each IP.
 ---
 
-# setup new UNIX environment
+# Server configuration
 
 **Automate setup:**
 
