@@ -14,11 +14,12 @@
   * [config](general-programming/git-1/config.md)
   * [basics](general-programming/git-1/commands.md)
 * [IDE](general-programming/ide-1/README.md)
-  * [WebStorm for Javascript](general-programming/ide-1/webstorm.md)
-  * [Nice Editor for Terminal](general-programming/ide-1/ne.md)
-  * [Keyboard Shortcuts](general-programming/ide-1/keymapping.md)
-  * [Code Formatting](general-programming/ide-1/code-formatting.md)
   * [Editing over SSH](general-programming/ide-1/ssh.md)
+  * [WebStorm for Javascript](general-programming/ide-1/webstorm/README.md)
+    * [my shortcuts](general-programming/ide-1/webstorm/my-shortcuts.md)
+  * [Nice Editor for Terminal](general-programming/ide-1/ne/README.md)
+    * [my shortcuts](general-programming/ide-1/ne/keymapping.md)
+  * [Code Formatting](general-programming/ide-1/code-formatting.md)
 * [Chrome Debugger](general-programming/chrome-debugger.md)
 
 ## BACKEND

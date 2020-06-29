@@ -1,4 +1,4 @@
-# Keyboard Shortcuts
+# my shortcuts
 
 `Ctrl + D` delete line
 
