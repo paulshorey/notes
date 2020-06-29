@@ -2,7 +2,7 @@
 
 > I challenge anyone to give me a valid reason why **spaces** are better than **tabs**, other than the argument **"everyone uses spaces, so you should too"**. Is this really a good reason?
 
-**Yes.** Most IDE defaults, online examples, javascript codebases use 2 spaces. **So, I shall also use spaces.** A non-ideal convention is better than no convention.
+**It's a good enough reason.** Most IDE defaults, online examples, javascript codebases use 2 spaces. **So, I shall also use spaces.** A non-ideal convention is better than no convention.
 
 ## Make sure your IDE does not do strange things...
 
