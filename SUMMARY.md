@@ -45,8 +45,6 @@
   * [advanced SQL](backend/db/intermediate-commands.md)
 * [APIs](backend/apis/README.md)
   * [Microsoft Azure](backend/apis/microsoft-azure.md)
-* [easy web server](backend/easy-web-server/README.md)
-  * [C-Panel](backend/easy-web-server/c-panel.md)
 
 ## Data
 
