@@ -19,12 +19,6 @@
   * [Keyboard Shortcuts](general-programming/ide-1/keymapping.md)
   * [Code Formatting](general-programming/ide-1/code-formatting.md)
   * [Editing over SSH](general-programming/ide-1/ssh.md)
-* [RegExp](general-programming/regexp/README.md)
-  * [general](general-programming/regexp/general.md)
-  * [HTML](general-programming/regexp/html.md)
-  * [Javascript](general-programming/regexp/javascript.md)
-  * [Markdown](general-programming/regexp/markdown.md)
-  * [Text](general-programming/regexp/text.md)
 * [Chrome Debugger](general-programming/chrome-debugger.md)
 
 ## BACKEND
@@ -49,6 +43,7 @@
 ## Data
 
 * [RegExp](data/regexp/README.md)
+  * [Markdown](data/regexp/markdown.md)
   * [Convert text / object / array](data/regexp/convert-text-object-array.md)
   * [Cleanup](data/regexp/cleanup.md)
 
