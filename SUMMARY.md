@@ -26,6 +26,7 @@
 ## BACKEND
 
 * [Node JS](backend/node-js/README.md)
+  * [debugging](backend/node-js/debugging.md)
   * [fs](backend/node-js/fs.md)
 * [Linux Web server](backend/basic-linux-web-server/README.md)
   * [SSH](backend/basic-linux-web-server/ssh.md)
