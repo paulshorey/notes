@@ -1,7 +1,7 @@
 # Table of contents
 
 * [Document everything!](README.md)
-* [Tutorials](featured-notes.md)
+* [Tutorials... \(WIP\)](featured-notes.md)
 
 ## General Programming
 
