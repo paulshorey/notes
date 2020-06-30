@@ -1,4 +1,4 @@
-# Featured notes
+# Front-end advanced tutorials
 
 Publish a modern web app, with CI and SSL, the simple timeless way
 
@@ -12,13 +12,9 @@ Debugging server-side JavaScript
 
 CSS tips
 
-Why front-end engineers also need to get good at CLI
-
-Get good at CLI/Terminal/Bash/Shell
+Why front-end engineers also need to get good at CLI/terminal
 
 Notes from API Conference
-
-
 
 
 

@@ -1,7 +1,8 @@
 # Table of contents
 
 * [Document everything!](README.md)
-* [Featured notes](featured-notes.md)
+* [Front-end advanced tutorials](featured-notes.md)
+* [Leadership / social observations](leadership-social-observations.md)
 
 ## General Programming
 
