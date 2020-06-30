@@ -1,6 +1,6 @@
 # Next-level Front-end engineering
 
-Publish a modern web app, with CI and SSL, the simple timeless way
+Publish a modern web app and API, with CI and SSL, the simple timeless way
 
 Pitfalls of React + SSR
 
