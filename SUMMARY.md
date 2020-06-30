@@ -1,7 +1,7 @@
 # Table of contents
 
 * [Document everything!](README.md)
-* [Next-level Front-end engineering](featured-notes.md)
+* [Tutorials](featured-notes.md)
 
 ## General Programming
 
