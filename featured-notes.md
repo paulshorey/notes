@@ -14,7 +14,7 @@ CSS tips
 
 Why front-end engineers also need to get good at CLI/terminal
 
-Notes from API Conference
+Notes from the annual API Conference
 
 Publishing and maintaining a hybrid Android/iPhone/mobile web app
 
