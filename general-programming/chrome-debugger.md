@@ -23,17 +23,13 @@ This works when running locally and remotely! :D
 
 ## Pro tip:
 
-I use Opera web browser to browse and debug front-end code, and Chrome to debug \(inspect\) backend code. Or, use Chrome for FE and Opera for BE. Point is, this works great, to keep different settings \(blackboxing\) for each environment, and to open the right debugger for each environment. Sharing the same debugger for front and back ends is very cumbersome.
+I use Opera web browser to browse and debug front-end code, and Chrome to debug \(inspect\) backend code. Or, use Chrome for FE and Opera for BE. Point is, this works great, to keep different settings \(blackboxing\) for each environment, and to open the right debugger for each environment. Sharing the same debugger for front and back ends is too cumbersome!
 
 ## **Launch automatically from WebStorm IDE**
 
 Click  "run -&gt; debug",  but first, must configure it with "run -&gt; edit configurations...". There, setup "browser" "after launch". For NodeJS process, I auto-open "devtools://devtools/bundled/inspector.html". Then, using Chrome extension "Node.js V8 --inspector Manager \(NiM\)", this opens up the NodeJS inspector devtool immediately, every time I start a Node process from the IDE.
 
-
-
-
-
-\*\*\*\*
+## **Etc:**
 
 **How to step through code:**  
 [https://developers.google.com/web/tools/chrome-devtools/javascript/step-code](https://developers.google.com/web/tools/chrome-devtools/javascript/step-code)
