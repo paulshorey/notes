@@ -1,5 +1,7 @@
 # Next-level Front-end engineering
 
+**Todo: make these into blog articles!...**
+
 Publish a modern web app and API, with CI and SSL, the simple timeless way
 
 Debugging server-side JavaScript
