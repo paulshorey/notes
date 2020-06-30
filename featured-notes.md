@@ -1,4 +1,4 @@
-# Tutorials... \(WIP\)
+# Tutorials...
 
 **Todo: make these into blog articles!...**
 
