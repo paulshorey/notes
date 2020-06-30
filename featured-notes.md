@@ -12,7 +12,9 @@ Debugging server-side JavaScript
 
 CSS tips
 
-CLI for front-end engineers
+Why front-end engineers also need to get good at CLI
+
+Get good at CLI/Terminal/Bash/Shell
 
 
 
