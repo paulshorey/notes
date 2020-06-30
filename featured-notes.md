@@ -16,7 +16,7 @@ Why front-end engineers also need to get good at CLI/terminal
 
 Notes from API Conference
 
-Publishing a modern mobile hybrid app to the app store
+Publishing and maintaining a hybrid Android/iPhone/mobile web app
 
 Dunning-Kruger effect, or "intermediate" vs "impostor" syndromes
 
