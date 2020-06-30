@@ -10,7 +10,9 @@ The power of Regular Expressions!
 
 Debugging server-side JavaScript
 
-CSS wisdom
+CSS tips
+
+CLI for front-end engineers
 
 
 
