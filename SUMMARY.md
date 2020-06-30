@@ -1,6 +1,7 @@
 # Table of contents
 
 * [Document everything!](README.md)
+* [Featured notes](featured-notes.md)
 
 ## General Programming
 
