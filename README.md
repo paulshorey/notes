@@ -12,7 +12,7 @@ This GitBook platform is really excellent for teams. It syncs with your GIT repo
 
 If you like this guide, agree with most of the sentiments expressed, and would like to use it as your own - add to it, feel free to edit it, and express your own ideas - [then please contact me!](http://paulshorey.com#contact) I'll add you to this organization as an equal collaborator. ~~ [PaulShorey.com](http://paulshorey.com)
 
-## To document your functions/methods, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md) !
+## To document your functions/methods, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md)
 
 ```javascript
     /**  
@@ -29,7 +29,7 @@ It's industry standard, and there is no other competing standard. JavaScript lib
 
 My IDE \(IntelliJ WebStorm\) adds syntax coloring to the comment block, and even lints my code against the rules set in the comment block \(warns me when something is not documented, or I'm not following my own documentation, for inputs/outputs\). It also lets me right click a function call from any file, to see its documentation. Very useful. [Read more about IDEs...](general-programming/ide-1/)
 
-## Consider using GitBook, to document more abstract concepts.
+## Consider using GitBook, to document more abstract concepts
 
 **Written in** [**Markdown**](https://dillinger.io/)**, stored on my** [**Github**](https://github.com/paulshorey/notes)**, hosted by** [**GitBook**](https://www.gitbook.com/)**, publicly viewable at** [**notes.paulshorey.com**](https://notes.paulshorey.com)**. So easy to edit and collaborate. So easy to publish.**
 
@@ -41,7 +41,7 @@ Collaborators can edit while they view each document. It uses GIT to manage conf
 
 Confluence is so tedious and cumbersome! Yet, most major companies use it, just because it's been around a long time, and uses the same login as Jira \(another terrible program by Atlassian\). They also make BitBucket. BitBucket is great, but so is GitLab. Please get away from Confluence or Jira. Having only one login/authentication to manage is not worth the extra effort and loss of productivity for your engineers. Your IT/security person has to set it up once. But your multiple engineers have to use it every day. So, who's convenience is more important? Engineers are meek people. They will usually not complain. But your organization will secretly be losing a lot of time and productivity if you continue using Atlassian.
 
-## Advanced:
+## More:
 
 **Sync GitBook with your GitHub.** Edit from either one, and the content will sync.
 
