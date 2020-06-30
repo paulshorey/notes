@@ -6,7 +6,7 @@ Pitfalls of React + SSR
 
 Data processing with JavaScript
 
-The power of Regular Expressions!
+The power of Regular Expressions
 
 Debugging server-side JavaScript
 
