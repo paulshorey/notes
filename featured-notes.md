@@ -1,8 +1,10 @@
 # Featured notes
 
-Publish a modern web app, the timeless way
+Publish a modern web app, with CI, with just a simple Linux server
 
 Pitfalls of SSR React
+
+
 
 
 
