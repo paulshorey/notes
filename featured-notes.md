@@ -2,7 +2,11 @@
 
 Publish a modern web app, with CI, with just a simple Linux server
 
-Pitfalls of SSR React
+Pitfalls of React + SSR
+
+Data processing with JavaScript
+
+
 
 
 
