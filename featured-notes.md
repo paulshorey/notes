@@ -6,8 +6,6 @@ Pitfalls of React + SSR
 
 Data processing with JavaScript
 
-The power of Regular Expressions!
-
 
 
 
