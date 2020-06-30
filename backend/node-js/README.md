@@ -7,8 +7,6 @@ description: 'Use PM2: https://pm2.keymetrics.io/docs/usage/quick-start/'
 Download NodeJS package \(pkg\) for Mac \(easiest way to install Node\):  
 [https://nodejs.org/dist/](https://nodejs.org/dist/)
 
-
-
 ## What node processes running?
 
 `ps cax | grep node;` returns process IDs  
