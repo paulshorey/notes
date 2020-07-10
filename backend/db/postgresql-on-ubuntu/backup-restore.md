@@ -6,11 +6,11 @@ description: '*** on Ubuntu 18, Postgres v 12 ***'
 
 ## First, on local: **Copy backup file to server:**
 
-`scp /www/words-data-recent.sql root@142.93.251.57:/www/secret/words-data-recent.sql`
+`scp /www/words-data-07-09-after-poss.sql root@142.93.251.57:/tmp/db-backup-july.sql`
 
 ## **Restore schema only \(no data\):**
 
-`pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose "/www/secret/words-schema.sql"`
+`pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose "/tmp/db-backup-july.sql"`
 
 ## **Restore data:**
 
@@ -26,11 +26,9 @@ Wait for confirmation response "DROP SCHEMA".
 
 **THEN,**  
 `\q`, don't forget this bit!  
-`pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose --schema "data" "/www/secret/words-data-recent.sql"`
+`pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose --schema "data" "/tmp/db-backup-july.sql"`
 
-\*\*\*\*
-
-\*\*\*\*
+Enter password when prompted, and done!
 
 ## **MacOS PgAdmin4 v 11...**
 
