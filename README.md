@@ -1,4 +1,4 @@
-# Document everything!
+# Web Development Notes
 
 **A searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 

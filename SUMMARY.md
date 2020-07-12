@@ -1,6 +1,7 @@
 # Table of contents
 
-* [Document everything!](README.md)
+* [Web Development Notes](README.md)
+* [Documentation](documentation.md)
 * [Tutorials...](featured-notes.md)
 
 ## General Programming
