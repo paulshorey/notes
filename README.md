@@ -1,4 +1,4 @@
-# Web Development Notes
+# Welcome to my GitBook
 
 **A searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 

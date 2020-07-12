@@ -1,7 +1,7 @@
 # Table of contents
 
-* [Web Development Notes](README.md)
-* [Documentation](documentation.md)
+* [Welcome to my GitBook](README.md)
+* [How to document everything...](documentation.md)
 * [Tutorials...](featured-notes.md)
 
 ## General Programming

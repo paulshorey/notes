@@ -1,2 +1,2 @@
-# Documentation
+# How to document everything...
 
