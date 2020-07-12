@@ -1,7 +1,8 @@
 # Table of contents
 
 * [Welcome to my GitBook](README.md)
-* [How to document everything...](documentation.md)
+* [Document everything...](documentation/README.md)
+  * [Untitled](documentation/untitled.md)
 * [Tutorials...](featured-notes.md)
 
 ## General Programming
