@@ -2,7 +2,7 @@
 
 * [Welcome to my GitBook](README.md)
 * [Document everything...](documentation/README.md)
-  * [Untitled](documentation/untitled.md)
+  * [GitBook](documentation/untitled.md)
 * [Tutorials...](featured-notes.md)
 
 ## General Programming
