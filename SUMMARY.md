@@ -3,7 +3,8 @@
 * [Welcome to my GitBook](README.md)
 * [Document everything...](documentation/README.md)
   * [GitBook](documentation/untitled.md)
-* [Tutorials...](featured-notes.md)
+* [Tutorials...](featured-notes/README.md)
+  * [Embed GitBook to your own website](featured-notes/embed-gitbook-to-your-own-website.md)
 
 ## General Programming
 
