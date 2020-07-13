@@ -4,6 +4,7 @@
 * [Document everything...](documentation/README.md)
   * [GitBook](documentation/untitled.md)
   * [API specs](documentation/api-specs.md)
+  * [JavaScript](documentation/javascript.md)
 * [Tutorials...](featured-notes/README.md)
   * [Embed GitBook to your own website](featured-notes/embed-gitbook-to-your-own-website.md)
 
