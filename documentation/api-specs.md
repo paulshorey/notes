@@ -12,5 +12,5 @@ How to publish this? Stoplight.io is able to create a full website documentation
 
 [Swagger.io](https://swagger.io/) is great. Use it.
 
-
+[GitBook](https://gitbook.com) can also document an API very well. However, it is not currently possible to import/export as OpenAPI yaml files. That's a bummer. 
 
