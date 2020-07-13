@@ -22,7 +22,7 @@ Once you've downloaded the website to a folder, simply serve them using your fav
 
 But the fun is just beginning. Now that you control the website, you can edit it, add stuff, remove stuff. For example, remove their branding, add your branding. Inject CSS/JavaScript just before the closing `</head>` tag. This too can be automated!
 
-#### Step 3 - add CSS, JavaScript, and edit HTML
+#### Step 3 - add your own CSS, JavaScript, and edit HTML
 
 Whether to completely transform the look and feel, or just add/remove branding, you can accomplish it by injecting a single stylesheet. The "c" in "css" stands for "cascading". This is powerful. You're able to edit any CSS in a website by simply adding a clean new stylesheet at the very end, just before the closing `</head>` tag. In that file, add rules to edit or remove elements, and change styles.
 
