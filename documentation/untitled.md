@@ -20,6 +20,8 @@ GitBook is very user-friendly, and generates a beautiful website.
 
 GitBook actually allows you to document your API spec, and it comes out looking really great - easy to read and navigate by the end user, which is what you want. Unfortunately, it does not yet allow you to import/export yaml/OpenAPI.
 
+This searchable knowledge base was written in GitBook. To see API documentation made in GitBook, visit [http://nlp.studio/documentation](http://nlp.studio/documentation)
+
 
 
 
