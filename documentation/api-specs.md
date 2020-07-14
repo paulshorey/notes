@@ -1,6 +1,6 @@
-# API specs
+# API reference
 
-OpenAPI \(v3\) is the way to go. But, there are so many options for editing/publishing it.
+OpenAPI \(v3\) in Yaml files is the way to document your APIs, but it's complicated to write, so it helps to use an editor, at first. Then you need to publish your docs as a website...
 
 ## [SwaggerHub](https://swagger.io/tools/swaggerhub/)
 
@@ -24,7 +24,9 @@ How to publish this? Stoplight.io is able to create a full website documentation
 
 ## [GitBook](https://gitbook.com) 
 
-can also document an API very well. However, it is not currently possible to import/export as OpenAPI yaml files. That's a bummer, because OpenAPI is a requirement in tech. So, GitBook can not replace Stoplight/Swagger, but has to be an additional step. That's too bad, because GitBook API docs [look so good](https://nlp.studio/documentation)!
+can also document an API very well. However, it is not currently possible to import/export as OpenAPI yaml files. That's a bummer, because OpenAPI is a requirement in tech. So, GitBook can not replace Stoplight/Swagger. I still use it to publish my API reference, though I have to do it as an additional step \(double the work\). 
+
+It's worth it, because the API reference comes out [looking so good](https://nlp.studio/documentation)!
 
 ## Not Quite:
 
