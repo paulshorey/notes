@@ -8,7 +8,7 @@ Example: This site. Also [nlp.studio](https://nlp.studio)
 
 ## [MkDocs](https://squidfunk.github.io/mkdocs-material/)
 
-Seems to be very capable. DIY, install and host it yourself.
+Seems to be very capable. On my todo list. DIY, install and host it yourself.
 
 Example: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
 
