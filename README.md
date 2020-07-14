@@ -1,8 +1,8 @@
 ---
 description: >-
   This is my personal technical notes. If I omit a useful tool or technique,
-  please let me know. I'll add it. Still looking for a better alternative, a
-  wiki.
+  please let me know. I'll add it. Still looking for a wiki, to let strangers
+  suggest edits and post comments.
 ---
 
 # Welcome to my laboratory!
