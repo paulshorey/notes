@@ -18,3 +18,5 @@ I hate it so much. The UI is so difficult to edit and navigate. Especially for a
 
 But, it is the best tool for collaboration. Multiple people can be editing the same file, and it does not have merge conflicts or lose data. I want to go find their careers page and offer my UI/UX services, to do the world a favor. Ugh!
 
+I only use it if someone pays me, which sometimes happens. :\) It's much better than no documentation at all.
+
