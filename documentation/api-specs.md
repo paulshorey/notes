@@ -14,7 +14,7 @@ is the better looking and more organized version of Swagger-UI. Use this if you 
 
 ## [Stoplight.io](https://stoplight.io) 
 
-**is a GUI editor which makes it really easy to write the spec.** Not as easy to publish it though. But it's so easy to edit, that I use it to edit, then export.
+**makes it really easy to write the spec!** Not as easy to publish it though. :\( But it's so easy to edit, that I use it to edit, then export.
 
 * Use the intuitive interface to create your specs. Include every necessary detail.
 * Edit the `.yaml` file, if you prefer. It's great practice learning the spec to go back and forth between GUI and IDE.
