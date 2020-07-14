@@ -32,5 +32,5 @@ It's worth it, because the API reference comes out [looking so good](https://nlp
 
 \*\*\*\*[**Redoc.ly**](https://redoc.ly/)  
 ****It's not ready, still under active development, and is overpriced for what you get.  
-Here's a blog that sings its praises. Fun thing is this entire website \(if you just go to the domain without the path\) only hosts this one article. The domain "mytech.reviews" must have been bought by Redoc.ly, just for this purpose. Lol. [https://mytech.reviews/best-free-api-documentation-tools/](https://mytech.reviews/best-free-api-documentation-tools/)
+Here's a blog that sings its praises. Fun thing is this entire website \(if you just go to the domain without the path\) only hosts this one article. The domain "mytech.reviews" must have been bought by Redoc.ly, just for this purpose. Lol. [https://mytech.reviews/best-free-api-documentation-tools/](https://mytech.reviews/best-free-api-documentation-tools/) How did they get to Google's first page of results??? I need to figure out this voodoo magic!
 
