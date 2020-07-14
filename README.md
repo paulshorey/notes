@@ -1,4 +1,4 @@
-# Welcome to my GitBook
+# Welcome to my laboratory!
 
 **A searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 

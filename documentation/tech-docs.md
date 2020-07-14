@@ -2,7 +2,9 @@
 
 ## [GitBook](https://gitbook.com)
 
-It's a brilliant platform for editing Markdown docs. It generates a beautiful website from your markdown files. You can edit the ".md" files manually or use their GUI. After you save, your beautiful documentation website is generated and published automatically to your domain. It looks the best. I use it to document my thoughts, notes, and code snippets.
+It's a brilliant platform for editing Markdown docs. It generates a beautiful website from your markdown files. You can edit the ".md" files manually or use their GUI. After you save, your beautiful documentation website is generated and published automatically to your domain. It looks the best. 
+
+Example: This site. Also my [nlp.studio](https://nlp.studio) uses a hacked \(downloaded\) version of it.
 
 ## [MkDocs](https://squidfunk.github.io/mkdocs-material/)
 

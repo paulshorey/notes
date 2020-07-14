@@ -1,6 +1,6 @@
 # Table of contents
 
-* [Welcome to my GitBook](README.md)
+* [Welcome to my laboratory!](README.md)
 * [Document everything...](documentation/README.md)
   * [Website builders for technical documentation or knowledgebase](documentation/tech-docs.md)
   * [API specs](documentation/api-specs.md)
