@@ -4,7 +4,7 @@
 
 It's a brilliant platform for editing Markdown docs. It generates a beautiful website from your markdown files. You can edit the ".md" files manually or use their GUI. After you save, your beautiful documentation website is generated and published automatically to your domain. It looks the best. 
 
-Example: This site. Also [nlp.studio](https://nlp.studio)
+Example: This site. Also visit [nlp.studio](https://nlp.studio)
 
 ## [MkDocs](https://squidfunk.github.io/mkdocs-material/) and [Docusaurus](https://docusaurus.io)
 
