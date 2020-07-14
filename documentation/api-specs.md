@@ -22,5 +22,7 @@ Not as easy to publish it though. But it's so easy to edit, that I use it to edi
 
 How to publish this? Stoplight.io is able to create a full website documentation. You can even export it in markdown format. However, their UI and navigation is pretty bad for site docs.
 
-[GitBook](https://gitbook.com) can also document an API very well. However, it is not currently possible to import/export as OpenAPI yaml files. That's a bummer, because OpenAPI is a requirement in tech. So, GitBook can not replace Stoplight/Swagger, but has to be an additional step. That's too bad, because GitBook API docs [look so good](https://nlp.studio/documentation)!
+### [GitBook](https://gitbook.com) 
+
+can also document an API very well. However, it is not currently possible to import/export as OpenAPI yaml files. That's a bummer, because OpenAPI is a requirement in tech. So, GitBook can not replace Stoplight/Swagger, but has to be an additional step. That's too bad, because GitBook API docs [look so good](https://nlp.studio/documentation)!
 
