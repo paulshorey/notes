@@ -12,6 +12,12 @@ Seems to be very capable. On my todo list. DIY, install and host it yourself.
 
 Example: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
 
+## [Docusaurus](https://docusaurus.io)
+
+Same, seems great. Like a self-hosted GitBook though. I don't see an option for a third right-column code samples.
+
+Example: [https://docusaurus.io/docs/en/installation](https://docusaurus.io/docs/en/installation)
+
 ## [Atlassian Confluence](https://www.atlassian.com/software/confluence)
 
 I hate it so much. Their UI is so buggy, and so cumbersome to use and navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be such a mess, because everyone struggles with the UI, and thus does not organize things well, and does not document fully. People use it because they have to, and use it as little as possible, to get it over with. All this leads to confusing and incomplete documentation.
