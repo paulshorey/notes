@@ -15,9 +15,7 @@ Docusaurus example: [https://docusaurus.io/docs/en/installation](https://docusau
 
 ## [Atlassian Confluence](https://www.atlassian.com/software/confluence)
 
-I hate it so much. Their UI is so buggy, and so cumbersome to use and navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be such a mess, because everyone struggles with the UI, and thus does not organize things well, and does not document fully. People use it because they have to, and use it as little as possible, to get it over with. All this leads to confusing and incomplete documentation.
+Ugh! Their UI is so buggy, so cumbersome to use and navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be a big mess, because everyone struggles with all their bloated unwieldy UI. People use it because they have to, and use it as little as possible, to get it over with. All this leads to confusing and incomplete documentation.
 
-But, it is the best technology for collaboration. Multiple people can be editing the same file and it does not have merge conflicts or lose data. It does have many features. I just want to go find their careers page and offer my UI/UX services, to do the world a favor. Ugh!
-
-I only use it if someone pays me, which sometimes happens. :\) **It's much better than no documentation at all.** I will still gladly work with your team if you happen to use it, but I will bug you once every few months with screenshots from alternatives! :\)
+But, it is the best technology for collaboration. Multiple people can be editing the same file without merge conflicts. It has very powerful permissions settings.
 
