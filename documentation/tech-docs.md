@@ -6,17 +6,12 @@ It's a brilliant platform for editing Markdown docs. It generates a beautiful we
 
 Example: This site. Also [nlp.studio](https://nlp.studio)
 
-## [MkDocs](https://squidfunk.github.io/mkdocs-material/)
+## [MkDocs](https://squidfunk.github.io/mkdocs-material/) and [Docusaurus](https://docusaurus.io)
 
-Seems to be very capable. On my todo list. DIY, install and host it yourself.
+DIY, install and host it yourself. No API reference docs, but otherwise great content and UI.
 
-Example: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
-
-## [Docusaurus](https://docusaurus.io)
-
-Same, seems great. Like a self-hosted GitBook though. I don't see an option for a third right-column code samples.
-
-Example: [https://docusaurus.io/docs/en/installation](https://docusaurus.io/docs/en/installation)
+MkDocs example: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)  
+Docusaurus example: [https://docusaurus.io/docs/en/installation](https://docusaurus.io/docs/en/installation)
 
 ## [Atlassian Confluence](https://www.atlassian.com/software/confluence)
 
