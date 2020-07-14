@@ -14,7 +14,7 @@ Example: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)
 
 ## [Atlassian Confluence](https://www.atlassian.com/software/confluence)
 
-I hate it so much. Their UI is so buggy, and cumbersome to use and navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be such a mess!
+I hate it so much. Their UI is so buggy, and so cumbersome to use and navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be such a mess, because everyone struggles with the UI, and thus does not organize things well, and does not document fully. People use it because they have to, and use it as little as possible, to get it over with. All this leads to confusing and incomplete documentation.
 
 But, it is the best tool for collaboration. Multiple people can be editing the same file, and it does not have merge conflicts or lose data. I want to go find their careers page and offer my UI/UX services, to do the world a favor. Ugh!
 
