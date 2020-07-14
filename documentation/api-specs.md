@@ -2,6 +2,8 @@
 
 OpenAPI \(v3\) is the way to go. But, there are so many options for editing/publishing it.
 
+SwaggerHub
+
 | **Feature** | [**ReDoc**](https://redoc.ly/) | [**Swagger-UI**](https://swagger.io/tools/swagger-ui/) | [**DapperDox**](http://dapperdox.io/) |
 | :--- | :--- | :--- | :--- |
 | OpenAPI v2 | Yes | Yes | Yes – Albeit finicky |
