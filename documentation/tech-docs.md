@@ -17,5 +17,5 @@ Docusaurus example: [https://docusaurus.io/docs/en/installation](https://docusau
 
 Ugh! Their UI is so buggy, so cumbersome to use and navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be a big mess, because everyone struggles with all their bloated unwieldy UI. People use it because they have to, and use it as little as possible, to get it over with. All this leads to confusing and incomplete documentation.
 
-But, it is the best technology for collaboration. Multiple people can be editing the same file without merge conflicts. It has very powerful permissions settings.
+But, it is the most enterprise level technology for collaborating. Multiple people can be editing the same file without merge conflicts. It has very powerful permissions settings.
 
