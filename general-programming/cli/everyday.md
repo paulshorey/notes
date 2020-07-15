@@ -1,12 +1,16 @@
 # Everyday
 
-## Switch directories
+### Switch directories
 
 **`pushd .`** \# save current working directory **`popd`** \# go back to saved directory
 
 ## Change ownership
 
 **`sudo chown -R $(id -u):$(id -g) .`** take ownership of . directory, recursively
+
+#### Change permissions
+
+**`chmod 400 ~/.ssh/awsssh.pem`** to give a file specific permissions
 
 ## Running processes
 
