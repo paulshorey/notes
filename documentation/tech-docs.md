@@ -19,6 +19,9 @@ Like MkDocs and Docusaurus, but better! It can document API quite well!
 
 A bit more effort than MkDocs and Docusaurs, but TODO - this looks promising - a version that is run by NodeJS, with fewer dependencies. The end result looks the same. [https://github.com/jmanek/slate\_node](https://github.com/jmanek/slate_node)
 
+Here's the library the NodeJS version uses to convert markdown to HTML or other formats:  
+[https://github.com/markedjs/marked](https://github.com/markedjs/marked)
+
 Example: [https://slatedocs.github.io/slate/\#authentication](https://slatedocs.github.io/slate/#authentication)
 
 ## [GitBook](https://gitbook.com)
