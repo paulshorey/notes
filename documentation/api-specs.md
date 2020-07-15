@@ -2,6 +2,10 @@
 
 OpenAPI \(v3\) in Yaml files is the way to document your APIs, but it's complicated to write, so it helps to use an editor, at first. Then you need to publish your docs as a website...
 
+## [Slate](https://slatedocs.github.io/slate/?javascript#introduction)
+
+TODO list: try slate. It looks great for API documentation.
+
 ## [SwaggerHub](https://swagger.io/tools/swaggerhub/)
 
 is the way to go for most people and teams. It is reasonably priced - $50/mo for a custom domain, and free if you host on their domain. 
