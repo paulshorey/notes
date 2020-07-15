@@ -13,16 +13,15 @@ Install and host it yourself. No API reference docs, but otherwise great content
 MkDocs example: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)  
 Docusaurus example: [https://docusaurus.io/docs/en/installation](https://docusaurus.io/docs/en/installation)
 
-## [Slate](https://github.com/slatedocs/slate)
+## [Slate for NodeJS](https://github.com/jmanek/slate_node)
 
 Like MkDocs and Docusaurus, but better! It can document API quite well!
 
-A bit more effort than MkDocs and Docusaurs, but TODO - this looks promising - a version that is run by NodeJS, with fewer dependencies. The end result looks the same. [https://github.com/jmanek/slate\_node](https://github.com/jmanek/slate_node)
+This version of slate is run by NodeJS, with fewer dependencies, so it's easier to set up. The end result looks the same.
 
-Here's the library the NodeJS version uses to convert markdown to HTML or other formats:  
-[https://github.com/markedjs/marked](https://github.com/markedjs/marked)
+The major difference is the use of [marked](https://github.com/chjj/marked) for parsing the .md, [highlight](https://highlightjs.org/) for syntax highlighting, and [Handlebars](http://handlebarsjs.com/) for templating.
 
-Example: [https://slatedocs.github.io/slate/\#authentication](https://slatedocs.github.io/slate/#authentication)
+Example: [http://jmanek.github.io/slate\_node/](http://jmanek.github.io/slate_node/)
 
 ## [GitBook](https://gitbook.com)
 
