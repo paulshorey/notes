@@ -2,7 +2,7 @@
 
 #### Change directory \(cd\) pro tip:
 
-**`pushd .`** to save current working directory, **`popd`** to go back to copied directory
+**`pushd .`** to save current working directory, **`popd`** to go back to that directory
 
 ## Permissions
 
