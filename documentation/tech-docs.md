@@ -11,7 +11,7 @@ Use this validator, to debug your file:
 
 ## [Slate for NodeJS](https://github.com/jmanek/slate_node)
 
-It can document API quite well!  But it's great for documenting any kind of code - with English description in the middle column, and code examples in the right column.
+Slate can document API quite well!  But it's great for documenting any kind of code - with English description in the middle column, and code examples in the right column.
 
 This version of slate is run by NodeJS, with fewer dependencies, so it's easier to set up. The end result looks the same.
 
