@@ -4,7 +4,7 @@ OpenAPI \(v3\) in Yaml files is the way to document your APIs, but it's complica
 
 ## [Slate](https://slatedocs.github.io/slate/?javascript#introduction)
 
-TODO list: try slate. It looks great for API documentation.
+TODO list: try slate. It looks great for API or codebase documentation.
 
 ## [SwaggerHub](https://swagger.io/tools/swaggerhub/)
 

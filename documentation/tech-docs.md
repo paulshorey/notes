@@ -1,5 +1,9 @@
 # Website builders for technical documentation or knowledgebase
 
+## [Slate](https://slatedocs.github.io/slate/?javascript#introduction)
+
+TODO list: try slate. It looks great for API or codebase documentation.
+
 ## [GitBook](https://gitbook.com)
 
 It's a brilliant platform for editing Markdown docs. It generates a beautiful website from your markdown files. You can edit the ".md" files manually or use their GUI. After you save, your beautiful documentation website is generated and published automatically to your domain. It looks the best. 
