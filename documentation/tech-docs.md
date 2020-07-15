@@ -2,7 +2,7 @@
 
 ## [Slate](https://slatedocs.github.io/slate/?javascript#introduction)
 
-TODO list: try slate. It looks great for API or codebase documentation.
+TODO: try slate. It looks great for API or codebase documentation.
 
 ## [GitBook](https://gitbook.com)
 
