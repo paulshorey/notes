@@ -1,6 +1,6 @@
 ---
 description: >-
-  See the next section, API REFERENCE, for specifically documenting API
+  See the next section, API REFERENCE, for documenting specifically API
   projects.
 ---
 
