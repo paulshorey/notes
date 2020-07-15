@@ -2,9 +2,22 @@
 
 ## [Readme.com](https://Readme.com)
 
-If you can afford $400/month, then definitely try this. The lower tiers are disappointing, and are trying hard to up-sell the pricy "Business" plan.
+If you can afford $400/month, then definitely use this. It can handle regular documentation, and API reference, including versions. For the $400/mo, you can even include custom CSS/HTML/JS!
 
-Handles regular docs and API reference beautifully! But, if your OpenAPI yaml file has even the slightest error, it will refuse to upload it. This is very unfortunate, because I'm not yet an expert with OpenAPI spec, and most developers are not. Other documentation services are forgiving of missing properties and little things like that. To use this one,  you need to be perfect.
+However... To use this,  you need to write your OpenAPI documentation 100% correctly \(dot the i's, cross the t's\), by specifying schemas for all parameters and responses. If you yaml file is not perfect, it will not be accepted.
+
+Use this validator, to debug your file:  
+[https://apitools.dev/swagger-parser/online/](https://apitools.dev/swagger-parser/online/)
+
+## [Slate for NodeJS](https://github.com/jmanek/slate_node)
+
+It can document API quite well!  But it's great for documenting any kind of code - with English description in the middle column, and code examples in the right column.
+
+This version of slate is run by NodeJS, with fewer dependencies, so it's easier to set up. The end result looks the same.
+
+The major difference is the use of [marked](https://github.com/chjj/marked) for parsing the .md, [highlight](https://highlightjs.org/) for syntax highlighting, and [Handlebars](http://handlebarsjs.com/) for templating.
+
+Example: [http://jmanek.github.io/slate\_node/](http://jmanek.github.io/slate_node/)
 
 ## [MkDocs](https://squidfunk.github.io/mkdocs-material/), [Docusaurus](https://docusaurus.io)
 
@@ -12,16 +25,6 @@ Install and host it yourself. No API reference docs, but otherwise great content
 
 MkDocs example: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/)  
 Docusaurus example: [https://docusaurus.io/docs/en/installation](https://docusaurus.io/docs/en/installation)
-
-## [Slate for NodeJS](https://github.com/jmanek/slate_node)
-
-Like MkDocs and Docusaurus, but better! It can document API quite well!
-
-This version of slate is run by NodeJS, with fewer dependencies, so it's easier to set up. The end result looks the same.
-
-The major difference is the use of [marked](https://github.com/chjj/marked) for parsing the .md, [highlight](https://highlightjs.org/) for syntax highlighting, and [Handlebars](http://handlebarsjs.com/) for templating.
-
-Example: [http://jmanek.github.io/slate\_node/](http://jmanek.github.io/slate_node/)
 
 ## [GitBook](https://gitbook.com)
 
