@@ -15,7 +15,7 @@ Docusaurus example: [https://docusaurus.io/docs/en/installation](https://docusau
 
 ## [Slate](https://github.com/slatedocs/slate)
 
-LIke MkDocs and Docusaurus, but better! It can document API quite well!
+Like MkDocs and Docusaurus, but better! It can document API quite well!
 
 A bit more effort than MkDocs and Docusaurs, but TODO - this looks promising - a version that is run by NodeJS, with fewer dependencies. The end result looks the same. [https://github.com/jmanek/slate\_node](https://github.com/jmanek/slate_node)
 
