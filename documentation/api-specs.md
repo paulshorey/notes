@@ -1,3 +1,7 @@
+---
+description: 'See https://openapi.tools/ for an incomplete, but very useful list of tools!'
+---
+
 # API reference
 
 OpenAPI \(v3\) in Yaml files is the way to document your APIs, but it's complicated to write, so it helps to use an editor, at first. Then you need to publish your docs as a website...
