@@ -2,9 +2,9 @@
 description: 'See https://openapi.tools/ for an incomplete, but very useful list of tools!'
 ---
 
-# API reference
+# API reference GUI
 
-OpenAPI \(v3\) in Yaml files is the way to document your APIs, but it's complicated to write, so it helps to use an editor, at first. Then you need to publish your docs as a website...
+[OpenAPI \(v3\) specification](https://swagger.io/specification/) is the way to document your APIs, but it's a lot to learn, so it helps to use an editor, at first. And you'll need to publish the spec as a website...
 
 ## [SwaggerHub](https://swagger.io/tools/swaggerhub/)
 
