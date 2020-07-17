@@ -2,7 +2,7 @@
 
 ## How to open &lt;Select /&gt; dropdown programmatically?
 
-from outside the component \(Redux perhaps\)...
+from outside the component \(Redux or parent\)...
 
 ```text
 constructor(){
