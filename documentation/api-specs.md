@@ -2,9 +2,15 @@
 description: 'See https://openapi.tools/ for an incomplete, but very useful list of tools!'
 ---
 
-# API reference GUI
+# API reference
 
 [OpenAPI \(v3\) specification](https://swagger.io/specification/) is the way to document your APIs, but it's a lot to learn, so it helps to use an editor, at first. And you'll need to publish the spec as a website...
+
+## Slate
+
+[Here is a great article explaining everything.](https://www.bitgo.com/blog/using-openapi-at-bitgo)
+
+
 
 ## [SwaggerHub](https://swagger.io/tools/swaggerhub/)
 
