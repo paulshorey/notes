@@ -74,8 +74,6 @@
 * [React](frontend/react-1/README.md)
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
-* [UI](frontend/ui/README.md)
-  * [Libraries](frontend/ui/libraries.md)
 * [Icons](frontend/icons.md)
 
 ## Interviews / Jobs / Hiring

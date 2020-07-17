@@ -1,13 +1,8 @@
 # Advanced Useful Snippets
 
-**Build PropTypes declarations from object:**  
-\(replace `that` with your variable\)
-
-```text
-
-```
-
 ## How to open &lt;Select /&gt; dropdown programmatically?
+
+from outside the component \(Redux or url\)...
 
 ```text
 constructor(){
