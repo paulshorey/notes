@@ -1,4 +1,4 @@
-# webpack
+# Webpack
 
 **If running development environment on Linux, watching for file changes, may have to increase number of inotify processes...**
 

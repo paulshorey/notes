@@ -56,24 +56,24 @@
 
 ## JavaScript
 
-* [quirks and coding conventions](javascript/quirks/README.md)
+* [quirks](javascript/quirks/README.md)
   * [Global Variables](javascript/quirks/global-variables.md)
   * [JS Without Semicolons](javascript/quirks/coding-conventions.md)
   * [Quotes around object keys](javascript/quirks/quotes-around-object-keys.md)
   * [Date: UTC/ISO/GMT/local](javascript/quirks/dates.md)
-* [not so basic basics](javascript/not-so-basic-basics/README.md)
+* [advanced basics](javascript/not-so-basic-basics/README.md)
   * [loops](javascript/not-so-basic-basics/loops.md)
   * [url params](javascript/not-so-basic-basics/url-functions.md)
   * [types](javascript/not-so-basic-basics/types.md)
   * [NPM](javascript/not-so-basic-basics/npm.md)
 * [typescript](javascript/typescript.md)
-* [webpack](javascript/webpack.md)
 
 ## FrontEnd
 
 * [React](frontend/react-1/README.md)
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
+* [Webpack](frontend/webpack.md)
 * [Icons](frontend/icons.md)
 
 ## Interviews / Jobs / Hiring
