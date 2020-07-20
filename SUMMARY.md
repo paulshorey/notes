@@ -39,7 +39,7 @@
   * [SSL](backend/basic-linux-web-server/ssl.md)
   * [NginX](backend/basic-linux-web-server/new-nginx.md)
 * [Databases](backend/db/README.md)
-  * [PostgreSQL on Ubuntu](backend/db/postgresql-on-ubuntu/README.md)
+  * [PostgreSQL](backend/db/postgresql-on-ubuntu/README.md)
     * [backup / restore](backend/db/postgresql-on-ubuntu/backup-restore.md)
     * [users and security](backend/db/postgresql-on-ubuntu/users-and-security.md)
   * [MongoDB](backend/db/new-mongodb/README.md)
