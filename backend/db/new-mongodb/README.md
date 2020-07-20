@@ -9,7 +9,9 @@
 `db.collection.find().sort( { age: -1 } )` // negative one = descending   
 `db.collection.find( { $query: {}, $orderby: { age : -1 } } )`  // uses less memory
 
+## Read more:
 
+[https://thecodebarbarian.com/managing-connections-with-the-mongodb-node-driver.html](https://thecodebarbarian.com/managing-connections-with-the-mongodb-node-driver.html)
 
 ## CLI usage:
 
