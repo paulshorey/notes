@@ -41,7 +41,6 @@
 * [Databases](backend/db/README.md)
   * [PostgreSQL](backend/db/postgresql-on-ubuntu/README.md)
     * [backup / restore](backend/db/postgresql-on-ubuntu/backup-restore.md)
-    * [users and security](backend/db/postgresql-on-ubuntu/users-and-security.md)
   * [MongoDB](backend/db/new-mongodb/README.md)
     * [Install](backend/db/new-mongodb/install.md)
   * [advanced SQL](backend/db/intermediate-commands.md)

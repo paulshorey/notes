@@ -8,7 +8,7 @@
 sudo apt install postgresql postgresql-contrib -y;
 ```
 
-## Connections/Users/Databases:
+## Manage Users:
 
 **Login as root user:**  
 `sudo -u postgres psql`
@@ -50,6 +50,11 @@ ALTER DATABASE name OWNER TO new_owner
 GRANT CONNECT ON DATABASE "words" TO nodejs
 REASSIGN OWNED BY old_name TO new_name;
 ```
+
+**Login as new user:**  
+`sudo -i -u username`  
+Change current user password:  
+`passwd`
 
 ## **Security - read more about it!**
 
