@@ -2,9 +2,8 @@
 
 ## NodeJS usage:
 
-{% embed url="http://mongodb.github.io/node-mongodb-native/3.5/tutorials/crud/" %}
-
-^^^ all kinds of great examples, including connecting and adding collections/indexes.
+**Great documentation and code examples:**  
+[http://mongodb.github.io/node-mongodb-native/3.5/tutorials/crud/](http://mongodb.github.io/node-mongodb-native/3.5/tutorials/crud/)
 
 **Find and sort:**  
 `db.collection.find().sort( { age: -1 } )` // negative one = descending   
