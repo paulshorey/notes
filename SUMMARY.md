@@ -42,7 +42,7 @@
   * [PostgreSQL](backend/db/postgresql-on-ubuntu/README.md)
     * [backup / restore](backend/db/postgresql-on-ubuntu/backup-restore.md)
   * [MongoDB](backend/db/new-mongodb/README.md)
-    * [Install](backend/db/new-mongodb/install.md)
+    * [install](backend/db/new-mongodb/install.md)
   * [advanced SQL](backend/db/intermediate-commands.md)
 * [APIs](backend/apis/README.md)
   * [Microsoft Azure](backend/apis/microsoft-azure.md)

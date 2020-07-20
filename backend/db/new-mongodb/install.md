@@ -1,4 +1,4 @@
-# Install
+# install
 
 ### **Install on Mac, for development**
 

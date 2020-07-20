@@ -6,6 +6,12 @@
 
 ^^^ all kinds of great examples, including connecting and adding collections/indexes.
 
+**Find and sort:**  
+`db.collection.find().sort( { age: -1 } )` // negative one = descending   
+`db.collection.find( { $query: {}, $orderby: { age : -1 } } )`  // more memory efficient
+
+
+
 ## CLI usage:
 
 ```text
