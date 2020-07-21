@@ -6,7 +6,7 @@ Sub-query gets all the results you want, ordered how you want. Main query makes 
 
 `SELECT DISTINCT ON (email) FROM (SELECT FROM users.contacts ORDER BY text_len DESC) one`
 
-When doing this on my contacts table, it gives me every recorded email \(which is not a unique field\), but does not give me duplicates. Instead, it gives me the best row in this email. Just for fun. Idk.
+When doing this on my contacts table, it gives me every recorded email \(which is not a unique field\), but does not give me duplicates. Instead, it gives me the best row in this email, the row with the most information about the user \(name, phone, description, etc.\).
 
 ## where **"=" multiple values**
 
