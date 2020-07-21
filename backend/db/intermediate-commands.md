@@ -8,7 +8,7 @@ Sub-query gets all the results you want, ordered how you want. Main query makes 
 
 When doing this on my contacts table, it gives me every recorded email \(which is not a unique field\), but does not give me duplicates. Instead, it gives me the best row in this email, the row with the most information about the user \(name, phone, description, etc.\).
 
-**But... I want to order these** unique \(distinct\) emails \(rows\) by date. Tried wrapping in another SELECT parenthesis, but didn't work. I miss working on a team now. Would love to run such things by a more experienced back-end dev. **This did not work...**
+**But... I want to order these** unique \(distinct\) emails \(rows\) by date \(a different field\). Tried wrapping in another SELECT parenthesis, but didn't work. I miss working on a team now. Would love to run such things by a more experienced back-end dev. **This did not work...**
 
 `SELECT * FROM (SELECT DISTINCT ON (email) * FROM (SELECT * FROM users.contacts ORDER BY text_len DESC) one LIMIT 1000) two ORDER BY date DESC`
 
