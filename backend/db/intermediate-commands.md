@@ -1,5 +1,11 @@
 # advanced SQL
 
+## DISTINCT
+
+Sub-query gets all the results you want, ordered how you want. Main query makes one field unique.
+
+`SELECT DISTINCT ON (email) FROM (SELECT FROM users.contacts ORDER BY text_len DESC) one`
+
 ## where **"=" multiple values**
 
 `SELECT ... FROM ... WHERE something IN ('one','two',3,4)`
