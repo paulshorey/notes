@@ -14,7 +14,7 @@ When doing this on my contacts table, it gives me every recorded email \(which i
 
 **But this did...** wrap a query in "WITH \_ AS", then filter that by an added "row number" field, and order the remaining rows by date. Now, the final rows will be ordered primarily by text length, only one kept, the one with the longest text length, then ordered again by length.
 
-`WITH myrows AS ( SELECT *, ROW_NUMBER() OVER(PARTITION BY email ORDER BY text_len DESC) AS rn FROM users.contacts p ) SELECT s.* FROM myrows s WHERE s.rn = 1 ORDER BY date DESC` 
+`WITH myrows AS ( SELECT *, ROW_NUMBER() OVER(PARTITION BY email ORDER BY text_len DESC) AS rn FROM users.contacts ) SELECT s.* FROM myrows s WHERE s.rn = 1 ORDER BY date DESC` 
 
 ## where **"=" multiple values**
 
