@@ -85,6 +85,7 @@
 
 ## Managing a Website
 
+* [Widgets: contact, social, etc.](managing-a-website/widgets-contact-social-etc..md)
 * [Captcha](managing-a-website/captcha.md)
 
 ## AWS
