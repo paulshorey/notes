@@ -29,7 +29,7 @@ It seems I am most productive \(and happy!\) after 2 hours relaxing in the morni
 **2 hours work**  
 1 hour before bed
 
-**12hr ambitious not too many breaks - 16hr day \(8hr sleep\)**  
+**12hr ambitious with only short breaks - 16hr day \(8hr sleep\)**  
 1 hours before work  
 **4 hours work**  
 1 hour lunch  
@@ -38,7 +38,7 @@ It seems I am most productive \(and happy!\) after 2 hours relaxing in the morni
 **4 hours work**  
 1 hour relax before bed
 
-**13.5hr maximum ambitious day - 17hr day \(7hr sleep\)**  
+**13.5hr maximum productivity - 17hr day \(7hr sleep\)**  
 1 hours before work  
 **5 hours work**  
 1 hour lunch  
