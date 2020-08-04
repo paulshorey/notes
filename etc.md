@@ -1,6 +1,7 @@
 # Etc
 
-**Correction:**  
+**Correction:**
+
 Don't take too long to relax in the morning. Go on a run, get a bit of exercise, then start work immediately!  
 **Limit** **1 hour from waking up to starting work - start the day ambitiously, by cramming that 1 hour with:**  
 \* awaken, get outside, get exercise  
