@@ -16,14 +16,14 @@ laying around, going for a run, eating breakfast, playing games, drinking coffee
 some days take the evening off  
 other days take another hour to relax, then get back to work for 2-4 more hours
 
-**Scenarios**
+**Scenarios:**
 
-**8hr normal**  
+**8hr normal not-ambitious hours - 17hr total \(9hr sleep\)**  
 2 hours before work  
-****4 hours work  
+**4 hours work**  
 1 hour lunch  
-4 hours work  
-take the evening off
+**4 hours work**  
+6 hours dinner and chill, or go out for the evening
 
 **10hr long mid-day break - 17hr day total \(9hr sleep\)**  
 2 hours wake up  
@@ -43,7 +43,7 @@ take the evening off
 **3 hours work**  
 1 hour before bed
 
-**12hr work motivated not too many breaks - 18hr day** \(8hr sleep\)  
+**12hr motivated not too many breaks - 18hr day \(8hr sleep\)**  
 1 hours before work  
 **4 hours work**  
 1 hour lunch  
