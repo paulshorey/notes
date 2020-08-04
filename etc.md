@@ -1,6 +1,7 @@
 # Etc
 
-It seems I am most productive \(and happy!\) after 2 hours relaxing in the morning...
+It seems I am most productive \(and happy!\) after 2 hours relaxing in the morning.  
+Having a 1hr each way commute \(including getting dressed and stuff\) would take away from evening work/fun. It would also take away from morning relaxation, but not too much, because 1 hour is usually wasted in the morning anyway. Overall wouldn't be too bad - but the extra stress and tiredness of working in the office, dealing with bureaucratic frustrations and social anxiety - takes away an extra 1+ hours from work hours in the evening - needing more time to decompress, destress in the evening. Total take away 2 or 3 hours from work hours. But also takes away from quality of life - because an extra hour is needed to unwind after work, which is neither fun nor productive, and an extra hour wasted to commute to home.
 
 **Scenarios:**
 
