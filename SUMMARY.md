@@ -75,6 +75,7 @@
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
 * [Webpack](frontend/webpack.md)
 * [Icons](frontend/icons.md)
+* [quirks](frontend/quirks.md)
 
 ## Interviews / Jobs / Hiring
 
