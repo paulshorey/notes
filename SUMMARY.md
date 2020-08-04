@@ -96,3 +96,7 @@
 
 * [Screen resolution](design/screen-resolution.md)
 
+---
+
+* [Etc](etc.md)
+
