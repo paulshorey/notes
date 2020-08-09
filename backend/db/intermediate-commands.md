@@ -4,6 +4,22 @@
 
 `DELETE FROM data.words WHERE ctid IN ( SELECT ctid FROM data.words WHERE vrsn IS NULL AND list='[]' ORDER BY timestamp DESC LIMIT 761 )` 
 
+## where **"=" multiple values**
+
+`SELECT ... FROM ... WHERE something IN ('one','two',3,4)`
+
+`SELECT key,list_count,ws_sentiment FROM data.words WHERE key IN ('submissions','indications','motions','hint','allusions','clues');`
+
+## replace
+
+`Use SELECT to display replaced value. Remove when using in SQL query.`
+
+`SELECT REPLACE(REPLACE(REPLACE((SELECT list FROM data.words WHERE key='wordy'), '[',''),']',''),'"','''')`
+
+## function: substr \(cut off first 3 characters\)
+
+`ALTER TABLE data.words ALTER COLUMN pos1 TYPE varchar(3) USING substr("pos1", 1, 3)`
+
 ## better than DISTINCT
 
 Sub-query gets all the results you want, ordered how you want. Main query makes one field unique.
@@ -20,19 +36,5 @@ When doing this on my contacts table, it gives me every recorded email \(which i
 
 `WITH myrows AS ( SELECT *, ROW_NUMBER() OVER(PARTITION BY email ORDER BY text_len DESC) AS rn FROM users.contacts ) SELECT s.* FROM myrows s WHERE s.rn = 1 ORDER BY date DESC` 
 
-## where **"=" multiple values**
-
-`SELECT ... FROM ... WHERE something IN ('one','two',3,4)`
-
-`SELECT key,list_count,ws_sentiment FROM data.words WHERE key IN ('submissions','indications','motions','hint','allusions','clues');`
-
-## replace
-
-`Use SELECT to display replaced value. Remove when using in SQL query.`
-
-`SELECT REPLACE(REPLACE(REPLACE((SELECT list FROM data.words WHERE key='wordy'), '[',''),']',''),'"','''')`
-
-## function: substr \(cut off first 3 characters\)
-
-`ALTER TABLE data.words ALTER COLUMN pos1 TYPE varchar(3) USING substr("pos1", 1, 3)`
+## 
 
