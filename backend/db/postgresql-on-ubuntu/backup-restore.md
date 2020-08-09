@@ -26,7 +26,7 @@ Wait for confirmation response "DROP SCHEMA".
 
 **THEN,**  
 `\q`, don't forget this bit!  
-`pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose --schema "data" "/tmp/db-backup-july.sql"`
+`pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose --schema "data" "/tmp/data.sql"`
 
 Enter password when prompted, and done!
 
