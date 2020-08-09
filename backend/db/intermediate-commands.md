@@ -1,5 +1,9 @@
 # advanced SQL
 
+## Delete the top N rows, WHERE, ORDER BY, LIMIT, etc...
+
+`DELETE FROM data.words WHERE ctid IN ( SELECT ctid FROM data.words WHERE vrsn IS NULL AND list='[]' ORDER BY timestamp DESC LIMIT 761 )` 
+
 ## better than DISTINCT
 
 Sub-query gets all the results you want, ordered how you want. Main query makes one field unique.
