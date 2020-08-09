@@ -2,7 +2,7 @@
 
 ## Read
 
-First, connect to any database: `psql mydb` or `psql -u myuser mydb`.
+First, connect to any database: `psql mydb` or `psql -u myuser mydb`. 
 
 `\l` list databases
 
