@@ -19,3 +19,7 @@ mydatabase=#
 
 At this point you can enter a query directly but **you must remember to terminate the query with a semicolon `;`**
 
+
+
+
+
