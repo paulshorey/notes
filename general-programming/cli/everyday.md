@@ -23,6 +23,8 @@ add `-R` to do it recursively for a folder
 ## Process on port
 
 **`netstat -vanp tcp | grep 3000`** find all processes using port 3000  
+process id is 3rd large number leftward, or 4th column from the right
+
 **`sudo lsof -i tcp:3000`** on macOS El Capitan+, this may work better
 
 ## Networking
