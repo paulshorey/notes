@@ -4,8 +4,14 @@ description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
 
 # CLI
 
-Suspend process: `Ctrl + Z`    
-Un-suspend process: `fg`   
+## Processes
+
+**`netstat -vanp tcp | grep 3000`** find all processes using port 3000  
+process id is 3rd large number leftward, or 4th column from the right  
+`kill id`
+
+**Suspend process:** `Ctrl + Z`    
+**Un-suspend process:** `fg`   
 
 `pbcopy < ~/.ssh/myssh.pub` copy contents of file  
 `pbpaste` paste, or use paste to file: `pbpaste > myssh.pub` 
