@@ -8,7 +8,7 @@ description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
 
 **`netstat -vanp tcp | grep 3000`** find all processes using port 3000  
 process id is 3rd large number leftward, or 4th column from the right  
-`kill id`
+`kill 32748`
 
 **Suspend process:** `Ctrl + Z`    
 **Un-suspend process:** `fg`   
