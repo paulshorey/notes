@@ -6,7 +6,7 @@ description: '*** on Ubuntu 18, Postgres v 12 ***'
 
 ## First, on local: **Copy backup file to server:**
 
-`scp /www/words-data-07-09-after-poss.sql root@142.93.251.57:/tmp/db-backup-july.sql`
+`scp /srv/data-08-26.sql root@142.93.251.57:/tmp/data.sql`
 
 ## **Restore schema only \(no data\):**
 
