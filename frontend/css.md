@@ -6,7 +6,7 @@ Set `font-size` of the html tag, in pixels. Then, **EVERYWHERE ELSE IN THE PAGE*
 
 In the main css file, set "responsive" breakpoints / media queries, to adjust the font-size of the html tag. For smaller screens, make the font-size smaller. For bigger screens, make it bigger. 
 
-Then, because you used `rem` for all other sizes... whenever the screen gets smaller, all elements will automatically "respond" to fit to the smaller screen, like **magic!** This is not just "responsive", but "adaptive".
+Then, because you used `rem` for all other sizes... whenever the screen gets smaller, all elements will automatically "respond" to fit to the smaller screen, like **magic!**
 
 ## Cool trick: CSS element\(\) function
 
