@@ -56,25 +56,29 @@
   * [Convert text / object / array](data/regexp/convert-text-object-array.md)
   * [Cleanup](data/regexp/cleanup.md)
 
+## JavaScript
+
+* [useful tips](javascript/reference.md)
+* [quirks](javascript/quirks/README.md)
+  * [Global Variables](javascript/quirks/global-variables.md)
+  * [JS Without Semicolons](javascript/quirks/coding-conventions.md)
+  * [Quotes around object keys](javascript/quirks/quotes-around-object-keys.md)
+  * [Date: UTC/ISO/GMT/local](javascript/quirks/dates.md)
+* [advanced basics](javascript/not-so-basic-basics/README.md)
+  * [loops](javascript/not-so-basic-basics/loops.md)
+  * [url params](javascript/not-so-basic-basics/url-functions.md)
+  * [types](javascript/not-so-basic-basics/types.md)
+  * [NPM](javascript/not-so-basic-basics/npm.md)
+* [typescript](javascript/typescript.md)
+
 ## FrontEnd
 
-* [JavaScript](frontend/reference/README.md)
-  * [quirks](frontend/reference/quirks/README.md)
-    * [Global Variables](frontend/reference/quirks/global-variables.md)
-    * [JS Without Semicolons](frontend/reference/quirks/coding-conventions.md)
-    * [Quotes around object keys](frontend/reference/quirks/quotes-around-object-keys.md)
-    * [Date: UTC/ISO/GMT/local](frontend/reference/quirks/dates.md)
-  * [advanced basics](frontend/reference/not-so-basic-basics/README.md)
-    * [loops](frontend/reference/not-so-basic-basics/loops.md)
-    * [url params](frontend/reference/not-so-basic-basics/url-functions.md)
-    * [types](frontend/reference/not-so-basic-basics/types.md)
-    * [NPM](frontend/reference/not-so-basic-basics/npm.md)
-  * [typescript](frontend/reference/typescript.md)
 * [React](frontend/react-1/README.md)
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
 * [Webpack](frontend/webpack.md)
 * [Icons](frontend/icons.md)
+* [quirks](frontend/quirks.md)
 * [CSS](frontend/css.md)
 
 ## Interviews / Jobs / Hiring
