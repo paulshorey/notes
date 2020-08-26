@@ -11,7 +11,7 @@ to filter out any OPTIONS or GET requests
 Chrome black-boxing supports regular expressions to "black-list" a file or folder. But, if you're too lazy to make a regex for every 3rd party framework, including NodeJS internals, then use the a Negative Lookahead:  
 `^((?! regex to whitelist your scripts go here ).)*$`   
 **Ex:   
-`^((?!nlp-be).)*$` will blacklist \(blackbox\) any scripts that are NOT in the `nlp-be` folder.**
+`^((?!redux).)*$` will blacklist \(blackbox\) any scripts that are NOT in the `redux` folder.**
 
 ## **Debug Node.JS**
 
