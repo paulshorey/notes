@@ -58,7 +58,7 @@
 
 ## JavaScript
 
-* [reference](javascript/reference.md)
+* [useful tips](javascript/reference.md)
 * [quirks](javascript/quirks/README.md)
   * [Global Variables](javascript/quirks/global-variables.md)
   * [JS Without Semicolons](javascript/quirks/coding-conventions.md)
