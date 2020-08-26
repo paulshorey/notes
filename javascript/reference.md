@@ -4,7 +4,9 @@
 
 * [https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global\_Objects/Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
 
-#### Re-declaring a variable is not allowed. Just, put it in its own brackets.
+## Re-declaring a variable is not allowed. Just, put it in its own brackets.
+
+This also works to allow variables inside a switch statement. 
 
 ```text
 {
