@@ -55,7 +55,6 @@
 
 ## FrontEnd
 
-* [npm](frontend/npm.md)
 * [Gatsby](frontend/gatsby.md)
 * [JavaScript](frontend/reference/README.md)
   * [quirks](frontend/reference/quirks/README.md)
@@ -72,6 +71,7 @@
 * [React](frontend/react-1/README.md)
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
+* [npm](frontend/npm.md)
 * [Webpack](frontend/webpack.md)
 * [Icons](frontend/icons.md)
 * [CSS](frontend/css.md)
@@ -82,6 +82,7 @@
   * [JS Basic Technical skills](interviews-jobs-hiring/interviews/js-interview-qs.md)
   * [JS Discussion Questions](interviews-jobs-hiring/interviews/js-discussion-questions.md)
 * [Topics for Discussion](interviews-jobs-hiring/interview-questions.md)
+* [Jokes](interviews-jobs-hiring/jokes.md)
 
 ## Managing a Website
 
