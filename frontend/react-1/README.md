@@ -1,5 +1,11 @@
 # React
 
+## Useful Tips:
+
+#### Include HTML files in React app, without converting all the JSX attributes manually:
+
+[http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack](http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack)
+
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 
 #### onClick not working, in drop-down or popup menu
