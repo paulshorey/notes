@@ -2,9 +2,12 @@
 
 ## Useful Tips:
 
-#### Include HTML files in React app, without converting all the JSX attributes manually:
+#### Include HTML files in React app, without converting all the JSX attributes manually: [http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack](http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack)
 
-[http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack](http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack)
+Same concept, but include Markdown files, converted to HTML! Wow, amazing:   
+[https://github.com/peerigon/markdown-loader](https://github.com/peerigon/markdown-loader)
+
+
 
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 
