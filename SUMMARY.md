@@ -55,6 +55,8 @@
 
 ## FrontEnd
 
+* [npm](frontend/npm.md)
+* [Gatsby](frontend/gatsby.md)
 * [JavaScript](frontend/reference/README.md)
   * [quirks](frontend/reference/quirks/README.md)
     * [Global Variables](frontend/reference/quirks/global-variables.md)
