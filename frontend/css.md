@@ -8,6 +8,10 @@ In the main css file, set "responsive" breakpoints / media queries, to adjust th
 
 Then, because you used `rem` for all other sizes... whenever the screen gets smaller, all elements will automatically "respond" to fit to the smaller screen, like **magic!**
 
+## Cool trick: Convert CSS to SCSS!
+
+[http://beautifytools.com/css-to-scss-converter.php](http://beautifytools.com/css-to-scss-converter.php)
+
 ## Cool trick: CSS element\(\) function
 
 Turns any div into an image! Useful for a DIY "minimap":  
