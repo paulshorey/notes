@@ -17,5 +17,10 @@ Then, because you used `rem` for all other sizes... whenever the screen gets sma
 Turns any div into an image! Useful for a DIY "minimap":  
 [https://css-tricks.com/using-the-little-known-css-element-function-to-create-a-minimap-navigator/](https://css-tricks.com/using-the-little-known-css-element-function-to-create-a-minimap-navigator/)
 
+## Advanced:
+
+Easiest way to make CSS3 variables work in Internet Explorer... if you're using a JS framework like React...   
+Use JavaScript variables instead, with Styled Components or similar library.
+
 
 
