@@ -2,7 +2,7 @@
 
 ### Best way to add HTTPS/SSL is by running `openssl`:
 
-`sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt`  
+`sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /srv/public/_certs/bresta.name.key -out /srv/public/_certs/bresta.name.crt`  
 [https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04](https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04)  
 \(refer to the link below for explanation of all the certificate things openssl asks for\)
 
