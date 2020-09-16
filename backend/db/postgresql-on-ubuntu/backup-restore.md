@@ -12,7 +12,7 @@ description: '*** on Ubuntu 18, Postgres v 12 ***'
 
 `pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose "/tmp/db-backup-july.sql"`
 
-## **Restore data:node**
+## **Restore data:node on Linux server:**
 
 ### **Restore specific schema:**
 
