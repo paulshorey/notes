@@ -35,7 +35,9 @@ Ping a website - find its IP, and if it is active:
 ## Clear DNS cache
 
 Mac:  
-`sudo killall -HUP mDNSResponder;sudo killall mDNSResponderHelper;sudo dscacheutil -flushcache`
+`sudo killall -HUP mDNSResponder;  
+sudo killall mDNSResponderHelper;  
+sudo dscacheutil -flushcache`
 
 Linux:  
 `sudo service nscd restart` or   
