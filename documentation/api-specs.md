@@ -6,7 +6,7 @@ description: 'See https://openapi.tools/ for an incomplete, but very useful list
 
 [OpenAPI \(v3\) specification](https://swagger.io/specification/) is the way to document your APIs, but it's a lot to learn, so it helps to use an editor, at first. And you'll need to publish the spec as a website...
 
-## Slate
+## [Slate \(node-slate npm package\)](https://github.com/sdelements/node-slate)
 
 Is great! I set up a demo documentation at [nlp.studio](https://nlp.studio). It was very easy to write and to publish.
 
