@@ -12,6 +12,10 @@ Is great. It's free! I set up a demo documentation at [nlp.studio](https://nlp.s
 
 [Here is a great article about Slate.](https://www.bitgo.com/blog/using-openapi-at-bitgo) It's as close as you can get to a standard for documenting the overview and abstract concepts of your codebase or product.
 
+Slate can document API quite well!  But it's great for documenting any kind of code - with English description in the middle column, and code examples in the right column. This version for Node.JS is easier to set up, and has fewer dependencies. The major difference is the use of [marked](https://github.com/chjj/marked) for parsing the .md, [highlight](https://highlightjs.org/) for syntax highlighting, and [Handlebars](http://handlebarsjs.com/) for templating.
+
+Example: [http://jmanek.github.io/slate\_node/](http://jmanek.github.io/slate_node/)
+
 ## [Readme.com](https://Readme.com)
 
 If you can afford $400/month, then definitely use this. It can handle regular documentation, and API reference, including versions. For the $400/mo, you can even include custom CSS/HTML/JS!
@@ -20,16 +24,6 @@ However... To use this,  you need to write your OpenAPI documentation 100% corre
 
 Use this validator, to debug your file:  
 [https://apitools.dev/swagger-parser/online/](https://apitools.dev/swagger-parser/online/)
-
-## [Slate for NodeJS](https://github.com/jmanek/slate_node)
-
-Slate can document API quite well!  But it's great for documenting any kind of code - with English description in the middle column, and code examples in the right column.
-
-This version of slate is run by NodeJS, with fewer dependencies, so it's easier to set up. The end result looks the same.
-
-The major difference is the use of [marked](https://github.com/chjj/marked) for parsing the .md, [highlight](https://highlightjs.org/) for syntax highlighting, and [Handlebars](http://handlebarsjs.com/) for templating.
-
-Example: [http://jmanek.github.io/slate\_node/](http://jmanek.github.io/slate_node/)
 
 ## [MkDocs](https://squidfunk.github.io/mkdocs-material/), [Docusaurus](https://docusaurus.io)
 
