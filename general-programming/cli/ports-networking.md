@@ -32,7 +32,7 @@ Ping a website - find its IP, and if it is active:
 -c  = call only N times  
 -i = timeout and quit after N seconds
 
-## Flush DNS cache
+## Clear DNS cache
 
 Mac:  
 `sudo killall -HUP mDNSResponder;sudo killall mDNSResponderHelper;sudo dscacheutil -flushcache`
