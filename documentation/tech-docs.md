@@ -6,6 +6,12 @@ description: >-
 
 # Website builders for technical documentation or knowledgebase
 
+## [Slate \(node-slate npm package\)](https://github.com/sdelements/node-slate)
+
+Is great. It's free! I set up a demo documentation at [nlp.studio](https://nlp.studio). It was very easy to write and to publish.
+
+[Here is a great article about Slate.](https://www.bitgo.com/blog/using-openapi-at-bitgo) It's as close as you can get to a standard for documenting the overview and abstract concepts of your codebase or product.
+
 ## [Readme.com](https://Readme.com)
 
 If you can afford $400/month, then definitely use this. It can handle regular documentation, and API reference, including versions. For the $400/mo, you can even include custom CSS/HTML/JS!

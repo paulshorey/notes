@@ -4,13 +4,9 @@ description: 'See https://openapi.tools/ for an incomplete, but very useful list
 
 # API reference
 
-[OpenAPI \(v3\) specification](https://swagger.io/specification/) is the way to document your APIs, but it's a lot to learn, so it helps to use an editor, at first. And you'll need to publish the spec as a website...
+### [OpenAPI \(v3\) specification](https://swagger.io/specification/) 
 
-## [Slate \(node-slate npm package\)](https://github.com/sdelements/node-slate)
-
-Is great! I set up a demo documentation at [nlp.studio](https://nlp.studio). It was very easy to write and to publish.
-
-[Here is a great article about Slate.](https://www.bitgo.com/blog/using-openapi-at-bitgo) It's as close as you can get to a standard for documenting the overview and abstract concepts of your codebase or product.
+is the way to document your APIs, but it's a lot to learn, so it helps to use an editor, at first. And you'll need to publish the spec as a website...
 
 ## [SwaggerHub](https://swagger.io/tools/swaggerhub/)
 
