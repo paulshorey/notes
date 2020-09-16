@@ -11,6 +11,9 @@ Nginx installation already comes with a "default" file. I like to rename that as
 After adding these configuration files, **symlink each one** into `/etc/nginx/sites-enabled` folder, like this:  
 `ln -s /etc/nginx/sites-available/domain1.com /etc/nginx/sites-enabled`
 
+Experimental: symlink the config file directly from Git codebase to sites-enabled:  
+`ln -s /srv/public/_nginx/besta.domains /etc/nginx/sites-enabled`
+
 Then, **restart** Nginx, like this: `service nginx restart`. 
 
 **Thats it!** \(on Ubuntu\)
