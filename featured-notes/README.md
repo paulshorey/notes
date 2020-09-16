@@ -1,6 +1,6 @@
 # Tutorials...
 
-**Todo: make these into blog articles!...**
+**TODO: make these into blog articles!...**
 
 Publish a modern web app and API, with CI and SSL, the simple timeless way
 
