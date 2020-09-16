@@ -14,7 +14,7 @@ Is great. It's free! I set up a demo documentation at [nlp.studio](https://nlp.s
 
 Slate can document API quite well!  But it's great for documenting any kind of code - with English description in the middle column, and code examples in the right column. This version for Node.JS is easier to set up, and has fewer dependencies. The major difference is the use of [marked](https://github.com/chjj/marked) for parsing the .md, [highlight](https://highlightjs.org/) for syntax highlighting, and [Handlebars](http://handlebarsjs.com/) for templating.
 
-Example: [http://jmanek.github.io/slate\_node/](http://jmanek.github.io/slate_node/), and my [nlp.studio](https://nlp.studio)
+Example: [http://jmanek.github.io/slate\_node](http://jmanek.github.io/slate_node/)
 
 ## [Readme.com](https://Readme.com)
 
