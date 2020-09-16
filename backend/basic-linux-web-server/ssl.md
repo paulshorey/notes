@@ -3,12 +3,13 @@
 ### Best way to add HTTPS/SSL is by running `openssl`:
 
 `sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /srv/public/_certs/bresta.name.key -out /srv/public/_certs/bresta.name.crt`  
-[https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04](https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04)  
-\(refer to the link below for explanation of all the certificate things openssl asks for\)
+[https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04](https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04)
 
-### or, generate a CSR for a premium/wildcard certificate authority:
+Refer to this guide, for answering OpenSSL CLI questions:  
+[https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/](https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/)
 
-[https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/](https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/)  
+### or, generate a CSR for a premium/wildcard certificate authority.
+
 For when buying a SSL such as RapidSSL through Name.com...  
 "Common Name" or "domain name" should start with "www." or wildcard "\*".
 
