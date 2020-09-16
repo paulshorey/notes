@@ -44,5 +44,5 @@ It is the most advanced collaboration software for large teams. Multiple people 
 
 But... Their UI is cumbersome to use and difficult to navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be a big mess, because everyone struggles with all their bloated unwieldy UI. It starts out easy enough, but the more you add, the worse it gets. People use it because they have to, and use it as little as possible, to get it over with. All this leads to confusing and incomplete documentation.
 
-However... If you have a dedicated person in charge of keeping the documentation organized, and especially, keeping the navigation current, then this could be a great option, especially for larger teams!
+However... If you have a dedicated project manager in charge of keeping the documentation organized, and especially, keeping the navigation current, then this could be a great option, especially for larger teams!
 
