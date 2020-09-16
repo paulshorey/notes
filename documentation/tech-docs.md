@@ -8,7 +8,7 @@ description: >-
 
 ## [Slate \(node-slate npm package\)](https://github.com/sdelements/node-slate)
 
-Is great. It's free! I set up a demo documentation at [nlp.studio](https://nlp.studio). It was very easy to write and to publish.
+Is great. It's free! I set up my own documentation at [nlp.studio](https://nlp.studio). It was very easy to write and to publish.
 
 [Here is a great article about Slate.](https://www.bitgo.com/blog/using-openapi-at-bitgo) It's as close as you can get to a standard for documenting the overview and abstract concepts of your codebase or product.
 
@@ -42,5 +42,7 @@ Example: This site. Also visit [nlp.studio](https://nlp.studio)
 
 It is the most advanced collaboration software for large teams. Multiple people can be editing the same file without merge conflicts. It has very powerful permissions settings.
 
-But... Their UI is so cumbersome to use and difficult to navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be a big mess, because everyone struggles with all their bloated unwieldy UI. People use it because they have to, and use it as little as possible, to get it over with. All this leads to confusing and incomplete documentation.
+But... Their UI is cumbersome to use and difficult to navigate. Especially for a large and/or disorganized team, Confluence docs turn out to be a big mess, because everyone struggles with all their bloated unwieldy UI. It starts out easy enough, but the more you add, the worse it gets. People use it because they have to, and use it as little as possible, to get it over with. All this leads to confusing and incomplete documentation.
+
+However... If you have a dedicated person in charge of keeping the documentation organized, and especially, keeping the navigation current, then this could be a great option, especially for larger teams!
 
