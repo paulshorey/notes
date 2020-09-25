@@ -10,6 +10,8 @@ description: '*** on Ubuntu 18, Postgres v 12 ***'
 
 ## **Restore schema only \(no data\):**
 
+`PGPASSWORD=xxx pg_restore -U doadmin -h database-do-user-1354070-0.b.db.ondigitalocean.com -p 25060 -d defaultdb` 
+
 `pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose "/tmp/db-backup-july.sql"`
 
 ## **Restore database on Linux server:**
