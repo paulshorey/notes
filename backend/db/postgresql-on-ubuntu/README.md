@@ -1,6 +1,6 @@
 # PostgreSQL
 
-## Install \(on Ubuntu\):
+### Install \(on Ubuntu\):
 
 [https://www.digitalocean.com/community/tutorials/how-to-install-and-use-postgresql-on-ubuntu-18-04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-postgresql-on-ubuntu-18-04)
 
@@ -8,7 +8,11 @@
 sudo apt install postgresql postgresql-contrib -y;
 ```
 
-## Manage Users:
+### Config file:
+
+`/etc/postgresql/12/main/postgresql.conf`
+
+### Manage Users:
 
 **Login as root user:**  
 `sudo -u postgres psql`
