@@ -31,7 +31,7 @@ Wait for confirmation response "DROP SCHEMA".
 `pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose --schema "data" "/tmp/data.sql"`
 
 **TODO:**  
-Try `--delete --create` flags, do skip the first parts of dropping/creating schema, but it's probably limited to how the file was exported \(dumped\) from PgAdmin.
+Try `--delete --create` flags and do same on `pg_dump` on CLI. Don't use PgAdmin.
 
 Enter password when prompted, and done!
 
