@@ -30,6 +30,9 @@ Wait for confirmation response "DROP SCHEMA".
 `\q`, don't forget this bit!  
 `pg_restore --host "localhost" --port "5432" --username "postgres" --dbname "words" --verbose --schema "data" "/tmp/data.sql"`
 
+**TODO:**  
+Try `--delete --create` flags, do skip the first parts of dropping/creating schema.
+
 Enter password when prompted, and done!
 
 ## **MacOS PgAdmin4 v 11...**
