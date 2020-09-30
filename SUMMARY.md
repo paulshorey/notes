@@ -98,7 +98,8 @@
 
 * [Screen resolution](design/screen-resolution.md)
 
----
+## Etc <a id="etc-1"></a>
 
-* [Etc](etc.md)
+* [Productivity](etc-1/etc.md)
+* [Mac OS](etc-1/mac-os.md)
 
