@@ -6,7 +6,7 @@
 
 ## Downgrade to older version:
 
-First, go to app store, and download the old OS you want. Then, mount it onto a USB drive with one of the below commands:
+First, go to app store, and download the installer for the OS you want. Then, mount it onto a USB drive with one of the below commands:
 
 #### Big Sur beta
 
