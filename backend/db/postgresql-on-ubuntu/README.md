@@ -1,6 +1,6 @@
 # PostgreSQL
 
-### When using a complex command, test how long it takes by prepending:
+### When trying a new fancy SQL command, test how long it takes by prepending:
 
 ```text
 EXPLAIN (ANALYZE, BUFFERS) 
