@@ -1,5 +1,11 @@
 # PostgreSQL
 
+### When using a complex command, test how long it takes by prepending:
+
+```text
+EXPLAIN (ANALYZE, BUFFERS) 
+```
+
 ### Install \(on Ubuntu\):
 
 [https://www.digitalocean.com/community/tutorials/how-to-install-and-use-postgresql-on-ubuntu-18-04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-postgresql-on-ubuntu-18-04)
