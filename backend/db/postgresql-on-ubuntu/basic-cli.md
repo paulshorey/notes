@@ -7,7 +7,7 @@ psql -U username mydatabase
 mydatabase=#
 ```
 
-Now you can enter a SQL query, but **do remember to end every query with a semicolon `;`**
+Now you can enter a SQL query, but **do remember to end every query with a semicolon! `;`**
 
 ## Read
 
