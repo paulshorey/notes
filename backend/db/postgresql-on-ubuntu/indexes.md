@@ -2,7 +2,7 @@
 
 ## ILIKE %keyword% - very useful, reverse search!
 
-**To add GIN/GIST index, install it on the entire database, then create it on the specific table/column:**
+**To add GIN/GIST index, install it for the entire database, then create it on the specific table/column:**
 
 `CREATE EXTENSION pg_trgm WITH SCHEMA pg_catalog;` 
 
