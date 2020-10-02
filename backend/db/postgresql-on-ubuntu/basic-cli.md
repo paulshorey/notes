@@ -1,4 +1,13 @@
-# basic CLI
+# CLI
+
+**Run SQL query in CLI postgres:**
+
+```text
+psql -U username mydatabase 
+mydatabase=#
+```
+
+At this point you can enter a SQL query, but **do remember to end the query with a semicolon `;`**
 
 ## Read
 

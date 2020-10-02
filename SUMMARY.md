@@ -45,7 +45,7 @@
 * [Databases](backend/db/README.md)
   * [PostgreSQL](backend/db/postgresql-on-ubuntu/README.md)
     * [backup / restore](backend/db/postgresql-on-ubuntu/backup-restore.md)
-    * [basic CLI](backend/db/postgresql-on-ubuntu/basic-cli.md)
+    * [CLI](backend/db/postgresql-on-ubuntu/basic-cli.md)
     * [Indexes](backend/db/postgresql-on-ubuntu/indexes.md)
   * [MongoDB](backend/db/new-mongodb/README.md)
     * [install](backend/db/new-mongodb/install.md)
