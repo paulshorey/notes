@@ -7,7 +7,7 @@ description: >-
 
 # Embed GitBook on your own website
 
-Like most other [technical documentation website builders](../documentation/tech-docs.md), to share your documentation with the world, you have to direct people to the website GitBook generated for you. You can host it on your own domain and upload your logo, and it looks really nice. But, to remove their branding it's a minimum of $300/mo, and even then you can not add CSS or Javascript.
+Like most other [technical documentation website builders](), to share your documentation with the world, you have to direct people to the website GitBook generated for you. You can host it on your own domain and upload your logo, and it looks really nice. But, to remove their branding it's a minimum of $300/mo, and even then you can not add CSS or Javascript.
 
 I figured out a work-around. Here is a step by step tutorial, how I used GitBook-generated HTML pages, including links, CSS, and JavaScript, but I hosted it on my own server. I was able to manipulate the site, remove their branding, and inject my own HTML/CSS/JavaScript:
 

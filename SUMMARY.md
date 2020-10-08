@@ -2,7 +2,6 @@
 
 * [Welcome to my laboratory!](README.md)
 * [Technical documentation...](documentation/README.md)
-  * [Website builders for technical documentation or knowledgebase](documentation/tech-docs.md)
   * [API reference](documentation/api-specs.md)
   * [GUI builder](documentation/gui.md)
   * [Desktop tools](documentation/desktop-tools.md)
