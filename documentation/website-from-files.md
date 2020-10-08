@@ -1,4 +1,4 @@
-# Website from Files
+# Website from markdown
 
 ## [Slate Docs](https://github.com/slatedocs/slate) \(and the [Node.js version](https://github.com/sdelements/node-slate)\)
 
