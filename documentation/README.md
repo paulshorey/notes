@@ -1,5 +1,5 @@
 ---
-description: 'Here, I will document the process of documenting processes. :)'
+description: Documenting the documentation...
 ---
 
 # Technical documentation...
