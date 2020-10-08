@@ -1,6 +1,10 @@
-# GUI
+# GUI builder
 
-GitBook
+## [GitBook](https://gitbook.com)
+
+It's a brilliant platform for editing Markdown docs. It generates a beautiful website from your markdown files. You can edit the ".md" files manually or use their GUI. After you save, your beautiful documentation website is generated and published automatically to your domain. It looks the best. 
+
+Example: this site - [notes.paulshorey.com](https://notes.paulshorey.com)
 
 ## [Readme.com](https://Readme.com)
 

@@ -4,7 +4,7 @@
 * [Technical documentation...](documentation/README.md)
   * [Website builders for technical documentation or knowledgebase](documentation/tech-docs.md)
   * [API reference](documentation/api-specs.md)
-  * [GUI](documentation/gui.md)
+  * [GUI builder](documentation/gui.md)
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from Files](documentation/website-from-files.md)
 * [Tutorials...](featured-notes/README.md)
