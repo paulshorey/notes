@@ -1,6 +1,6 @@
 # Desktop tools
 
-Notion is a big deal. The one, the only. The best.
+Notion is a big deal. The one, the only. The best in this category.
 
 {% embed url="https://Notion.so" %}
 
