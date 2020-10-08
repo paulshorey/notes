@@ -3,7 +3,7 @@
 * [Welcome to my laboratory!](README.md)
 * [Technical documentation...](documentation/README.md)
   * [API reference](documentation/api-specs.md)
-  * [GUI builder](documentation/gui.md)
+  * [GUI website builders](documentation/gui.md)
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from Files](documentation/website-from-files.md)
 * [Tutorials...](featured-notes/README.md)
