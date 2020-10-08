@@ -2,7 +2,7 @@
 
 ## [GitBook](https://gitbook.com)
 
-It's a brilliant platform for creating technical documentation. It generates beautiful websites. It has many features - even templates for documenting APIs. Organize content into tabs and tables. Supports images, code snippets, and has a very clear and readable interface for both the writer and person reading your docs.
+It's a brilliant platform for creating technical documentation. It generates beautiful websites. It has many features - even templates for documenting APIs. Organize content into tabs and tables. Supports images, code snippets, and has a very clear and readable interface for both you the writer, and for the person reading your docs.
 
 It even outputs Markdown docs, and syncs them with your Github repository. You can edit the the content on their web app, or edit the ".md" files manually in your IDE. You can do both, and it doesn't get confused! After you save, your beautiful documentation website is generated and published automatically to your domain.
 
