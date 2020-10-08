@@ -1,8 +1,12 @@
-# Document everything...
+---
+description: 'Here, I will document the process of documenting processes. :)'
+---
 
-Hello world! See links in the side-bar, on your left.
+# Technical documentation...
 
-![](../.gitbook/assets/portrait-canyon.gif)
+See links in the side-bar, on your left.
+
+![Important feature in any documentation tool: embed images, videos, and code snippets.](../.gitbook/assets/portrait-canyon.gif)
 
 
 

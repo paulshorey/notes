@@ -1,9 +1,12 @@
 # Table of contents
 
 * [Welcome to my laboratory!](README.md)
-* [Document everything...](documentation/README.md)
+* [Technical documentation...](documentation/README.md)
   * [Website builders for technical documentation or knowledgebase](documentation/tech-docs.md)
   * [API reference](documentation/api-specs.md)
+  * [GUI](documentation/gui.md)
+  * [Desktop tools](documentation/desktop-tools.md)
+  * [Website from Files](documentation/website-from-files.md)
 * [Tutorials...](featured-notes/README.md)
   * [Embed GitBook on your own website](featured-notes/embed-gitbook-to-your-own-website.md)
 
