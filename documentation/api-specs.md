@@ -46,6 +46,10 @@ is the better looking and more organized version of Swagger-UI. Use this if you 
 
 Just write good documentation, not in the standard format. It can come out even better and clearer, and easier to read. However, you won't be able to import/export it across services.
 
+### [ReDocly](https://github.com/Redocly/redoc)
+
+Used by Netlify. Very similar to Slate Docs, explained in "[website from markdown](website-from-files.md)", but better for API reference. Documents GET/POST/REST verbs. Uses OpenAPI!
+
 ### [GitBook](https://gitbook.com) 
 
 can also document an API very well. However, it is not currently possible to import/export as OpenAPI yaml files. That's a bummer, because OpenAPI is a requirement in tech. So, GitBook can not replace Stoplight/Swagger. I still use it to publish my API reference, though I have to do it as an additional step \(double the work\). However, I write it on GitBook first, because the interface is so easy to use. This way, I can quickly draft it and change it until it is correct. Then I go to Stoplight \(or Swagger\) to edit the real spec.
