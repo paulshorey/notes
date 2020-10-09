@@ -6,6 +6,7 @@
   * [GUI website builders](documentation/gui.md)
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from markdown](documentation/website-from-files.md)
+* [Website Content Management](website-content-management.md)
 * [Tutorials...](featured-notes/README.md)
   * [Embed GitBook on your own website](featured-notes/embed-gitbook-to-your-own-website.md)
 
