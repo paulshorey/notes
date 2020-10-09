@@ -24,7 +24,7 @@ Not sure if it's possible. Could be at the $300+/mo price point. I didn't try it
 
 ### [Stoplight.io](https://stoplight.io) 
 
-**Makes it very easy to write the spec!** Not as easy to publish it though. :\( But it's so easy to edit, that I use it to edit, then export the yaml file. Soon, I'll get good enough to just edit the yaml file, and will not need this crutch. Highly recommended for anyone just learning the OpenAPI spec.
+**Makes it very easy to write the spec!** Not easy to publish it though. :\( But it's so easy to edit, that I use it to edit, then export the yaml file. Soon, I'll get good enough to just edit the yaml file, and will not need this crutch. Highly recommended for anyone just learning the OpenAPI spec.
 
 * Use the intuitive interface to create your specs. Include every necessary detail.
 * Edit the `.yaml` file, if you prefer. It's great practice learning the spec to go back and forth between GUI and IDE.
