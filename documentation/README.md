@@ -2,7 +2,7 @@
 description: Documenting the documentation...
 ---
 
-# Technical documentation...
+# Technical documentation
 
 See links in the side-bar, on your left.
 

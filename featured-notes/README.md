@@ -1,4 +1,10 @@
-# Tutorials...
+# Writing / Blogging
+
+**Coming soon! A review of modern CMS platforms, including Wordpress, Joomla, and "headless" ones like Contentful, CloudCMS, and many more. Also hacks like using GitBook or Notion as a CMS.**
+
+Check back soon!
+
+\*\*\*\*
 
 **TODO: make these blog articles...**
 
