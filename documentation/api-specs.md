@@ -14,6 +14,8 @@ is the way to document your APIs, but it's a lot to learn, so it helps to use an
 
 Used by Netlify. Very similar to [Slate docs](website-from-files.md), but better for API reference. Documents GET/POST/REST verbs. Build from your OpenAPI spec! SaaS available at [Redoc.ly](https://Redoc.ly) 
 
+Unfortunately, unlike Slate, this has many boilerplate elements taking up space. Slate docs is very open. You can write anything. I like that it leaves room for text. ReDocly takes up a lot of space in padding and boilerplate \(like explaining what content type something is\).
+
 ## Option 2. GUI to help build spec AND website:
 
 Design your OpenAPI spec and documentation without actually knowing and coding the OpenAPI Yaml/JSON formatted file manually. The spec is pretty complicated for occasional users, so a tool like this helps. If you are a backend programmer, or want to get into API development, then you should learn the spec, and write it manually like you would for a computer program or configuration file.
