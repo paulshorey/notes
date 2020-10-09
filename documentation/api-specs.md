@@ -8,7 +8,7 @@ description: 'See https://openapi.tools/ for an incomplete, but very useful list
 
 is the way to document your APIs, but it's a lot to learn, so it helps to use an editor, at first. And you'll need to publish the spec as a website...
 
-## Option 1. Build website from OpenAPI file:
+## Option 1. Build documentation from OpenAPI file:
 
 ### [ReDocly](https://github.com/Redocly/redoc)
 
@@ -20,7 +20,7 @@ Design your OpenAPI spec and documentation without actually knowing and coding t
 
 ### [ReDocly](https://ReDoc.ly)
 
-Could be good at the $300+/mo price point. I didn't try it.
+Not sure if its possible. Could be at the $300+/mo price point. I didn't try it.
 
 ### [Stoplight.io](https://stoplight.io) 
 
