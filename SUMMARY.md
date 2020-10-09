@@ -7,7 +7,7 @@
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from markdown](documentation/website-from-files.md)
 * [Writing / Blogging](featured-notes/README.md)
-  * [Embed GitBook on your own website](featured-notes/embed-gitbook-to-your-own-website.md)
+  * [GitBook as a headless CMS](featured-notes/gitbook-cms.md)
 
 ## General Programming
 
