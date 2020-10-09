@@ -8,7 +8,7 @@ description: 'See https://openapi.tools/ for an incomplete, but very useful list
 
 is the way to document your APIs, but it's a lot to learn, so it helps to use an editor, at first. And you'll need to publish the spec as a website...
 
-## Option 1. Build website from spec
+## Option 1. Build website from OpenAPI file:
 
 ### [ReDocly](https://github.com/Redocly/redoc)
 
