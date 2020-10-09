@@ -10,7 +10,7 @@ is the way to document your APIs, but it's a lot to learn, so it helps to use an
 
 ## Option 1. Build documentation from OpenAPI file:
 
-### [ReDocly](https://github.com/Redocly/redoc)
+### [ReDocly](https://github.com/Redocly/redoc) self-hosted
 
 Used by Netlify. Very similar to [Slate docs](website-from-files.md), but better for API reference. Documents GET/POST/REST verbs. Build from your OpenAPI spec! SaaS available at [Redoc.ly](https://Redoc.ly) 
 
@@ -18,7 +18,7 @@ Used by Netlify. Very similar to [Slate docs](website-from-files.md), but better
 
 Design your OpenAPI spec and documentation without actually knowing and coding the OpenAPI Yaml/JSON formatted file manually. The spec is pretty complicated for occasional users, so a tool like this helps. If you are a backend programmer, or want to get into API development, then you should learn the spec, and write it manually like you would for a computer program or configuration file.
 
-### [ReDocly](https://ReDoc.ly)
+### [ReDocly](https://ReDoc.ly) hosted service
 
 Not sure if its possible. Could be at the $300+/mo price point. I didn't try it.
 
