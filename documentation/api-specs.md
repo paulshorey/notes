@@ -8,7 +8,13 @@ description: 'See https://openapi.tools/ for an incomplete, but very useful list
 
 is the way to document your APIs, but it's a lot to learn, so it helps to use an editor, at first. And you'll need to publish the spec as a website...
 
-## Option 1. GUI apps:
+## Option 1. Build website from spec
+
+### [ReDocly](https://github.com/Redocly/redoc)
+
+Used by Netlify. Very similar to Slate Docs, explained in "[website from markdown](website-from-files.md)", but better for API reference. Documents GET/POST/REST verbs. Uses OpenAPI!
+
+## Option 2. GUI to help build spec AND website:
 
 Design your OpenAPI spec and documentation without actually knowing and coding the OpenAPI Yaml/JSON formatted file manually. The spec is pretty complicated for occasional users, so a tool like this helps. If you are a backend programmer, or want to get into API development, then you should learn the spec, and write it manually like you would for a computer program or configuration file.
 
@@ -28,7 +34,7 @@ The largest \(and only, since they bought MashApe\) marketplace. It's been aroun
 
 RapidAPI.com could actually be used for API documentation. In fact, they have code snippets for all major languages and platforms, to make consuming an API very easy. Clients can test the API instantly, on their app. As a publisher, you can import/export OpenAPI files. The reason this is not the \#1 option, is that importing an OpenAPI file into RapidAPI is a little bit buggy. Exporting your API spec and examples is possible, but you have to contact technical support, and they will generate it for you - not instantly.
 
-## Option 2. Edit the code manually.
+## Option 3. Edit the code manually.
 
 And the app will generate a documentation website. This is for pro users:
 
@@ -42,13 +48,9 @@ There is also [Swagger-UI](https://swagger.io/tools/swagger-ui/), which is open-
 
 is the better looking and more organized version of Swagger-UI. Use this if you want to host your own site, and don't need fancy features.
 
-## Option 3. Don't bother with the OpenAPI spec:
+## Option 4. Don't bother with the OpenAPI spec:
 
 Just write good documentation, not in the standard format. It can come out even better and clearer, and easier to read. However, you won't be able to import/export it across services.
-
-### [ReDocly](https://github.com/Redocly/redoc)
-
-Used by Netlify. Very similar to Slate Docs, explained in "[website from markdown](website-from-files.md)", but better for API reference. Documents GET/POST/REST verbs. Uses OpenAPI!
 
 ### [GitBook](https://gitbook.com) 
 
