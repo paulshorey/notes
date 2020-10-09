@@ -14,7 +14,7 @@ is the way to document your APIs, but it's a lot to learn, so it helps to use an
 
 Used by Netlify. Very similar to [Slate docs](website-from-files.md), but better for API reference. Documents GET/POST/REST verbs. Build from your OpenAPI spec! SaaS available at [Redoc.ly](https://Redoc.ly) 
 
-Unfortunately, unlike Slate, this has many boilerplate elements taking up space. Slate docs is very open. You can write anything. I like that it leaves room for text. ReDocly takes up a lot of space in padding and boilerplate. For example, ReDocly always explains what content type the response is. With Slate, you just assume its JSON, and save 100px of vertical space. ReDocly is nice because it collapses objects/arrays in code snippets. However, I don't think I want my code examples collapsed. I don't trust readers to click the "\[...\]". It might be confusing.
+Unfortunately, unlike Slate, this has many boilerplate elements taking up space. Slate docs is very open. You can write anything. I like that it leaves room for text. ReDocly takes up a lot of space in padding unnecessary explanation. For example, ReDocly always explains what content type the response is. With Slate, you just assume its JSON, and save 100px of vertical space. ReDocly is nice because it collapses objects/arrays in code snippets. However, I don't think I want my code examples collapsed. I don't trust readers to click the "\[...\]". It might be confusing.
 
 ## Option 2. GUI to help build spec AND website:
 
