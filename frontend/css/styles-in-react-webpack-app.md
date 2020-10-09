@@ -18,3 +18,13 @@ Great. A lot like styles in Vue.js. Now supports SCSS. Awesome. Except one thing
 
 Does not work with FontAwesome components! I'm not sure what's wrong. The `<FA />` component returns an `<svg />` element, which should be styled by styled-jsx. Idk.
 
+### Styled-Components
+
+Until I get the above styled-jsx example to work, I'll stick with Styled-Components.
+
+They are the best compromise - similar styled jsx blocks \(or Vue.js type styles\) in that they are in a file close to the component file. And, they fully support SASS. They syntax is just like writing a stylesheet. No need to waste time and energy writing CSS in JS format.
+
+### Inline Styles \(including tools to make help write them\)
+
+Gross. Don't even want to write about it. If you support this, lets talk. I wonder why.
+
