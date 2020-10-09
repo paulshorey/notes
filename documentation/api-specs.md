@@ -62,6 +62,10 @@ can also document an API very well. However, it is not currently possible to imp
 
 It's worth it, because the API reference comes out [looking so good](https://nlp.studio/documentation)!
 
+### [Slate](https://github.com/sdelements/node-slate)
+
+see "[website from markdown](website-from-files.md)" article.
+
 ## **Options to** avoid:
 
 ### Redoc.ly
