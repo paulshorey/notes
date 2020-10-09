@@ -26,5 +26,5 @@ They are the best compromise - similar styled jsx blocks \(or Vue.js type styles
 
 ### Inline Styles \(including tools to make help write them\)
 
-Gross. Don't even want to write about it. If you support this, lets talk. I wonder why.
+Gross. So much effort transcribing CSS&lt;-&gt;JS formats. Why not write CSS as CSS, in a stylesheet format. Using Styled Components or Style-JSX, you can still keep styles for a module within that module. If you support inline styles, lets talk. I want to know why. 
 
