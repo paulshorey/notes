@@ -12,6 +12,7 @@
 ## General Programming
 
 * [CLI](general-programming/cli/README.md)
+  * [Chrome Debugger](general-programming/cli/chrome-debugger.md)
   * [Everyday](general-programming/cli/everyday.md)
   * [Files](general-programming/cli/files.md)
   * [Ports / Networking](general-programming/cli/ports-networking.md)
@@ -28,7 +29,6 @@
   * [Nice Editor for Terminal](general-programming/ide-1/ne/README.md)
     * [my shortcuts](general-programming/ide-1/ne/keymapping.md)
   * [Code Formatting](general-programming/ide-1/code-formatting.md)
-* [Chrome Debugger](general-programming/chrome-debugger.md)
 * [RegExp](general-programming/regexp/README.md)
   * [Markdown](general-programming/regexp/markdown.md)
   * [Convert text / object / array](general-programming/regexp/convert-text-object-array.md)
@@ -77,7 +77,8 @@
 * [Webpack](frontend/webpack.md)
 * [Icons](frontend/icons.md)
 * [UTF-8 Icons](frontend/utf-8-icons.md)
-* [CSS](frontend/css.md)
+* [CSS / SASS](frontend/css/README.md)
+  * [styles in React/Webpack app](frontend/css/styles-in-react-webpack-app.md)
 
 ## Interviews / Jobs / Hiring
 

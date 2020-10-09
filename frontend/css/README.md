@@ -1,6 +1,10 @@
-# CSS
+# CSS / SASS
 
-#### Use "rem" units, to make the entire page responsive, effortlessly.
+#### See also [handling styles in React/Webpack app](styles-in-react-webpack-app.md)
+
+
+
+### Use "rem" units, to make the entire page responsive, effortlessly.
 
 Set `font-size` of the html tag, in pixels. Then, **EVERYWHERE ELSE IN THE PAGE**, use `rem` unit instead of `px`, to set the font-size. Also use rem to set padding, margin, border, height, width, anything! 
 
