@@ -20,6 +20,12 @@ Unlike Slate, this has many boilerplate elements taking up space. Slate docs is 
 
 Design your OpenAPI spec and documentation without actually knowing and coding the OpenAPI Yaml/JSON formatted file manually. The spec is pretty complicated for occasional users, so a tool like this helps. If you are a backend programmer, or want to get into API development, then you should learn the spec, and write it manually like you would for a computer program or configuration file.
 
+### [Strapi CMS](https://strapi.io/documentation/v3.x/getting-started/introduction.html#what-is-strapi) + [Documentation plugin](https://strapi.io/documentation/v3.x/plugins/documentation.html#installation)
+
+It's a self-hosted CMS, with a GUI app to edit your data and API access to consume the data. Seems pretty great so far! Will generate OpenAPI file and Swagger reference webpage from your more general readable prose documentation of endpoints. Seems to be the best of both worlds!
+
+
+
 ### [ReDocly](https://ReDoc.ly) hosted service
 
 Not sure if it's possible. Could be at the $300/mo price point. I didn't try it. I'd rather just write the OpenAPI spec myself, and use the self-hosted service. Also, I like being able to customize the documentation site styles, layouts, and integration. With their SaaS service, you'd be stuck with their styles and layout.
