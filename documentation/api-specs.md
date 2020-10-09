@@ -12,7 +12,7 @@ is the way to document your APIs, but it's a lot to learn, so it helps to use an
 
 ### [ReDocly](https://github.com/Redocly/redoc)
 
-Used by Netlify. Very similar to Slate Docs, explained in "[website from markdown](website-from-files.md)", but better for API reference. Documents GET/POST/REST verbs. Uses OpenAPI!
+Used by Netlify. Very similar to [Slate docs](website-from-files.md), but better for API reference. Documents GET/POST/REST verbs. Build from your OpenAPI spec! SaaS available at [Redoc.ly](https://Redoc.ly) 
 
 ## Option 2. GUI to help build spec AND website:
 
