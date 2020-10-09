@@ -76,6 +76,7 @@
 * [npm](frontend/npm.md)
 * [Webpack](frontend/webpack.md)
 * [Icons](frontend/icons.md)
+* [UTF-8 Icons](frontend/utf-8-icons.md)
 * [CSS](frontend/css.md)
 
 ## Interviews / Jobs / Hiring
