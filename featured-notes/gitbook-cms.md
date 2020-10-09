@@ -8,6 +8,8 @@ Unfortunately, your documentation will have to be on a separate domain \(like mo
 
 GitBook has a really great feature - the reason I use it at all... It stores all my content in my own Github repository, as markdown notes. Imagine that, you get to own and control your own content! Sure, self-hosted open-source documentation frameworks store content locally, but they don't provide a really nice GUI editor app, to edit the content. You have to fumble with their open-source simple editor, or edit the markdown yourself. With Gitbook, you can edit your own markdown, but also use their hosted editor, from any computer, on their website. The content gets deposited to your Github repo. They even generate a very nice navigation menu, also in markdown. This feature I have not seen in even the best open-source tools. You have to do it manually. Also, their GUI does a great job helping you manage internal links and media files.
 
+### Include GitBook content in your own site:
+
 #### 1. Connect Gitbook + Github
 
 Setup your accounts, write some content. In app.gitbook.com, click "Integrations" and "Github".
