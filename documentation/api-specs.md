@@ -20,7 +20,7 @@ Design your OpenAPI spec and documentation without actually knowing and coding t
 
 ### [ReDocly](https://ReDoc.ly) hosted service
 
-Not sure if it's possible. Could be at the $360/mo price point. I didn't try it.
+Not sure if it's possible. Could be at the $300/mo price point. I didn't try it. I'd rather just get good at writing the OpenAPI spec myself, and use the self-hosted service. 
 
 ### [Stoplight.io](https://stoplight.io) 
 
