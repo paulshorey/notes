@@ -6,8 +6,7 @@
   * [GUI website builders](documentation/gui.md)
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from markdown](documentation/website-from-files.md)
-* [Writing / Blogging](featured-notes/README.md)
-  * [GitBook as a headless CMS](featured-notes/gitbook-cms.md)
+  * [GitBook as a headless CMS](documentation/gitbook-cms.md)
 
 ## General Programming
 
@@ -106,4 +105,5 @@
 
 * [Productivity](etc-1/etc.md)
 * [Mac OS](etc-1/mac-os.md)
+* [Writing / Blogging](etc-1/featured-notes.md)
 

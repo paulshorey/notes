@@ -2,7 +2,7 @@
 
 **Coming soon! A review of modern CMS platforms, including Wordpress, Joomla, and "headless" ones like Contentful, CloudCMS, and many more. Also hacks like using GitBook or Notion as a CMS.**
 
-For now, see my "[GitBook as a headless CMS](gitbook-cms.md)" article.
+For now, see my "[GitBook as a headless CMS](../documentation/gitbook-cms.md)" article.
 
 \*\*\*\*
 
