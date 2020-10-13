@@ -20,19 +20,9 @@ Unlike Slate, this has many boilerplate elements taking up space. Slate docs is 
 
 Design your OpenAPI spec and documentation without actually knowing and coding the OpenAPI Yaml/JSON formatted file manually. The spec is pretty complicated for occasional users, so a tool like this helps. If you are a backend programmer, or want to get into API development, then you should learn the spec, and write it manually like you would for a computer program or configuration file.
 
-### [Strapi CMS](https://strapi.io/documentation/v3.x/getting-started/introduction.html#what-is-strapi) + [Documentation plugin](https://strapi.io/documentation/v3.x/plugins/documentation.html#installation)
-
-It's a self-hosted CMS, with a GUI app to edit your data and API access to consume the data. Seems pretty great so far! Will generate OpenAPI file and Swagger reference webpage from your more general readable prose documentation of endpoints. Seems to be the best of both worlds!
-
-
-
-### [ReDocly](https://ReDoc.ly) hosted service
-
-Not sure if it's possible. Could be at the $300/mo price point. I didn't try it. I'd rather just write the OpenAPI spec myself, and use the self-hosted service. Also, I like being able to customize the documentation site styles, layouts, and integration. With their SaaS service, you'd be stuck with their styles and layout.
-
 ### [Stoplight.io](https://stoplight.io) 
 
-**Makes it very easy to write the spec!** Not easy to publish it though. :\( But it's so easy to edit, that I use it to edit, then export the yaml file. Soon, I'll get good enough to just edit the yaml file, and will not need this crutch. Highly recommended for anyone just learning the OpenAPI spec.
+**Makes it very easy to write the spec! Much better than writing your own file. It actually lets you switch back and forth, between GUI and text editor.** Not easy to publish it though. :\( But it's so easy to edit, that I use it to edit, then export the yaml file. Soon, I'll get good enough to just edit the yaml file, and will not need this crutch. Highly recommended for anyone just learning the OpenAPI spec.
 
 * Use the intuitive interface to create your specs. Include every necessary detail.
 * Edit the `.yaml` file, if you prefer. It's great practice learning the spec to go back and forth between GUI and IDE.
@@ -40,11 +30,19 @@ Not sure if it's possible. Could be at the $300/mo price point. I didn't try it.
 
 How to publish this? Stoplight.io is able to create a full website documentation. You can even export it in markdown format. However, their UI and navigation is pretty bad for site docs.
 
+### [ReDocly](https://ReDoc.ly) hosted service
+
+Not sure if it's possible. Could be at the $300/mo price point. I didn't try it. I'd rather just write the OpenAPI spec myself, and use the self-hosted service. Also, I like being able to customize the documentation site styles, layouts, and integration. With their SaaS service, you'd be stuck with their styles and layout.
+
+### [Strapi CMS](https://strapi.io/documentation/v3.x/getting-started/introduction.html#what-is-strapi) + [Documentation plugin](https://strapi.io/documentation/v3.x/plugins/documentation.html#installation)
+
+It's a self-hosted CMS, with a GUI app to edit your data and API access to consume the data. Seems pretty great so far! Will generate OpenAPI file and Swagger reference webpage from your more general readable prose documentation of endpoints. Seems to be the best of both worlds!
+
 ### [RapidAPI](https://rapidapi.com)
 
 The largest \(and only, since they bought MashApe\) marketplace. It's been around for a while. Consuming APIs on this is great! It just works! Signing up, testing, and paying for it is straightforward. Selling APIs is easy. They take care of payments and authentication. They act as a Proxy for your APIs. They take care of everything, but keep 20% of whatever you charge. The admin dashboard is under active development, with new features and bug fixes coming out regularly.
 
-RapidAPI.com could actually be used for API documentation. In fact, they have code snippets for all major languages and platforms, to make consuming an API very easy. Clients can test the API instantly, on their app. As a publisher, you can import/export OpenAPI files. The reason this is not the \#1 option, is that importing an OpenAPI file into RapidAPI is a little bit buggy. Exporting your API spec and examples is possible, but you have to contact technical support, and they will generate it for you - not instantly.
+RapidAPI.com could actually be used for API documentation. In fact, they have code snippets for all major languages and platforms, to make consuming an API very easy. Clients can test the API instantly, on their app. As a publisher, you can import/export OpenAPI files. The reason this is not the \#1 option, is that importing an OpenAPI file into RapidAPI is a little bit buggy. There is no way to export your API spec after using their GUI to build it.
 
 ## Option 3. Edit the code manually.
 
