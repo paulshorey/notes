@@ -9,10 +9,9 @@
 Nginx installation already comes with a "default" file. I like to rename that as "example", because that's what that is. Then, put my own default file.
 
 After adding these configuration files, **symlink each one** into `/etc/nginx/sites-enabled` folder, like this:  
-`ln -s /etc/nginx/sites-available/domain1.com /etc/nginx/sites-enabled`
+`ln -s /srv/public/_nginx/wordio.co /etc/nginx/sites-enabled` 
 
-Experimental: symlink the config file directly from Git codebase to sites-enabled:  
-`ln -s /srv/public/_nginx/domain1.com /etc/nginx/sites-enabled`
+The symlink can actually be from anywhere, not just from `sites-available`!
 
 Then, **restart** Nginx, like this: `service nginx restart`. 
 
