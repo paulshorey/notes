@@ -2,8 +2,9 @@
 
 ### Best way to add HTTPS/SSL is by running `openssl`:
 
-`sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /srv/nlp-be/_certs/api.besta.domains.key -out /srv/nlp-be/_certs/api.besta.domains.crt`  
-[https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04](https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04)
+```text
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /srv/public/_certs/wordio.co.key -out /srv/public/_certs/wordio.co.crt
+```
 
 Refer to this guide, for answering OpenSSL CLI questions:  
 [https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/](https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/)
