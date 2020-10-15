@@ -15,12 +15,5 @@ let something = 'something';
 }())
 ```
 
-Again with anonymous function:
-
-```text
-"use strict"
-;(function () {
-```
-
 ## \*\*\*\*
 
