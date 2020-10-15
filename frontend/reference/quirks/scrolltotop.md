@@ -1,16 +1,15 @@
-# scrollToTop\(\)
+# smooth scroll
 
-Smoothly scrolling a window back to top and updating the URL hash - proves difficult. Maybe I'm doing it wrong?
+Smoothly scrolling a window and updating the URL hash seems simple...
 
-Trying to scroll to top of page... `href="/#"` refreshes the page `href="#"` scrolls up instantly. Doing only `window.scrollTo({ top:0, behavior:"smooth" })` does not update the URL hash.
+Simply using a link `href="#"` does not scroll smoothly. Doing adding onClick `window.scrollTo({ top:0, behavior:"smooth" })` does not update the URL hash.
 
 ```text
 <a
   href="#"
   onClick={() => {
     /*
-     * This is not smooth, because the href="#" prevents onClick from firing
-     * So, it scrolls, but does not update hash="#"
+     * This function does not execute
      */
     window.scrollTo({ top:0, behavior: "smooth" })
   }}
