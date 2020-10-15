@@ -17,7 +17,7 @@ Trying to scroll to top of page... `href="/#"` refreshes the page `href="#"` scr
 >scroll to top</a>
 ```
 
-Solution for static HTML: I'd rather not use setTimeout though. Must wait until after the scroll animation, to change the hash.
+Solution for static HTML: Must wait until after the scroll animation is finished to change the hash. I'd rather not use setTimeout though.
 
 ```text
 <a
