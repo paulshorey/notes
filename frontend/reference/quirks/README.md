@@ -1,4 +1,4 @@
-# quirks
+# quirks and tips
 
 First, here are some quirky benefits which other programming languages wish they had. But it's ok. "Real" programming languages don't know what they're missing, so they'll be fine with their more verbose code.
 

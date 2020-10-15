@@ -58,7 +58,7 @@
 
 * [Gatsby](frontend/gatsby.md)
 * [JavaScript](frontend/reference/README.md)
-  * [quirks](frontend/reference/quirks/README.md)
+  * [quirks and tips](frontend/reference/quirks/README.md)
     * [scrollToTop\(\)](frontend/reference/quirks/scrolltotop.md)
     * [Global Variables](frontend/reference/quirks/global-variables.md)
     * [JS Without Semicolons](frontend/reference/quirks/coding-conventions.md)
