@@ -79,6 +79,7 @@
 * [UTF-8 Icons](frontend/utf-8-icons.md)
 * [CSS / SASS](frontend/css/README.md)
   * [styles in React/Webpack app](frontend/css/styles-in-react-webpack-app.md)
+* [Production](frontend/production.md)
 
 ## Interviews / Jobs / Hiring
 
