@@ -37,8 +37,12 @@ Solution for React, using `<Link` instead of `<a>` seems to take care of the tim
 ...
 <Link
   to="#top"
-  className="link"
-  onClick="window.scrollTo({ top: 0, behavior: "smooth" })"
+  onClick={() => {
+    let el = document.querySelector('[name="top"]');
+    el.scrollIntoView({
+      behavior: "smooth"
+    })
+  }}
 >scroll to top</Link>
 ```
 
