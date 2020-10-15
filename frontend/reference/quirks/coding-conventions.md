@@ -19,8 +19,6 @@ Again with anonymous function:
 
 ```text
 "use strict"
-
-// polyfill
 ;(function () {
 ```
 
