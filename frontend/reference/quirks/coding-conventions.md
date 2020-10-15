@@ -13,8 +13,15 @@ let something = 'something';
 // or at the start of this line:
 ;(function(){
 }())
+```
 
-// or, Prettier will get confused!
+Again with anonymous function:
+
+```text
+"use strict"
+
+// polyfill
+;(function () {
 ```
 
 ## \*\*\*\*
