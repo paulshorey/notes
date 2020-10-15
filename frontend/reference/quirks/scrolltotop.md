@@ -39,7 +39,7 @@ Solution for React, using `<Link` instead of `<a>` seems to take care of the tim
   to="#top"
   onClick={() => {
     let el = document.querySelector('[name="top"]');
-    el.scrollIntoView({
+    !!el && el.scrollIntoView({
       behavior: "smooth"
     })
   }}
