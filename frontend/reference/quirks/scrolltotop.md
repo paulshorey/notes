@@ -38,7 +38,7 @@ Solution for React, using `<Link` instead of `<a>` seems to take care of the tim
 <Link
   to="#top"
   className="link"
-  onclick="window.scrollTo({ top: 0, behavior: "smooth" })"
+  onClick="window.scrollTo({ top: 0, behavior: "smooth" })"
 >scroll to top</Link>
 ```
 
