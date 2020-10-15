@@ -2,7 +2,7 @@
 
 #### See also [handling styles in React/Webpack app](styles-in-react-webpack-app.md)
 
-
+{% embed url="https://css-tricks.com/practical-css-scroll-snapping/" %}
 
 ### Use "rem" units, to make the entire page responsive, effortlessly.
 
