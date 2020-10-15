@@ -29,7 +29,7 @@ Solution for static HTML: Must wait until after the scroll animation is finished
 >scroll to top</a>
 ```
 
-Solution for React, using `<Link` instead of `<a>` seems to take care of the timing. However, it does not work with an empty hash. So, scroll `to="#top"` instead of 
+Solution for React, using `<Link` instead of `<a>` seems to take care of the timing. However, it does not work with an empty hash. So, scroll `to="#top"` instead of `to="#"`
 
 ```text
 <Link
