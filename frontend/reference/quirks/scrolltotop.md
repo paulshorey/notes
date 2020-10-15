@@ -17,7 +17,7 @@ Trying to scroll to top of page... `href="/#"` refreshes the page `href="#"` scr
 >scroll to top</a>
 ```
 
-Here's a hack. I'd rather not use setTimeout. Must wait until after the scroll animation, to change the hash.
+Solution for static HTML: I'd rather not use setTimeout. Must wait until after the scroll animation, to change the hash.
 
 ```text
 <a
@@ -30,7 +30,7 @@ Here's a hack. I'd rather not use setTimeout. Must wait until after the scroll a
 >scroll to top</a>
 ```
 
-In React, using `<Link` instead of `<a>` seems to take care of the timing. However, it does not work with an empty hash. So, scroll `to="#top"` instead of `to="#"`
+Solution for React, using `<Link` instead of `<a>` seems to take care of the timing. However, it does not work with an empty hash. So, scroll `to="#top"` instead of `to="#"`
 
 ```text
 <a name="top" />
