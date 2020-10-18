@@ -39,11 +39,9 @@ exports.onCreateNode = args => {
 
 `node --no-lazy --inspect-brk node_modules/.bin/gatsby build` **Node inspector**
 
-## That didn't log anything! Now what? 
+## That didn't log anything! Getting desperate...
 
-The following does not work either. :\(
-
-I thought about setting a global "window" variable inside Webpack build process. That way, if some module mentions the window, it will be available! :\) Brilliant, right?
+I thought about setting a global "window" variable inside Webpack build process. That way, if some module mentions the window, it will be available! :\) Brilliant, right? No!
 
 **In Gatsby, this is simple to do \(had to dig to find this\). Put this into 'gatsby-node.js':**
 
@@ -77,6 +75,8 @@ This does not work!!! :\( Because any plugin that tries to detect window/global 
 `git log`, `git checkout 6f18f5f624a0137f5bee29fbd85de2332cefba23`, `npm run build` \(do whatever didn't work, and hope it works this time\). To get back to current version, do `git checkout master`.
 
 2\) undo \(comment out or delete\) all changes, then put back half, then half of that, etc \(like searching a tree data structure\) until it works. Then, do the same to the code that was just removed to narrow down to the exact line.
+
+**This last trick works every time! Though it's not very clever or interesting.**
 
 
 
