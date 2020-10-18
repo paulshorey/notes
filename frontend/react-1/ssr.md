@@ -1,4 +1,6 @@
-# SSR
+# SSR: debugging "window is undefined"
+
+
 
 {% embed url="https://dev.to/vvo/how-to-solve-window-is-not-defined-errors-in-react-and-next-js-5f97" %}
 
