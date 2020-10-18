@@ -14,7 +14,9 @@ Because even though I don't mind always wrapping my browser in a user interactio
 
 Gatsby is awesome! There is an easy plugin for everything:  
 ****[**https://www.gatsbyjs.com/plugins/gatsby-plugin-global-context/**](https://www.gatsbyjs.com/plugins/gatsby-plugin-global-context/)  
-****Replace `kitty: true` with `window: require('ssr-window')` 
+****Replace `kittens: true` with `window: require('ssr-window')` 
+
+TODO: read about all the other awesome plugins: [gatsbyjs.com/plugins](https://www.gatsbyjs.com/plugins)
 
 **In NextJS:**
 
