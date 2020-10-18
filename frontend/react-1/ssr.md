@@ -2,7 +2,7 @@
 
 **Most reliable solution all the way at the bottom...**
 
-### **But, all this was fun to learn...**
+### **But, all this was very insightfull...**
 
 {% embed url="https://dev.to/vvo/how-to-solve-window-is-not-defined-errors-in-react-and-next-js-5f97" %}
 
