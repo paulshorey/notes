@@ -18,6 +18,8 @@ We'll, just have to disable every package you put in since the last successful b
 
 {% embed url="https://www.gatsbyjs.com/docs/debugging-the-build-process/" %}
 
+Put this into `gatsby-node.js` then run the below line in CLI. Webpack will log to CLI.
+
 ```text
 const { createFilePath } = require("gatsby-source-filesystem")
 exports.onCreateNode = args => {
