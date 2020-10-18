@@ -72,11 +72,13 @@ This does not work!!! :\( Because any plugin that tries to detect window/global 
 
 ## What I always do when something mysteriously breaks:
 
-1\) If it's in version control - step back version by version - until it works. Then, `git diff` to see what changed.
+**1\) If it's in version control** - step back version by version - until it works. Then, `git diff` to see what changed.
 
 `git log`, `git checkout 6f18f5f624a0137f5bee29fbd85de2332cefba23`, `npm run build` \(do whatever didn't work, and hope it works this time\). To get back to current version, do `git checkout master`. If this is the latest working revision, compare changes using **`git diff master ./src`**.
 
-2\) undo \(comment out or delete\) all changes, then put back half, then half of that, etc \(like searching a tree data structure\) until it works. Then, do the same to the code that was just removed to narrow down to the exact line.
+To just compare to a previous version, without building or modifying, stay on master and do `git diff 6f18f5f624a0137f5bee29fbd85de2332cefba23 ./src` 
+
+**2\) undo** \(comment out or delete\) all recent changes, then put back half, then half of next, etc \(like searching a tree data structure\) until it works. Then, do the same to the code that was just removed to narrow down to the exact line.
 
 **This last trick works every time! Though it's not very clever or interesting.**
 
