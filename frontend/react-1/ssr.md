@@ -23,6 +23,7 @@ Put this into `gatsby-node.js` then run the below line in CLI. Webpack will log 
 ```text
 const { createFilePath } = require("gatsby-source-filesystem")
 exports.onCreateNode = args => {
+  console.log(args) // optional
   const { actions, node } = args
   if (node.internal.type === "MarkdownRemark") {
     const { createNodeField } = actions
