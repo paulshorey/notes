@@ -68,5 +68,7 @@ This does not work!!! :\( Because any plugin that tries to detect window/global 
 
 ## Now what?
 
+{% embed url="https://www.gatsbyjs.com/docs/debugging-html-builds/" %}
+
 
 
