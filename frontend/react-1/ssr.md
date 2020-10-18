@@ -82,5 +82,7 @@ To just compare to a previous version, without building or modifying, stay on ma
 
 **This works every time! Though it's not easy or clever or interesting.**
 
+In this case, it was the NPM `smoothscroll-polyfill` module. I didn't even have to undo anything - just spotted it pretty quick in the diff.
+
 
 
