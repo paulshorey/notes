@@ -70,7 +70,7 @@ This does not work!!! :\( Because any plugin that tries to detect window/global 
 
 {% embed url="https://www.gatsbyjs.com/docs/debugging-html-builds/" %}
 
-## What I always do when something mysteriously breaks:
+## This always works:
 
 **1\) If it's in version control** - step back version by version - until it works. Then, `git diff` to see what changed.
 
@@ -80,7 +80,7 @@ To just compare to a previous version, without building or modifying, stay on ma
 
 **2\) undo** \(comment out or delete\) all recent changes, then put back half, then half of next, etc \(like searching a tree data structure\) until it works. Then, do the same to the code that was just removed to narrow down to the exact line.
 
-**This last trick works every time! Though it's not very clever or interesting.**
+**This works every time! Though it's not easy or clever or interesting.**
 
 
 
