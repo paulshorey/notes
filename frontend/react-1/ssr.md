@@ -34,7 +34,7 @@ exports.onCreateNode = args => {
 }
 ```
 
-`node --no-lazy node_modules/.bin/gatsby develop --inspect-brk` **Node inspector**
+`node --no-lazy --inspect-brk node_modules/.bin/gatsby develop` **Node inspector**
 
 ## That didn't work. Now what? \(following does not work...\)
 
