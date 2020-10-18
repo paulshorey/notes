@@ -38,7 +38,9 @@ exports.onCreateNode = args => {
 
 `node --no-lazy --inspect-brk node_modules/.bin/gatsby build` **Node inspector**
 
-## That didn't work. Now what? \(following does not work...\)
+## That didn't log anything! Now what? 
+
+The following does not work either. :\(
 
 I thought about setting a global "window" variable inside Webpack build process. That way, if some module mentions the window, it will be available! :\) Brilliant, right?
 
