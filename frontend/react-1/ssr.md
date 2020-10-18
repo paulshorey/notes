@@ -12,7 +12,13 @@ Because some modules are not built for SSR. So, load them only in the client:
 
 {% embed url="https://www.gatsbyjs.com/docs/using-client-side-only-packages/" %}
 
+## But that is still not good enough. Because, which package is it? Difficult to disable EVERY package. 
 
+Well, just have to disable every package you put in since the last successful built. Still...
+
+{% embed url="https://www.gatsbyjs.com/docs/debugging-the-build-process/" %}
+
+`node --no-lazy node_modules/.bin/gatsby develop --inspect-brk` 
 
 
 
