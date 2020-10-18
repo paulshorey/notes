@@ -44,7 +44,7 @@ The following does not work either. :\(
 
 I thought about setting a global "window" variable inside Webpack build process. That way, if some module mentions the window, it will be available! :\) Brilliant, right?
 
-**In Gatsby, this is simple to do \(had to dig to find this\). Put this into 'gatsby-node.js'.**
+**In Gatsby, this is simple to do \(had to dig to find this\). Put this into 'gatsby-node.js':**
 
 ```text
 exports.onCreateWebpackConfig = ({
