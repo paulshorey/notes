@@ -1,4 +1,4 @@
-# Microsoft Azure
+# Microsoft APIs
 
 {% embed url="https://signup.azure.com/signup?offer=MS-AZR-0003P&skipRecommend=true" caption="" %}
 

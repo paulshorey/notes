@@ -51,8 +51,7 @@
   * [MongoDB](backend/db/new-mongodb/README.md)
     * [install](backend/db/new-mongodb/install.md)
   * [advanced SQL](backend/db/intermediate-commands.md)
-* [APIs](backend/apis/README.md)
-  * [Microsoft Azure](backend/apis/microsoft-azure.md)
+* [Microsoft APIs](backend/microsoft-azure.md)
 
 ## FrontEnd
 
@@ -82,6 +81,12 @@
   * [styles in React/Webpack app](frontend/css/styles-in-react-webpack-app.md)
 * [Production](frontend/production.md)
 
+## Managing a Website
+
+* [Widgets: contact, social, retention, feedback, etc.](managing-a-website/widgets-contact-social-etc..md)
+* [Captcha](managing-a-website/captcha.md)
+* [Publishing a website](managing-a-website/publishing-a-website.md)
+
 ## Interviews / Jobs / Hiring
 
 * [JavaScript quiz](interviews-jobs-hiring/interviews/README.md)
@@ -90,12 +95,6 @@
 * [Topics for Discussion](interviews-jobs-hiring/interview-questions.md)
 * [Jokes](interviews-jobs-hiring/jokes.md)
 * [Peeves](interviews-jobs-hiring/peeves.md)
-
-## Managing a Website
-
-* [Widgets: contact, social, retention, feedback, etc.](managing-a-website/widgets-contact-social-etc..md)
-* [Captcha](managing-a-website/captcha.md)
-* [Publishing a website](managing-a-website/publishing-a-website.md)
 
 ## AWS
 
