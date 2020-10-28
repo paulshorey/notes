@@ -11,6 +11,10 @@ Gatsby \(compiles into static site\) vs Next.js \(dynamic SSR, and now can also 
 
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 
+**`key={'non-unique-value'}` may break, even if is child element**
+
+I thought this only applied to the outermost container element in a `.map(` loop, but if a child elements have the same key, that can also get weird. Now, I had a left-over key attribute in a child, because I wrapped it in a container, and that was breaking the render. I simply deleted the key attribute from the child, and this fixed the problem. That was weird!
+
 #### onClick not working, in drop-down or popup menu
 
 Because React is "reactive", the DOM updates instantly when some data changed. So, if you change some data in the container component, onBlur, that may affect the child component \(the dropdown or popup or tooltip\). The child component may be gone before its onClick event clicked. To the human eye, it looks like the component was removed "on" click, but actually, the drop-down or popup disappeared a millisecond before the click.
