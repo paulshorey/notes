@@ -13,5 +13,5 @@ Gatsby \(compiles into static site\) vs Next.js \(dynamic SSR, and now can also 
 
 #### onClick not working, in drop-down or popup menu
 
-Because React is "reactive", the DOM updates instantly when some data changed. So, if you change some data in the container component, onBlur, that may affect the child component \(the dropdown or popup or tooltip\). The child component may be gone before its onClick event clicked. To the human eye, it looks like it should have worked. But instead, the drop-down or popup disappeared a millisecond before the click.
+Because React is "reactive", the DOM updates instantly when some data changed. So, if you change some data in the container component, onBlur, that may affect the child component \(the dropdown or popup or tooltip\). The child component may be gone before its onClick event clicked. To the human eye, it looks like the component was removed "on" click, but actually, the drop-down or popup disappeared a millisecond before the click.
 
