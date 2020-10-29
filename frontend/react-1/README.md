@@ -11,9 +11,9 @@ Gatsby \(compiles into static site\) vs Next.js \(dynamic SSR, and now can also 
 
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 
-**`key={'non-unique-value'}` may break, even if is child element**
+**auto-update the view after state changes**
 
-I thought this only applied to the outermost container element in a `.map(` loop, but if a child elements have the same key, that can also get weird. Now, I had a left-over key attribute in a child, because I wrapped it in a container, and that was breaking the render. I simply deleted the key attribute from the child, and this fixed the problem. That was weird!
+Usually, when you pass the ...
 
 #### onClick not working, in drop-down or popup menu
 
