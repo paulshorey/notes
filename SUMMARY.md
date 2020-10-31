@@ -86,6 +86,7 @@
 * [Widgets: contact, social, retention, feedback, etc.](managing-a-website/widgets-contact-social-etc..md)
 * [Captcha](managing-a-website/captcha.md)
 * [Publishing a website](managing-a-website/publishing-a-website.md)
+* [Domain availability](managing-a-website/domain-availability.md)
 
 ## Interviews / Jobs / Hiring
 
