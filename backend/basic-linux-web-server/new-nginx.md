@@ -11,15 +11,19 @@ Nginx installation already comes with a "default" file. I like to rename that as
 After adding these configuration files, **symlink each one** into `/etc/nginx/sites-enabled` folder, like this:  
 `ln -s /srv/public/_nginx/wordio.co /etc/nginx/sites-enabled` 
 
-**MUST USE ABSOLUTE PATHS**
-
 The symlink can actually be from anywhere, not just from `sites-available`!
 
-Then, **restart** Nginx, like this: `service nginx restart`. 
+\(Must use absolute paths!\)
 
-If it doesn't work, do `nginx -t` to find the syntax error.
+#### Then, **restart** Nginx, 
 
-### To redirect to another domain:
+like this: `service nginx restart`. 
+
+### If it doesn't work, 
+
+do `nginx -t` to find the syntax error.
+
+## To redirect to another domain:
 
 ```text
 server {
