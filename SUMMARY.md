@@ -14,7 +14,7 @@
   * [Chrome Debugger](general-programming/cli/chrome-debugger.md)
   * [Everyday](general-programming/cli/everyday.md)
   * [Files](general-programming/cli/files.md)
-  * [Ports / Networking](general-programming/cli/ports-networking.md)
+  * [DNS / Ports / Networking](general-programming/cli/ports-networking.md)
   * [in Node.JS](general-programming/cli/node.js.md)
   * [SSH](general-programming/cli/ssh.md)
   * [curl](general-programming/cli/curl.md)

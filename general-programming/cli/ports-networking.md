@@ -1,4 +1,4 @@
-# Ports / Networking
+# DNS / Ports / Networking
 
 What is my LAN IP address?  
 `ipconfig getifaddr en0`
