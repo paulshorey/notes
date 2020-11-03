@@ -15,9 +15,7 @@ The symlink can actually be from anywhere, not just from `sites-available`!
 
 Then, **restart** Nginx, like this: `service nginx restart`. 
 
-**Thats it!** \(on Ubuntu\)
-
-\*\*\*\*
+If it doesn't work, do `nginx -t` to find the syntax error.
 
 \*\*\*\*
 
