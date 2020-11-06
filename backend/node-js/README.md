@@ -43,6 +43,18 @@ Blocking vs non-blocking operations:
 setImmediate vs setTimeout:  
 [https://snyk.io/blog/nodejs-how-even-quick-async-functions-can-block-the-event-loop-starve-io/](https://snyk.io/blog/nodejs-how-even-quick-async-functions-can-block-the-event-loop-starve-io/)
 
+Worker threads:  
+[https://nodesource.com/blog/worker-threads-nodejs/](https://nodesource.com/blog/worker-threads-nodejs/)
+
+More of the same:  
+[http://sebastianmetzger.com/handle-asynchronous-non-blocking-io-in-javascript/](http://sebastianmetzger.com/handle-asynchronous-non-blocking-io-in-javascript/)  
+
+
+
+
+Not related, but also good read about architecture:  
+[https://levelup.gitconnected.com/layers-in-software-architecture-that-every-sofware-architect-should-know-76b2452b9d9a](https://levelup.gitconnected.com/layers-in-software-architecture-that-every-sofware-architect-should-know-76b2452b9d9a)
+
 
 
 
