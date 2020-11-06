@@ -20,7 +20,7 @@ Even better, use "PM2" to manage node processes!
 
 Sometimes, **Promise.all** and **Promise.race** do not like to run in parallel as they're supposed to! 
 
-You may have to fix it by putting in a wrapper async/await function which calls each promise. The returning function `fnctn` is already async, but that doesn't count. It has to be an additional wrapper function, as you see here, an anonymous one inside `requests.map`. I read that a `setTimeout` or `setInstant` might also work, but didn't care to try it, because async/await solution is simpler. Don't just do this by default though. First, see if Promis.all works as intended.
+You may have to fix it by putting in a wrapper async/await function which calls each promise. The returning function `fnctn` is already async, but that doesn't count. It has to be an additional wrapper function, as you see here, an anonymous one inside `requests.map`. I read that a `setTimeout` or `setInstant` might also work, but didn't care to try it, because async/await solution is simpler. Don't bother doing this always. First, see if Promis.all works as intended.
 
 ```text
 let requests = []
