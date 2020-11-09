@@ -110,4 +110,5 @@
 * [Productivity](etc-1/etc.md)
 * [Mac OS](etc-1/mac-os.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
+* [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)
 
