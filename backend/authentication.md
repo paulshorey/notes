@@ -24,7 +24,7 @@ expressApp.use(function (req, res, next) {
 })
 ```
 
-Above is with RapidAPI. It's easy! Standalone API needs more thought.
+Above is with RapidAPI. It's easy! Standalone API needs more work.
 
 
 
