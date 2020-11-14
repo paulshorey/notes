@@ -4,12 +4,12 @@ description: Just a few notes. Not complete...
 
 # RapidAPI Authentication
 
-**Developer:**  
+**Developer access:**  
 if server host computer is MacBook, or similar rule,  
 **allow admin access, return additional debugging data**
 
 **Client:**  
-if request coming from one of the official whitelisted RapidAPI IPs,  
+if client server one of official whitelisted RapidAPI IPs,  
 **allow client access**
 
 To do this, you must first verify the Client's IP address, and also your own server's hostname.   
