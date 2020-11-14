@@ -14,7 +14,7 @@ if server is port 80, client from whitelisted RapidAPI IP,
 if also client header x-rapidapi-user === "wordio"  
 **return additional debugging data, as if developer**
 
-What if client spoofs domain/IP, fake RapidAPI credentials? I'm not checking RapidAPI credentials, only whitelisted IPs. **Check referrer IP, not custom header.** _Make sure my server is generating referrer IP headers, not sent custom from client!_
+What if client spoofs domain/IP, fake RapidAPI credentials? I'm not checking RapidAPI credentials, only whitelisted IPs. **Check referrer IP, not custom header.** _Make sure my server is generating referrer IP headers. Make sure client can not spoof/set headers which I'm checking!_
 
 Above is with RapidAPI. It's easy! Standalone API needs more thought.
 
