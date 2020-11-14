@@ -6,7 +6,7 @@ description: Just a few notes. Not complete...
 
 **Developer:**  
 if server host is localhost  
-**then allow admin access, return additional debugging data**
+**allow admin access, return additional debugging data**
 
 **Client:**  
 if request coming from one of the official whitelisted RapidAPI IPs,  
