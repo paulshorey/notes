@@ -9,7 +9,7 @@ if server is localhost, port &gt; 80, client is also localhost port &gt; 80
 **then allow access, return additional debugging data**
 
 **Client:**  
-if server is port 80, client from whitelisted RapidAPI IP,   
+if server is port 80, client from whitelisted RapidAPI IP  
 **allow access**  
 if also client header x-rapidapi-user === "wordio"  
 **return additional debugging data, as if developer**
