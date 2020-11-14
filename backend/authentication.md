@@ -12,7 +12,7 @@ if server is localhost, port &gt; 80, client is also localhost port &gt; 80
 if server is port 80, client from whitelisted RapidAPI IP  
 **allow access**
 
-To do this, you must first detect the Client's IP address. Do not trust headers.referer. Instead,
+To do this, you must first detect the Client's IP address. Do not trust headers.referer. Instead...
 
 ```text
 import RequestIp from "@supercharge/request-ip"
