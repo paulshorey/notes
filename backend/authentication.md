@@ -39,7 +39,7 @@ Detect if client is localhost, on local or corporate network...
 ```text
   /*
    *
-   * LOCAL CLIENT AND SERVER COMBO = DEVELOPMENT = TRUSTED
+   * DETECT LOCAL CLIENT
    * 10.x.x.x (Class A, large business private network)
    * 172.16.x.x (Class B, small-medium business private network)
    * 192.168.0.x (Class C, home single router private network)
@@ -56,8 +56,6 @@ Detect if client is localhost, on local or corporate network...
   let client_ip_3 = client_ip.substr(0, 3)
   user.is_local =
     client_ip_7 === "192.168" || client_ip_7 === "172.16." || client_ip_3 === "127" || client_ip_3 === "10."
-  if (DEBUG1 || DEBUG2) ccconsole.log(`client IP: "${client_ip}"`)
-  if (DEBUG1 || DEBUG2) ccconsole.log(`requested host: "${req.headers.host}"`)
 ```
 
 
