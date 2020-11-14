@@ -26,7 +26,7 @@ expressApp.use(function (req, res, next) {
 
 Then, validate that `req.headers.client_ip` is from an allowed IP.
 
-This is with RapidAPI. It's easy! Standalone API needs more work.
+This is with RapidAPI. Very easy! Standalone API authentication is much more complex.
 
 
 
