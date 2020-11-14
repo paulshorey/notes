@@ -18,7 +18,7 @@ console.log(e instanceof Error)
 // true
 ```
 
-This also works with any other constructor: Number, Array, Date, etc. which can not be checked using `typeof`. `let d = new Date()` **typeof** returns "object". That's vague! Instead, check using **instanceof**. `d instanceof Date` returns true. That's much more specific.
+This also works with any other constructor: Number, Array, Date, etc. which annoyingly can not be checked using `typeof`. `let d = new Date()` **typeof** returns "object". That's vague! Instead, check using **instanceof**. `d instanceof Date` returns true. That's much more specific.
 
 ## Context hack. Reuse the same variable name
 
