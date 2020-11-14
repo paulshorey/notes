@@ -77,7 +77,7 @@ Detect if client is localhost, on local or corporate network...
    * 127.x.x.x (localhost)
    *
    */
-  let client_ip = req.clientIp
+  let client_ip = req.client_ip
   let client_ip_7 = client_ip.substr(0, 7)
   // if ipv6, cut off prefix, convert to ipv4
   if (client_ip_7 === "::ffff:") {
