@@ -28,7 +28,7 @@ expressApp.use(function (req, res, next) {
 })
 ```
 
-Then, validate that `req.headers.client_ip` is from a whitelisted IP.
+Then, validate that `req.clientIp` is one of your whitelisted IPs. For development, validate that `req.hostname` is the name of your development machine. 
 
 This is with RapidAPI. Very easy! Standalone API authentication is much more complex.
 
