@@ -32,7 +32,7 @@ Then, validate that `req.clientIp` is one of your whitelisted IPs. For developme
 
 This is with RapidAPI. Very very easy! Standalone API authentication is much more work.
 
-## Authentication code
+## Authentication gateway
 
 ```text
 if (req.headers["x-rapidapi-user"] === "wordio") {
