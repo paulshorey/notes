@@ -19,7 +19,7 @@ import RequestIp from "@supercharge/request-ip"
 const { getClientIp } = RequestIp
 
 expressApp.use(function (req, res, next) {
-  req.headers.client_ip = getClientIp(req)
+  req.clientIp = getClientIp(req)
   next()
 })
 ```
