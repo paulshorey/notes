@@ -11,7 +11,7 @@ Generators I just found out may be even more efficient than for loops. Also, the
 ## Reminder: use instanceof instead of typeof
 
 ```text
-let e = new Error('asdfdfdfd')
+let e = new Error('just testing')
 console.log(typeof e)
 // "object"
 console.log(e instanceof Error)
