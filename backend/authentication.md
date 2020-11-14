@@ -24,8 +24,8 @@ const os_platform = os.platform()
 const host_is_dev = os_platform==='darwin'
 
 expressApp.use(function (req, res, next) {
-  req.headers.client_ip = getClientIp(req)
-  req.headers.host_is_dev = host_is_dev
+  req.client_ip = getClientIp(req)
+  req.host_is_dev = host_is_dev
   next()
 })
 ```
