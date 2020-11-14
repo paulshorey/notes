@@ -11,14 +11,14 @@ Generators I just found out may be even more efficient than for loops. Also, the
 ## Reminder: use instanceof instead of typeof
 
 ```text
-let e = new Error('just testing')
+let e = new Error('something went wrong')
 console.log(typeof e)
 // "object"
 console.log(e instanceof Error)
 // true
 ```
 
-This also works with any other constructor: Number, Array, Date, etc. which annoyingly can not be checked using `typeof`. `let d = new Date()` **typeof** returns "object". That's vague! Instead, check using **instanceof**. `d instanceof Date` returns true. That's much more specific.
+This also works with any other constructor: Number, Array, Date, etc. which can not be checked using `typeof`. `let d = new Date()` **typeof** returns "object". That's vague! Instead, check using **instanceof**. `d instanceof Date` returns true. That's much more specific.
 
 ## Context hack. Reuse the same variable name
 

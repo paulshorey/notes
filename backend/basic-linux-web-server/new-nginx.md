@@ -13,7 +13,7 @@ After adding these configuration files, **symlink each one** into `/etc/nginx/si
 
 The symlink can actually be from anywhere, not just from `sites-available`!
 
-\(Must use absolute links!\)
+\(Must use absolute paths!\)
 
 #### Then, **restart** Nginx, 
 
