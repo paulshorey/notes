@@ -34,7 +34,7 @@ This is with RapidAPI. Very very easy! Standalone API authentication is much mor
 
 ## TL;DR
 
-Detect if client is localhost, on local/corporate network...
+Detect if client is localhost, on local or corporate network...
 
 ```text
   /*
