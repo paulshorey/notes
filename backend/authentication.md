@@ -5,7 +5,7 @@ description: Just a few notes. Not complete...
 # RapidAPI Authentication
 
 **Developer:**  
-if server host OS === "MacOS" or similar rule,  
+if server host computer is MacBook, or similar rule,  
 **allow admin access, return additional debugging data**
 
 **Client:**  
