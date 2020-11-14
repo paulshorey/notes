@@ -12,7 +12,9 @@ Generators I just found out may be even more efficient than for loops. Also, the
 
 ```text
 let e = new Error('asdfdfdfd')
-e instanceof Error
+console.log(typeof e)
+// "object"
+console.log(e instanceof Error)
 // true
 ```
 
