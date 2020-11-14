@@ -85,7 +85,7 @@ Detect if client is localhost, on local or corporate network...
     client_ip_7 = client_ip.substr(0, 7)
   }
   let client_ip_3 = client_ip.substr(0, 3)
-  user.is_local =
+  req.user_is_local =
     client_ip_7 === "192.168" || client_ip_7 === "172.16." || client_ip_3 === "127" || client_ip_3 === "10."
 ```
 
