@@ -32,6 +32,36 @@ Then, validate that `req.clientIp` is one of your whitelisted IPs. For developme
 
 This is with RapidAPI. Very very easy! Standalone API authentication is much more work.
 
+## Authentication code
+
+```text
+if (req.headers["x-rapidapi-user"] === "wordio") {
+  /*
+   * B2C website - use captcha
+   */
+  let user = await auth_captcha(req, {})
+  if (user instanceof Error) {
+    http_response(res, 500, user)
+  }
+  if (user) {
+    response.auth_expires = user.expires
+    response.user_id = user.id
+    response.user_is_local = user.is_local
+  }
+} else {
+  /*
+   * B2B client - only allow RapidAPI whitelisted IPs
+   */
+  let user = await auth_rapidapi(req, {})
+  if (user instanceof Error) {
+    http_response(res, 500, user)
+  }
+  if (user) {
+    // ok, you may pass
+  }
+}
+```
+
 ## Unrelated note:
 
 Detect if client is localhost, on local or corporate network...
