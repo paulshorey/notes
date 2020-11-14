@@ -37,7 +37,7 @@ This is with RapidAPI. Very very easy! Standalone API authentication needs more 
 ```text
 if (req.headers["x-rapidapi-user"] === "wordio") {
   /*
-   * B2C website - use captcha
+   * B2C website (free access) - use captcha
    */
   let user = await auth_captcha(req, {})
   if (user instanceof Error) {
@@ -50,7 +50,7 @@ if (req.headers["x-rapidapi-user"] === "wordio") {
   }
 } else {
   /*
-   * B2B client - only allow RapidAPI whitelisted IPs
+   * B2B client (paid access) - only allow RapidAPI whitelisted IPs
    */
   let user = await auth_rapidapi(req, {})
   if (user instanceof Error) {
