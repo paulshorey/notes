@@ -12,7 +12,7 @@ if server host is localhost
 client from whitelisted RapidAPI IP  
 **allow access**
 
-To do this, you must first verify the Client's IP address. Do not trust headers.referer. Instead...
+To do this, you must first verify the Client's IP address. Do not trust headers. Instead...
 
 ```text
 import RequestIp from "@supercharge/request-ip"
