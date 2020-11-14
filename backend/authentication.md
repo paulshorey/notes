@@ -5,7 +5,7 @@ description: Just a few notes. Not complete...
 # RapidAPI Authentication
 
 **Developer:**  
-if server host is localhost  
+if server host === "Paul-Shoreys-MacBook-Pro" or whatever  
 **allow admin access, return additional debugging data**
 
 **Client:**  
