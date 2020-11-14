@@ -52,6 +52,7 @@
     * [install](backend/db/new-mongodb/install.md)
   * [advanced SQL](backend/db/intermediate-commands.md)
 * [Microsoft APIs](backend/microsoft-azure.md)
+* [Authentication](backend/authentication.md)
 
 ## FrontEnd
 
