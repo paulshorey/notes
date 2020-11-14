@@ -19,9 +19,8 @@ To do this, you must first verify the Client's IP address, and also your own ser
 import RequestIp from "@supercharge/request-ip"
 const { getClientIp } = RequestIp
 import os from "os"
-const os_hostname = os.hostname()
-const os_platform = os.platform()
-const host_is_dev = os_platform==='darwin'
+const os_platform = os.platform() // or use os.hostname()
+const host_is_dev = os_platform==='darwin' // whatever
 
 expressApp.use(function (req, res, next) {
   req.client_ip = getClientIp(req)
@@ -30,7 +29,7 @@ expressApp.use(function (req, res, next) {
 })
 ```
 
-Then, validate that `req.clientIp` is one of your whitelisted IPs. For development, validate that `req.hostname` is the name of your development machine. 
+Then, validate that `req.clientIp` is one of your whitelisted IPs. For development, allow admin access if `req.host_is_dev`. 
 
 This is with RapidAPI. Very very easy! Standalone API authentication needs much more work.
 
