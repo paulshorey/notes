@@ -24,7 +24,9 @@ expressApp.use(function (req, res, next) {
 })
 ```
 
-Above is with RapidAPI. It's easy! Standalone API needs more work.
+Then, validate that `req.headers.client_ip` is from an allowed IP.
+
+This is with RapidAPI. It's easy! Standalone API needs more work.
 
 
 
