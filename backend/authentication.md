@@ -2,7 +2,7 @@
 description: Just a few notes. Not complete...
 ---
 
-# API Authentication
+# RapidAPI Authentication
 
 **Developer:**  
 if server host is localhost  
