@@ -9,7 +9,7 @@ if server is being hosted on a MacBook, or has some admin secret token cookie,
 **allow admin access, return additional debugging data**
 
 **Client:**  
-if client request is coming from an official whitelisted RapidAPI IPs,  
+if client request is coming from an official whitelisted RapidAPI IP,  
 **allow client access**
 
 To do this, you must first verify the Client's IP address, and also your own server's hostname.   
