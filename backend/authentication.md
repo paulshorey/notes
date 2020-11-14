@@ -32,7 +32,7 @@ Then, validate that `req.clientIp` is one of your whitelisted IPs. For developme
 
 This is with RapidAPI. Very very easy! Standalone API authentication is much more work.
 
-## TL;DR
+## Unrelated note:
 
 Detect if client is localhost, on local or corporate network...
 
