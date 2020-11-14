@@ -5,7 +5,7 @@ description: Just a few notes. Not complete...
 # RapidAPI Authentication
 
 **Developer access:**  
-if server is being hosted on a MacBook, or similar rule,  
+if server is being hosted on a MacBook, or has some admin secret token cookie,  
 **allow admin access, return additional debugging data**
 
 **Client:**  
