@@ -20,7 +20,7 @@ import RequestIp from "@supercharge/request-ip"
 const { getClientIp } = RequestIp
 import os from "os"
 const os_platform = os.platform() // or use os.hostname()
-const host_is_dev = os_platform==='darwin' // whatever
+const host_is_dev = os_platform==='darwin' // or whatever
 
 expressApp.use(function (req, res, next) {
   req.client_ip = getClientIp(req)
