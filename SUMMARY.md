@@ -7,6 +7,8 @@
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from markdown](documentation/website-from-files.md)
   * [GitBook as a headless CMS](documentation/gitbook-cms.md)
+* [Tutorials](tutorials/README.md)
+  * [Tips for browsing the web](tutorials/tips-for-browsing-the-web.md)
 
 ## General Programming
 

@@ -6,10 +6,17 @@
 sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /srv/public/_certs/wordio.co.key -out /srv/public/_certs/wordio.co.crt
 ```
 
-Refer to this guide, for answering OpenSSL CLI questions:  
+Just answer the questions when prompted:  
 [https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/](https://www.thesslstore.com/knowledgebase/ssl-generate/csr-generation-guide-for-nginx-openssl/)
 
-### or, generate a CSR for a premium/wildcard certificate authority.
+* **Common Name:** The FQDN \(fully-qualified domain name\) you want to secure with the certificate such as www.google.com, secure.website.org, \*.domain.net, etc.
+* **Organization:** The full legal name of your organization including the corporate identifier.
+* **Organization Unit \(OU\):** Your department such as ‘Information Technology’ or ‘Website Security.’
+* **City or Locality:** The locality or city where your organization is legally incorporated. Do not abbreviate.
+* **State or Province:** The state or province where your organization is legally incorporated. Do not abbreviate.
+* **Country:** The official two-letter country code \(i.e. US, CH\) where your organization is legally incorporated.
+
+### Or, generate a CSR for a premium/wildcard certificate authority.
 
 For when buying a SSL such as RapidSSL through Name.com...  
 "Common Name" or "domain name" should start with "www." or wildcard "\*".
