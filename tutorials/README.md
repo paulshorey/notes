@@ -4,5 +4,5 @@ Don't know where to stick this note, but, check out this company led by [Dmitriy
 
 {% embed url="https://prospectone.io/portfolio/" %}
 
-They build amazing web JavaScript tools like [JS Delivr](https://www.jsdelivr.com/) and Survive JS.
+They contribute to amazing web tools like [JS Delivr](https://www.jsdelivr.com/), Survive JS, Bash, etc.
 
