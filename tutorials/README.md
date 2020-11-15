@@ -8,6 +8,8 @@ This group contributes to amazing web tools like [JS Delivr](https://www.jsdeliv
 
 ## CDN for unbuilt ES Modules: [https://www.jsdelivr.com/esm](https://www.jsdelivr.com/esm)
 
-Take my unfinished ES module, for example: [https://esm.run/universal-common-scripts/functions/requests.js](https://esm.run/universal-common-scripts/functions/requests.js)  
-JSDeliver finishes it \(compiles and builds it\)! Then serves it via CDN! Amazing!
+I have an unfinished ES module: [https://github.com/paulshorey/universal-common-scripts/blob/master/functions/requests.js](https://github.com/paulshorey/universal-common-scripts/blob/master/functions/requests.js)  
+JSDeliver finishes it \(compiles and builds it\)! Then serves it via CDN! Amazing! Get the built file here:[ https://esm.run/universal-common-scripts/functions/requests.js](https://esm.run/universal-common-scripts/functions/requests.js)
+
+
 
