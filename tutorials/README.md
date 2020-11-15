@@ -13,6 +13,10 @@ JSDeliver finishes it \(compiles and builds it\)! Then serves it via CDN! Amazin
 
 Faster alternative to Webpack?
 
+## Treeshaking
+
+[https://medium.com/@toastui/building-a-ui-library-capable-of-tree-shaking-from-a-to-z-b3f8a9be589f](https://medium.com/@toastui/building-a-ui-library-capable-of-tree-shaking-from-a-to-z-b3f8a9be589f)
+
 ## My role model: [Dmitriy Akulov](https://dakulov.com/)
 
 {% embed url="https://prospectone.io/portfolio/" %}
