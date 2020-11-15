@@ -32,7 +32,10 @@ If you like this guide, agree with most of the sentiments expressed, and would l
     }
 ```
 
-Generating markdown/html is easy. `documentation readme functions -f md --shallow --section=Functions` it turns the "./functions" directory into a \#h1 section in your README.md file
+Generating markdown/html is easy: `documentation readme functions -f md --shallow --section=Functions` it turns the "./functions" directory into a \#h1 section in your README.md file
+
+Development:  
+`documentation serve functions -f md --shallow --watch` It will render a documentation site, and host it on localhost:4001, and update when you make changes. Brilliant!
 
 It's industry standard, and there is no other competing standard. JavaScript libraries use it. Even EcmaScript uses it to document its own methods \(.splice, .length, JSON.stringify, etc\). So if you learn how to use it in your IDE, you can quickly right-click \(or similar shortcut\) to see documentation of a JavaScript prototype, instead of having to open your web browser and find the answer on some website.
 
