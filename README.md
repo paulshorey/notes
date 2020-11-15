@@ -19,7 +19,7 @@ This GitBook platform is really excellent for teams. It syncs with your GIT repo
 
 If you like this guide, agree with most of the sentiments expressed, and would like to use it as your own - add to it, feel free to edit it, and express your own ideas - [then please contact me!](http://paulshorey.com#contact) I'll add you to this organization as an equal collaborator. ~~ [PaulShorey.com](http://paulshorey.com)
 
-## To document your functions/methods, use [Documentation.JS](https://github.com/documentationjs/documentation/blob/master/docs/GETTING_STARTED.md)
+## To document your functions/methods, use [Documentation.JS](https://www.npmjs.com/package/documentation)
 
 ```javascript
     /**  
@@ -31,6 +31,8 @@ If you like this guide, agree with most of the sentiments expressed, and would l
       return input + 1;  
     }
 ```
+
+Best documentation about documentation: [https://github.com/documentationjs/documentation/blob/HEAD/docs/RECIPES.md](https://github.com/documentationjs/documentation/blob/HEAD/docs/RECIPES.md)
 
 It's industry standard, and there is no other competing standard. JavaScript libraries use it. Even EcmaScript uses it to document its own methods \(.splice, .length, JSON.stringify, etc\). So if you learn how to use it in your IDE, you can quickly right-click \(or similar shortcut\) to see documentation of a JavaScript prototype, instead of having to open your web browser and find the answer on some website.
 

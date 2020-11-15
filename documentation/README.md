@@ -4,7 +4,7 @@ description: Documenting the documentation...
 
 # Technical documentation
 
-{% embed url="https://medium.com/@kevinast/integrate-gitbook-jsdoc-974be8df6fb3" caption="^^ Good overview, but very outdated. GitBook is no longer open-source, but this could still work !!" %}
+{% embed url="https://medium.com/@kevinast/integrate-gitbook-jsdoc-974be8df6fb3" caption="^^ Good overview, but very outdated. GitBook is no longer open-source, but this should still work !!" %}
 
 > Good documentation should include two distinct elements — a **Guide** and an **API**:
 >
