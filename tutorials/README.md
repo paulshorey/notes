@@ -2,7 +2,7 @@
 
 ## CDN for ES Modules: [https://www.jsdelivr.com/esm](https://www.jsdelivr.com/esm)
 
-I have an unfinished ES module: [https://github.com/paulshorey/universal-common-scripts/blob/master/functions/requests.js](https://github.com/paulshorey/universal-common-scripts/blob/master/functions/requests.js)  
+I have a raw ESM library: [https://github.com/paulshorey/universal-common-scripts/blob/master/functions/requests.js](https://github.com/paulshorey/universal-common-scripts/blob/master/functions/requests.js) or [https://cdn.jsdelivr.net/gh/paulshorey/universal-common-scripts@latest/functions/requests.js](https://cdn.jsdelivr.net/gh/paulshorey/universal-common-scripts@latest/functions/requests.js)  
 JSDeliver finishes it \(compiles and builds it\)! Then serves it via CDN! Amazing! Get the built file here:[ https://esm.run/universal-common-scripts/functions/requests.js](https://esm.run/universal-common-scripts/functions/requests.js)
 
 ## My role model: [Dmitriy Akulov](https://dakulov.com/)
