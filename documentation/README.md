@@ -13,7 +13,7 @@ description: Documenting the documentation...
 
 See more info and tools **on the left nav menu**, expanded under "Technical Documentation"
 
-This guide is outdated, but it could still work. Instead of reading the whole article, I'm just going to 
+This guide is outdated, but it could still work. Instead of reading the whole article, I'm just going to: 
 
 1\) convert my JSDocs into markdown, 
 
