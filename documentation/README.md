@@ -13,5 +13,11 @@ description: Documenting the documentation...
 
 See more info and tools **on the left nav menu**, expanded under "Technical Documentation"
 
-This guide is outdated, but it could still work. Instead of reading all that, I'm just going to convert my JSDocs into markdown, shove the files into my GitBook markdown folder, and try to integrate links into GitBook navigation menu...
+This guide is outdated, but it could still work. Instead of reading the whole article, I'm just going to 
+
+1\) convert my JSDocs into markdown, 
+
+2\) shove the files into my GitBook markdown folder,
+
+3\) try to integrate links into GitBook navigation menu
 
