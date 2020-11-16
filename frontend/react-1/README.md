@@ -9,6 +9,10 @@ Same concept, but include Markdown files, converted to HTML! Wow, amazing:
 
 Gatsby \(compiles into static site\) vs Next.js \(dynamic SSR, and now can also compile static site\). So, it seems Next.js is superior. However, Gatsby is easier to work with. It's faster to build out the site/app. So, that should be considered. [More...](ssr.md)
 
+## Optimize load times
+
+[https://www.infoq.com/articles/reduce-react-load-time/](https://www.infoq.com/articles/reduce-react-load-time/)
+
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 
 **auto-update the view after state changes**
