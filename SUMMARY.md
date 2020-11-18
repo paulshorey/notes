@@ -91,6 +91,7 @@
 * [Publishing a website](managing-a-website/publishing-a-website.md)
 * [Domain availability](managing-a-website/domain-availability.md)
 * [SEO / Sharing](managing-a-website/seo-sharing.md)
+* [Monitoring / Testing / Uptime](managing-a-website/monitoring-testing-uptime.md)
 
 ## Interviews / Jobs / Hiring
 
