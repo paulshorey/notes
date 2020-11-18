@@ -54,7 +54,9 @@
     * [install](backend/db/new-mongodb/install.md)
   * [advanced SQL](backend/db/intermediate-commands.md)
 * [Microsoft APIs](backend/microsoft-azure.md)
-* [RapidAPI Authentication](backend/authentication.md)
+* [API development](backend/api-development/README.md)
+  * [Error messages](backend/api-development/error-messages.md)
+  * [RapidAPI Authentication](backend/api-development/authentication.md)
 
 ## FrontEnd
 
