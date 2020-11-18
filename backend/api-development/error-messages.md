@@ -4,6 +4,40 @@
 **400**-level \(Client error\) — Client sent an invalid request  
 **500**-level \(Server error\) — Server failed to fulfill a valid request due to an error with server
 
+**GraphQL response standard:**  
+It's rational. It's opinionated. Traditional JSON HTTPS error handling had no standard until 2016 [RFC 7231](https://tools.ietf.org/html/rfc7231#section-6), and then it took a while for companies to follow it, and still there is not a real standard. GraphQL may not be as magical as people sometimes make it out to be, but it provides good standards, and has enough utility that it will only grow in popularity. So, maybe let's start using this for all HTTP/JSON error handling, even REST?
+
+```text
+{
+  "errors": [
+    {
+      "message": "Name for character with ID 1002 could not be fetched.",
+      "locations": [ { "line": 6, "column": 7 } ],
+      "path": [ "hero", "heroFriends", 1, "name" ]
+    }
+  ],
+  "data": {
+    "hero": {
+      "name": "R2-D2",
+      "heroFriends": [
+        {
+          "id": "1000",
+          "name": "Luke Skywalker"
+        },
+        {
+          "id": "1002",
+          "name": null
+        },
+        {
+          "id": "1003",
+          "name": "Leia Organa"
+        }
+      ]
+    }
+  }
+}
+```
+
 Twitter:
 
 ```text
