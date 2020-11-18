@@ -90,6 +90,7 @@
 * [Captcha](managing-a-website/captcha.md)
 * [Publishing a website](managing-a-website/publishing-a-website.md)
 * [Domain availability](managing-a-website/domain-availability.md)
+* [SEO / Sharing](managing-a-website/seo-sharing.md)
 
 ## Interviews / Jobs / Hiring
 
