@@ -85,7 +85,7 @@ Consider adding a href/link/url property to your error object.
 
 **For client errors \(HTTP status 400\):** Same as 500, but return `warning` or `warnings` instead of "error" or "errors".
 
-Now, the only thing to decide is - to ALWAYS return an array of `errors` or sometimes return just one `error` object and other times return an array of `errors`. Maybe your application will never need more than one error, but maybe in the future it will. Refactoring is a pain. So, it may be better to just return an array of errors/warnings. However, it's so much simpler with just one error.
+Now, the only thing to decide is - to ALWAYS return an array of `errors` \(Twitter\) or sometimes return just one `error` object and other times return an array of `errors` \(Facebook\). Maybe your application will never need more than one error, but maybe in the future it will. Refactoring is a pain. So, it may be better to just return an array of errors/warnings. However, it's so much simpler with just one error.
 
 
 
