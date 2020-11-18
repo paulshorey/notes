@@ -81,7 +81,13 @@ Consider adding a href/link/url property to your error object.
 
 {% embed url="https://www.mediawiki.org/wiki/API:Errors\_and\_warnings" %}
 
-Return an object as value for key `error`, or an array of error objects as value for key `errors`. This is what Twitter and Facebook do. Each error object should contain a `code` and a `message` keys. The Google example above looks weird, but it's really just one error. The `errors` array inside it is just a description \(more details\) about the one error. There is only one error.
+**For fatal errors \(HTTP status 500\):** Return an object as value for key `error`, or an array of error objects as value for key `errors`. This is what Twitter and Facebook do. Each error object should contain a `code` and a `message` keys. The Google example above looks weird, but it's really just one error. The `errors` array inside it is just a description \(more details\) about the one error. There is only one error.
+
+**For client errors \(HTTP status 400\):** Same as 500, but return `warning` or `warnings` instead of "error" or "errors".
+
+
+
+
 
 
 
