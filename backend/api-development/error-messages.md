@@ -5,7 +5,7 @@
 **500**-level \(Server error\) — Server failed to fulfill a valid request due to an error with server
 
 **GraphQL response standard:**  
-It's rational. It's opinionated. Traditional JSON HTTPS error handling had no standard until 2016 [RFC 7231](https://tools.ietf.org/html/rfc7231#section-6), and then it took a while for companies to follow it, and still there is not a real standard. GraphQL may not be as magical as people sometimes make it out to be, but it provides good standards, and has enough utility that it will only grow in popularity. So, maybe let's start using this for all HTTP/JSON error handling, even REST? I do like the REST error specification saying that for minor errors, they should be called "warning/warnings" instead of "error/errors". See bottom of this post for summary of standard REST error spec.
+Traditional JSON HTTPS error handling had no standard until 2016 [RFC 7231](https://tools.ietf.org/html/rfc7231#section-6), and then it took a while for companies to follow it, and still there is not a real standard. GraphQL adds to the JSON/REST spec saying that errors can be output along with data...
 
 ```text
 {
