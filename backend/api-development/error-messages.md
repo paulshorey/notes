@@ -6,7 +6,7 @@
 
 There's not really a standard way of communicating errors/warnings for an HTTP REST API response. Lets see how different services do it in 2020:
 
-**GraphQL standard:**
+GraphQL:
 
 ```text
 {
