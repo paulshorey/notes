@@ -4,7 +4,7 @@
 **400**-level \(Client error\) — Client sent an invalid request  
 **500**-level \(Server error\) — Server failed to fulfill a valid request due to an error with server
 
-Traditional JSON HTTPS error handling had no standard until 2016 [RFC 7231](https://tools.ietf.org/html/rfc7231#section-6), and then it took a while for companies to follow it, and as of 2020, most still do not. GraphQL adds to the JSON/REST spec saying that errors can be output along with data. I do like RFC 7231's rule that says instead of calling them "errors/error", you can call them "warnings/warning" for minor non-breaking errors. See MediaWiki summary below.
+There's not really a standard way of communicating errors/warnings for an HTTP REST API response. Lets see how different services do it in 2020:
 
 **GraphQL response standard:**
 
