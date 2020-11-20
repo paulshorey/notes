@@ -9,7 +9,7 @@ Same concept, but include Markdown files, converted to HTML! Wow, amazing:
 
 Cancel all HTTP requests \(Axios, Fetch\) and setTimeouts in componentWillUnmount\(\)!   
 [https://since1979.dev/cancel-axios-request-to-prevent-react-from-yelling-at-you/](https://since1979.dev/cancel-axios-request-to-prevent-react-from-yelling-at-you/)  
-^^^ This is also great to do wherever a setTimeout ends a promise
+^^^ This is also great to do wherever you end a promise early \(maximum time reached\)
 
 ## [Server-side rendering](ssr.md)
 
