@@ -5,6 +5,11 @@
 Same concept, but include Markdown files, converted to HTML! Wow, amazing:   
 [https://github.com/peerigon/markdown-loader](https://github.com/peerigon/markdown-loader)
 
+## Component unmounted
+
+Cancel all HTTP requests and setTimeouts in componentWillUnmount\(\)!   
+[https://since1979.dev/cancel-axios-request-to-prevent-react-from-yelling-at-you/](https://since1979.dev/cancel-axios-request-to-prevent-react-from-yelling-at-you/)
+
 ## [Server-side rendering](ssr.md)
 
 Gatsby \(compiles into static site\) vs Next.js \(dynamic SSR, and now can also compile static site\). So, it seems Next.js is superior. However, Gatsby is easier to work with. It's faster to build out the site/app. So, that should be considered. [More...](ssr.md)
