@@ -119,4 +119,5 @@
 * [Mac OS](etc-1/mac-os.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
 * [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)
+* [Cool stuff](etc-1/cool-stuff.md)
 
