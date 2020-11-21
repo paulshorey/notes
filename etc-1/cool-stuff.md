@@ -11,7 +11,7 @@ Read more:
 
 ## Use neighbors' WiFi
 
-I'm not a freeloader. I pay for my stuff. But right now, while traveling, my Airbnb host's internet is slow and unreliable. My phone is out of data, and I have to wait a bit to upgrade to unlimited \(it's Saturday, they're busy. Also waiting on my wife to sign up with them, then we'll be waiting for a new phone\). I did not go through with this, but it might work if someone wants to try it...
+I'm not a freeloader. I pay for my stuff. But right now, while traveling, my Airbnb host's internet is slow and unreliable. My phone is out of data, and I have to wait a bit to upgrade to unlimited \(it's Saturday, they're busy. Also waiting on my wife to sign up with them, then we'll be waiting for a new phone\). I did not go through with this, but it might work if someone wants to try it. ;-\)
 
 {% embed url="https://medium.com/@jansalvadorsebastian/hacking-wi-fi-penetration-on-macos-bc1f0f0f6296" caption="^^^ this is the best tutorial for Mac\*\*" %}
 
@@ -19,7 +19,15 @@ I'm not a freeloader. I pay for my stuff. But right now, while traveling, my Air
 
 {% embed url="https://martinsjean256.wordpress.com/2018/02/12/hacking-aircrack-ng-on-mac-cracking-wi-fi-without-kali-in-parallels/" %}
 
+How to get cap2hccapx command to work:
 
+```text
+git clone git@github.com:hashcat/hashcat-utils.git
+cd hashcat-utils/src
+make
+ln -s $(pwd)/cap2hccapx.bin /usr/local/bin/cap2hccapx
+cd ../../
+```
 
 
 
