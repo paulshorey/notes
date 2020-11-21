@@ -9,7 +9,7 @@ And run it as a local MySQL database! :D
 Read more:  
 [https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
 
-## Hack neighbors' WiFi
+## Use neighbors' WiFi
 
 I'm not a freeloader. I pay for my stuff. But right now, while traveling, my Airbnb host's internet is slow and unreliable. My phone is out of data, and I have to wait a bit to upgrade to unlimited \(it's Saturday, they're busy. Also waiting on my wife to sign up with them, then we'll be waiting for a new phone\). I'm hoping that the neighbor's internet is better. Let's see if I can access it...
 
