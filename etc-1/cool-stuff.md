@@ -5,18 +5,16 @@
 [https://dungtn.github.io/dataset/2019/01/18/wikipedia-data.html](https://dungtn.github.io/dataset/2019/01/18/wikipedia-data.html)  
 [https://meta.wikimedia.org/wiki/Data\_dump\_torrents\#English\_Wikipedia](https://meta.wikimedia.org/wiki/Data_dump_torrents#English_Wikipedia)
 
-Import it to your local MySQL database:  
-[https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql](https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql)  
-\(^^^first, create the tables\)  
-[https://en.wikipedia.org/wiki/Wikipedia:Database\_download\#SQL\_schema](https://en.wikipedia.org/wiki/Wikipedia:Database_download#SQL_schema) \(then, convert the dump into sql backup\)  
-[https://www.xarg.org/2016/06/importing-entire-wikipedia-into-mysql/](https://www.xarg.org/2016/06/importing-entire-wikipedia-into-mysql/) \(good but VERY OLD guide to import dump into local MySQL\)
+**Import it to local ElasticSearch:**  
+[https://stackanswers.net/questions/loading-wikipedia-dump-into-elasticsearch](https://stackanswers.net/questions/loading-wikipedia-dump-into-elasticsearch)  
+\(discussion\)  
+[https://github.com/andrewvc/wikiparse](https://github.com/andrewvc/wikiparse)   
+\(wikiparse.jar file it uses may be outdated\)  
+[http://www.fuzihao.org/blog/2018/01/01/Struggling-in-importing-wikipedia-into-Elasticsearch/](http://www.fuzihao.org/blog/2018/01/01/Struggling-in-importing-wikipedia-into-Elasticsearch/) \(using LogStash\)  
+[https://developer.aliyun.com/mirror/npm/package/wikipedia-elasticsearch-import ](https://github.com/pawelotto/wikipedia-elasticsearch-import)   
+\(NPM package ??? OMG !!!\)
 
-Import it to local ElasticSearch:  
-[https://github.com/andrewvc/wikiparse](https://github.com/andrewvc/wikiparse) \(wikiparse.jar file it uses may be outdated\)  
-[http://www.fuzihao.org/blog/2018/01/01/Struggling-in-importing-wikipedia-into-Elasticsearch/](http://www.fuzihao.org/blog/2018/01/01/Struggling-in-importing-wikipedia-into-Elasticsearch/) \(NEWEST tutorial!\)  
-[https://developer.aliyun.com/mirror/npm/package/wikipedia-elasticsearch-import ](https://github.com/pawelotto/wikipedia-elasticsearch-import) \(NPM package ??? OMG !!!\)
-
-Other resources:  
+**Other resources:**  
 [https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
 
 ## Hack \(use\) neighbors' WiFi
