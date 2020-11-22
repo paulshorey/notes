@@ -11,6 +11,9 @@ Import it to your local MySQL database:
 [https://en.wikipedia.org/wiki/Wikipedia:Database\_download\#SQL\_schema](https://en.wikipedia.org/wiki/Wikipedia:Database_download#SQL_schema) \(then, convert the dump into sql backup\)  
 [https://www.xarg.org/2016/06/importing-entire-wikipedia-into-mysql/](https://www.xarg.org/2016/06/importing-entire-wikipedia-into-mysql/) \(good but VERY OLD guide to import dump into local MySQL\)
 
+Import it to local ElasticSearch:  
+[https://github.com/andrewvc/wikiparse](https://github.com/andrewvc/wikiparse) \(this seems legit!\)
+
 Other resources:  
 [https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
 
