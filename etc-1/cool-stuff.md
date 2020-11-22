@@ -8,7 +8,8 @@
 Import it to your local MySQL database:  
 [https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql](https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql)  
 \(^^^first, create the tables\)  
-[https://en.wikipedia.org/wiki/Wikipedia:Database\_download\#SQL\_schema](https://en.wikipedia.org/wiki/Wikipedia:Database_download#SQL_schema) \(then, convert the dump into sql backup\)
+[https://en.wikipedia.org/wiki/Wikipedia:Database\_download\#SQL\_schema](https://en.wikipedia.org/wiki/Wikipedia:Database_download#SQL_schema) \(then, convert the dump into sql backup\)  
+[https://www.xarg.org/2016/06/importing-entire-wikipedia-into-mysql/](https://www.xarg.org/2016/06/importing-entire-wikipedia-into-mysql/) \(good guide to import dump into local MySQL\)
 
 Other resources:  
 [https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
