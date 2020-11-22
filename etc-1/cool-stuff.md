@@ -6,7 +6,9 @@
 [https://meta.wikimedia.org/wiki/Data\_dump\_torrents\#English\_Wikipedia](https://meta.wikimedia.org/wiki/Data_dump_torrents#English_Wikipedia)
 
 Import it to your local MySQL database:  
-[https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql](https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql) \(^^^first, create the tables\)
+[https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql](https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql)  
+\(^^^first, create the tables\)  
+[https://crates.io/crates/parse-mediawiki-sql/](https://crates.io/crates/parse-mediawiki-sql/) \(then, convert the dump into sql backup\)
 
 Other resources:  
 [https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
