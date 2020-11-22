@@ -17,7 +17,10 @@
 \(NPM package ??? OMG !!!\)
 
 **Other resources:**  
-[https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
+[https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)   
+\(idk\)  
+[https://dungtn.github.io/dataset/2019/01/18/wikipedia-data.html](https://dungtn.github.io/dataset/2019/01/18/wikipedia-data.html)  
+\(import into MySQL\)
 
 ## Hack \(use\) neighbors' WiFi
 
