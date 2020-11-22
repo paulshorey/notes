@@ -8,7 +8,7 @@
 Import it to your local MySQL database:  
 [https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql](https://phabricator.wikimedia.org/source/mediawiki/browse/master/maintenance/tables.sql)  
 \(^^^first, create the tables\)  
-[https://crates.io/crates/parse-mediawiki-sql/](https://crates.io/crates/parse-mediawiki-sql/) \(then, convert the dump into sql backup\)
+[https://en.wikipedia.org/wiki/Wikipedia:Database\_download\#SQL\_schema](https://en.wikipedia.org/wiki/Wikipedia:Database_download#SQL_schema) \(then, convert the dump into sql backup\)
 
 Other resources:  
 [https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
