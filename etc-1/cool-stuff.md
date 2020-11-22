@@ -11,7 +11,7 @@ Read more:
 
 ## Hack \(use\) neighbors' WiFi
 
-Right now, while traveling, my Airbnb host's internet is slow and unreliable. My phone is out of data, and I have to wait a bit to upgrade to unlimited \(it's Saturday, they're busy. Also waiting on my wife to sign up with them, then we'll be waiting for a new phone\). I did not go through with this, but it looks like it might work, if anyone is curious.
+Right now, while traveling, my Airbnb host's internet is slow and unreliable. My phone is out of data, and I have to wait a bit to upgrade to unlimited \(it's Saturday, they're busy. Also waiting on my wife to sign up with them, then we'll be waiting for a new phone\). I did not actually hack into my neighbor's wifi, but did follow through the tutorials. It looks like it might work.
 
 {% embed url="https://medium.com/@jansalvadorsebastian/hacking-wi-fi-penetration-on-macos-bc1f0f0f6296" caption="^^^ this is the best tutorial for Mac\*\*" %}
 
