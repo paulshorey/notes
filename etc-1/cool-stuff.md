@@ -14,7 +14,7 @@ Import it to your local MySQL database:
 Import it to local ElasticSearch:  
 [https://github.com/andrewvc/wikiparse](https://github.com/andrewvc/wikiparse) \(wikiparse.jar file it uses may be outdated\)  
 [http://www.fuzihao.org/blog/2018/01/01/Struggling-in-importing-wikipedia-into-Elasticsearch/](http://www.fuzihao.org/blog/2018/01/01/Struggling-in-importing-wikipedia-into-Elasticsearch/) \(NEWEST tutorial!\)  
-[https://developer.aliyun.com/mirror/npm/package/wikipedia-elasticsearch-import](https://developer.aliyun.com/mirror/npm/package/wikipedia-elasticsearch-import) \(NPM package ???\)
+[https://developer.aliyun.com/mirror/npm/package/wikipedia-elasticsearch-import ](https://github.com/pawelotto/wikipedia-elasticsearch-import) \(NPM package ??? OMG !!!\)
 
 Other resources:  
 [https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
