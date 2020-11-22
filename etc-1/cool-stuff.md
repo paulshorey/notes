@@ -12,7 +12,8 @@ Import it to your local MySQL database:
 [https://www.xarg.org/2016/06/importing-entire-wikipedia-into-mysql/](https://www.xarg.org/2016/06/importing-entire-wikipedia-into-mysql/) \(good but VERY OLD guide to import dump into local MySQL\)
 
 Import it to local ElasticSearch:  
-[https://github.com/andrewvc/wikiparse](https://github.com/andrewvc/wikiparse) \(this seems legit!\)
+[https://github.com/andrewvc/wikiparse](https://github.com/andrewvc/wikiparse) \(wikiparse.jar file it uses may be outdated\)  
+[http://www.fuzihao.org/blog/2018/01/01/Struggling-in-importing-wikipedia-into-Elasticsearch/](http://www.fuzihao.org/blog/2018/01/01/Struggling-in-importing-wikipedia-into-Elasticsearch/) \(NEWEST tutorial!\)
 
 Other resources:  
 [https://mwparserfromhell.readthedocs.io/en/latest/usage.html](https://mwparserfromhell.readthedocs.io/en/latest/usage.html)
