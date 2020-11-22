@@ -6,7 +6,9 @@
 [https://meta.wikimedia.org/wiki/Data\_dump\_torrents\#English\_Wikipedia](https://meta.wikimedia.org/wiki/Data_dump_torrents#English_Wikipedia)
 
 **Import it to local ElasticSearch:**  
-[https://stackanswers.net/questions/loading-wikipedia-dump-into-elasticsearch](https://stackanswers.net/questions/loading-wikipedia-dump-into-elasticsearch)  
+[https://www.bing.com/search?q=import%20wikipedia%20dump%20into%20elasticsearch&qs=n&form=QBRE&sp=-1&pq=import%20wikipedia%20dump%20into%20elasticsearc&sc=0-39&sk=&cvid=C3A13FC142174DF083F31C6148DC1B58](https://www.bing.com/search?q=import%20wikipedia%20dump%20into%20elasticsearch&qs=n&form=QBRE&sp=-1&pq=import%20wikipedia%20dump%20into%20elasticsearc&sc=0-39&sk=&cvid=C3A13FC142174DF083F31C6148DC1B58)  
+\(search\)  
+[https://stackoverflow.com/questions/47476122/loading-wikipedia-dump-into-elasticsearch](https://stackoverflow.com/questions/47476122/loading-wikipedia-dump-into-elasticsearch#)  
 \(discussion\)  
 [https://github.com/andrewvc/wikiparse](https://github.com/andrewvc/wikiparse)   
 \(wikiparse.jar file it uses may be outdated\)  
