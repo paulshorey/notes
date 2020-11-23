@@ -22,6 +22,22 @@
 [https://dungtn.github.io/dataset/2019/01/18/wikipedia-data.html](https://dungtn.github.io/dataset/2019/01/18/wikipedia-data.html)  
 \(import into MySQL\)
 
+## Use ElasticSearch
+
+[https://dev.to/hsatac/management-gui-for-elasticsearch-17g9](https://dev.to/hsatac/management-gui-for-elasticsearch-17g9)   
+\(about various clients\)
+
+Get Kibana, open [http://localhost:5601](http://localhost:5601)  
+[https://www.elastic.co/start](https://www.elastic.co/start)
+
+
+
+## 
+
+## 
+
+## 
+
 ## Hack \(use\) neighbors' WiFi
 
 Right now, while traveling, my Airbnb host's internet is slow and unreliable. My phone is out of data, and I have to wait a bit to upgrade to unlimited \(it's Saturday, they're busy. Also waiting on my wife to sign up with them, then we'll be waiting for a new phone\). I ended up not bothering with this, and just paid for more data, but these tutorials look like they might work. You will need some internet while figuring it out, and many hours of trying to break the password. With this tutorial, while trying to break the password, you are not denying your neighbor their wifi access. This only requires you to connect to their wifi initially, to download the "handshake", which contains the encrypted reference to their password. Then you'll have to decrypt it. It's much faster if they used a password from a commonly used database. So, use a long random password strings everybody!
