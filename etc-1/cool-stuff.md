@@ -32,7 +32,7 @@ SQL is very limited. See: [https://www.elastic.co/guide/en/elasticsearch/referen
 
 `SELECT title FROM "en-wikipedia" WHERE MATCH(title, 'interesting');`
 
-`SELECT * FROM "en-wikipedia" WHERE title = 'Italy';`
+`SELECT * FROM "en-wikipedia" WHERE title = 'May you live in interesting times';`
 
 
 
