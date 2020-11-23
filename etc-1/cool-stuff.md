@@ -25,10 +25,12 @@
 ## Use ElasticSearch
 
 [https://dev.to/hsatac/management-gui-for-elasticsearch-17g9](https://dev.to/hsatac/management-gui-for-elasticsearch-17g9)   
-\(about various clients\)
+\(about various clients\)  
+[https://www.elastic.co/start](https://www.elastic.co/start) \(get Kibana\)
 
-Get Kibana, open [http://localhost:5601](http://localhost:5601)  
-[https://www.elastic.co/start](https://www.elastic.co/start)
+SQL is very limited. See: [https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-syntax-select.html](https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-syntax-select.html)
+
+`SELECT title FROM "en-wikipedia" WHERE MATCH(title, 'interesting') LIMIT 50;`
 
 
 
