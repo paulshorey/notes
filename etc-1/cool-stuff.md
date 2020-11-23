@@ -30,13 +30,16 @@
 
 SQL is very limited. See: [https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-syntax-select.html](https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-syntax-select.html)
 
-`SELECT title FROM "en-wikipedia" WHERE MATCH(title, 'interesting');`
+```text
+SELECT title FROM "en-wikipedia" WHERE MATCH(title, 'interesting') LIMIT 100;
 
-`SELECT * FROM "en-wikipedia" WHERE title = 'May you live in interesting times';`
+SELECT revision.text._ as text FROM "en-wikipedia" WHERE title = 'May you live in interesting times' LIMIT 1;
+
+SELECT title, revision.text._ FROM "en-wikipedia" WHERE MATCH("revision.text._", 'interesting') LIMIT 10;
 
 
 
-## 
+```
 
 ## 
 
