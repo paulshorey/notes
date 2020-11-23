@@ -37,10 +37,10 @@ SELECT revision.text._ as text FROM "en-wikipedia" WHERE title = 'May you live i
 
 SELECT title, revision.text._ as text FROM "en-wikipedia" WHERE MATCH(text, 'interesting') LIMIT 10;
 
-SELECT SCORE() as score, title, revision.text._ as text FROM "en-wikipedia" WHERE MATCH(text, 'interesting') ORDER BY score DESC LIMIT 10;
+SELECT score, title FROM (SELECT SCORE() as score, title, revision.text._ as text FROM "en-wikipedia" WHERE MATCH(text, 'interesting') ORDER BY score DESC LIMIT 100);
 ```
 
-## 
+
 
 ## Hack \(use\) neighbors' WiFi
 
