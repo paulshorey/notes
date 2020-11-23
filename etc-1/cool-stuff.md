@@ -35,8 +35,7 @@ SELECT title FROM "en-wikipedia" WHERE MATCH(title, 'interesting') LIMIT 100;
 
 SELECT revision.text._ as text FROM "en-wikipedia" WHERE title = 'May you live in interesting times' LIMIT 1;
 
-SELECT title, revision.text._ FROM "en-wikipedia" WHERE MATCH("revision.text._", 'interesting') LIMIT 10;
-
+SELECT title, revision.text._ as text FROM "en-wikipedia" WHERE MATCH(text, 'interesting') LIMIT 10;
 
 
 ```
