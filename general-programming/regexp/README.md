@@ -6,7 +6,7 @@
 
 ```text
 let re = new RegExp('(.{0,30})('+input_str+')(.{0,60})','gi')
-let text_found = text.match(re)
+let found = text.match(re)
 ```
 
 ## Reminders:
