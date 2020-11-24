@@ -2,10 +2,15 @@
 
 [https://javascript.info/regexp-groups](https://javascript.info/regexp-groups) \(nice explanation of grouping using match\)
 
+## Variables in Regex:
+
+```text
+let re = new RegExp('(.{0,30})('+input_str+')(.{0,60})','gi')
+```
+
 ## Reminders:
 
-Question mark **`?`** makes the search "not-greedy". Otherwise `.*` will match the whole line!  
-**`href="/.? title="(.?)"`**  to find titles of tags which have href
+Question mark **`?`** makes the search "not-greedy". Otherwise `.*` will match the whole line! **`href="/.? title="(.?)"`**  to find titles of tags which have href
 
 ## Use in JavaScript
 

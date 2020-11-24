@@ -40,7 +40,10 @@ SELECT title, revision.text._ as text FROM "en-wikipedia" WHERE MATCH(text, 'int
 SELECT score, title FROM (SELECT SCORE() as score, title, revision.text._ as text FROM "en-wikipedia" WHERE MATCH(text, 'interesting') ORDER BY score DESC LIMIT 100);
 ```
 
+EQL for use with Javascript or other Object-based queries:  
+[https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/api-reference.html](https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/api-reference.html)
 
+[https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/suggest\_examples.html](https://www.elastic.co/guide/en/elasticsearch/client/javascript-api/current/suggest_examples.html)
 
 ## Hack \(use\) neighbors' WiFi
 
