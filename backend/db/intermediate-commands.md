@@ -1,5 +1,9 @@
 # advanced SQL
 
+## Nested statement returns a "table"
+
+`SELECT score, title FROM (SELECT SCORE() as score, title, revision.text._ as text FROM "en-wikipedia" WHERE MATCH(text, 'interesting') ORDER BY score DESC LIMIT 100);`  
+
 ## Delete the top N rows, WHERE, ORDER BY, LIMIT, etc...
 
 `DELETE FROM data.words WHERE ctid IN ( SELECT ctid FROM data.words WHERE vrsn IS NULL AND list='[]' ORDER BY timestamp DESC LIMIT 761 )` 
