@@ -4,6 +4,8 @@ description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
 
 # CLI
 
+Check how long a command takes: add `time`  before the CLI command.
+
 ## Processes
 
 **`netstat -vanp tcp | grep 3000`** find all processes using port 3000  
