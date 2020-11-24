@@ -58,6 +58,8 @@
 * [API development](backend/api-development/README.md)
   * [Error messages](backend/api-development/error-messages.md)
   * [RapidAPI Authentication](backend/api-development/authentication.md)
+* [AWS](backend/aws-1/README.md)
+  * [EC2 Simple web server](backend/aws-1/ec2-+-ssl.md)
 
 ## FrontEnd
 
@@ -107,8 +109,6 @@
 * [Accelerators / Incubators](interviews-jobs-hiring/accelerators-incubators.md)
 
 ## AWS
-
-* [EC2 Simple web server](aws/ec2-+-ssl.md)
 
 ## design
 
