@@ -55,11 +55,12 @@
     * [install](backend/db/new-mongodb/install.md)
   * [advanced SQL](backend/db/intermediate-commands.md)
 * [Microsoft APIs](backend/microsoft-azure.md)
+* [AWS](backend/aws-1/README.md)
+  * [EC2 Simple web server](backend/aws-1/ec2-+-ssl.md)
 * [API development](backend/api-development/README.md)
   * [Error messages](backend/api-development/error-messages.md)
   * [RapidAPI Authentication](backend/api-development/authentication.md)
-* [AWS](backend/aws-1/README.md)
-  * [EC2 Simple web server](backend/aws-1/ec2-+-ssl.md)
+* [API consumption](backend/api-consumption.md)
 
 ## FrontEnd
 
