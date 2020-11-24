@@ -1,4 +1,4 @@
 # AWS
 
-Coming soon
+Coming soon. See links to the left.
 
