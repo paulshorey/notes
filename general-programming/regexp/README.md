@@ -2,6 +2,8 @@
 
 [https://javascript.info/regexp-groups](https://javascript.info/regexp-groups) \(nice explanation of grouping using match\)
 
+[https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global\_Objects/RegExp/RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/RegExp) \(read\)
+
 ## Variables in Regex:
 
 ```text
