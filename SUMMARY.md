@@ -108,11 +108,10 @@
 * [Peeves](interviews-jobs-hiring/peeves.md)
 * [Accelerators / Incubators](interviews-jobs-hiring/accelerators-incubators.md)
 
-## AWS
-
 ## design
 
 * [Screen resolution](design/screen-resolution.md)
+* [Good UI](design/good-ui.md)
 
 ## Etc <a id="etc-1"></a>
 
