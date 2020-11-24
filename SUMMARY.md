@@ -45,7 +45,8 @@
     * [on Login](backend/basic-linux-web-server/new-ubuntu/on-login.md)
   * [SSL](backend/basic-linux-web-server/ssl.md)
   * [NginX](backend/basic-linux-web-server/new-nginx.md)
-* [PostgreSQL / MongoDB](backend/db/README.md)
+* [PostgreSQL / MongoDB / ElasticSearch / SQL](backend/db/README.md)
+  * [ElasticSearch](backend/db/elasticsearch.md)
   * [PostgreSQL](backend/db/postgresql-on-ubuntu/README.md)
     * [backup / restore](backend/db/postgresql-on-ubuntu/backup-restore.md)
     * [CLI](backend/db/postgresql-on-ubuntu/basic-cli.md)
@@ -119,5 +120,5 @@
 * [Mac OS](etc-1/mac-os.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
 * [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)
-* [Cool stuff](etc-1/cool-stuff.md)
+* [Download Wikipedia](etc-1/cool-stuff.md)
 
