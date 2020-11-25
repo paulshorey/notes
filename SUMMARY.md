@@ -119,9 +119,7 @@
 * [Mac OS](etc-1/mac-os.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
 * [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)
-
-## NLP
-
-* [Tokenization / Lemmatization](nlp/tokenization-lemmatization.md)
-* [Download Wikipedia](nlp/cool-stuff.md)
+* [Download Wikipedia](etc-1/cool-stuff.md)
+* [Tokenization / Lemmatization](etc-1/tokenization-lemmatization/README.md)
+  * [Web Scraping](etc-1/tokenization-lemmatization/web-scraping.md)
 
