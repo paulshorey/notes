@@ -6,7 +6,10 @@ APIFY is a great service:
 Indeed jobs is a great thing to scrape. Lots of content. No captcha. Use this as the "start url" in APIFY:  
 [https://www.indeed.com/jobs?q=Javascript+Node+-junior+-jr+-intern+-graduate+-associate+-qa+-java&fromage=14&start=0](https://www.indeed.com/jobs?q=Javascript+Node+-junior+-jr+-intern+-graduate+-associate+-qa+-java&fromage=14&start=320)
 
-Puppeteer code:
+Browser masking: Use Chrome, Use Stealth mode  
+Security: Ignore SSL errors, Ignore CORS and CSP
+
+#### Puppeteer code:
 
 ```text
 // see https://apify.com/apify/web-scraper#page-function 
