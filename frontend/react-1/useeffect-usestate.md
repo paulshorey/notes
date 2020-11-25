@@ -7,5 +7,5 @@
 
 **`useEffect` is a combination** of `componentDidMount` and `componentDidUpdate` and some other lifecycles. Put code into here which will call useState handlers after data is gotten, or some event happens.
 
-[https://medium.com/javascript-in-plain-english/react-hooks-how-to-use-useeffect-ecea3e90d84f](https://medium.com/javascript-in-plain-english/react-hooks-how-to-use-useeffect-ecea3e90d84f)
+**Replace componentDidUpdate and other methods with useEffect:** [https://www.digitalocean.com/community/tutorials/react-replacing-component-lifecycles-with-useeffect](https://www.digitalocean.com/community/tutorials/react-replacing-component-lifecycles-with-useeffect)
 
