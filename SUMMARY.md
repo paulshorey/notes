@@ -84,11 +84,12 @@
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
 * [npm](frontend/npm.md)
 * [Webpack](frontend/webpack.md)
-* [Icons](frontend/icons.md)
-* [UTF-8 Icons](frontend/utf-8-icons.md)
-* [CSS / SASS](frontend/css/README.md)
-  * [styles in React/Webpack app](frontend/css/styles-in-react-webpack-app.md)
 * [Production](frontend/production.md)
+* [UI](frontend/ui/README.md)
+  * [UTF-8 Icons](frontend/ui/utf-8-icons.md)
+  * [CSS / SASS](frontend/ui/css/README.md)
+    * [styles in React/Webpack app](frontend/ui/css/styles-in-react-webpack-app.md)
+  * [Icons](frontend/ui/icons.md)
 
 ## Managing a Website
 

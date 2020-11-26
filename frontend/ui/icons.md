@@ -2,7 +2,7 @@
 
 Render an arrow like this, in pure CSS \(cheat by using inline SVG\):
 
-![](../.gitbook/assets/screen-shot-2020-06-01-at-11.34.57-am.png)
+![](../../.gitbook/assets/screen-shot-2020-06-01-at-11.34.57-am.png)
 
 ```text
 .link--external::after {
