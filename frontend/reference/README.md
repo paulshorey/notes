@@ -1,8 +1,10 @@
 # JavaScript
 
-#### **Check Mozilla prototype reference. Have it open when coding or in an interview. Review often.**
+**Great resource to learn beginning or advanced topics:**  
+[**https://javascript.info/**](https://javascript.info/)\*\*\*\*
 
-* [https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global\_Objects/Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
+**Check Mozilla prototype reference.**  
+[**https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference**/Global\_Objects/Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
 
 ## Reminder: practice using Generators
 
