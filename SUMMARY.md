@@ -86,6 +86,7 @@
 * [Webpack](frontend/webpack.md)
 * [Production](frontend/production.md)
 * [UI](frontend/ui/README.md)
+  * [IndexedDB / Cache API](frontend/ui/indexeddb-cache-api.md)
   * [UTF-8 Icons](frontend/ui/utf-8-icons.md)
   * [CSS / SASS](frontend/ui/css/README.md)
     * [styles in React/Webpack app](frontend/ui/css/styles-in-react-webpack-app.md)
