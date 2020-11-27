@@ -1,6 +1,8 @@
 # IndexedDB
 
-{% embed url="https://javascript.info/indexeddb" caption="^ read this for an overview of \(original\) IndexedDB API" %}
+[https://developers.google.com/web/ilt/pwa/working-with-indexeddb\#opening\_a\_database](https://developers.google.com/web/ilt/pwa/working-with-indexeddb#opening_a_database)
+
+{% embed url="https://javascript.info/indexeddb" caption="^ good overview of \(original\) IndexedDB API" %}
 
 {% embed url="https://github.com/jakearchibald/idb" %}
 
