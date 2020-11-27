@@ -2,7 +2,13 @@
 
 ### Documentation:
 
-{% embed url="https://javascript.info/localstorage" %}
+[https://javascript.info/localstorage](https://javascript.info/localstorage)
+
+
+
+
+
+
 
 
 
