@@ -15,6 +15,30 @@
   };
 ```
 
+```text
+let transaction = db.transaction("books", "readwrite");
+
+// get an object store to operate on it
+let books = transaction.objectStore("books");
+
+let book = {
+  id: 'js',
+  price: 10,
+  created: new Date()
+};
+
+let request = books.put(book); // overwrite
+let request = books.add(book); // fail if exists
+
+request.onsuccess = function() {
+  console.log("Book added to the store", request.result);
+};
+
+request.onerror = function() {
+  console.log("Error", request.error);
+};
+```
+
 {% embed url="https://blog.logrocket.com/javascript-cache-api/" caption="^^^ Also see Cache API \(alternative to IndexedDB\)" %}
 
 
