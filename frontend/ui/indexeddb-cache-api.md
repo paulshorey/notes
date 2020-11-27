@@ -1,6 +1,11 @@
 # IndexedDB / Cache API
 
-[https://blog.logrocket.com/javascript-cache-api/](https://blog.logrocket.com/javascript-cache-api/)  
+{% embed url="https://javascript.info/indexeddb" %}
+
+
+
+{% embed url="https://blog.logrocket.com/javascript-cache-api/" %}
+
 
 
 
