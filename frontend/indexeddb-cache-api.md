@@ -1,6 +1,6 @@
 # IndexedDB
 
-{% embed url="https://javascript.info/indexeddb" caption="^ read this," %}
+{% embed url="https://javascript.info/indexeddb" caption="^ read this for an overview of \(original\) IndexedDB API" %}
 
 {% embed url="https://github.com/jakearchibald/idb" %}
 
