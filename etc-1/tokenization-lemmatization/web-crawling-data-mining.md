@@ -1,6 +1,7 @@
 # Web crawling / Data mining
 
-APIFY.com - great SaaS tool to crawl using Puppeteer 
+\*\*\*\*[**Luminati.io**](https://Luminati.io) **- is the best proxy / static web scraper**  
+[**APIFY.com**](https://APIFY.com) **- great SaaS tool to crawl using Puppeteer** 
 
 Select DOM element by xPath:`let el = document.evaluate('xPathValue', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue`
 
