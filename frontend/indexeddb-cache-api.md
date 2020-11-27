@@ -2,6 +2,8 @@
 
 {% embed url="https://javascript.info/indexeddb" %}
 
+{% embed url="https://github.com/jakearchibald/idb" %}
+
 ```text
   const openIDB = await openDB('new-jobs');
   openIDB.onupgradeneeded = function() {
