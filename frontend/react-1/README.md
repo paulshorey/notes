@@ -1,5 +1,9 @@
 # React
 
+#### Good resource: [https://reactresources.com/](https://reactresources.com/)
+
+#### 
+
 #### Include HTML files in React app, without converting all the JSX attributes manually: [http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack](http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack)
 
 Same concept, but include Markdown files, converted to HTML! Wow, amazing:   
