@@ -1,6 +1,6 @@
 # Web Scraping
 
-To try: [https://phantombuster.com/pricing](https://phantombuster.com/pricing) \(looks very promising!\)
+Not finished: [https://phantombuster.com/pricing](https://phantombuster.com/pricing) \(but looks very promising! try again in a few months!\)
 
 APIFY is a great service:  
 [https://my.apify.com/actors/jOiizMjdqnzEUW9vs\#/source](https://my.apify.com/actors/jOiizMjdqnzEUW9vs#/source)
