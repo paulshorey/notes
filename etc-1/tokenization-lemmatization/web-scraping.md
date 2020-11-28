@@ -1,6 +1,6 @@
 # Web Scraping
 
-Not finished: [https://phantombuster.com](https://phantombuster.com/pricing) \(but looks very promising! try again in a few months!\)
+Great for popular sites \(LinkedIn/Instagram\): [https://phantombuster.com](https://phantombuster.com/pricing) \(pre-programmed\)
 
 APIFY is a great service:  
 [https://my.apify.com/actors/jOiizMjdqnzEUW9vs\#/source](https://my.apify.com/actors/jOiizMjdqnzEUW9vs#/source)
