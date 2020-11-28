@@ -176,7 +176,7 @@ async function pageFunction(context) {
 
 ## Notes
 
-**Good automated phantom scraper:** [**https://phantombuster.com**](https://phantombuster.com/pricing)   
+**Pre-programmed phantom scrapers SAAS:** [**https://phantombuster.com**](https://phantombuster.com/pricing)   
 ****\(not as easy to customize as APIFY, their pre-programmed solutions for LinkedIn Jobs was not automated enough, too slow, crawled too few jobs at a time\)  
 **However,** they have automated a great way to download all the jobs links from an Indeed search, called **LinkedIn Search Export**
 
