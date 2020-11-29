@@ -1,4 +1,4 @@
-# Architecture / Coding standards
+# Coding standards / Architecture
 
 {% embed url="https://pusher.com/tutorials/clean-architecture-introduction" %}
 

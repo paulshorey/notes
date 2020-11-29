@@ -31,10 +31,10 @@
     * [my shortcuts](general-programming/ide-1/ne/keymapping.md)
   * [Code Formatting](general-programming/ide-1/code-formatting.md)
 * [RegExp](general-programming/regexp/README.md)
-  * [Architecture / Coding standards](general-programming/regexp/architecture-coding-standards.md)
   * [Markdown](general-programming/regexp/markdown.md)
   * [Convert text / object / array](general-programming/regexp/convert-text-object-array.md)
   * [Cleanup](general-programming/regexp/cleanup.md)
+* [Coding standards / Architecture](general-programming/architecture-coding-standards.md)
 
 ## BACKEND
 
