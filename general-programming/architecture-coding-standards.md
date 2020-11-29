@@ -8,6 +8,8 @@
 
 "Clean Architecture is basically one idea repeated over and over for 30 chapters. The idea is that the business logic should be self-contained. It should not depend on the database or sockets or frameworks or GUI. It is a really, really good idea, and it is not easy to actually follow." - Amazon review
 
+---
+
 
 
 
