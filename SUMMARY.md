@@ -92,7 +92,7 @@
   * [CSS / SASS](frontend/ui/css/README.md)
     * [styles in React/Webpack app](frontend/ui/css/styles-in-react-webpack-app.md)
   * [Icons](frontend/ui/icons.md)
-  * [Good UI](frontend/ui/good-ui.md)
+  * [Good UI Examples](frontend/ui/good-ui.md)
 
 ## Managing a Website
 
