@@ -12,7 +12,7 @@
 
 ## General Programming
 
-* [CLI](general-programming/cli/README.md)
+* [CLI / BASH](general-programming/cli/README.md)
   * [Chrome Debugger](general-programming/cli/chrome-debugger.md)
   * [Everyday](general-programming/cli/everyday.md)
   * [Files](general-programming/cli/files.md)

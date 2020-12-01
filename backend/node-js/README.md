@@ -7,6 +7,12 @@ description: 'Use PM2: https://pm2.keymetrics.io/docs/usage/quick-start/'
 Download NodeJS package \(pkg\) for Mac \(easiest way to install Node\):  
 [https://nodejs.org/dist/](https://nodejs.org/dist/)
 
+## Important note:
+
+`process.env.PWD` is the working directory when the _process was started_. This stays the same for the entire process.
+
+`process.cwd()` is the _current_ working directory. It reflects changes made via `process.chdir()`.
+
 ## What node processes running?
 
 `ps cax | grep node;` returns process IDs  
