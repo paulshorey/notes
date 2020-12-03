@@ -8,8 +8,9 @@ description: >-
 # Welcome to my laboratory!
 
 Also good notes/tutorials:  
-\* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/)  
-\* [https://javascript.info/](https://javascript.info/)  
+\* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/) - few, but some unique and interesting  
+\* [https://javascript.info/](https://javascript.info/) - great beginner to advanced guides!  
+\* [https://www.javascripttutorial.net/](https://www.javascripttutorial.net/) - hard to browse, use Google to search it  
   
 **A searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 
