@@ -7,7 +7,9 @@ description: >-
 
 # Welcome to my laboratory!
 
-Also good notes/tutorials: [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/)  
+Also good notes/tutorials:  
+\* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/)  
+\* [https://javascript.info/](https://javascript.info/)  
   
 **A searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 
