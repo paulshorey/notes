@@ -10,8 +10,7 @@ description: >-
 Also good notes/tutorials:  
 \* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/) - few, but some unique and interesting  
 \* [https://javascript.info/](https://javascript.info/) - great beginner to advanced guides!  
-\* [https://www.javascripttutorial.net/](https://www.javascripttutorial.net/) - hard to browse, use search  
-IDEA: after compiling a definitive list of great programming resource sites, make a Google search URL, to search all those sites on one page!  
+\* [https://www.javascripttutorial.net/](https://www.javascripttutorial.net/) - hard to browse, too much beginner stuff. IDEA: after compiling a definitive list of great programming resource sites, make a Google search URL, to search all those sites on one page!  
   
 **A searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 
