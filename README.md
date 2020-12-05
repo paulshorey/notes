@@ -12,6 +12,7 @@ Also good notes/tutorials:
 \* [https://javascript.info/](https://javascript.info/) - great beginner to advanced guides!  
 \* [https://www.javascripttutorial.net/](https://www.javascripttutorial.net/) - lots of great stuff, especially ES.Next  
 IDEA: after compiling a definitive list of great programming resource sites, make a Google search URL, to search all those sites on one page!  
+\* [https://developers.google.com/web/fundamentals](https://developers.google.com/web/fundamentals) - Tips from Google on making a great site  
   
 **A searchable collection of ideas, notes, and code snippets. Not complete, but growing daily!**
 
