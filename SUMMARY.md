@@ -112,6 +112,7 @@
   * [JS Discussion Questions](interviews-jobs-hiring/interviews/js-discussion-questions.md)
   * [Binary Search Tree](interviews-jobs-hiring/interviews/binary-search-tree.md)
 * [Topics for Discussion](interviews-jobs-hiring/interview-questions.md)
+* [Questions to employers](interviews-jobs-hiring/questions-to-employers.md)
 * [Jokes](interviews-jobs-hiring/jokes.md)
 * [Peeves](interviews-jobs-hiring/peeves.md)
 * [Accelerators / Incubators](interviews-jobs-hiring/accelerators-incubators.md)
