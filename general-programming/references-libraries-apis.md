@@ -5,7 +5,8 @@
 [Lodash](https://lodash.com/docs/4.17.15) - documentation
 
 [Lodash FP](https://dev.to/ifarmgolems/what-is-lodash-fp-even-4ohd) - regular lodash is dumb. Here's an example how FP is better  
-Also see this FP library: [https://smartprocure.github.io/futil-js/](https://smartprocure.github.io/futil-js/)
+Here's an explanation from the source: [lodash/wiki/FP-Guide](https://github.com/lodash/lodash/wiki/FP-Guide)  
+Also try this FP library: [https://smartprocure.github.io/futil-js/](https://smartprocure.github.io/futil-js/)
 
 
 
