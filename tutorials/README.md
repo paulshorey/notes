@@ -2,7 +2,11 @@
 description: RANDOM NOTES - DON'T KNOW WHERE TO PUT THEM YET ...
 ---
 
-# CDN / Treeshaking / Etc
+# Random
+
+## Applicationize.me
+
+Turn any website into an app. So useful for GitBook. Try it for an app like [jobs.paulshorey.com](http://jobs.paulshorey.com) 
 
 ## CDN for ES Modules: [https://www.jsdelivr.com/esm](https://www.jsdelivr.com/esm)
 
