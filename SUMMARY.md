@@ -107,7 +107,8 @@
 
 ## Interviews / Jobs / Hiring
 
-* [JavaScript quiz](interviews-jobs-hiring/interviews/README.md)
+* [Coding questions](interviews-jobs-hiring/interviews/README.md)
+  * [Basics](interviews-jobs-hiring/interviews/basics.md)
   * [JS Basic Technical skills](interviews-jobs-hiring/interviews/js-interview-qs.md)
   * [JS Discussion Questions](interviews-jobs-hiring/interviews/js-discussion-questions.md)
   * [Binary Search Tree](interviews-jobs-hiring/interviews/binary-search-tree.md)
