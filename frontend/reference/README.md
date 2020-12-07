@@ -7,7 +7,8 @@
 [**https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference**/Global\_Objects/Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
 
 **TLDR about functional programming:**  
-[https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/](https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/)
+[category-theory-for-programmers](https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/)  
+[knowing-monads-through-the-category-theory](https://dev.to/juaneto/knowing-monads-through-the-category-theory-1mea)
 
 ## Reminder: practice using Generators
 
