@@ -6,6 +6,9 @@
 **Check Mozilla prototype reference.**  
 [**https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference**/Global\_Objects/Object](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object)
 
+**TLDR about functional programming:**  
+[https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/](https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/)
+
 ## Reminder: practice using Generators
 
 Generators I just found out may be even more efficient than for loops. Also, they're very powerful - can be nested - await a generator function inside higher order generator loop. Cool!
