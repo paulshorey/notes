@@ -4,7 +4,7 @@
 
 **`pushd .`** to remember current working directory, **`popd`** to go back to that directory
 
-Copy command output to memory  `pwd | pbcopy` \(on Mac\)  
+**Copy** command output **to memory**  `pwd | pbcopy` \(on Mac\)  
 On Linux, [here's a guide to copy/paste between memory and files](https://www.systutorials.com/copying-output-of-commands-in-linux-terminals-to-x-selection-clipboard/)
 
 ## Permissions
