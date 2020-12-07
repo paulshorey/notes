@@ -6,6 +6,8 @@ description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
 
 Check how long a command takes: add `time`  before the CLI command.
 
+Check out [everyday commands](everyday.md)
+
 ## Processes
 
 **`netstat -vanp tcp | grep 3000`** find all processes using port 3000  
