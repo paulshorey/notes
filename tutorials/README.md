@@ -2,7 +2,7 @@
 description: RANDOM NOTES - DON'T KNOW WHERE TO PUT THEM YET ...
 ---
 
-# Tutorials
+# CDN / Treeshaking / Etc
 
 ## CDN for ES Modules: [https://www.jsdelivr.com/esm](https://www.jsdelivr.com/esm)
 
