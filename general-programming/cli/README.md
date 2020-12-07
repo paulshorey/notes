@@ -17,9 +17,6 @@ process id is 3rd large number leftward, or 4th column from the right
 **Suspend process:** `Ctrl + Z`    
 **Un-suspend process:** `fg`   
 
-`pbcopy < ~/.ssh/myssh.pub` copy contents of file  
-`pbpaste` paste, or use paste to file: `pbpaste > myssh.pub` 
-
 ## Files
 
 `cat ./filename` show contents of file  

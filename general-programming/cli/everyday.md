@@ -8,6 +8,10 @@
 There's also pasting to a command `cd $(pbpaste)`   
 On Linux, [here's a guide to copy/paste between memory and files](https://www.systutorials.com/copying-output-of-commands-in-linux-terminals-to-x-selection-clipboard/)
 
+**Also this format:**  
+`pbcopy < ~/.ssh/myssh.pub` copy contents of file  
+`pbpaste` paste, or use paste to file: `pbpaste > myssh.pub` 
+
 ## Permissions
 
 **`sudo chown -R $(id -u):$(id -g) .`** take ownership of . directory, recursively
