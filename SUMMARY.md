@@ -111,6 +111,7 @@
   * [JS Basic Technical skills](interviews-jobs-hiring/interviews/js-interview-qs.md)
   * [JS Discussion Questions](interviews-jobs-hiring/interviews/js-discussion-questions.md)
   * [Binary Search Tree](interviews-jobs-hiring/interviews/binary-search-tree.md)
+  * [Logarithmic n](interviews-jobs-hiring/interviews/logarithmic-n.md)
 * [Topics for Discussion](interviews-jobs-hiring/interview-questions.md)
 * [Questions to employers](interviews-jobs-hiring/questions-to-employers.md)
 * [Jokes](interviews-jobs-hiring/jokes.md)
