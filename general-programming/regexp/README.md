@@ -4,6 +4,10 @@
 
 [https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global\_Objects/RegExp/RegExp](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp/RegExp) \(read\)
 
+## Convert ES Module imports to CommonJS
+
+
+
 ## Variables in Regex:
 
 ```text

@@ -96,6 +96,7 @@
   * [Icons](frontend/ui/icons.md)
   * [Good UI Examples](frontend/ui/good-ui.md)
 * [Browser extensions](frontend/browser-extensions.md)
+* [ES Modules](frontend/es-modules.md)
 
 ## Managing a Website
 
