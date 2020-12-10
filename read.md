@@ -1,6 +1,6 @@
 # Read
 
-![This guy writes a good blog about JavaScript tips and data structures!!!](../.gitbook/assets/screen-shot-2020-12-09-at-11.29.53-pm.png)
+![This guy writes a great blog about JavaScript !!! Read all of it !!!](.gitbook/assets/screen-shot-2020-12-09-at-11.29.53-pm.png)
 
 [https://jrsinclair.com/articles/2019/functional-**js-traversing-trees**-with-recursive-reduce/](https://jrsinclair.com/articles/2019/functional-js-traversing-trees-with-recursive-reduce/)  
 [https://jrsinclair.com/articles/2019/magical-mystical-**js-transducers**/](https://jrsinclair.com/articles/2019/magical-mystical-js-transducers/)  
