@@ -138,4 +138,5 @@
 * [Tokenization / Lemmatization](etc-1/tokenization-lemmatization/README.md)
   * [Web crawling / Data mining](etc-1/tokenization-lemmatization/web-crawling-data-mining.md)
   * [Web Scraping](etc-1/tokenization-lemmatization/web-scraping.md)
+* [Read](etc-1/read.md)
 
