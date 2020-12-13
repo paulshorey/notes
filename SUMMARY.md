@@ -87,6 +87,7 @@
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
 * [npm](frontend/npm/README.md)
   * [SASS / SCSS -&gt; CSS](frontend/npm/sass-scss-greater-than-css.md)
+  * [Publishing](frontend/npm/publishing.md)
 * [Webpack](frontend/webpack.md)
 * [Production](frontend/production.md)
 * [IndexedDB](frontend/indexeddb-cache-api.md)
