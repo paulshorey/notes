@@ -6,6 +6,6 @@ Good discussion:
 This is great:  
 [https://github.com/keredson/wordninja](https://github.com/keredson/wordninja)
 
-Lol:  
+Lol \(python instead of javascript in the browser\):  
 [https://www.transcrypt.org/](https://www.transcrypt.org/)
 
