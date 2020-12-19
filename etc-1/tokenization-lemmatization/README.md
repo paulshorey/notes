@@ -6,5 +6,6 @@ Good discussion:
 This is great:  
 [https://github.com/keredson/wordninja](https://github.com/keredson/wordninja)
 
-
+Lol:  
+[https://www.transcrypt.org/](https://www.transcrypt.org/)
 
