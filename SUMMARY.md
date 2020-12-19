@@ -63,6 +63,7 @@
   * [Error messages](backend/api-development/error-messages.md)
   * [RapidAPI Authentication](backend/api-development/authentication.md)
 * [API consumption](backend/api-consumption.md)
+* [Distributed systems](backend/distributed-systems.md)
 
 ## FrontEnd
 
