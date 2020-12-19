@@ -9,3 +9,8 @@ This is great:
 Lol \(python instead of javascript in the browser\):  
 [https://www.transcrypt.org/](https://www.transcrypt.org/)
 
+Now to \(for real\) transcribe python to javascript:  
+[https://github.com/metapensiero/metapensiero.pj](https://github.com/metapensiero/metapensiero.pj)
+
+
+
