@@ -10,7 +10,8 @@ Lol \(python instead of javascript in the browser\):
 [https://www.transcrypt.org/](https://www.transcrypt.org/)
 
 **Now to \(for real\) transcribe python to javascript:**  
-[https://github.com/metapensiero/metapensiero.pj](https://github.com/metapensiero/metapensiero.pj)
+[**https://www.infoworld.com/article/3209651/how-to-convert-python-to-javascript-and-back-again.html**](https://www.infoworld.com/article/3209651/how-to-convert-python-to-javascript-and-back-again.html)  
+****[https://github.com/metapensiero/metapensiero.pj](https://github.com/metapensiero/metapensiero.pj)
 
 Upgrade default python:  
 [https://opensource.com/article/19/5/python-3-default-mac](https://opensource.com/article/19/5/python-3-default-mac)
