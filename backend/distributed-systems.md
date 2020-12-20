@@ -3,7 +3,7 @@
 **Best way to publish an API to the world \(in 2020\):   
 AWS** API Gateway + Lambada functions + Route 53 + DynamoDB.
 
-**Now, Cloudflare** is getting into the **serverless** game. It's a contender because it's cheaper and easier to use.
+Now, **Cloudflare** is getting into the **serverless** game. It's a contender because it's cheaper and easier to use.
 
 \*\*\*\*[**Workers KV**](https://www.cloudflare.com/products/workers-kv/) **is competing with Dynamo DB.** It's made for quickly reading data from anywhere in the world. It's bad at handling multiple users/actions writing to the same key though. **It can replace Lambada** serverless functions for use cases which do not require making external requests or running algorithms, but when simply reading from a data store and returning the value.
 
