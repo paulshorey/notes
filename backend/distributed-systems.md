@@ -9,7 +9,7 @@ Now, **Cloudflare** is getting into the **serverless** game. It's a contender be
 
 [**Durable Objects**](https://blog.cloudflare.com/introducing-workers-durable-objects/) **is made for consistent writes from anywhere.** It can handle many users/actions updating the same key. It is not as globally distributed like Workers KV. Instead of syncing data to all datacenters, it migrates one datacenter close to whatever regions are using it. As with Workers KV, geo-routing and scaling is automatic!
 
-The benefit of using this \(when possible for a certain use case\) is that it's much faster and cheaper to set up and get started. For an individual developer building out a proof of concept, AWS prices \($50/month/region\) get very expensive fast!
+The benefit of using this \(when possible for a certain use case\) is that it's much faster and cheaper to set up and get started. For an individual developer building out proof of concepts, AWS prices \($50/month/region\) get very expensive fast!
 
 
 
