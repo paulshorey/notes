@@ -1,7 +1,7 @@
 # Distributed systems
 
 **Best way to publish an API to the world \(in 2020\):   
-AWS** API Gateway + Lambada functions + Route 53 + DynamoDB.
+AWS** API Gateway + Lambada functions + Route 53 + DynamoDB. 
 
 Now, **Cloudflare** is getting into the **serverless** game. It's a contender because it's cheaper and easier to use.
 
