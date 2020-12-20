@@ -139,6 +139,7 @@
 * [Download Wikipedia](etc-1/cool-stuff.md)
 * [Tokenization / Lemmatization](etc-1/tokenization-lemmatization.md)
 * [Web scraping](etc-1/web-scraping/README.md)
+  * [Python](etc-1/web-scraping/python.md)
   * [Online Platforms](etc-1/web-scraping/online-platforms.md)
 
 ---
