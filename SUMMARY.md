@@ -137,10 +137,9 @@
 * [Writing / Blogging](etc-1/featured-notes.md)
 * [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)
 * [Download Wikipedia](etc-1/cool-stuff.md)
-* [Tokenization / Lemmatization](etc-1/tokenization-lemmatization/README.md)
-  * [Web crawling / Data mining](etc-1/tokenization-lemmatization/web-crawling-data-mining.md)
-  * [Web Scraping](etc-1/tokenization-lemmatization/web-scraping.md)
-* [Web scraping](etc-1/web-scraping.md)
+* [Tokenization / Lemmatization](etc-1/tokenization-lemmatization.md)
+* [Web scraping](etc-1/web-scraping/README.md)
+  * [Online Platforms](etc-1/web-scraping/online-platforms.md)
 
 ---
 
