@@ -14,7 +14,7 @@ Also good notes/tutorials:
 IDEA: after compiling a definitive list of great programming resource sites, make a Google search URL, to search all those sites on one page!  
 \* [https://developers.google.com/web/fundamentals](https://developers.google.com/web/fundamentals) - Tips from Google on making a great site  
   
-**A searchable collection of ideas, notes, and code snippets.** Not complete, but growing daily! Some topics have great content. Some just a link or two. Currently organizing this pile of stuff. However, there is search!
+**A searchable collection of ideas, notes, and code snippets.** Not complete, but growing daily! Some topics have great content. Some just a link or two. I'm just now starting to organize this pile of stuff. However, there is search!
 
 Instead of searching through Google or StackOverflow every time, wouldn't it be nice to search just one knowledge base? Programming stuff is easy to forget. So, whenever I look something up, discover a new gotcha, or have a new idea, I document it here in my [GitBook](https://gitbook.com). 
 
