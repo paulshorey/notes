@@ -18,6 +18,10 @@ sudo apt install postgresql postgresql-contrib -y;
 
 `/etc/postgresql/12/main/postgresql.conf`
 
+### Backups:
+
+[click here](backup-restore.md)
+
 ### Manage Users:
 
 **Login as root user:**  
