@@ -7,6 +7,9 @@ description: 'Use PM2: https://pm2.keymetrics.io/docs/usage/quick-start/'
 Download NodeJS package \(pkg\) for Mac \(easiest way to install Node\):  
 [https://nodejs.org/dist/](https://nodejs.org/dist/)
 
+ES Module files can use `await` outside of an `async` function. But this causes incompatibility with CJS! Good read:  
+[https://redfin.engineering/node-modules-at-war-why-commonjs-and-es-modules-cant-get-along-9617135eeca1](https://redfin.engineering/node-modules-at-war-why-commonjs-and-es-modules-cant-get-along-9617135eeca1)
+
 ## Important note:
 
 `process.env.PWD` is the working directory when the _process was started_. This stays the same for the entire process.
