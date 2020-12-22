@@ -6,7 +6,13 @@ description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
 
 Check how long a command takes: add `time`  before the CLI command.
 
-Check out [everyday commands](everyday.md)
+Run command as another user:
+
+```text
+runuser -l  userNameHere -c 'command'
+runuser -l  userNameHere -c '/path/to/command arg1 arg2'
+runuser -u user -- command1 arg1 arg2
+```
 
 ## Processes
 

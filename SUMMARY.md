@@ -13,8 +13,8 @@
 ## General Programming
 
 * [CLI / BASH](general-programming/cli/README.md)
-  * [Chrome Debugger](general-programming/cli/chrome-debugger.md)
   * [Everyday](general-programming/cli/everyday.md)
+  * [Chrome Debugger](general-programming/cli/chrome-debugger.md)
   * [Files](general-programming/cli/files.md)
   * [DNS / Ports / Networking](general-programming/cli/ports-networking.md)
   * [in Node.JS](general-programming/cli/node.js.md)
