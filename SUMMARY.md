@@ -87,7 +87,8 @@
   * [SSR: debugging "window is undefined"](frontend/react-1/ssr.md)
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
-* [npm](frontend/npm/README.md)
+* [node\_modules](frontend/npm/README.md)
+  * [ES Modules](frontend/npm/es-modules.md)
   * [SASS / SCSS -&gt; CSS](frontend/npm/sass-scss-greater-than-css.md)
   * [Publishing](frontend/npm/publishing.md)
 * [Webpack](frontend/webpack.md)
@@ -100,7 +101,6 @@
   * [Icons](frontend/ui/icons.md)
   * [Good UI Examples](frontend/ui/good-ui.md)
 * [Browser extensions](frontend/browser-extensions.md)
-* [ES Modules](frontend/es-modules.md)
 
 ## Managing a Website
 
