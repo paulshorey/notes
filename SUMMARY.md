@@ -85,6 +85,7 @@
     * [NPM](frontend/reference/not-so-basic-basics/npm.md)
   * [typescript](frontend/reference/typescript.md)
 * [React](frontend/react-1/README.md)
+  * [Next.js](frontend/react-1/next.js.md)
   * [useEffect, useState](frontend/react-1/useeffect-usestate.md)
   * [SSR: debugging "window is undefined"](frontend/react-1/ssr.md)
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)

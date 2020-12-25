@@ -1,5 +1,11 @@
 # React
 
+**!! All this stuff is very outdated. I write it as I learn. Most of this stuff is written a while ago. !!**
+
+#### \*\*\*\*
+
+#### 
+
 #### Good resource: [https://reactresources.com/](https://reactresources.com/)
 
 #### 
