@@ -7,7 +7,7 @@ description: >-
 
 # Welcome to my laboratory!
 
-**Many notes here are actually outdated. But some are useful and interesting!**  
+**Many notes here are now outdated. But many are useful and interesting!**  
 Also good notes/tutorials:  
 \* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/) - few, but some unique and interesting  
 \* [https://javascript.info/](https://javascript.info/) - great beginner to advanced guides!  
