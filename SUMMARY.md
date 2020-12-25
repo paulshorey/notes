@@ -8,7 +8,10 @@
   * [Website from markdown](documentation/website-from-files.md)
   * [GitBook as a headless CMS](documentation/gitbook-cms.md)
 * [Random](tutorials/README.md)
-  * [Tips for browsing the web](tutorials/tips-for-browsing-the-web.md)
+  * [Applicationize anything](tutorials/applicationize-anything.md)
+  * [Server side rendering](tutorials/server-side-rendering.md)
+  * [Tips for searching the web](tutorials/tips-for-browsing-the-web.md)
+  * [PHP: back to the future](tutorials/php-back-to-the-future.md)
 
 ## General Programming
 

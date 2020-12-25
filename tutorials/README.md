@@ -1,12 +1,10 @@
 ---
-description: RANDOM NOTES - DON'T KNOW WHERE TO PUT THEM YET ...
+description: Tutorial beginnings and random notes. WIP...
 ---
 
 # Random
 
-## Applicationize.me
-
-Turn any website into an app. So useful for GitBook. Try it for an app like [jobs.paulshorey.com](http://jobs.paulshorey.com) 
+TODO: WRITE TUTORIALS. THIS FOLDER IS JUST A START
 
 ## CDN for ES Modules: [https://www.jsdelivr.com/esm](https://www.jsdelivr.com/esm)
 
@@ -26,4 +24,8 @@ Faster alternative to Webpack?
 {% embed url="https://prospectone.io/portfolio/" %}
 
 This group contributes to amazing web tools like [JS Delivr](https://www.jsdelivr.com/), Survive JS, Bash, etc. Led by this Russian guy: [https://dakulov.com](https://dakulov.com/). Based on their affiliations and quality of previous work, it seems if ProspectOne likes something, it's worth learning and using, because if it's not big now, it will be or at least could be very useful.
+
+## GraphQL
+
+Distributed managed database SaaS with serverless functions: $25/mo [https://fauna.com/pricing](https://fauna.com/pricing)
 
