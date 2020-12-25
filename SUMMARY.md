@@ -71,7 +71,6 @@
 
 ## FrontEnd
 
-* [Gatsby](frontend/gatsby.md)
 * [JavaScript](frontend/reference/README.md)
   * [quirks and tips](frontend/reference/quirks/README.md)
     * [smooth scroll](frontend/reference/quirks/scrolltotop.md)
@@ -105,6 +104,7 @@
   * [Icons](frontend/ui/icons.md)
   * [Good UI Examples](frontend/ui/good-ui.md)
 * [Browser extensions](frontend/browser-extensions.md)
+* [Code textarea](frontend/code-textarea.md)
 
 ## Managing a Website
 
