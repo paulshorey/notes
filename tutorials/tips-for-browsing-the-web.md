@@ -12,5 +12,14 @@ Google Search lets you specify the date range of results. You can search only pa
 
 Here is a trick to fix that...
 
+1. Browser settings
+2. Manage Search Engines
+3. Add new search engine with this url: `{google:baseURL}search?tbs=qdr:y2&q=%s&{google:RLZ}{google:originalQueryForSuggestion}{google:assistedQueryStats}{google:searchFieldtrialParameter}{google:iOSSearchLanguage}{google:searchClient}{google:sourceId}{google:contextualSearchVersion}ie={inputEncoding}` The `qdr:y2` means to search in only the past 2 years. Google more about this to find the codes for month/day. For 1 year do `qdr:y1`.
+4. Set it as default
+
+Now, at least when searching from the browser address bar, the Google search will be limited to recent content - by default - you can change it - the setting will be just below the search input.
+
+
+
 
 
