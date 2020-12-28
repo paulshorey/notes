@@ -1,8 +1,8 @@
 ---
-description: Tutorial beginnings and random notes. WIP...
+description: WIP Tutorials. Just starting.
 ---
 
-# Random
+# Recipes
 
 TODO: WRITE TUTORIALS. THIS FOLDER IS JUST A START
 
