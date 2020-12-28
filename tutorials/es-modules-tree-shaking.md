@@ -9,7 +9,7 @@ const throttle = require('lodash/throttle')
 const debounce = require('lodash/debounce')
 ```
 
-With ES Modules, it's possible to use a more concise and universal format:
+With ES Modules, it's possible to use a more concise format:
 
 ```text
 import { throttle, debounce } from 'lodash'
