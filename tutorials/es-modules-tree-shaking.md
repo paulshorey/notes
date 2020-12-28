@@ -15,6 +15,9 @@ With ES Modules, it's possible to use a more concise and universal format:
 import { throttle, debounce } from 'lodash'
 ```
 
+Enable this above ES format for Lodash \(Lodash does not support it by default\):  
+[https://github.com/lodash/babel-plugin-lodash](https://github.com/lodash/babel-plugin-lodash)
+
 Enable TreeShaking in Webpack:
 
 ```text
