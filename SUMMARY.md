@@ -107,6 +107,7 @@
   * [Good UI Examples](frontend/ui/good-ui.md)
 * [Browser extensions](frontend/browser-extensions.md)
 * [Code textarea](frontend/code-textarea.md)
+* [Visualizations](frontend/visualizations.md)
 
 ## Managing a Website
 
@@ -149,7 +150,6 @@
   * [Python](etc-1/web-scraping/python.md)
   * [Online Platforms](etc-1/web-scraping/online-platforms.md)
 * [Linguistics / Semantics](etc-1/linguistics-semantics.md)
-* [Visualizations](etc-1/visualizations.md)
 
 ---
 
