@@ -1,10 +1,14 @@
 # Visualizations
 
+### Pile of words:
+
+[https://brm.io/matter-js/demo/\#svg](https://brm.io/matter-js/demo/#svg)
+
 ### Append Text as Path to D3 "g" element:
 
 [https://fanzhongzeng78.medium.com/replacing-text-with-svg-paths-in-javascript-b42ee1d7f583](https://fanzhongzeng78.medium.com/replacing-text-with-svg-paths-in-javascript-b42ee1d7f583)
 
-Other discussion: [https://stackoverflow.com/questions/26594555/d3js-how-to-convert-svg-text-to-path](https://stackoverflow.com/questions/26594555/d3js-how-to-convert-svg-text-to-path)
+NPM Module to convert text string to SVG element: [https://stackoverflow.com/questions/26594555/d3js-how-to-convert-svg-text-to-path](https://stackoverflow.com/questions/26594555/d3js-how-to-convert-svg-text-to-path)
 
 ### Network graph:
 
