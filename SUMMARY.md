@@ -87,7 +87,7 @@
   * [typescript](frontend/reference/typescript.md)
 * [React](frontend/react-1/README.md)
   * [Next.js](frontend/react-1/next.js.md)
-  * [useEffect, useState](frontend/react-1/useeffect-usestate.md)
+  * [hooks \(useEffect, etc\)](frontend/react-1/useeffect-usestate.md)
   * [SSR: debugging "window is undefined"](frontend/react-1/ssr.md)
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)

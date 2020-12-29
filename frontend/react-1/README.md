@@ -1,31 +1,11 @@
 # React
 
-**!! This page is very outdated. !! See more specific items in side nav links.**
-
-#### 
-
-#### Good resource: [https://reactresources.com/](https://reactresources.com/)
-
-#### 
+Good resource: [https://reactresources.com/](https://reactresources.com/)
 
 #### Include HTML files in React app, without converting all the JSX attributes manually: [http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack](http://adrian.gaudebert.fr/blog/post/2015/12/24/how-to-include-html-in-your-react-app-with-webpack)
 
-Same concept, but include Markdown files, converted to HTML! Wow, amazing:   
+Same concept, but include Markdown files, converted to HTML:   
 [https://github.com/peerigon/markdown-loader](https://github.com/peerigon/markdown-loader)
-
-## Component unmounted
-
-Cancel all HTTP requests \(Axios, Fetch\) and setTimeouts in componentWillUnmount\(\)!   
-[https://since1979.dev/cancel-axios-request-to-prevent-react-from-yelling-at-you/](https://since1979.dev/cancel-axios-request-to-prevent-react-from-yelling-at-you/)  
-^^^ This is also great to do wherever you end a promise early \(maximum time reached\)
-
-## [Server-side rendering](ssr.md)
-
-Gatsby \(compiles into static site\) vs Next.js \(dynamic SSR, and now can also compile static site\). So, it seems Next.js is superior. However, Gatsby is easier to work with. It's faster to build out the site/app. So, that should be considered. [More...](ssr.md)
-
-## Optimize load times
-
-[https://www.infoq.com/articles/reduce-react-load-time/](https://www.infoq.com/articles/reduce-react-load-time/)
 
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 

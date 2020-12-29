@@ -1,4 +1,8 @@
-# useEffect, useState
+# hooks \(useEffect, etc\)
+
+**`useRef`** 
+
+**`useCallback`** 
 
 **`useState` uses a tuple** to define   
 **first** the variable name,   
