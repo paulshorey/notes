@@ -8,7 +8,7 @@
 
 [https://fanzhongzeng78.medium.com/replacing-text-with-svg-paths-in-javascript-b42ee1d7f583](https://fanzhongzeng78.medium.com/replacing-text-with-svg-paths-in-javascript-b42ee1d7f583)
 
-NPM Module to convert text string to SVG element: [https://stackoverflow.com/questions/26594555/d3js-how-to-convert-svg-text-to-path](https://stackoverflow.com/questions/26594555/d3js-how-to-convert-svg-text-to-path)
+Node module to convert text string to SVG element \(not made for the browser\): [https://stackoverflow.com/questions/26594555/d3js-how-to-convert-svg-text-to-path](https://stackoverflow.com/questions/26594555/d3js-how-to-convert-svg-text-to-path)
 
 ### Network graph:
 
