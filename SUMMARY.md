@@ -130,7 +130,7 @@
 * [Jokes](interviews-jobs-hiring/jokes.md)
 * [Peeves](interviews-jobs-hiring/peeves.md)
 * [Accelerators / Incubators](interviews-jobs-hiring/accelerators-incubators.md)
-* [Job search sites /tools](interviews-jobs-hiring/job-search-sites-tools.md)
+* [Freelance / HR](interviews-jobs-hiring/job-search-sites-tools.md)
 
 ## design
 

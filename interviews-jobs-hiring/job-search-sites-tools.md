@@ -1,4 +1,4 @@
-# Job search sites /tools
+# Freelance / HR
 
 {% embed url="https://periodix.net/" %}
 
