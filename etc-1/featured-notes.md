@@ -1,12 +1,10 @@
 # Writing / Blogging
 
-**Coming soon! A review of modern CMS platforms, including Wordpress, Joomla, and "headless" ones like Contentful, CloudCMS, and many more. Also hacks like using GitBook or Notion as a CMS.**
+Coming soon. For now, see my "[GitBook as a headless CMS](../documentation/gitbook-cms.md)" article.
 
-For now, see my "[GitBook as a headless CMS](../documentation/gitbook-cms.md)" article.
+**Recipes article ideas:**
 
-\*\*\*\*
-
-**TODO: make these blog articles...**
+A review of modern CMS platforms, including Wordpress, Joomla, and "headless" ones like Contentful, CloudCMS, and many more. Also hacks like using GitBook or Notion as a CMS.
 
 Publish a modern web app and API, with CI and SSL, the simple timeless way
 

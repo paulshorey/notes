@@ -100,6 +100,7 @@
 * [Production](frontend/production.md)
 * [IndexedDB](frontend/indexeddb-cache-api.md)
 * [UI](frontend/ui/README.md)
+  * [Screen resolution](frontend/ui/screen-resolution.md)
   * [UTF-8 Icons](frontend/ui/utf-8-icons.md)
   * [CSS / SASS](frontend/ui/css/README.md)
     * [styles in React/Webpack app](frontend/ui/css/styles-in-react-webpack-app.md)
@@ -132,14 +133,8 @@
 * [Accelerators / Incubators](interviews-jobs-hiring/accelerators-incubators.md)
 * [Freelance / HR](interviews-jobs-hiring/job-search-sites-tools.md)
 
-## design
-
-* [Screen resolution](design/screen-resolution.md)
-* [Good UI](design/good-ui.md)
-
 ## Etc <a id="etc-1"></a>
 
-* [Productivity](etc-1/etc.md)
 * [Mac OS](etc-1/mac-os.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
 * [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)
