@@ -18,6 +18,23 @@ Show hidden files: `ls -a .`
 
 > **Mac ONLY:** **`cat ~/ssh/newssh.pub | pbcopy`** read file text into clipboard \(Ctrl+C\) **`sudo echo $(pbpaste) >> /some/file`** paste copied text to bottom of file This $\(pbpaste\) seems to avoid having to escape characters which would normally break the CLI command
 
+### Bash prepend a text using a temporary file
+
+Here is simple solution using a temporary file to prepend text:
+
+```text
+echo 'line 1' > /tmp/newfile
+echo 'line 2' >> /tmp/newfile
+cat yourfile >> /tmp/newfile
+cp /tmp/newfile yourfile
+```
+
+Here is one line solution:
+
+```text
+echo "text"|cat - yourfile > /tmp/out && mv /tmp/out yourfile
+```
+
 **Copy to remote server:**  
 `scp myfile.txt remoteuser@remoteserver:/remote/folder/`  
 [https://www.simplified.guide/ssh/copy-file](https://www.simplified.guide/ssh/copy-file)
