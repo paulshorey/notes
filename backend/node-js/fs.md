@@ -1,5 +1,8 @@
 # fs
 
+Best way to append to a file? Streams. I tried it. Wrote a new Date.now\(\) line 312 times per millisecond.  
+[https://dev.to/sergchr/tricks-on-writing-appending-to-a-file-in-node-1hik](https://dev.to/sergchr/tricks-on-writing-appending-to-a-file-in-node-1hik)
+
 {% embed url="https://nodejs.org/api/fs.html\#fs\_fs\_writefilesync\_file\_data\_options" %}
 
 ## Important new trick!!! Use \`fs.promises\`...
