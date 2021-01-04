@@ -132,6 +132,7 @@
 * [Peeves](interviews-jobs-hiring/peeves.md)
 * [Accelerators / Incubators](interviews-jobs-hiring/accelerators-incubators.md)
 * [Freelance / HR](interviews-jobs-hiring/job-search-sites-tools.md)
+* [Thoughts](interviews-jobs-hiring/thoughts.md)
 
 ## Etc <a id="etc-1"></a>
 
