@@ -92,7 +92,7 @@
   * [React Dev Environments](frontend/react-1/react-dev-environments.md)
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
   * [Documentation](frontend/react-1/documentation.md)
-* [node\_modules](frontend/npm/README.md)
+* [modules](frontend/npm/README.md)
   * [ES Modules](frontend/npm/es-modules.md)
   * [SASS / SCSS -&gt; CSS](frontend/npm/sass-scss-greater-than-css.md)
   * [Publishing](frontend/npm/publishing.md)
