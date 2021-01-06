@@ -10,7 +10,7 @@
 [category-theory-for-programmers](https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/)  
 [knowing-monads-through-the-category-theory](https://dev.to/juaneto/knowing-monads-through-the-category-theory-1mea)
 
-What's a Lambda? It's any function that modifies and returns data and does nothing else:  
+What's a Lambda? It's a function that modifies and returns data and does nothing else:  
 [https://gist.github.com/ericelliott/414be9be82128443f6df](https://gist.github.com/ericelliott/414be9be82128443f6df)
 
 ## Reminder: practice using Generators
