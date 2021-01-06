@@ -10,6 +10,9 @@
 [category-theory-for-programmers](https://bartoszmilewski.com/2014/10/28/category-theory-for-programmers-the-preface/)  
 [knowing-monads-through-the-category-theory](https://dev.to/juaneto/knowing-monads-through-the-category-theory-1mea)
 
+What's a Lambda? It's any function that modifies and returns data and does nothing else:  
+[https://gist.github.com/ericelliott/414be9be82128443f6df](https://gist.github.com/ericelliott/414be9be82128443f6df)
+
 ## Reminder: practice using Generators
 
 Generators I just found out may be even more efficient than for loops. Also, they're very powerful - can be nested - await a generator function inside higher order generator loop. Cool!
