@@ -4,13 +4,18 @@ description: "\U0001F914 \U0001F910 FOR AN EMPLOYER OR MAJOR CLIENT, I will be v
 
 # Peeves and preferences
 
-* camelCase vs. under\_scores  
-  It shouldn't be about which one's prettier. That is very subjective. Underscores are better because they are more consistent.
+* **camelCase vs. under\_scores**  
+  
+  It shouldn't be about which one's prettier. That is very subjective. Underscores are better because they are more consistent.  
+
 
   I want to quickly select or find any mention of "foo". That's possible with underscores. let foo, set\_foo, other\_foo; arr\[foo\]; arr\[other\_foo\]; func\(foo\); func\(other\_foo\);
 
-  With camel-case, I have to use case-insensitive "find". Unfortunately, very often I have to turn on case sensitivity in my find/replace. Then, when doing "cmd+d" to jump to the next instance, I have to then open the find/replace menu and deselect it. That's too much work! Also, with some very simple common variable names, I get false positives when doing case-insensitive search. It just gets in the way a lot. let foo, setFoo, otherFoo; arr\[foo\]; arr\[otherFoo\]; func\(foo\); func\(otherFoo\);
+  With camel-case, I have to use case-insensitive "find". Unfortunately, very often I have to turn on case sensitivity in my find/replace. Then, when doing "cmd+d" to jump to the next instance, I have to then open the find/replace menu and deselect it. That's too much work!   
+  
+  Also, with some very simple common variable names, I get false positives when doing case-insensitive search. It just gets in the way a lot. let foo, setFoo, otherFoo; arr\[foo\]; arr\[otherFoo\]; func\(foo\); func\(otherFoo\);
 
+  
   With React's effects, for example, they have several utilities like useState\(\). To use it:
 
   ```text
