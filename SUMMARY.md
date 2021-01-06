@@ -129,7 +129,7 @@
 * [Topics for Discussion](interviews-jobs-hiring/interview-questions.md)
 * [Questions to employers](interviews-jobs-hiring/questions-to-employers.md)
 * [Jokes](interviews-jobs-hiring/jokes.md)
-* [Peeves](interviews-jobs-hiring/peeves.md)
+* [Peeves and preferences](interviews-jobs-hiring/peeves.md)
 * [Accelerators / Incubators](interviews-jobs-hiring/accelerators-incubators.md)
 * [Freelance / HR](interviews-jobs-hiring/job-search-sites-tools.md)
 * [Thoughts](interviews-jobs-hiring/thoughts.md)

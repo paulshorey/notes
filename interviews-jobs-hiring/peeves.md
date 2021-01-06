@@ -2,7 +2,28 @@
 description: 'Not "pet peeves", not pets, more like pests...'
 ---
 
-# Peeves
+# Peeves and preferences
+
+* camelCase vs. under\_scores  
+  It shouldn't be about which one's prettier. That is very subjective. Underscores are better because they are more consistent.
+
+  I want to quickly select or find any mention of "foo". That's possible with underscores. let foo, set\_foo, other\_foo; arr\[foo\]; arr\[other\_foo\]; func\(foo\); func\(other\_foo\);
+
+  With camel-case, I have to use case-insensitive "find". Unfortunately, very often I have to turn on case sensitivity in my find/replace. Then, when doing "cmd+d" to jump to the next instance, I have to then open the find/replace menu and deselect it. That's too much work! Also, with some very simple common variable names, I get false positives when doing case-insensitive search. It just gets in the way a lot. let foo, setFoo, otherFoo; arr\[foo\]; arr\[otherFoo\]; func\(foo\); func\(otherFoo\);
+
+  With React's effects, for example, they have several utilities like useState\(\). To use it:
+
+  ```text
+  const [count, setCount] = useState(0);
+  ```
+
+  Now, I can't just search for "count", I have to search twice for "count" then again for "Count". Why not use:
+
+  ```text
+  const [count, set_count] = useState(0);
+  ```
+
+  Now I can search only once, and jump to every instance of this concept "count". Even if it's actually mentioned in multiple variable names, it's always used consistently, not sometimes capitalized, sometimes not.  
 
 * Some programmers make a function for every new little bit of functionality, even if it's only ever used in one place. Maybe that's what they teach in a 4-year computer science degree, but from experience, I see that it gets in the way much more often than it helps. 
 * Some programmers simply refuse to write comments, or if they do, write very sparse ones only because they are being forced to do it. Even if the program is amazing, which it is usually NOT, reading English is always much easier! 
