@@ -11,7 +11,7 @@
   * [ES Modules / Tree Shaking](tutorials/es-modules-tree-shaking.md)
   * [Applicationize anything](tutorials/applicationize-anything.md)
   * [Server side rendering](tutorials/server-side-rendering.md)
-  * [Tips for searching the web](tutorials/tips-for-browsing-the-web.md)
+  * [Fix Google search results](tutorials/tips-for-browsing-the-web.md)
   * [PHP: back to the future](tutorials/php-back-to-the-future.md)
 
 ## General Programming
