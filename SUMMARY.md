@@ -145,6 +145,7 @@
   * [Python](etc-1/web-scraping/python.md)
   * [Online Platforms](etc-1/web-scraping/online-platforms.md)
 * [Linguistics / Semantics](etc-1/linguistics-semantics.md)
+* [Better web search](etc-1/better-web-search.md)
 
 ---
 
