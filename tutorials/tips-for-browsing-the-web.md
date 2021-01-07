@@ -28,7 +28,7 @@ These domains often take over the results, sometimes filling up half the page, b
 /facebook\./
 ```
 
-Install browser extension `uBlock`. Then, change your google search results preferences to display 100 results at a time. Then, this extension will remove the specified domains from search results, keeping new relevant ones. You can click "block this domain" next to each Google search result, to add that domain to your blacklist.
+Install browser extension `uBlock`. Then, change your google search results preferences to display 100 results at a time. Then, this extension will remove the specified domains from search results, keeping new relevant ones. You can click "block this site" next to each Google search result, to add that domain to your blacklist.
 
 
 
