@@ -1,7 +1,3 @@
----
-description: WORK IN PROGRESS _ ARTICLE NOT FINISHED
----
-
 # Fix Google search results
 
 ### 1\) Stop seeing old 10+ year old results
