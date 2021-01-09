@@ -106,6 +106,7 @@
     * [styles in React/Webpack app](frontend/ui/css/styles-in-react-webpack-app.md)
   * [Icons](frontend/ui/icons.md)
   * [Good UI Examples](frontend/ui/good-ui.md)
+* [Ember](frontend/ember.md)
 * [Browser extensions](frontend/browser-extensions.md)
 * [Code textarea](frontend/code-textarea.md)
 * [Visualizations](frontend/visualizations.md)
