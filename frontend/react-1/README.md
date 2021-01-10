@@ -7,6 +7,9 @@ Good resource: [https://reactresources.com/](https://reactresources.com/)
 Same concept, but include Markdown files, converted to HTML:   
 [https://github.com/peerigon/markdown-loader](https://github.com/peerigon/markdown-loader)
 
+Good blog!  
+[https://www.bitnative.com/](https://www.bitnative.com/)
+
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 
 **auto-update the view after state changes**
