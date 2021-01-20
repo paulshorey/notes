@@ -20,7 +20,7 @@ Instead of searching through Google or StackOverflow every time, wouldn't it be 
 
 Markdown is great, but it's not the easiest to write, read, and navigate. It takes a lot of getting used to. This GitBook uses Markdown, and can even sync to **.md** files on your private Git repository. It has the most streamlined and intuitive interface, and is good for everything from personal note taking to a large enterprise knowledge base. 
 
-Confluence is extremely tedious to use - so what ends up happening is the team forced to use it does not actually use it often or well, and you end up with incomplete or inaccurate documentation. [GitBook](https://gitbook.com) is easy and fun to use, so you will actually end up with a complete documentation or knowledge base.
+Confluence is tedious to use - so what ends up happening is the team forced to use it does not actually use it often or well, and you end up with incomplete or inaccurate documentation. [GitBook](https://gitbook.com) is easy and fun to use, so you will actually end up with a complete documentation or knowledge base.
 
 This GitBook platform is really excellent for teams. It syncs with your GIT repository. Every time someone makes a change on GitBook.com, it actually commits and pushes to GIT. If two people edit the same line, the app will bring up a prompt to review \(diff\) and resolve the conflict. :D
 
