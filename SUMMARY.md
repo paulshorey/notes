@@ -7,7 +7,7 @@
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from markdown](documentation/website-from-files.md)
   * [GitBook as a headless CMS](documentation/gitbook-cms.md)
-* [Recipes](tutorials/README.md)
+* [Etc](tutorials/README.md)
   * [ES Modules / Tree Shaking](tutorials/es-modules-tree-shaking.md)
   * [Applicationize anything](tutorials/applicationize-anything.md)
   * [Server side rendering](tutorials/server-side-rendering.md)
@@ -137,6 +137,7 @@
 
 ## Etc <a id="etc-1"></a>
 
+* [IDEs](etc-1/ides.md)
 * [Mac OS](etc-1/mac-os.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
 * [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)

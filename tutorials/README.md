@@ -2,7 +2,7 @@
 description: WIP Tutorials. Just starting.
 ---
 
-# Recipes
+# Etc
 
 TODO: WRITE TUTORIALS. THIS FOLDER IS JUST A START
 
