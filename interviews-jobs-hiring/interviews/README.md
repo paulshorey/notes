@@ -3,6 +3,9 @@
 Fascinating article about an automated coding contest:  
 [https://www.toptal.com/javascript/coding-challenge-retrospective](https://www.toptal.com/javascript/coding-challenge-retrospective)
 
+Interview questions:  
+[https://www.toptal.com/javascript/interview-questions](https://www.toptal.com/javascript/interview-questions)
+
 Great site to review interview questions:  
 [https://www.fullstack.cafe](https://www.fullstack.cafe/)
 
