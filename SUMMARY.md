@@ -114,11 +114,8 @@
 * [SEO / Sharing](managing-a-website/seo-sharing.md)
 * [Monitoring / Testing / Uptime](managing-a-website/monitoring-testing-uptime.md)
 
-## Interviews / Jobs / Hiring
-
 ## Etc <a id="etc-1"></a>
 
-* [IDEs](etc-1/ides.md)
 * [Mac OS](etc-1/mac-os.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
 * [Coding questions](etc-1/interviews/README.md)
