@@ -1,8 +1,6 @@
----
-description: "\U0001F914 \U0001F910 FOR AN EMPLOYER OR MAJOR CLIENT, I will be very happy using whatever convention you already decided on. This is for new projects, new teams, deciding as a team."
----
-
 # Peeves and preferences
+
+\( 🤐 My opinion below does not matter too much! It's all about what is decided by the team. \)
 
 * **camelCase vs. under\_scores**  
   

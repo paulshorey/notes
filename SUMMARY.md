@@ -122,22 +122,22 @@
 
 ## Interviews / Jobs / Hiring
 
-* [Coding questions](interviews-jobs-hiring/interviews/README.md)
-  * [Basics](interviews-jobs-hiring/interviews/basics.md)
-  * [More advanced](interviews-jobs-hiring/interviews/js-discussion-questions.md)
-  * [Binary Search Tree](interviews-jobs-hiring/interviews/binary-search-tree.md)
-  * [Logarithmic n](interviews-jobs-hiring/interviews/logarithmic-n.md)
 * [Questions to employers](interviews-jobs-hiring/questions-to-employers.md)
 * [Jokes](interviews-jobs-hiring/jokes.md)
 * [Peeves and preferences](interviews-jobs-hiring/peeves.md)
-* [Thoughts](interviews-jobs-hiring/thoughts.md)
 
 ## Etc <a id="etc-1"></a>
 
 * [IDEs](etc-1/ides.md)
 * [Mac OS](etc-1/mac-os.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
+* [Coding questions](etc-1/interviews/README.md)
+  * [Basics](etc-1/interviews/basics.md)
+  * [More advanced](etc-1/interviews/js-discussion-questions.md)
+  * [Binary Search Tree](etc-1/interviews/binary-search-tree.md)
+  * [Logarithmic n](etc-1/interviews/logarithmic-n.md)
 * [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)
+* [Thoughts](etc-1/thoughts.md)
 * [Download Wikipedia](etc-1/cool-stuff.md)
 * [Tokenization / Lemmatization](etc-1/tokenization-lemmatization.md)
 * [Web scraping](etc-1/web-scraping/README.md)
