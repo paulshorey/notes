@@ -11,6 +11,8 @@ Great site to review interview questions:
 
 ## Assesment platforms:
 
+[Karat.io](https://Karat.io) is very good! Great editor. Assessment done by a real live person. Doesn't nitpick and try to stump the taker on stupid questions that would never come up in the real world.
+
 -&gt; ASSESSMENTS \| HIRE VUE - [https://www.hirevue.com](https://www.hirevue.com/)
 
 -&gt; BEGINNER PROBLEMS - [https://tausiq.wordpress.com](https://tausiq.wordpress.com/)
