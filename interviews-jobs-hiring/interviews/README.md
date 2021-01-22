@@ -1,5 +1,8 @@
 # Coding questions
 
+Fascinating article about an automated coding contest:  
+[https://www.toptal.com/javascript/coding-challenge-retrospective](https://www.toptal.com/javascript/coding-challenge-retrospective)
+
 Great site to review interview questions:  
 [https://www.fullstack.cafe](https://www.fullstack.cafe/)
 
