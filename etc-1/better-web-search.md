@@ -15,5 +15,5 @@ Google is still great, but lately they've been getting worse!
 /facebook\./
 ```
 
-2\) Limit search results to only the last 2 years or so. Otherwise, Google shows web pages from 10+ years ago!  &gt;&gt;&gt; [Tips for searching the web](../tutorials/tips-for-browsing-the-web.md) &lt;&lt;&lt;
+2\) Limit search results to only the last 2 years or so. Otherwise, Google shows web pages from 10+ years ago!  &gt;&gt;&gt; [Tips for searching the web](tutorials/tips-for-browsing-the-web.md) &lt;&lt;&lt;
 

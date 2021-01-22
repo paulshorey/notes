@@ -7,12 +7,6 @@
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from markdown](documentation/website-from-files.md)
   * [GitBook as a headless CMS](documentation/gitbook-cms.md)
-* [Etc](tutorials/README.md)
-  * [ES Modules / Tree Shaking](tutorials/es-modules-tree-shaking.md)
-  * [Applicationize anything](tutorials/applicationize-anything.md)
-  * [Server side rendering](tutorials/server-side-rendering.md)
-  * [Fix Google search results](tutorials/tips-for-browsing-the-web.md)
-  * [PHP: back to the future](tutorials/php-back-to-the-future.md)
 
 ## General Programming
 
@@ -122,10 +116,6 @@
 
 ## Interviews / Jobs / Hiring
 
-* [Questions to employers](interviews-jobs-hiring/questions-to-employers.md)
-* [Jokes](interviews-jobs-hiring/jokes.md)
-* [Peeves and preferences](interviews-jobs-hiring/peeves.md)
-
 ## Etc <a id="etc-1"></a>
 
 * [IDEs](etc-1/ides.md)
@@ -138,6 +128,7 @@
   * [Logarithmic n](etc-1/interviews/logarithmic-n.md)
 * [What I learned, working in Software](etc-1/what-i-learned-working-in-software.md)
 * [Thoughts](etc-1/thoughts.md)
+* [Peeves](etc-1/peeves.md)
 * [Download Wikipedia](etc-1/cool-stuff.md)
 * [Tokenization / Lemmatization](etc-1/tokenization-lemmatization.md)
 * [Web scraping](etc-1/web-scraping/README.md)
@@ -145,9 +136,11 @@
   * [Online Platforms](etc-1/web-scraping/online-platforms.md)
 * [Linguistics / Semantics](etc-1/linguistics-semantics.md)
 * [Better web search](etc-1/better-web-search.md)
-
----
-
-* [Read](read.md)
-* [Watch](watch.md)
+* [Read](etc-1/read.md)
+* [Etc](etc-1/tutorials/README.md)
+  * [ES Modules / Tree Shaking](etc-1/tutorials/es-modules-tree-shaking.md)
+  * [Applicationize anything](etc-1/tutorials/applicationize-anything.md)
+  * [Server side rendering](etc-1/tutorials/server-side-rendering.md)
+  * [Fix Google search results](etc-1/tutorials/tips-for-browsing-the-web.md)
+  * [PHP: back to the future](etc-1/tutorials/php-back-to-the-future.md)
 

@@ -1,4 +1,4 @@
-# Peeves and preferences
+# Peeves
 
 \( 🤐 My opinion below does not matter too much! It's all about what is decided by the team. \)
 
