@@ -127,12 +127,9 @@
   * [More advanced](interviews-jobs-hiring/interviews/js-discussion-questions.md)
   * [Binary Search Tree](interviews-jobs-hiring/interviews/binary-search-tree.md)
   * [Logarithmic n](interviews-jobs-hiring/interviews/logarithmic-n.md)
-* [Topics for Discussion](interviews-jobs-hiring/interview-questions.md)
 * [Questions to employers](interviews-jobs-hiring/questions-to-employers.md)
 * [Jokes](interviews-jobs-hiring/jokes.md)
 * [Peeves and preferences](interviews-jobs-hiring/peeves.md)
-* [Accelerators / Incubators](interviews-jobs-hiring/accelerators-incubators.md)
-* [Freelance / HR](interviews-jobs-hiring/job-search-sites-tools.md)
 * [Thoughts](interviews-jobs-hiring/thoughts.md)
 
 ## Etc <a id="etc-1"></a>
