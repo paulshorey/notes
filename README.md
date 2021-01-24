@@ -1,8 +1,8 @@
 # Welcome to my laboratory!
 
-### Why? Because [https://zettelkasten.de/posts/overview/](https://zettelkasten.de/posts/overview/)
+**Why keep notes like this? Read about the** [**Zettelkasten Method**](https://zettelkasten.de/introduction/)\*\*\*\*
 
-Also good notes/tutorials:  
+**Also good notes/tutorials:**  
 \* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/) - few, but some unique and interesting  
 \* [https://javascript.info/](https://javascript.info/) - great beginner to advanced guides!  
 \* [https://www.javascripttutorial.net/](https://www.javascripttutorial.net/) - lots of great stuff, especially ES.Next  
