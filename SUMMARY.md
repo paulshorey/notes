@@ -1,6 +1,6 @@
 # Table of contents
 
-* [Welcome to my laboratory!](README.md)
+* [Welcome to my second brain!](README.md)
 * [Technical documentation](documentation/README.md)
   * [API reference](documentation/api-specs.md)
   * [GUI website builders](documentation/gui.md)

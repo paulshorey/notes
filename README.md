@@ -1,4 +1,4 @@
-# Welcome to my laboratory!
+# Welcome to my second brain!
 
 **Also good notes/tutorials:**  
 \* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/) - few, but some unique and interesting  
