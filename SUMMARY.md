@@ -7,6 +7,8 @@
   * [Desktop tools](documentation/desktop-tools.md)
   * [Website from markdown](documentation/website-from-files.md)
   * [GitBook as a headless CMS](documentation/gitbook-cms.md)
+* [Recipes](recipes/README.md)
+  * [Too many features, not enough testing](recipes/too-many-features-not-enough-testing.md)
 
 ## General Programming
 
