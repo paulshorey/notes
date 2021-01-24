@@ -1,4 +1,4 @@
 # Recipes
 
-Coming soon. Working on it. Collecting the mess of notes in this repo into a few articulate articles. Will post to [dev.to](https://dev.to) or similar community site with comments.
+Coming soon. Working on it. Collecting the mess of notes in this repo into some articulate articles, posted to [dev.to](https://dev.to) or similar community site with comments.
 
