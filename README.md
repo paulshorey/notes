@@ -1,11 +1,6 @@
----
-description: >-
-  This is my personal technical notes. If I omit a useful tool or technique,
-  please let me know. I'll add it. Still looking for a platform to allow
-  strangers to suggest edits and post comments.
----
-
 # Welcome to my laboratory!
+
+### Why? Because [https://zettelkasten.de/posts/overview/](https://zettelkasten.de/posts/overview/)
 
 Also good notes/tutorials:  
 \* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/) - few, but some unique and interesting  

@@ -103,7 +103,7 @@
 * [Ember](frontend/ember.md)
 * [Browser extensions](frontend/browser-extensions.md)
 * [Code textarea](frontend/code-textarea.md)
-* [Visualizations](frontend/visualizations.md)
+* [Data Visualization](frontend/visualizations.md)
 
 ## Managing a Website
 
