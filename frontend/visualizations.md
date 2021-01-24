@@ -6,6 +6,8 @@
 
 \*\*\*\*[**https://github.com/dagrejs/graphlib**](https://github.com/dagrejs/graphlib) **&lt;-- pretty awesome! used by** [**Foam**](https://github.com/foambubble/foam)\*\*\*\*
 
+[Foam is an awesome VS Code extension which gathers links in a markdown codebase, and makes a network graph visualizing the relationships between your documentation files](https://github.com/foambubble/foam)
+
 ### Pile of words:
 
 [https://brm.io/matter-js/demo/\#svg](https://brm.io/matter-js/demo/#svg)
