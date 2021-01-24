@@ -1,6 +1,6 @@
 # Recipes
 
-**Just starting** to write some web tech/biz articles. For the benefit of the world, and for some that important "street cred" \(SEO\). Will be posting to [dev.to](https://dev.to) or similar community site which enables comments...
+**Just starting** to write some web tech/biz articles. Will be posting to [dev.to](https://dev.to) or similar community site which enables comments. To give back to the development community, and also for some that sweet street cred \(SEO backlinks!\)
 
 ### Recent articles:
 
