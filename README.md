@@ -1,7 +1,5 @@
 # Welcome to my laboratory!
 
-**Why keep notes like this? Read about the** [**Zettelkasten Method**](https://zettelkasten.de/introduction/)\*\*\*\*
-
 **Also good notes/tutorials:**  
 \* [https://ciphertrick.com/category/database/](https://ciphertrick.com/category/database/) - few, but some unique and interesting  
 \* [https://javascript.info/](https://javascript.info/) - great beginner to advanced guides!  
