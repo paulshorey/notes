@@ -134,6 +134,7 @@
 * [Linguistics / Semantics](etc-1/linguistics-semantics.md)
 * [Better web search](etc-1/better-web-search.md)
 * [Read](etc-1/read.md)
+* [Data Visualization](etc-1/data-visualization.md)
 * [Etc](etc-1/tutorials/README.md)
   * [ES Modules / Tree Shaking](etc-1/tutorials/es-modules-tree-shaking.md)
   * [Applicationize anything](etc-1/tutorials/applicationize-anything.md)
