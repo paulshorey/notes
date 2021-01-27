@@ -2,9 +2,9 @@
 
 ## Get URL query parameters
 
-[https://nextjs.org/docs/api-reference/next/router\#userouter](https://nextjs.org/docs/api-reference/next/router#userouter
+[https://nextjs.org/docs/api-reference/next/router\#**userouter**](https://nextjs.org/docs/api-reference/next/router#userouter
 
-)
+)\*\*\*\*
 
 ```text
 import { useRouter } from 'next/router'
