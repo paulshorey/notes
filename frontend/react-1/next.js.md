@@ -2,9 +2,7 @@
 
 ## Get URL query parameters
 
-[https://nextjs.org/docs/api-reference/next/router\#**userouter**](https://nextjs.org/docs/api-reference/next/router#userouter
-
-)\*\*\*\*
+#### 1\) [useRouter](https://nextjs.org/docs/api-reference/next/router#userouter)\*\*\*\*
 
 ```text
 import { useRouter } from 'next/router'
@@ -15,7 +13,7 @@ export default () => {
 }
 ```
 
-### Use getInitialProps in stateless component:
+#### 2\) Use getInitialProps in stateless component:
 
 ```text
 import Link from 'next/link'
@@ -30,7 +28,7 @@ About.getInitialProps = ({query}) => {
 export default About;
 ```
 
-### Use getInitialProps in regular component:
+#### 3\) Use getInitialProps in regular component:
 
 ```text
 class About extends React.Component {
