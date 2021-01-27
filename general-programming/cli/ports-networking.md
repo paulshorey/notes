@@ -12,8 +12,8 @@ What is my internet IP address?
 **`sudo lsof -i tcp:3000`** \(on macOS\)  
 `netstat -vanp tcp | grep 3000` find all processes using port 3000
 
-Find and kill what's blocking a port:  
-**`kill -9 $(lsof -i TCP:8000 | grep LISTEN | awk '{print $2}')`**
+Find and kill what's blocking port 9754:  
+**`kill -9 $(lsof -i TCP:9754 | grep LISTEN | awk '{print $2}')`**
 
 ## Network requests
 
