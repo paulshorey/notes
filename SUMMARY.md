@@ -105,6 +105,7 @@
 * [Browser extensions](frontend/browser-extensions.md)
 * [Code textarea](frontend/code-textarea.md)
 * [Data Visualization](frontend/visualizations.md)
+* [Web Components](frontend/web-components.md)
 
 ## Managing a Website
 
