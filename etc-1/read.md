@@ -1,5 +1,7 @@
 # Read
 
+UI design/development: [https://www.sarasoueidan.com/blog/](https://www.sarasoueidan.com/blog/)
+
 Learn Typescript:[ https://www.educative.io/path/typescript-for-front-end-developers](https://www.educative.io/path/typescript-for-front-end-developers)
 
 This guy writes a great blog about JavaScript:
