@@ -11,6 +11,7 @@
 
 [https://www.encamp.com/platform/centralized-ehs-information](https://www.encamp.com/platform/centralized-ehs-information)  
 [https://www.apollo.io/people/Sarit/Firon/5f9995561d518200016478b3](https://www.apollo.io/people/Sarit/Firon/5f9995561d518200016478b3) \(great colors, gradients, and shadows\)  
+[https://www.smartling.com/](https://www.smartling.com/) \(nice wavy gradient\)  
 
 
 ### Proof of concept landing page:
