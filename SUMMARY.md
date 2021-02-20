@@ -119,7 +119,8 @@
 
 ## Etc <a id="etc-1"></a>
 
-* [Mac OS](etc-1/mac-os.md)
+* [Mac OS](etc-1/mac-os/README.md)
+  * [Old Mac computer](etc-1/mac-os/old-mac-computer.md)
 * [Writing / Blogging](etc-1/featured-notes.md)
 * [Coding questions](etc-1/interviews/README.md)
   * [Basics](etc-1/interviews/basics.md)
