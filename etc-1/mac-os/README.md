@@ -4,6 +4,14 @@
 
 `sw_vers` 
 
+#### Sleep
+
+To disable sleep, even with lid closed:  
+`sudo pmset -a disablesleep 1`  
+  
+To revert, allowing sleep again:  
+`sudo pmset -a disablesleep 0`
+
 ## Downgrade to older version:
 
 First, go to app store, and download the installer for the OS you want. Then, mount it onto a USB drive with one of the below commands:
