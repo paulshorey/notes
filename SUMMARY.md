@@ -37,6 +37,7 @@
 * [Coding standards / Architecture](general-programming/architecture-coding-standards.md)
 * [References: libraries/APIs](general-programming/references-libraries-apis.md)
 * [Sandbox](general-programming/sandbox.md)
+* [Airtable + NextJS = CMS](general-programming/airtable-+-nextjs-cms.md)
 
 ## BACKEND
 
