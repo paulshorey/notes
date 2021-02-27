@@ -8,6 +8,8 @@
 | brew install ne | apt install ne |
 | brew install zsh | apt install zsh |
 | install [ohmyz.sh](https://ohmyz.sh/#install) \(this will change default shell to 'zsh'\) |  |
+| install [iterm2](https://iterm2.com/downloads.html) | [https://alternativeto.net/software/iterm2/?platform=linux](https://alternativeto.net/software/iterm2/?platform=linux) |
+|  |  |
 |  |  |
 
 
