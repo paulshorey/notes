@@ -4,15 +4,14 @@
 
 `sw_vers` 
 
-#### Sleep
+#### Sleep:
 
 To disable sleep, even with lid closed:  
 `sudo pmset -a disablesleep 1`  
-  
 To revert, allowing sleep again:  
 `sudo pmset -a disablesleep 0`
 
-**Why newer Mac OS is terrible**
+**Why newer Mac OS is terrible:**
 
 Not only did Apple ruin their once amazing hardware with 2016+ Macbooks, but they continue to remove features and cripple their products.
 
