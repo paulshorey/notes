@@ -5,5 +5,5 @@
 * install [brew.sh](https://brew.sh)
 * `brew install ne` 
 * `brew install zsh` 
-* install [ohmyz.sh](https://ohmyz.sh/#install)
+* install [ohmyz.sh](https://ohmyz.sh/#install) \(this will change default shell to 'zsh'\)
 * 
