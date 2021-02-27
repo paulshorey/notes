@@ -18,4 +18,5 @@ Not only did Apple ruin their once amazing hardware with 2016+ Macbooks, but the
 
 * Big Sur denies hardware acceleration to any web browser except to Safari. This is shamelessly anti-competitive and actually is illegal.
 * Catalina + Big Sur have crippled video processing of older Macbooks. Older macbooks now will run much hotter or even overheat when using external displays. Time to give Apple more money.
-* 
+* Big Sur has removed the calculator widget from the "swipe from the right of the screen" "sidebar" which pops out. That was very nice. Whatever monitor you were using, you could swipe left from the right edge and use the calculator \(and other widgets\). Now, users have to open the dedicated calculator app. Unfortunately, it won't just float over the top of other apps, on whatever monitor you happen to be using, but you'll have to position it carefully to use it alongside other apps.
+
