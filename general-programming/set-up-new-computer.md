@@ -13,7 +13,7 @@
 | `CMD + Shift + .` to see hidden files in Finder |  |
 | **install webstorm** | - |
 | **copy ~ .aliases.sh, .gitconfig, .ne, .ssh, .zprofile, .zshrc, www-node-secrets, srv** | **-** |
-|  |  |
+| **install** [**node/npm**](https://nodejs.org/en/download/)\*\*\*\* | - |
 |  |  |
 |  |  |
 |  |  |
