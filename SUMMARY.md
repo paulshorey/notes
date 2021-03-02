@@ -152,4 +152,5 @@
 
 * [Good UI Examples](good-ui.md)
 * [Tools](tools.md)
+* [Resources](resources.md)
 
