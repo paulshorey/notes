@@ -102,7 +102,6 @@
   * [CSS / SASS](frontend/ui/css/README.md)
     * [styles in React/Webpack app](frontend/ui/css/styles-in-react-webpack-app.md)
   * [Icons](frontend/ui/icons.md)
-  * [Good UI Examples](frontend/ui/good-ui.md)
 * [Ember](frontend/ember.md)
 * [Browser extensions](frontend/browser-extensions.md)
 * [Code textarea](frontend/code-textarea.md)
@@ -148,4 +147,9 @@
   * [Server side rendering](etc-1/tutorials/server-side-rendering.md)
   * [Fix Google search results](etc-1/tutorials/tips-for-browsing-the-web.md)
   * [PHP: back to the future](etc-1/tutorials/php-back-to-the-future.md)
+
+---
+
+* [Good UI Examples](good-ui.md)
+* [Tools](tools.md)
 
