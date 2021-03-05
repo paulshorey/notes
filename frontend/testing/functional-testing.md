@@ -1,6 +1,8 @@
 # Functional testing
 
-Unit tests are useful for independent components that simply receive props and render the output and maybe run a callback function. However, with complex applications, it takes an extreme amount of time to "mock" all the different data sources and integration. So, most of the time when people do "unit testing", they are actually doing "integration testing", which is the next step. This takes a lot of time and effort. Unfortunately, these tests still don't give you perfect confidence that the changes have not broken anything. Things that could break are: user interaction, edge cases, and often visual \(css\) layout issues. 
+Unit tests are useful for independent components that simply receive props and render the output and maybe run a callback function. 
+
+However, with connected components, it takes an extreme amount of time to "mock" all the different data sources and integration. So, most of the time when people do "unit testing", they are actually doing "integration testing", which is the next step. This takes a lot of time and effort. Unfortunately, these tests still don't give you perfect confidence that the changes have not broken anything. Things that could break are: user interaction, edge cases, and often visual \(css\) layout issues. 
 
 I prefer to do "end-to-end" \(also called "functional"\) tests. It's much easier to set up. You don't need to "mock" anything because you're actually testing the real end result which the user will see. It's much much less work to set up and write, without fake mocking or integrating anything. Everything is real. And, you get the benefit of testing the real finished app, as the user will see it. This type of testing takes a bit longer to execute, but not terribly long. I think it's a good compromise.
 
