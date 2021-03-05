@@ -107,7 +107,9 @@
 * [Code textarea](frontend/code-textarea.md)
 * [Data Visualization](frontend/visualizations.md)
 * [Web Components](frontend/web-components.md)
-* [Testing](frontend/testing.md)
+* [Testing](frontend/testing/README.md)
+  * [Unit testing](frontend/testing/unit-testing.md)
+  * [Functional testing](frontend/testing/functional-testing.md)
 
 ## Managing a Website
 
