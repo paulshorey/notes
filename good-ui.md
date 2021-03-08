@@ -14,6 +14,8 @@
 [https://www.smartling.com/](https://www.smartling.com/) \(nice wavy gradient\)  
 [https://www.mac-downloader.com/](https://www.mac-downloader.com/) \(simple but effective\)
 
+[https://slack.com/downloads/mac](https://slack.com/downloads/mac) \(nice colorful shapes\)
+
 ### Marketing landing page:
 
 [https://radix.website/\#](https://radix.website/#)
