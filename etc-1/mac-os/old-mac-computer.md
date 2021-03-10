@@ -1,5 +1,9 @@
 # Old Mac computer
 
+## Reset
+
+[https://www.macworld.co.uk/how-to/reset-mac-3494564/](https://www.macworld.co.uk/how-to/reset-mac-3494564/)
+
 ## Downgrade to older version:
 
 First, go to app store, and download the installer for the OS you want. Then, mount it onto a USB drive with one of the below commands:
