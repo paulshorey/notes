@@ -119,6 +119,7 @@
 * [Domain availability](managing-a-website/domain-availability.md)
 * [SEO / Sharing](managing-a-website/seo-sharing.md)
 * [Monitoring / Testing / Uptime](managing-a-website/monitoring-testing-uptime.md)
+* [Subdirectory -&gt; Domain](managing-a-website/subdirectory-greater-than-domain.md)
 
 ## Etc <a id="etc-1"></a>
 
