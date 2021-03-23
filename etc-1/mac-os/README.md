@@ -1,5 +1,9 @@
 # Mac OS
 
+#### Manually backup/restore Mac using disk image:
+
+[https://gist.github.com/disulfidebond/8487e6f179ef26f3ba78a05ff891cb0b](https://gist.github.com/disulfidebond/8487e6f179ef26f3ba78a05ff891cb0b)
+
 #### Check which Mac OS version:
 
 `sw_vers` 
