@@ -6,7 +6,7 @@ Learn Typescript:[ https://www.educative.io/path/typescript-for-front-end-develo
 
 This guy writes a great blog about JavaScript:
 
-![](../.gitbook/assets/screen-shot-2020-12-09-at-11.29.53-pm.png)
+![](.gitbook/assets/screen-shot-2020-12-09-at-11.29.53-pm.png)
 
 {% embed url="https://jrsinclair.com/articles/2019/functional-js-traversing-trees-with-recursive-reduce/%0Ahttps://jrsinclair.com/articles/2019/magical-mystical-js-transducers/%0Ahttps://jrsinclair.com/articles/2019/algebraic-structures-what-i-wish-someone-had-explained-about-functional-programming/" %}
 

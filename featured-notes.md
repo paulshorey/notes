@@ -1,6 +1,6 @@
 # Writing / Blogging
 
-Coming soon. For now, see my "[GitBook as a headless CMS](../documentation/gitbook-cms.md)" article.
+Coming soon. For now, see my "[GitBook as a headless CMS](documentation/gitbook-cms.md)" article.
 
 **Recipes article ideas:**
 
