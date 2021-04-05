@@ -150,7 +150,7 @@
   * [Server side rendering](tutorials/server-side-rendering.md)
   * [Fix Google search results](tutorials/tips-for-browsing-the-web.md)
   * [PHP: back to the future](tutorials/php-back-to-the-future.md)
-* [Good UI Examples](good-ui.md)
+* [Great UI](good-ui.md)
 * [Tools](tools.md)
 * [Resources](resources.md)
 * [Scratch](scratch.md)
