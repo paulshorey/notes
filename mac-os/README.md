@@ -4,6 +4,8 @@
 
 [https://gist.github.com/disulfidebond/8487e6f179ef26f3ba78a05ff891cb0b](https://gist.github.com/disulfidebond/8487e6f179ef26f3ba78a05ff891cb0b)
 
+[https://www.itninja.com/blog/view/how-to-create-a-disk-image-of-your-mac-startup-disk](https://www.itninja.com/blog/view/how-to-create-a-disk-image-of-your-mac-startup-disk)
+
 #### Check which Mac OS version:
 
 `sw_vers` 
