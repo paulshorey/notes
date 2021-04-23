@@ -1,4 +1,4 @@
-# Set up new computer
+# Set up new a new Mac or Linux
 
 | Mac \(if bold, also do this for Linux\) | Ubuntu GUI |
 | :--- | :--- |

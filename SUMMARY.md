@@ -38,7 +38,7 @@
 * [References: libraries/APIs](general-programming/references-libraries-apis.md)
 * [Sandbox](general-programming/sandbox.md)
 * [Airtable + NextJS = CMS](general-programming/airtable-+-nextjs-cms.md)
-* [Set up new computer](general-programming/set-up-new-computer.md)
+* [Set up new a new Mac or Linux](general-programming/set-up-new-computer.md)
 
 ## BACKEND
 
