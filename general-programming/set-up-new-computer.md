@@ -1,8 +1,10 @@
 # Set up new a new Mac or Linux
 
+
+
 | Mac \(if bold, also do this for Linux\) | Ubuntu GUI |
 | :--- | :--- |
-| **install "chrome"** | - |
+| **install "chrome" \(or Opera\)** | - |
 | install "better snap tool" |  |
 | install [brew.sh](https://brew.sh) | apt update && apt upgrade |
 | brew install ne | apt install ne |
