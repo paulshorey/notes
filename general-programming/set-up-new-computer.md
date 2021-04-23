@@ -4,7 +4,7 @@
 
 | Mac \(if bold, also do this for Linux\) | Ubuntu GUI |
 | :--- | :--- |
-| **install "chrome" \(or Opera\)** | - |
+| **install Chrome, or Opera \(it's same but better\)** | - |
 | install "better snap tool" | find similar good window manager |
 | install [iTerm2](https://iterm2.com/downloads.html) | [https://alternativeto.net/software/iterm2/?platform=linux](https://alternativeto.net/software/iterm2/?platform=linux) |
 | install [brew.sh](https://brew.sh) | apt update && apt upgrade |
