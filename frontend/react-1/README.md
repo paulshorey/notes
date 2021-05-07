@@ -10,6 +10,9 @@ Same concept, but include Markdown files, converted to HTML:
 Good blog!  
 [https://www.bitnative.com/](https://www.bitnative.com/)
 
+Read about  
+[optimization](optimization.md)
+
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 
 **auto-update the view after state changes**
