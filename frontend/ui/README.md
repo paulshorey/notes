@@ -1,6 +1,10 @@
 # UI
 
-**TODO: Try** [**Tailwind CSS**](https://tailwindcss.com/)**.** It looks good!  
+**TODO: Use Chakra / Chakra PRO**  
+[https://**pro**.chakra-ui.com/components/application-ui](https://pro.chakra-ui.com/components/application-ui)  
+[https://chakra-ui.com/docs/overlay/modal](https://chakra-ui.com/docs/overlay/modal#modal-overflow-behavior)
+
+**Try** [**Tailwind CSS**](https://tailwindcss.com/)**.** It looks good!  
 Also, [React Components for Tailwind CSS](https://github.com/tailwindlabs/headlessui/tree/develop/packages/%40headlessui-react), decoupled. Use just their CSS, or just their JS. Write your own CSS/JS when needed. Very future-proof!
 
 **CSS Grid**  
