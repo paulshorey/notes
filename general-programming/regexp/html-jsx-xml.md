@@ -5,8 +5,12 @@ Opening tags:**
 search: `<Link([^>]*?)>([^<]*?)<a`    
 replace: `<Link$1 $2`    
 **Closing tags:**  
-search:   
-replace: 
+search: `</ ?a>(*?)</ ?Link>`  
+replace: `</Link>` .
+
+
+
+ 
 
  
 
