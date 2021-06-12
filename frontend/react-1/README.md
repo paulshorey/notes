@@ -13,6 +13,11 @@ Good blog!
 Read about  
 [optimization](optimization.md)
 
+## NextJS is the future!
+
+It's the present also. It powers many sites and is first choice for React developers.  
+Use SWR to supercharge data fetching - [https://swr.vercel.app/docs/with-nextjs](https://swr.vercel.app/docs/with-nextjs)
+
 ## [⚠️](https://emojipedia.org/warning/) Quirks and Gotchas! [⚠️](https://emojipedia.org/warning/)
 
 **auto-update the view after state changes**
