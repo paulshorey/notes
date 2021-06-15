@@ -110,6 +110,7 @@
 * [Data Visualization](frontend/visualizations.md)
 * [Web Components](frontend/web-components.md)
 * [Testing](frontend/testing/README.md)
+  * [Internationalization](frontend/testing/internationalization.md)
   * [Unit testing](frontend/testing/unit-testing.md)
   * [Functional testing](frontend/testing/functional-testing.md)
 
