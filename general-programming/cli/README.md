@@ -4,6 +4,8 @@ description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
 
 # CLI / BASH
 
+#### Learn:  [https://www.tutorialkart.com/bash-shell-scripting](https://www.tutorialkart.com/bash-shell-scripting/bash-arithmetic-operators/)
+
 Check how long a command takes: add `time`  before the CLI command.
 
 Run command as another user:
