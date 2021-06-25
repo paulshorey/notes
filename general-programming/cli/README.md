@@ -6,6 +6,9 @@ description: 'Pro tip: install ZSH and OH-MY-ZSH, and Nice Editor (ne)!'
 
 #### Learn:  [https://www.tutorialkart.com/bash-shell-scripting](https://www.tutorialkart.com/bash-shell-scripting/bash-arithmetic-operators/)
 
+Color the bash echo output!  
+[https://stackoverflow.com/questions/5947742/how-to-change-the-output-color-of-echo-in-linux](https://stackoverflow.com/questions/5947742/how-to-change-the-output-color-of-echo-in-linux)
+
 Check how long a command takes: add `time`  before the CLI command.
 
 Run command as another user:
