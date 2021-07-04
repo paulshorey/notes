@@ -12,8 +12,6 @@
 ([^\n]+)
 ```
 
-
-
 ## Variables in Regex:
 
 ```text
