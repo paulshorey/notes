@@ -6,11 +6,7 @@
 
 ## Match including line breaks
 
-\(by default, RegExp usually stops at the end of the line\)
-
-```text
-([^\n]+)
-```
+`/(.*)/s` - add "s" flag to tell RegExp to NOT stop at the end of the line \(which it does by default\) 
 
 ## Variables in Regex:
 
