@@ -53,6 +53,7 @@
   * [Advanced Useful Snippets](frontend/react-1/advanced-useful-snippets.md)
   * [Documentation](frontend/react-1/documentation.md)
 * [JavaScript](frontend/reference/README.md)
+  * [browser](frontend/reference/browser.md)
   * [quirks and tips](frontend/reference/quirks/README.md)
     * [smooth scroll](frontend/reference/quirks/scrolltotop.md)
     * [Global Variables](frontend/reference/quirks/global-variables.md)
