@@ -9,7 +9,7 @@
 \(by default, RegExp usually stops at the end of the line\)
 
 ```text
-([^\n`]+)
+([^\n]+)
 ```
 
 
