@@ -1,5 +1,9 @@
 # PostgreSQL
 
+### Allow remote connections:
+
+[https://blog.logrocket.com/setting-up-a-remote-postgres-database-server-on-ubuntu-18-04/](https://blog.logrocket.com/setting-up-a-remote-postgres-database-server-on-ubuntu-18-04/)
+
 ### When trying a new fancy SQL command, test how long it takes by prepending:
 
 ```text
