@@ -11,7 +11,9 @@ Dim `echo -e "Normal \e[2mDim"`
 
 Yellow `echo -e "Default \e[33mYellow"` 
 
+Cyan `echo -e "Default \e[36mCyan"` 
 
+ 
 
 
 

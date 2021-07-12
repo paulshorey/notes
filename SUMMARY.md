@@ -127,6 +127,7 @@
 * [SEO / Sharing](managing-a-website/seo-sharing.md)
 * [Monitoring / Testing / Uptime](managing-a-website/monitoring-testing-uptime.md)
 * [Subdirectory -&gt; Domain](managing-a-website/subdirectory-greater-than-domain.md)
+* [Sub-direcotry instead of sub-domain](managing-a-website/sub-direcotry-instead-of-sub-domain.md)
 
 ---
 
