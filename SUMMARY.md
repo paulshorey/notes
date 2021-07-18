@@ -90,6 +90,8 @@
   * [Internationalization](frontend/testing/internationalization.md)
   * [Unit testing](frontend/testing/unit-testing.md)
   * [Functional testing](frontend/testing/functional-testing.md)
+* [Web Scraping](frontend/web-scraping-1/README.md)
+  * [Puppeteer](frontend/web-scraping-1/puppeteer.md)
 
 ## BACKEND
 
