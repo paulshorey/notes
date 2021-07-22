@@ -120,6 +120,7 @@
   * [RapidAPI Authentication](backend/api-development/authentication.md)
 * [API consumption](backend/api-consumption.md)
 * [Distributed systems](backend/distributed-systems.md)
+* [PHP](backend/php.md)
 
 ## Managing a Website
 
