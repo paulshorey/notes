@@ -96,6 +96,7 @@
 
 ## BACKEND
 
+* [Authentication / Memberships](backend/authentication-memberships.md)
 * [Node JS](backend/node-js/README.md)
   * [ES Modules](backend/node-js/es-modules.md)
   * [fs](backend/node-js/fs.md)
