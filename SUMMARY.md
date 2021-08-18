@@ -46,7 +46,7 @@
 
 * [Next](frontend/next.md)
 * [React](frontend/react-1/README.md)
-  * [Context \(and other techniques\)](frontend/react-1/context-and-other-techniques.md)
+  * [Context \(and other such techniques\)](frontend/react-1/context-and-other-techniques.md)
   * [Optimization](frontend/react-1/optimization.md)
   * [Next.js](frontend/react-1/next.js.md)
   * [hooks \(useEffect, etc\)](frontend/react-1/useeffect-usestate.md)
