@@ -20,7 +20,9 @@ git config --get remote.origin.url
 
 `git checkout --ours src/path/to/file/or/folder` Likewise, this keeps changes from the current branch, and ignores changes from the feature branch.
 
+#### Github CLI keeps asking for username/password?
 
+`git config --global credential.helper store`
 
 
 
