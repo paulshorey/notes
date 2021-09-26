@@ -12,6 +12,7 @@
 ## General Programming
 
 * [CLI / BASH](general-programming/cli/README.md)
+  * [Write to filesystem](general-programming/cli/write-to-filesystem.md)
   * [Colors \(formatting\)](general-programming/cli/colors-formatting.md)
   * [Everyday](general-programming/cli/everyday.md)
   * [Chrome Debugger](general-programming/cli/chrome-debugger.md)
