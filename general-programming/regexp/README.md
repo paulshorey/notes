@@ -10,7 +10,7 @@ Replace all instances of `../../../../functions` no matter how many `../` there 
 
 **Search: `'([./]+)functions` **
 
-Replace: `src/functions`
+Replace: `'src/functions`
 
 ## Match including line breaks
 
