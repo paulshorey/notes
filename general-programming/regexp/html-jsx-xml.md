@@ -1,5 +1,13 @@
 # HTML / JSX / XML
 
+#### Replace attribute/prop
+
+From HTML string to React JSX with EmotionCSS:
+
+`style="([^"]+)"` -> ``css={css`$1`}``&#x20;
+
+
+
 #### Replace a React Component in entire codebase:
 
 `([\s<]+)Image([\s/>]+)` --> `$1Picture$2`&#x20;
