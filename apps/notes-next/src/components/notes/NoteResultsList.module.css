@@ -24,8 +24,10 @@
 }
 
 .noteItemActive {
-  background: var(--g-color-base-selection, rgba(96, 165, 250, 0.12));
-  border-color: var(--g-color-base-brand);
+  /* background: var(--g-color-base-selection, rgba(96, 165, 250, 0.12)); */
+  background: var(--g-color-base-brand);
+  /* dark text on light background */
+  color: var(--g-color-text-dark-primary);
 }
 
 .noteLine {

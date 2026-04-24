@@ -36,7 +36,7 @@
 
 .resultsColumn {
   position: relative;
-  margin: 0 0 0 -10px;
+  margin: 0 0 0 -2px;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -69,7 +69,7 @@
   top: 0;
   bottom: 0;
   left: 2px;
-  width: 2px;
+  width: 8px;
   background: var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
   opacity: 0.72;
   transition:
@@ -95,7 +95,7 @@
 .searchForm {
   display: flex;
   flex-direction: column;
-  margin: 0px 2px 12px 4px;
+  margin: 0px 3px 4px 2px;
 }
 
 .searchRow {
