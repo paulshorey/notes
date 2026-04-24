@@ -49,6 +49,10 @@
 }
 
 .formDescription {
+  --g-text-area-border-color: var(--g-color-base-brand);
+  --g-text-area-border-color-hover: var(--g-color-base-brand);
+  --g-text-area-border-color-active: var(--g-color-base-generic, rgba(255, 255, 255, 0.08));
+
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
@@ -97,13 +101,18 @@
 }
 
 .dateInput:focus {
-  border-color: var(--g-color-line-brand, #60a5fa);
+  border-color: var(--g-color-line-focus, #60a5fa);
   outline: none;
 }
 
 /* 
-@media (max-width: 640px) {
-  .dateFields {
-    grid-template-columns: 1fr;
-  }
-} */
+    --g-color-line-brand: var(--g-color-private-yellow-600-solid);
+    --g-color-line-focus: var(--g-color-private-cool-grey-450);
+    --g-color-line-light: var(--g-color-private-white-500);
+    --g-color-line-info: var(--g-color-private-blue-450);
+    --g-color-line-positive: var(--g-color-private-green-450);
+    --g-color-line-warning: var(--g-color-private-yellow-450);
+    --g-color-line-danger: var(--g-color-private-red-450);
+    --g-color-line-utility: var(--g-color-private-purple-450);
+    --g-color-line-misc: var(--g-color-private-cool-grey-450);
+*/
