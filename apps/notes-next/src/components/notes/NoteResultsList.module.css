@@ -1,6 +1,6 @@
 /* Match .noteItem horizontal padding; vertical padding separates status from search above. */
 .listStatus {
-  padding: 8px;
+  padding: 8px 8px 8px 6px;
 }
 
 .noteList {
@@ -12,7 +12,7 @@
 }
 
 .noteItem {
-  padding: 8px 4px 8px 8px;
+  padding: 8px 4px 8px 6px;
   cursor: pointer;
   border-radius: 0;
   user-select: none;
