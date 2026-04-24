@@ -20,7 +20,9 @@ import type {
 } from "@lib/db-marketing"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-marketing/notes-search-constants"
 import {
+  type CSSProperties,
   type FormEvent,
+  type PointerEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -49,6 +51,13 @@ import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
 import { EditTagModal } from "./modals/EditTagModal"
 import styles from "./NotesApp.module.css"
+
+const RESULTS_COLUMN_DEFAULT_WIDTH = 360
+const RESULTS_COLUMN_MIN_WIDTH = 240
+const RESULTS_COLUMN_MAX_WIDTH = 720
+const FORM_COLUMN_MIN_WIDTH = 333
+const RESIZE_HANDLE_WIDTH = 8
+const RESIZE_DRAG_THRESHOLD = 4
 
 export default function NotesApp() {
   const [identifier, setIdentifier] = useState("")
@@ -89,10 +98,93 @@ export default function NotesApp() {
   const [editTagPending, setEditTagPending] = useState(false)
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
+  const [resultsListVisible, setResultsListVisible] = useState(true)
+  const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   const pendingTagLabelsRef = useRef<string[]>([])
   const creatingTagLabelsRef = useRef(new Set<string>())
+  const resizeStateRef = useRef<{
+    pointerId: number
+    startX: number
+    startWidth: number
+    dragged: boolean
+  } | null>(null)
   const trimmedSearchQuery = searchQuery.trim()
   const searchMode = trimmedSearchQuery.length > 0
+
+  const clampResultsColumnWidth = useCallback((width: number) => {
+    const contentWidth =
+      contentRef.current?.getBoundingClientRect().width ??
+      (typeof window === "undefined" ? RESULTS_COLUMN_DEFAULT_WIDTH : window.innerWidth)
+    const availableWidth = contentWidth - FORM_COLUMN_MIN_WIDTH - RESIZE_HANDLE_WIDTH
+    const maxWidth = Math.max(
+      RESULTS_COLUMN_MIN_WIDTH,
+      Math.min(RESULTS_COLUMN_MAX_WIDTH, availableWidth),
+    )
+
+    return Math.round(Math.min(Math.max(width, RESULTS_COLUMN_MIN_WIDTH), maxWidth))
+  }, [])
+
+  const resultsColumnStyle = useMemo<CSSProperties>(
+    () => ({
+      flexBasis: resultsColumnWidth,
+      width: resultsColumnWidth,
+    }),
+    [resultsColumnWidth],
+  )
+
+  const handleResizePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    resizeStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: resultsListVisible ? resultsColumnWidth : RESULTS_COLUMN_MIN_WIDTH,
+      dragged: false,
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const handleResizePointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    const resizeState = resizeStateRef.current
+    if (!resizeState || resizeState.pointerId !== event.pointerId) return
+
+    const delta = event.clientX - resizeState.startX
+    if (!resizeState.dragged && Math.abs(delta) < RESIZE_DRAG_THRESHOLD) return
+
+    resizeState.dragged = true
+    setResultsListVisible(true)
+    setResultsColumnWidth(clampResultsColumnWidth(resizeState.startWidth + delta))
+  }
+
+  const handleResizePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    const resizeState = resizeStateRef.current
+    if (!resizeState || resizeState.pointerId !== event.pointerId) return
+
+    if (!resizeState.dragged) {
+      setResultsListVisible((visible) => !visible)
+    }
+
+    resizeStateRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  const handleResizePointerCancel = (event: PointerEvent<HTMLButtonElement>) => {
+    resizeStateRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setResultsColumnWidth((width) => clampResultsColumnWidth(width))
+    }
+
+    window.addEventListener("resize", handleWindowResize)
+    return () => window.removeEventListener("resize", handleWindowResize)
+  }, [clampResultsColumnWidth])
 
   useEffect(() => {
     pendingTagLabelsRef.current = pendingTagLabels
@@ -870,55 +962,77 @@ export default function NotesApp() {
         onDismissSearchError={() => setSearchErrorMessage(null)}
       />
 
-      <div className={styles.content}>
-        <section className={styles.resultsColumn}>
-          <div className={styles.header}>
-            <FilterBanners
-              categories={categories}
-              tags={tags}
-              notesCount={notes.length}
-              selectedCategory={selectedCategory}
-              selectedTag={selectedTag}
-              selectedCategoryId={selectedCategoryId}
-              selectedTagId={selectedTagId}
-              fallbackCategoryId={fallbackCategoryId}
-              onSelectCategory={setSelectedCategoryId}
-              onSelectTag={setSelectedTagId}
-              onEditCategory={openEditCategory}
-              onDeleteCategory={openDeleteCategory}
-              onEditTag={openEditTag}
-              onDeleteTag={openDeleteTag}
-            />
-          </div>
-          <div className={styles.searchForm}>
-            <div className={styles.searchRow}>
-              <TextInput
-                size="l"
-                placeholder="Search"
-                value={searchQuery}
-                onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
-                className={styles.searchInput}
+      <div className={styles.content} ref={contentRef}>
+        {resultsListVisible && (
+          <section className={styles.resultsColumn} style={resultsColumnStyle}>
+            <div className={styles.header}>
+              <FilterBanners
+                categories={categories}
+                tags={tags}
+                notesCount={notes.length}
+                selectedCategory={selectedCategory}
+                selectedTag={selectedTag}
+                selectedCategoryId={selectedCategoryId}
+                selectedTagId={selectedTagId}
+                fallbackCategoryId={fallbackCategoryId}
+                onSelectCategory={setSelectedCategoryId}
+                onSelectTag={setSelectedTagId}
+                onEditCategory={openEditCategory}
+                onDeleteCategory={openDeleteCategory}
+                onEditTag={openEditTag}
+                onDeleteTag={openDeleteTag}
               />
             </div>
-          </div>
-          <div className={styles.noteResults}>
-            <NoteResultsList
-              items={visibleItems}
-              activeNoteId={editingNoteId}
-              loading={searchMode ? searchLoading || notesLoading : notesLoading}
-              emptyMessage={
-                selectedCategory
-                  ? `No notes in category “${selectedCategory.label}”.`
-                  : selectedTag
-                    ? `No notes in “${selectedTag.label}”.`
-                    : searchMode
-                      ? "No notes in your account."
-                      : "No notes yet."
-              }
-              onEdit={handleStartEdit}
-            />
-          </div>
-        </section>
+            <div className={styles.searchForm}>
+              <div className={styles.searchRow}>
+                <TextInput
+                  size="l"
+                  placeholder="Search"
+                  value={searchQuery}
+                  onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
+                  className={styles.searchInput}
+                />
+              </div>
+            </div>
+            <div className={styles.noteResults}>
+              <NoteResultsList
+                items={visibleItems}
+                activeNoteId={editingNoteId}
+                loading={searchMode ? searchLoading || notesLoading : notesLoading}
+                emptyMessage={
+                  selectedCategory
+                    ? `No notes in category “${selectedCategory.label}”.`
+                    : selectedTag
+                      ? `No notes in “${selectedTag.label}”.`
+                      : searchMode
+                        ? "No notes in your account."
+                        : "No notes yet."
+                }
+                onEdit={handleStartEdit}
+              />
+            </div>
+          </section>
+        )}
+
+        <button
+          type="button"
+          className={`${styles.resizeHandle} ${
+            resultsListVisible ? "" : styles.resizeHandleCollapsed
+          }`}
+          aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
+          aria-pressed={!resultsListVisible}
+          title={resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"}
+          onPointerDown={handleResizePointerDown}
+          onPointerMove={handleResizePointerMove}
+          onPointerUp={handleResizePointerUp}
+          onPointerCancel={handleResizePointerCancel}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              setResultsListVisible((visible) => !visible)
+            }
+          }}
+        />
 
         <NoteForm
           form={noteForm}
