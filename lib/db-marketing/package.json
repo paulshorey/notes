@@ -18,8 +18,8 @@
     "./sql/*": "./sql/*.ts"
   },
   "scripts": {
-    "app:contracts:check": "pnpm app:contract:check",
-    "app:contracts:generate": "pnpm app:contract:generate",
+    "app:contract:check": "node scripts/generate-app-contract.mjs --check",
+    "app:contract:generate": "node scripts/generate-app-contract.mjs --write",
     "check-types": "tsc --noEmit && pnpm app:contract:check",
     "db:schema:snapshot": "bash scripts/snapshot-schema.sh",
     "db:types:generate": "node scripts/generate-types.mjs",
