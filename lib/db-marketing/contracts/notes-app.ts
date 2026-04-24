@@ -2,11 +2,20 @@ export interface SessionLookupRequest {
   identifier: string;
 }
 
+export interface NotesAppPreferences {
+  resultsColumnWidth?: number;
+}
+
+export interface UserPreferences {
+  notesApp?: NotesAppPreferences;
+}
+
 export interface UserSummary {
   id: number;
   username: string;
   email: string | null;
   phone: string | null;
+  preferences: UserPreferences;
 }
 
 export interface CategoryRecord {
@@ -64,6 +73,11 @@ export interface NoteInput {
 
 export interface SessionRequest {
   userId: number;
+}
+
+export interface UpdateUserPreferencesRequest {
+  userId: number;
+  preferences: UserPreferences;
 }
 
 export interface NotesRequest {

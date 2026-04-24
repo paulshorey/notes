@@ -49,6 +49,7 @@ export interface UserV1Row {
   "phone": string | null;
   "time_created": Date;
   "time_modified": Date;
+  "preferences": unknown;
 }
 
 export interface PostgresDbSchema {

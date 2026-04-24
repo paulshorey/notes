@@ -182,6 +182,11 @@
       "column": "time_modified",
       "nullable": false,
       "type": "Date"
+    },
+    {
+      "column": "preferences",
+      "nullable": false,
+      "type": "unknown"
     }
   ]
 }

@@ -11,6 +11,28 @@
         }
       ]
     },
+    "NotesAppPreferences": {
+      "fields": [
+        {
+          "name": "resultsColumnWidth",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "UserPreferences": {
+      "fields": [
+        {
+          "name": "notesApp",
+          "optional": true,
+          "kind": "model",
+          "type": "NotesAppPreferences",
+          "nullable": false
+        }
+      ]
+    },
     "UserSummary": {
       "fields": [
         {
@@ -40,6 +62,13 @@
           "kind": "scalar",
           "type": "string",
           "nullable": true
+        },
+        {
+          "name": "preferences",
+          "optional": false,
+          "kind": "model",
+          "type": "UserPreferences",
+          "nullable": false
         }
       ]
     },
@@ -308,6 +337,24 @@
           "optional": false,
           "kind": "scalar",
           "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateUserPreferencesRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "preferences",
+          "optional": false,
+          "kind": "model",
+          "type": "UserPreferences",
           "nullable": false
         }
       ]

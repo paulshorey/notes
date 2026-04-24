@@ -24,11 +24,13 @@ import type {
   SessionResponse,
   TagsRequest,
   TagsResponse,
+  UpdateUserPreferencesRequest,
   UpdateCategoryRequest,
   UpdateCategoryResponse,
   UpdateNoteRequest,
   UpdateTagRequest,
   UpdateTagResponse,
+  UserPreferences,
 } from "../contracts/notes-app";
 import type { PoolClient } from "pg";
 import { getDb } from "../lib/db/postgres";
@@ -67,7 +69,11 @@ import {
   updateTagEmbeddingById,
   updateTagLabelForUser,
 } from "../sql/tag";
-import { findUserByIdentifier, getUserById } from "../sql/user";
+import {
+  findUserByIdentifier,
+  getUserById,
+  updateUserPreferencesById,
+} from "../sql/user";
 import {
   createBackfillEmbeddingInputs,
   createBackfillTagEmbeddings,
@@ -141,6 +147,25 @@ export const getNotesAppErrorStatus = (error: unknown) => {
 export const parseSessionRequest = (userId: unknown): SessionRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 });
+
+const parseUserPreferences = (value: unknown): UserPreferences => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("preferences must be a JSON object.");
+  }
+
+  return value as UserPreferences;
+};
+
+export const parseUpdateUserPreferencesRequest = (
+  value: unknown
+): UpdateUserPreferencesRequest => {
+  const body = toRequestObject(value);
+
+  return {
+    userId: parsePositiveInteger(body.userId, "userId"),
+    preferences: parseUserPreferences(body.preferences),
+  };
+};
 
 export const parseNotesRequest = (userId: unknown): NotesRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
@@ -305,6 +330,14 @@ export const findNotesAppSession = async (
   request: SessionLookupRequest
 ): Promise<SessionResponse | null> => {
   const user = await findUserByIdentifier(request.identifier);
+
+  return user ? { user } : null;
+};
+
+export const updateNotesAppUserPreferences = async (
+  request: UpdateUserPreferencesRequest
+): Promise<SessionResponse | null> => {
+  const user = await updateUserPreferencesById(request.userId, request.preferences);
 
   return user ? { user } : null;
 };
@@ -743,6 +776,7 @@ export const notesAppService = {
   getNotesAppErrorStatus,
   getNotesAppSession,
   findNotesAppSession,
+  updateNotesAppUserPreferences,
   listNotesForNotesApp,
   listCategoriesForNotesApp,
   listTagsForNotesApp,

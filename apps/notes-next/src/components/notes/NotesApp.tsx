@@ -16,6 +16,7 @@ import type {
   SessionResponse,
   UpdateCategoryResponse,
   UpdateTagResponse,
+  UserPreferences,
   UserSummary,
 } from "@lib/db-marketing"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-marketing/notes-search-constants"
@@ -58,10 +59,60 @@ const RESULTS_COLUMN_MAX_WIDTH = 720
 const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
+const PREFERENCES_SAVE_DEBOUNCE_MS = 500
+
+const isPreferencesObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+const normalizeUserPreferences = (value: unknown): UserPreferences =>
+  isPreferencesObject(value) ? (value as UserPreferences) : {}
+
+const sortPreferenceValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map(sortPreferenceValue)
+  }
+
+  if (!isPreferencesObject(value)) {
+    return value
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nestedValue]) => [key, sortPreferenceValue(nestedValue)]),
+  )
+}
+
+const serializeUserPreferences = (preferences: UserPreferences) =>
+  JSON.stringify(sortPreferenceValue(preferences))
+
+const clampStoredResultsColumnWidth = (width: number) =>
+  Math.round(Math.min(Math.max(width, RESULTS_COLUMN_MIN_WIDTH), RESULTS_COLUMN_MAX_WIDTH))
+
+const getStoredResultsColumnWidth = (preferences: UserPreferences) => {
+  const notesAppPreferences = preferences.notesApp
+  if (!isPreferencesObject(notesAppPreferences)) return null
+
+  const width = notesAppPreferences.resultsColumnWidth
+  if (typeof width !== "number" || !Number.isFinite(width)) {
+    return null
+  }
+
+  return clampStoredResultsColumnWidth(width)
+}
+
+const withResultsColumnWidthPreference = (preferences: UserPreferences, width: number): UserPreferences => ({
+  ...preferences,
+  notesApp: {
+    ...(isPreferencesObject(preferences.notesApp) ? preferences.notesApp : {}),
+    resultsColumnWidth: clampStoredResultsColumnWidth(width),
+  },
+})
 
 export default function NotesApp() {
   const [identifier, setIdentifier] = useState("")
   const [user, setUser] = useState<UserSummary | null>(null)
+  const [userPreferences, setUserPreferences] = useState<UserPreferences>({})
   const [notes, setNotes] = useState<NoteRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [tags, setTags] = useState<TagRecord[]>([])
@@ -99,10 +150,15 @@ export default function NotesApp() {
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
   const [resultsListVisible, setResultsListVisible] = useState(true)
+  const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
+    RESULTS_COLUMN_DEFAULT_WIDTH,
+  )
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const pendingTagLabelsRef = useRef<string[]>([])
   const creatingTagLabelsRef = useRef(new Set<string>())
+  const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
+  const preferenceSaveRequestIdRef = useRef(0)
   const resizeStateRef = useRef<{
     pointerId: number
     startX: number
@@ -152,8 +208,15 @@ export default function NotesApp() {
     if (!resizeState.dragged && Math.abs(delta) < RESIZE_DRAG_THRESHOLD) return
 
     resizeState.dragged = true
+    const nextPreferredWidth = clampStoredResultsColumnWidth(resizeState.startWidth + delta)
     setResultsListVisible(true)
-    setResultsColumnWidth(clampResultsColumnWidth(resizeState.startWidth + delta))
+    setPreferredResultsColumnWidth(nextPreferredWidth)
+    setResultsColumnWidth(clampResultsColumnWidth(nextPreferredWidth))
+    setUserPreferences((current) =>
+      getStoredResultsColumnWidth(current) === nextPreferredWidth
+        ? current
+        : withResultsColumnWidthPreference(current, nextPreferredWidth),
+    )
   }
 
   const handleResizePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
@@ -179,12 +242,12 @@ export default function NotesApp() {
 
   useEffect(() => {
     const handleWindowResize = () => {
-      setResultsColumnWidth((width) => clampResultsColumnWidth(width))
+      setResultsColumnWidth(clampResultsColumnWidth(preferredResultsColumnWidth))
     }
 
     window.addEventListener("resize", handleWindowResize)
     return () => window.removeEventListener("resize", handleWindowResize)
-  }, [clampResultsColumnWidth])
+  }, [clampResultsColumnWidth, preferredResultsColumnWidth])
 
   useEffect(() => {
     pendingTagLabelsRef.current = pendingTagLabels
@@ -198,6 +261,21 @@ export default function NotesApp() {
     setErrorMessage(null)
     setSearchErrorMessage(null)
   }, [])
+
+  const applyLoadedUser = useCallback(
+    (nextUser: UserSummary) => {
+      const nextPreferences = normalizeUserPreferences(nextUser.preferences)
+      const nextPreferredResultsColumnWidth =
+        getStoredResultsColumnWidth(nextPreferences) ?? RESULTS_COLUMN_DEFAULT_WIDTH
+
+      lastSavedPreferencesRef.current = serializeUserPreferences(nextPreferences)
+      setUser({ ...nextUser, preferences: nextPreferences })
+      setUserPreferences(nextPreferences)
+      setPreferredResultsColumnWidth(nextPreferredResultsColumnWidth)
+      setResultsColumnWidth(clampResultsColumnWidth(nextPreferredResultsColumnWidth))
+    },
+    [clampResultsColumnWidth],
+  )
 
   const resetNoteForm = useCallback(() => {
     const defaultCategoryId =
@@ -272,7 +350,7 @@ export default function NotesApp() {
 
         if (!active) return
 
-        setUser(sessionData.user)
+        applyLoadedUser(sessionData.user)
         const [, loadedCategories] = await Promise.all([
           loadNotes(sessionData.user.id),
           loadCategories(sessionData.user.id),
@@ -285,10 +363,16 @@ export default function NotesApp() {
       } catch (error) {
         if (!active) return
         window.localStorage.removeItem(STORAGE_KEY)
+        preferenceSaveRequestIdRef.current += 1
+        lastSavedPreferencesRef.current = serializeUserPreferences({})
         setUser(null)
+        setUserPreferences({})
         setCategories([])
         setTags([])
         setNotes([])
+        setResultsListVisible(true)
+        setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+        setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
         setErrorMessage(getErrorMessage(error))
       } finally {
         if (active) setSessionLoading(false)
@@ -299,7 +383,47 @@ export default function NotesApp() {
     return () => {
       active = false
     }
-  }, [loadCategories, loadTags, loadNotes])
+  }, [applyLoadedUser, loadCategories, loadTags, loadNotes])
+
+  useEffect(() => {
+    if (!user) return
+
+    const serializedPreferences = serializeUserPreferences(userPreferences)
+    if (serializedPreferences === lastSavedPreferencesRef.current) return
+
+    const requestId = preferenceSaveRequestIdRef.current + 1
+    preferenceSaveRequestIdRef.current = requestId
+
+    const timeoutId = window.setTimeout(() => {
+      void fetch("/api/session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          preferences: userPreferences,
+        }),
+      })
+        .then((response) => readJson<SessionResponse>(response))
+        .then((data) => {
+          if (preferenceSaveRequestIdRef.current !== requestId) return
+
+          const nextPreferences = normalizeUserPreferences(data.user.preferences)
+          const nextPreferredResultsColumnWidth =
+            getStoredResultsColumnWidth(nextPreferences) ?? RESULTS_COLUMN_DEFAULT_WIDTH
+          lastSavedPreferencesRef.current = serializeUserPreferences(nextPreferences)
+          setUser({ ...data.user, preferences: nextPreferences })
+          setUserPreferences(nextPreferences)
+          setPreferredResultsColumnWidth(nextPreferredResultsColumnWidth)
+          setResultsColumnWidth(clampResultsColumnWidth(nextPreferredResultsColumnWidth))
+        })
+        .catch((error: unknown) => {
+          if (preferenceSaveRequestIdRef.current !== requestId) return
+          setErrorMessage(getErrorMessage(error))
+        })
+    }, PREFERENCES_SAVE_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [user, userPreferences])
 
   useEffect(() => {
     if (!user) {
@@ -508,7 +632,7 @@ export default function NotesApp() {
       })
       const data = await readJson<SessionResponse>(response)
       window.localStorage.setItem(STORAGE_KEY, String(data.user.id))
-      setUser(data.user)
+      applyLoadedUser(data.user)
       await loadCategories(data.user.id)
       await loadTags(data.user.id)
       setIdentifier("")
@@ -527,7 +651,10 @@ export default function NotesApp() {
 
   const handleLogout = () => {
     window.localStorage.removeItem(STORAGE_KEY)
+    preferenceSaveRequestIdRef.current += 1
+    lastSavedPreferencesRef.current = serializeUserPreferences({})
     setUser(null)
+    setUserPreferences({})
     setCategories([])
     setTags([])
     setNotes([])
@@ -536,6 +663,9 @@ export default function NotesApp() {
     setSearchErrorMessage(null)
     setSelectedCategoryId(null)
     setSelectedTagId(null)
+    setResultsListVisible(true)
+    setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+    setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     resetNoteForm()
     clearMessages()
   }

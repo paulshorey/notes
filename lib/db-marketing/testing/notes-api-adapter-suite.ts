@@ -28,6 +28,11 @@ const sampleUser = {
   username: "admin",
   email: "admin@example.com",
   phone: "5550100",
+  preferences: {
+    notesApp: {
+      resultsColumnWidth: 420,
+    },
+  },
 }
 
 const sampleNote = {
@@ -82,6 +87,7 @@ export const createFakeNotesAppService = (
   getNotesAppErrorStatus: () => 400,
   getNotesAppSession: async () => ({ user: sampleUser }),
   findNotesAppSession: async () => ({ user: sampleUser }),
+  updateNotesAppUserPreferences: async () => ({ user: sampleUser }),
   listNotesForNotesApp: async () => ({ notes: [sampleNote] }),
   listCategoriesForNotesApp: async () => ({ categories: [sampleCategory] }),
   createCategoryForNotesApp: async () => ({ category: sampleCategory }),
@@ -198,6 +204,60 @@ export const registerNotesApiAdapterSuite = (
 
     assert.equal(response.status, 404)
     assert.equal(readError(response.body), "User not found.")
+  })
+
+  test(`${adapterName} updates user preferences via session patch`, async (t) => {
+    const requests: Array<{
+      userId: number
+      preferences: { notesApp?: { resultsColumnWidth?: number } }
+    }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        updateNotesAppUserPreferences: async (request) => {
+          requests.push(request)
+          return { user: { ...sampleUser, preferences: request.preferences } }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "PATCH",
+      path: "/api/session",
+      body: {
+        userId: 7,
+        preferences: {
+          notesApp: {
+            resultsColumnWidth: 512,
+          },
+        },
+      },
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, {
+      user: {
+        ...sampleUser,
+        preferences: {
+          notesApp: {
+            resultsColumnWidth: 512,
+          },
+        },
+      },
+    })
+    assert.deepEqual(requests, [
+      {
+        userId: 7,
+        preferences: {
+          notesApp: {
+            resultsColumnWidth: 512,
+          },
+        },
+      },
+    ])
   })
 
   test(`${adapterName} lists notes for the requested user`, async (t) => {

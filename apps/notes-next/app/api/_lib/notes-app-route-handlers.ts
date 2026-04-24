@@ -19,6 +19,7 @@ import {
   parseSearchRequest,
   parseSessionLookupRequest,
   parseSessionRequest,
+  parseUpdateUserPreferencesRequest,
   parseUpdateCategoryRequest,
   parseUpdateTagRequest,
   parseUpdateNoteRequest,
@@ -78,6 +79,21 @@ export const createSessionRouteHandlers = (service: NotesAppService = notesAppSe
           },
           { status: 404 },
         )
+      }
+
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+  PATCH: async (request: Request) => {
+    try {
+      const result = await service.updateNotesAppUserPreferences(
+        parseUpdateUserPreferencesRequest(await readJsonObject(request)),
+      )
+
+      if (!result) {
+        return NextResponse.json({ error: NOTES_APP_USER_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)

@@ -2,10 +2,12 @@ package com.eighthbrain.notesandroid.app.data
 
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.NoteCategoryRef
+import com.eighthbrain.notesandroid.app.model.NotesAppPreferences
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.NoteTagRef
 import com.eighthbrain.notesandroid.app.model.SemanticSearchResult
 import com.eighthbrain.notesandroid.app.model.TagRecord
+import com.eighthbrain.notesandroid.app.model.UserPreferences
 import com.eighthbrain.notesandroid.app.model.UserSummary
 import org.json.JSONArray
 import org.json.JSONException
@@ -32,12 +34,39 @@ private fun JSONObject.intOrNull(key: String): Int? =
         getInt(key)
     }
 
+fun notesAppPreferencesToJson(preferences: NotesAppPreferences): JSONObject =
+    JSONObject()
+        .put("resultsColumnWidth", preferences.resultsColumnWidth)
+
+fun notesAppPreferencesFromJson(json: JSONObject): NotesAppPreferences =
+    NotesAppPreferences(
+        resultsColumnWidth = json.intOrNull("resultsColumnWidth"),
+    )
+
+fun userPreferencesToJson(preferences: UserPreferences): JSONObject =
+    JSONObject()
+        .put(
+            "notesApp",
+            preferences.notesApp?.let(::notesAppPreferencesToJson),
+        )
+
+fun userPreferencesFromJson(json: JSONObject): UserPreferences =
+    UserPreferences(
+        notesApp =
+            if (json.isNull("notesApp")) {
+                null
+            } else {
+                notesAppPreferencesFromJson(json.getJSONObject("notesApp"))
+            },
+    )
+
 fun userToJson(user: UserSummary): JSONObject =
     JSONObject()
         .put("id", user.id)
         .put("username", user.username)
         .put("email", user.email)
         .put("phone", user.phone)
+        .put("preferences", userPreferencesToJson(user.preferences))
 
 fun userFromJson(json: JSONObject): UserSummary =
     UserSummary(
@@ -45,6 +74,7 @@ fun userFromJson(json: JSONObject): UserSummary =
         username = json.getString("username"),
         email = json.stringOrNull("email"),
         phone = json.stringOrNull("phone"),
+        preferences = userPreferencesFromJson(json.getJSONObject("preferences")),
     )
 
 fun categoryToJson(category: CategoryRecord): JSONObject =

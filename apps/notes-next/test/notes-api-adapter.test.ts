@@ -44,7 +44,9 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
         response =
           method === "GET"
             ? await sessionHandlers.GET(new NextRequest(url, { method }))
-            : await sessionHandlers.POST(new Request(url, requestInit))
+            : method === "POST"
+              ? await sessionHandlers.POST(new Request(url, requestInit))
+              : await sessionHandlers.PATCH(new Request(url, requestInit))
       } else if (url.pathname === "/api/notes") {
         if (method === "GET") {
           response = await notesHandlers.GET(new NextRequest(url, { method }))

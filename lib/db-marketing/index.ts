@@ -12,7 +12,7 @@ export {
 } from "./sql/note";
 export { listCategoriesByUser } from "./sql/category";
 export { listTagsByUser } from "./sql/tag";
-export { findUserByIdentifier, getUserById } from "./sql/user";
+export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./sql/user";
 
 export type {
   UserNoteCategoryV1Row,
@@ -54,13 +54,16 @@ export type {
   SearchResponse,
   SemanticSearchResult,
   SessionLookupRequest,
+  UpdateUserPreferencesRequest,
   SessionRequest,
   SessionResponse,
+  UserPreferences,
   UpdateCategoryRequest,
   UpdateCategoryResponse,
   UpdateTagRequest,
   UpdateTagResponse,
   UpdateNoteRequest,
   UserSummary,
+  NotesAppPreferences,
 } from "./contracts/notes-app";
 export type { NoteEmbeddingBackfillRow, NoteEmbeddingWriteInput } from "./sql/note";

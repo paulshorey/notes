@@ -167,7 +167,9 @@ CREATE TABLE public.user_v1 (
     email text,
     phone text,
     time_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    time_modified timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    time_modified timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    preferences jsonb DEFAULT '{}'::jsonb NOT NULL,
+    CONSTRAINT user_v1_preferences_object_check CHECK ((jsonb_typeof(preferences) = 'object'::text))
 );
 
 

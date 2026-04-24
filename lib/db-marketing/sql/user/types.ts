@@ -1,1 +1,1 @@
-export type { UserSummary } from "../../contracts/notes-app";
+export type { UserPreferences, UserSummary } from "../../contracts/notes-app";

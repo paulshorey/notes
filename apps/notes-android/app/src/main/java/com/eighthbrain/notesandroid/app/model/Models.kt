@@ -12,11 +12,20 @@ enum class WidgetMode {
     SEARCH,
 }
 
+data class NotesAppPreferences(
+    val resultsColumnWidth: Int?,
+)
+
+data class UserPreferences(
+    val notesApp: NotesAppPreferences?,
+)
+
 data class UserSummary(
     val id: Int,
     val username: String,
     val email: String?,
     val phone: String?,
+    val preferences: UserPreferences,
 )
 
 data class CategoryRecord(
