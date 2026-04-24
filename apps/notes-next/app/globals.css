@@ -11,7 +11,6 @@ body {
 
 body {
   font-family: var(--g-font-family-sans, Inter, system-ui, sans-serif);
-  min-width: calc(666px + 8px + 8px + 8px);
 }
 
 a {

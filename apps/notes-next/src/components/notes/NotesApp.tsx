@@ -54,7 +54,7 @@ import { EditTagModal } from "./modals/EditTagModal"
 import styles from "./NotesApp.module.css"
 
 const RESULTS_COLUMN_DEFAULT_WIDTH = 360
-const RESULTS_COLUMN_MIN_WIDTH = 240
+const RESULTS_COLUMN_MIN_WIDTH = 222
 const RESULTS_COLUMN_MAX_WIDTH = 720
 const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
@@ -101,7 +101,10 @@ const getStoredResultsColumnWidth = (preferences: UserPreferences) => {
   return clampStoredResultsColumnWidth(width)
 }
 
-const withResultsColumnWidthPreference = (preferences: UserPreferences, width: number): UserPreferences => ({
+const withResultsColumnWidthPreference = (
+  preferences: UserPreferences,
+  width: number,
+): UserPreferences => ({
   ...preferences,
   notesApp: {
     ...(isPreferencesObject(preferences.notesApp) ? preferences.notesApp : {}),
@@ -279,9 +282,7 @@ export default function NotesApp() {
 
   const resetNoteForm = useCallback(() => {
     const defaultCategoryId =
-      categories.length > 0
-        ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id
-        : null
+      categories.length > 0 ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id : null
     setNoteForm(() => ({
       ...createDefaultNoteForm(),
       selectedCategoryId: defaultCategoryId,
@@ -532,13 +533,12 @@ export default function NotesApp() {
     () =>
       selectedCategoryId === null
         ? null
-        : categories.find((category) => category.id === selectedCategoryId) ?? null,
+        : (categories.find((category) => category.id === selectedCategoryId) ?? null),
     [categories, selectedCategoryId],
   )
 
   const selectedTag = useMemo(
-    () =>
-      selectedTagId === null ? null : tags.find((c) => c.id === selectedTagId) ?? null,
+    () => (selectedTagId === null ? null : (tags.find((c) => c.id === selectedTagId) ?? null)),
     [tags, selectedTagId],
   )
 
@@ -708,9 +708,7 @@ export default function NotesApp() {
     const normalizedLabel = normalizeLabel(label)
     const existingTag = tags.find((tag) => normalizeLabel(tag.label) === normalizedLabel)
     if (existingTag) {
-      setPendingTagLabels((prev) =>
-        prev.filter((item) => normalizeLabel(item) !== normalizedLabel),
-      )
+      setPendingTagLabels((prev) => prev.filter((item) => normalizeLabel(item) !== normalizedLabel))
       setNoteForm((prev) => ({
         ...prev,
         selectedTagIds: prev.selectedTagIds.includes(existingTag.id)
@@ -741,9 +739,7 @@ export default function NotesApp() {
       const shouldKeepSelected = pendingTagLabelsRef.current.some(
         (item) => normalizeLabel(item) === normalizedLabel,
       )
-      setPendingTagLabels((prev) =>
-        prev.filter((item) => normalizeLabel(item) !== normalizedLabel),
-      )
+      setPendingTagLabels((prev) => prev.filter((item) => normalizeLabel(item) !== normalizedLabel))
       if (shouldKeepSelected) {
         setNoteForm((prev) => ({
           ...prev,
@@ -754,9 +750,7 @@ export default function NotesApp() {
       }
       setStatusMessage(`Tag “${data.tag.label}” added.`)
     } catch (error) {
-      setPendingTagLabels((prev) =>
-        prev.filter((item) => normalizeLabel(item) !== normalizedLabel),
-      )
+      setPendingTagLabels((prev) => prev.filter((item) => normalizeLabel(item) !== normalizedLabel))
       setErrorMessage(getErrorMessage(error))
     } finally {
       creatingTagLabelsRef.current.delete(normalizedLabel)
@@ -1095,24 +1089,23 @@ export default function NotesApp() {
       <div className={styles.content} ref={contentRef}>
         {resultsListVisible && (
           <section className={styles.resultsColumn} style={resultsColumnStyle}>
-            <div className={styles.header}>
-              <FilterBanners
-                categories={categories}
-                tags={tags}
-                notesCount={notes.length}
-                selectedCategory={selectedCategory}
-                selectedTag={selectedTag}
-                selectedCategoryId={selectedCategoryId}
-                selectedTagId={selectedTagId}
-                fallbackCategoryId={fallbackCategoryId}
-                onSelectCategory={setSelectedCategoryId}
-                onSelectTag={setSelectedTagId}
-                onEditCategory={openEditCategory}
-                onDeleteCategory={openDeleteCategory}
-                onEditTag={openEditTag}
-                onDeleteTag={openDeleteTag}
-              />
-            </div>
+            <div className={styles.header}></div>
+            <FilterBanners
+              categories={categories}
+              tags={tags}
+              notesCount={notes.length}
+              selectedCategory={selectedCategory}
+              selectedTag={selectedTag}
+              selectedCategoryId={selectedCategoryId}
+              selectedTagId={selectedTagId}
+              fallbackCategoryId={fallbackCategoryId}
+              onSelectCategory={setSelectedCategoryId}
+              onSelectTag={setSelectedTagId}
+              onEditCategory={openEditCategory}
+              onDeleteCategory={openDeleteCategory}
+              onEditTag={openEditTag}
+              onDeleteTag={openDeleteTag}
+            />
             <div className={styles.searchForm}>
               <div className={styles.searchRow}>
                 <TextInput
@@ -1151,7 +1144,9 @@ export default function NotesApp() {
           }`}
           aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
           aria-pressed={!resultsListVisible}
-          title={resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"}
+          title={
+            resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"
+          }
           onPointerDown={handleResizePointerDown}
           onPointerMove={handleResizePointerMove}
           onPointerUp={handleResizePointerUp}
