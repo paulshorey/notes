@@ -101,7 +101,7 @@ export default function NotesApp() {
     const applyDefaultColumns = () => {
       const width = window.innerWidth
       setSidebarVisible(width >= 1280)
-      setNotesListVisible(width >= 720)
+      // setNotesListVisible(width >= 720)
     }
 
     const tabletQuery = window.matchMedia("(min-width: 720px)")

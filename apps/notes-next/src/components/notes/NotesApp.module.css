@@ -1,12 +1,19 @@
 /* ----------------------------- Layout --------------------------------- */
 
+.page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+}
+
 .content {
   position: relative;
   display: flex;
   gap: 0;
   height: 100%;
-  /* flex: 1 1 auto; */
-  /* min-height: 0; */
   align-items: stretch;
   overflow-x: auto;
   overflow-y: hidden;
@@ -16,7 +23,6 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex: 0 0 44px;
   height: 44px;
   gap: 0;
   overflow: hidden;
@@ -25,33 +31,29 @@
 .sidebarColumn {
   position: relative;
   display: flex;
-  /* flex: 0 0 280px; */
-  /* width: 100%; */
   min-width: 222px;
   flex-grow: 0.2;
-  /* max-width: 336px; */
   min-height: 0;
   flex-direction: column;
   gap: 0;
   overflow-y: auto;
-  padding: 0;
+  padding: 0 4px 0 0;
   transition:
     max-width 0.18s ease,
     min-width 0.18s ease,
     flex-basis 0.18s ease,
     padding 0.18s ease;
 }
+
 .resultsColumn {
   position: relative;
   display: flex;
-  /* flex: 0 0 360px; */
-  /* width: 100%; */
   min-width: 333px;
-  /* max-width: 440px; */
   min-height: 0;
   flex-direction: column;
   gap: 0;
   overflow: hidden;
+  padding: 0 12px 0 0;
   transition:
     max-width 0.18s ease,
     min-width 0.18s ease,
@@ -61,12 +63,13 @@
 .formColumn {
   position: relative;
   display: flex;
-  /* flex: 1 0 520px; */
   width: 100%;
-  /* min-width: 520px; */
+  min-width: 333px;
+  max-width: calc(100vw - 16px);
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+  margin-right: 8px;
 }
 
 /* ----------------------------- Etc. --------------------------------- */
@@ -85,16 +88,6 @@
   gap: 12px;
   width: min(320px, 100%);
 }
-
-.page {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100dvh;
-  padding: 0;
-  overflow: hidden;
-}
-
 
 .headerActions {
   display: flex;
@@ -427,35 +420,8 @@
   gap: 8px;
   margin-top: 6px;
 }
-
-@media (min-width: 1280px) {
-  .sidebarColumn {
-    /* flex-basis: 320px;
-    width: 100%; */
-    /* min-width: 320px; */
-  }
-
-  .resultsColumn {
-    /* flex-basis: 400px;
-    width: 100%;
-    min-width: 400px; */
-  }
-}
-
-@media (max-width: 1080px) {
-  .page {
-    padding-inline: 10px;
-  }
-
-  .content {
-  }
-}
-
+/* 
 @media (max-width: 640px) {
-  .page {
-    padding: 0 8px 8px;
-  }
-
   .dateFields {
     grid-template-columns: 1fr;
   }
@@ -464,4 +430,4 @@
     align-items: flex-start;
     flex-direction: column;
   }
-}
+} */
