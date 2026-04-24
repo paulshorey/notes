@@ -27,8 +27,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { Button, Icon, Text, TextInput } from "@gravity-ui/uikit"
-import { ChevronsRight } from "@gravity-ui/icons"
+import { Text, TextInput } from "@gravity-ui/uikit"
 import { STORAGE_KEY } from "@/constants/notes"
 import { getErrorMessage, readJson } from "@/lib/api"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
@@ -45,7 +44,6 @@ import { LoginForm } from "./LoginForm"
 import { NoteForm } from "./NoteForm"
 import { NoteResultsList, type DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader } from "./NotesHeader"
-import { NotesSidebar } from "./NotesSidebar"
 import { DeleteCategoryModal } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
@@ -91,29 +89,10 @@ export default function NotesApp() {
   const [editTagPending, setEditTagPending] = useState(false)
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
-  const [sidebarVisible, setSidebarVisible] = useState(true)
   const pendingTagLabelsRef = useRef<string[]>([])
   const creatingTagLabelsRef = useRef(new Set<string>())
   const trimmedSearchQuery = searchQuery.trim()
   const searchMode = trimmedSearchQuery.length > 0
-
-  useEffect(() => {
-    const applyDefaultColumns = () => {
-      const width = window.innerWidth
-      setSidebarVisible(width >= 1280)
-    }
-
-    const tabletQuery = window.matchMedia("(min-width: 720px)")
-    const desktopQuery = window.matchMedia("(min-width: 1280px)")
-
-    applyDefaultColumns()
-    tabletQuery.addEventListener("change", applyDefaultColumns)
-    desktopQuery.addEventListener("change", applyDefaultColumns)
-    return () => {
-      tabletQuery.removeEventListener("change", applyDefaultColumns)
-      desktopQuery.removeEventListener("change", applyDefaultColumns)
-    }
-  }, [])
 
   useEffect(() => {
     pendingTagLabelsRef.current = pendingTagLabels
@@ -346,14 +325,6 @@ export default function NotesApp() {
       selectedTagId === null ? null : tags.find((c) => c.id === selectedTagId) ?? null,
     [tags, selectedTagId],
   )
-
-  const handleSelectSidebarCategory = (id: number | null) => {
-    setSelectedCategoryId(id)
-  }
-
-  const handleSelectSidebarTag = (id: number | null) => {
-    setSelectedTagId(id)
-  }
 
   const handleTagValuesChange = (nextValues: string[]) => {
     const cleanedValues: string[] = []
@@ -900,43 +871,25 @@ export default function NotesApp() {
       />
 
       <div className={styles.content}>
-        <NotesSidebar
-          categories={categories}
-          tags={tags}
-          notesCount={notes.length}
-          selectedCategoryId={selectedCategoryId}
-          selectedTagId={selectedTagId}
-          fallbackCategoryId={fallbackCategoryId}
-          hidden={!sidebarVisible}
-          onHide={() => setSidebarVisible(false)}
-          onSelectCategory={handleSelectSidebarCategory}
-          onSelectTag={handleSelectSidebarTag}
-          onEditCategory={openEditCategory}
-          onDeleteCategory={openDeleteCategory}
-          onEditTag={openEditTag}
-          onDeleteTag={openDeleteTag}
-        />
-
         <section className={styles.resultsColumn}>
           <div className={styles.header}>
-            <div className={styles.headerActions}>
-              {!sidebarVisible && (
-                <Button
-                  view="flat"
-                  size="s"
-                  onClick={() => setSidebarVisible(true)}
-                  aria-label="Show sidebar"
-                >
-                  <Icon data={ChevronsRight} size={16} />
-                </Button>
-              )}
-            </div>
+            <div className={styles.headerActions} />
           </div>
           <FilterBanners
+            categories={categories}
+            tags={tags}
+            notesCount={notes.length}
             selectedCategory={selectedCategory}
             selectedTag={selectedTag}
-            onClearCategory={() => setSelectedCategoryId(null)}
-            onClearTag={() => setSelectedTagId(null)}
+            selectedCategoryId={selectedCategoryId}
+            selectedTagId={selectedTagId}
+            fallbackCategoryId={fallbackCategoryId}
+            onSelectCategory={setSelectedCategoryId}
+            onSelectTag={setSelectedTagId}
+            onEditCategory={openEditCategory}
+            onDeleteCategory={openDeleteCategory}
+            onEditTag={openEditTag}
+            onDeleteTag={openDeleteTag}
           />
           <div className={styles.searchForm}>
             <div className={styles.searchRow}>

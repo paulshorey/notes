@@ -34,7 +34,6 @@ src/                        — non-route code (import with "@/..." alias)
       LoginForm.tsx
       NotesHeader.tsx
       FeedbackNotifications.tsx
-      NotesSidebar.tsx
       FilterBanners.tsx
       NoteResultsList.tsx
       NoteForm.tsx
