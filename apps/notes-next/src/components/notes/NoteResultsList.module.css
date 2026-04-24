@@ -12,7 +12,6 @@
 }
 
 .noteItem {
-  border-bottom: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.07));
   padding: 8px 10px;
   cursor: pointer;
   border-radius: 0;
@@ -25,10 +24,6 @@
 
 .noteItemActive {
   background: var(--g-color-base-selection, rgba(96, 165, 250, 0.12));
-}
-
-.noteItem:last-child {
-  border-bottom: none;
 }
 
 .noteLine {

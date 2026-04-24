@@ -69,7 +69,7 @@ export function NotesSidebar({
             tabIndex={0}
           >
             <div className={styles.tagLabel}>
-              <Text variant="body-2" as="span">
+              <Text variant="body-2" as="b">
                 All categories
               </Text>
             </div>
@@ -160,7 +160,7 @@ export function NotesSidebar({
             tabIndex={0}
           >
             <div className={styles.tagLabel}>
-              <Text variant="body-2" as="span">
+              <Text variant="body-2" as="b">
                 All tags
               </Text>
             </div>

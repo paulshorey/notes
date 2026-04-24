@@ -846,7 +846,6 @@ export default function NotesApp() {
 
   const handleDeleteNote = async (noteId: number) => {
     if (!user) return
-    if (!window.confirm("Delete this note?")) return
     clearMessages()
     setDeletingNoteId(noteId)
     try {

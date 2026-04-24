@@ -50,6 +50,10 @@
   outline: none;
 }
 
+.tagRow b {
+  font-weight: bold;
+}
+
 .tagRow:focus-visible {
   border-radius: 4px;
   box-shadow: 0 0 0 2px var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
