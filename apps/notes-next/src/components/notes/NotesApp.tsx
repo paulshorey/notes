@@ -53,8 +53,8 @@ import { EditCategoryModal } from "./modals/EditCategoryModal"
 import { EditTagModal } from "./modals/EditTagModal"
 import styles from "./NotesApp.module.css"
 
-const RESULTS_COLUMN_DEFAULT_WIDTH = 360
 const RESULTS_COLUMN_MIN_WIDTH = 222
+const RESULTS_COLUMN_DEFAULT_WIDTH = RESULTS_COLUMN_MIN_WIDTH
 const RESULTS_COLUMN_MAX_WIDTH = 720
 const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
@@ -207,7 +207,7 @@ export default function NotesApp() {
     const resizeState = resizeStateRef.current
     if (!resizeState || resizeState.pointerId !== event.pointerId) return
 
-    const delta = event.clientX - resizeState.startX
+    const delta = resizeState.startX - event.clientX
     if (!resizeState.dragged && Math.abs(delta) < RESIZE_DRAG_THRESHOLD) return
 
     resizeState.dragged = true
@@ -1087,9 +1087,65 @@ export default function NotesApp() {
       />
 
       <div className={styles.content} ref={contentRef}>
+        <NoteForm
+          form={noteForm}
+          setForm={setNoteForm}
+          editingNoteId={editingNoteId}
+          notePending={notePending}
+          deletingNoteId={deletingNoteId}
+          userPresent={Boolean(user)}
+          categories={categories}
+          tags={tags}
+          pendingTagLabels={pendingTagLabels}
+          categoryInputValue={categoryInputValue}
+          onCategoryInputValueChange={setCategoryInputValue}
+          createCategoryPending={createCategoryPending}
+          createTagPending={createTagPending}
+          onSelectCategoryId={handleSelectCategory}
+          onCreateCategory={handleCreateCategory}
+          onTagValuesChange={handleTagValuesChange}
+          onSubmit={handleSaveNote}
+          onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
+          onCancelEdit={resetNoteForm}
+          header={
+            <div className={`${styles.header} ${styles.headerLeft}`}>
+              <NotesHeader
+                user={user}
+                notesLoading={notesLoading}
+                onRefresh={() => void handleRefreshNotes()}
+                onLogout={handleLogout}
+                embeddingMaintenancePending={embeddingMaintenancePending}
+                onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
+              />
+            </div>
+          }
+        />
+
+        <button
+          type="button"
+          className={`${styles.resizeHandle} ${
+            resultsListVisible ? "" : styles.resizeHandleCollapsed
+          }`}
+          aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
+          aria-pressed={!resultsListVisible}
+          title={
+            resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"
+          }
+          onPointerDown={handleResizePointerDown}
+          onPointerMove={handleResizePointerMove}
+          onPointerUp={handleResizePointerUp}
+          onPointerCancel={handleResizePointerCancel}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              setResultsListVisible((visible) => !visible)
+            }
+          }}
+        />
+
         {resultsListVisible && (
           <section className={styles.resultsColumn} style={resultsColumnStyle}>
-            <div className={styles.header}></div>
+            <div className={`${styles.header} ${styles.headerRight}`}></div>
             <FilterBanners
               categories={categories}
               tags={tags}
@@ -1136,63 +1192,6 @@ export default function NotesApp() {
             </div>
           </section>
         )}
-
-        <button
-          type="button"
-          className={`${styles.resizeHandle} ${
-            resultsListVisible ? "" : styles.resizeHandleCollapsed
-          }`}
-          aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
-          aria-pressed={!resultsListVisible}
-          title={
-            resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"
-          }
-          onPointerDown={handleResizePointerDown}
-          onPointerMove={handleResizePointerMove}
-          onPointerUp={handleResizePointerUp}
-          onPointerCancel={handleResizePointerCancel}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault()
-              setResultsListVisible((visible) => !visible)
-            }
-          }}
-        />
-
-        <NoteForm
-          form={noteForm}
-          setForm={setNoteForm}
-          editingNoteId={editingNoteId}
-          notePending={notePending}
-          deletingNoteId={deletingNoteId}
-          userPresent={Boolean(user)}
-          categories={categories}
-          tags={tags}
-          pendingTagLabels={pendingTagLabels}
-          categoryInputValue={categoryInputValue}
-          onCategoryInputValueChange={setCategoryInputValue}
-          createCategoryPending={createCategoryPending}
-          createTagPending={createTagPending}
-          onSelectCategoryId={handleSelectCategory}
-          onCreateCategory={handleCreateCategory}
-          onTagValuesChange={handleTagValuesChange}
-          onSubmit={handleSaveNote}
-          onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
-          onCancelEdit={resetNoteForm}
-          header={
-            <div className={styles.header}>
-              <div className={styles.headerActions} />
-              <NotesHeader
-                user={user}
-                notesLoading={notesLoading}
-                onRefresh={() => void handleRefreshNotes()}
-                onLogout={handleLogout}
-                embeddingMaintenancePending={embeddingMaintenancePending}
-                onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
-              />
-            </div>
-          }
-        />
       </div>
 
       <EditCategoryModal

@@ -20,21 +20,23 @@
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   height: 44px;
   gap: 0;
   overflow: hidden;
 }
 
-.headerActions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
+.headerLeft {
+  justify-content: flex-start;
+}
+
+.headerRight {
+  justify-content: flex-end;
 }
 
 .resultsColumn {
   position: relative;
+  margin: 0 0 0 -10px;
   display: flex;
   min-width: 0;
   min-height: 0;
@@ -42,7 +44,7 @@
   flex-direction: column;
   gap: 0;
   overflow: hidden;
-  padding: 0 8px 0 0;
+  padding: 0;
   transition:
     max-width 0.18s ease,
     min-width 0.18s ease,
@@ -51,9 +53,8 @@
 
 .resizeHandle {
   position: relative;
-  width: 8px;
-  min-width: 8px;
-  flex: 0 0 8px;
+  width: 12px;
+  min-width: 12px;
   align-self: stretch;
   padding: 0;
   border: 0;
@@ -67,7 +68,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 3px;
+  left: 2px;
   width: 2px;
   background: var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
   opacity: 0.72;
@@ -82,7 +83,6 @@
 .resizeHandle:focus-visible::before,
 .resizeHandleCollapsed::before {
   left: 2px;
-  width: 4px;
   background: var(--g-color-line-brand, #60a5fa);
   opacity: 0.9;
 }
@@ -95,13 +95,13 @@
 .searchForm {
   display: flex;
   flex-direction: column;
+  margin: 0px 2px 12px 4px;
 }
 
 .searchRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 4px 0 6px;
 }
 
 .searchInput {
