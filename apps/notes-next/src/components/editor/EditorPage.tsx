@@ -45,9 +45,10 @@ function EditorPage({ onSubmit }: EditorPageProps) {
     [],
   );
   const options:Options = {
-    md: { html: false },
+    // md: { html: false },
     initial: {
       mode: 'markup',
+      // mode: 'wysiwyg', // markup
       splitModeEnabled: true,
       toolbarVisible: false
     },

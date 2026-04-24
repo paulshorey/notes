@@ -17,3 +17,10 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+.g-md-markup-preview__outer {
+  padding: 0.25rem 0.25rem 0 0 !important;
+}
+.g-md-markup-preview__preview-sign {
+  display: none !important;
+}
