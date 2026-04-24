@@ -15,6 +15,7 @@
     "verify": "pnpm run check-types && pnpm run test && pnpm run build"
   },
   "dependencies": {
+    "@diplodoc/transform": "^4.73.3",
     "@gravity-ui/icons": "^2.18.0",
     "@gravity-ui/markdown-editor": "^15.38.1",
     "@gravity-ui/uikit": "^7.35.2",
