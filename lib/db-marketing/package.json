@@ -18,18 +18,16 @@
     "./sql/*": "./sql/*.ts"
   },
   "scripts": {
-    "notes:contract:check": "node scripts/generate-app-contract.mjs --check",
-    "notes:contract:generate": "node scripts/generate-app-contract.mjs --write",
-    "app:contracts:check": "pnpm notes:contract:check",
-    "app:contracts:generate": "pnpm notes:contract:generate",
-    "check-types": "tsc --noEmit && pnpm notes:contract:check",
+    "app:contracts:check": "pnpm app:contract:check",
+    "app:contracts:generate": "pnpm app:contract:generate",
+    "check-types": "tsc --noEmit && pnpm app:contract:check",
     "db:schema:snapshot": "bash scripts/snapshot-schema.sh",
     "db:types:generate": "node scripts/generate-types.mjs",
     "db:migrate": "node scripts/migrate.mjs",
     "db:verify": "node scripts/verify-contract.mjs",
     "db:migrate:baseline": "node scripts/baseline.mjs",
     "db:migration:new": "node scripts/new-migration.mjs",
-    "db:sync": "pnpm db:migrate && pnpm db:schema:snapshot && pnpm db:types:generate && pnpm notes:contract:generate",
+    "db:sync": "pnpm db:migrate && pnpm db:schema:snapshot && pnpm db:types:generate && pnpm app:contract:generate",
     "db:embeddings:regenerate": "node scripts/regenerate-embeddings.mjs"
   },
   "dependencies": {

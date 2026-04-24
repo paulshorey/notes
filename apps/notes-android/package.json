@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "contracts:check": "pnpm --filter @lib/db-marketing notes:contract:check && node tools/validate-marketing-contract.mjs",
+    "contracts:check": "pnpm --filter @lib/db-marketing app:contract:check && node tools/validate-marketing-contract.mjs",
     "build:contracts": "pnpm run contracts:check",
     "build:android": "bash ./tools/build-android.sh",
     "build:dist:dev": "NOTES_ANDROID_API_BASE_URL=https://marketing-apps-notes-next-dev.up.railway.app bash ./tools/build-dist-apk.sh",

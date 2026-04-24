@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 3000",
-    "contracts:check": "pnpm --filter @lib/db-marketing notes:contract:check",
+    "contracts:check": "pnpm --filter @lib/db-marketing app:contract:check",
     "build:contracts": "pnpm run contracts:check",
     "build": "pnpm run contracts:check && next build",
     "start": "next start",
