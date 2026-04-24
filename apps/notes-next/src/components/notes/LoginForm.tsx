@@ -3,7 +3,7 @@
 import { Notification } from "@mantine/core"
 import { Button, Text, TextInput } from "@gravity-ui/uikit"
 import type { FormEvent } from "react"
-import styles from "./NotesApp.module.css"
+import styles from "./LoginForm.module.css"
 
 interface LoginFormProps {
   identifier: string

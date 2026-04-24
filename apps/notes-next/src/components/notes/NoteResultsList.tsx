@@ -2,7 +2,7 @@
 
 import type { NoteRecord } from "@lib/db-marketing"
 import { Text } from "@gravity-ui/uikit"
-import styles from "./NotesApp.module.css"
+import styles from "./NoteResultsList.module.css"
 
 export interface DisplayNoteItem {
   note: NoteRecord

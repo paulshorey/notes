@@ -5,7 +5,7 @@ import { Button, Icon, Popup, Text } from "@gravity-ui/uikit"
 import { ArrowsRotateLeft, Person } from "@gravity-ui/icons"
 import type { UserSummary } from "@lib/db-marketing"
 import type { EmbeddingMaintenanceMode } from "@/types/notes"
-import styles from "./NotesApp.module.css"
+import styles from "./NotesHeader.module.css"
 
 interface NotesHeaderProps {
   user: UserSummary

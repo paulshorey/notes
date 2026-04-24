@@ -1,9 +1,9 @@
 "use client"
 
 import { Button, Icon, Text } from "@gravity-ui/uikit"
-import { Pencil, TrashBin } from "@gravity-ui/icons"
+import { ChevronsLeft, Pencil, TrashBin } from "@gravity-ui/icons"
 import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
-import styles from "./NotesApp.module.css"
+import styles from "./NotesSidebar.module.css"
 
 interface NotesSidebarProps {
   categories: CategoryRecord[]
@@ -44,8 +44,13 @@ export function NotesSidebar({
       aria-hidden={hidden}
     >
       <div className={styles.header}>
-        <Button view="flat" size="s" onClick={onHide}>
-          Hide
+        <Button
+          view="flat"
+          size="s"
+          onClick={onHide}
+          aria-label="Hide sidebar"
+        >
+          <Icon data={ChevronsLeft} size={16} />
         </Button>
       </div>
       <div className={styles.tagList}>
@@ -120,6 +125,8 @@ export function NotesSidebar({
             </Text>
           )}
         </div>
+        
+        <p>&nbsp;</p>
 
         <div className={styles.tagList}>
           <div
@@ -133,7 +140,7 @@ export function NotesSidebar({
               onClick={() => onSelectTag(null)}
             >
               <Text variant="body-2" as="span">
-                All notes
+                All tags
               </Text>
             </button>
             <div className={styles.tagMeta}>

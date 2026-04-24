@@ -27,7 +27,8 @@ import {
   useRef,
   useState,
 } from "react"
-import { Button, Text, TextInput } from "@gravity-ui/uikit"
+import { Button, Icon, Text, TextInput } from "@gravity-ui/uikit"
+import { ChevronsRight } from "@gravity-ui/icons"
 import { STORAGE_KEY } from "@/constants/notes"
 import { getErrorMessage, readJson } from "@/lib/api"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
@@ -91,7 +92,6 @@ export default function NotesApp() {
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
   const [sidebarVisible, setSidebarVisible] = useState(true)
-  const [notesListVisible, setNotesListVisible] = useState(true)
   const pendingTagLabelsRef = useRef<string[]>([])
   const creatingTagLabelsRef = useRef(new Set<string>())
   const trimmedSearchQuery = searchQuery.trim()
@@ -101,7 +101,6 @@ export default function NotesApp() {
     const applyDefaultColumns = () => {
       const width = window.innerWidth
       setSidebarVisible(width >= 1280)
-      // setNotesListVisible(width >= 720)
     }
 
     const tabletQuery = window.matchMedia("(min-width: 720px)")
@@ -919,22 +918,19 @@ export default function NotesApp() {
           onDeleteTag={openDeleteTag}
         />
 
-        <section
-          className={`${styles.resultsColumn} ${
-            !notesListVisible ? styles.columnCollapsed : ""
-          }`}
-          aria-hidden={!notesListVisible}
-        >
+        <section className={styles.resultsColumn}>
           <div className={styles.header}>
             <div className={styles.headerActions}>
               {!sidebarVisible && (
-                <Button view="flat" size="s" onClick={() => setSidebarVisible(true)}>
-                  Show
+                <Button
+                  view="flat"
+                  size="s"
+                  onClick={() => setSidebarVisible(true)}
+                  aria-label="Show sidebar"
+                >
+                  <Icon data={ChevronsRight} size={16} />
                 </Button>
               )}
-              <Button view="flat" size="s" onClick={() => setNotesListVisible(false)}>
-                Hide
-              </Button>
             </div>
           </div>
           <FilterBanners
@@ -995,13 +991,7 @@ export default function NotesApp() {
           onCancelEdit={resetNoteForm}
           header={
             <div className={styles.header}>
-              <div className={styles.headerActions}>
-                {!notesListVisible && (
-                  <Button view="flat" size="s" onClick={() => setNotesListVisible(true)}>
-                    Show
-                  </Button>
-                )}
-              </div>
+              <div className={styles.headerActions} />
               <NotesHeader
                 user={user}
                 notesLoading={notesLoading}

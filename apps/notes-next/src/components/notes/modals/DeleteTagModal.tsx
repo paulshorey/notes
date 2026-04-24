@@ -2,7 +2,7 @@
 
 import { Button, Modal, Text } from "@gravity-ui/uikit"
 import type { TagRecord } from "@lib/db-marketing"
-import styles from "../NotesApp.module.css"
+import styles from "./DeleteTagModal.module.css"
 
 interface DeleteTagModalProps {
   tag: TagRecord | null

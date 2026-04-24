@@ -3,7 +3,7 @@
 import { Button, Modal, Text, TextInput } from "@gravity-ui/uikit"
 import type { CategoryRecord } from "@lib/db-marketing"
 import { toLowercaseInput } from "@/lib/strings"
-import styles from "../NotesApp.module.css"
+import styles from "./EditCategoryModal.module.css"
 
 interface EditCategoryModalProps {
   category: CategoryRecord | null

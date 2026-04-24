@@ -2,7 +2,7 @@
 
 import { Button, Text } from "@gravity-ui/uikit"
 import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
-import styles from "./NotesApp.module.css"
+import styles from "./FilterBanners.module.css"
 
 interface FilterBannersProps {
   selectedCategory: CategoryRecord | null

@@ -2,7 +2,7 @@
 
 import { Button, Modal, Text } from "@gravity-ui/uikit"
 import type { CategoryRecord } from "@lib/db-marketing"
-import styles from "../NotesApp.module.css"
+import styles from "./DeleteCategoryModal.module.css"
 
 interface DeleteCategoryModalProps {
   category: CategoryRecord | null

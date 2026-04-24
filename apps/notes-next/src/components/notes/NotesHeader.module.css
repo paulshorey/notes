@@ -1,0 +1,22 @@
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.userMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  min-width: 180px;
+}
+
+.userMenuSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.07));
+}

@@ -1,0 +1,51 @@
+.noteList {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.noteItem {
+  border-bottom: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.07));
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 0;
+  user-select: none;
+}
+
+.noteItem:hover {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.03));
+}
+
+.noteItemActive {
+  background: var(--g-color-base-selection, rgba(96, 165, 250, 0.12));
+}
+
+.noteItem:last-child {
+  border-bottom: none;
+}
+
+.noteLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.noteTitleCollapsed {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.similarityBadge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--g-color-text-info, #60a5fa);
+  flex-shrink: 0;
+}

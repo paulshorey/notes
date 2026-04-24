@@ -1,0 +1,15 @@
+.filterBanners {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filterBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--g-color-base-info-light, rgba(96, 165, 250, 0.12));
+}

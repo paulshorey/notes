@@ -3,7 +3,7 @@
 import { Button, Modal, Text, TextInput } from "@gravity-ui/uikit"
 import type { TagRecord } from "@lib/db-marketing"
 import { toLowercaseInput } from "@/lib/strings"
-import styles from "../NotesApp.module.css"
+import styles from "./EditTagModal.module.css"
 
 interface EditTagModalProps {
   tag: TagRecord | null

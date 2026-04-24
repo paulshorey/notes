@@ -1,7 +1,7 @@
 "use client"
 
 import { Notification } from "@mantine/core"
-import styles from "./NotesApp.module.css"
+import styles from "./FeedbackNotifications.module.css"
 
 interface FeedbackNotificationsProps {
   statusMessage: string | null

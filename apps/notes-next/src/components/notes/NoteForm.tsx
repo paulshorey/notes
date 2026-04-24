@@ -21,7 +21,7 @@ import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
-import styles from "./NotesApp.module.css"
+import styles from "./NoteForm.module.css"
 
 interface NoteFormProps {
   form: NoteFormState
