@@ -1,31 +1,28 @@
-import { createElement } from "react"
-import type { ComponentType } from "react"
-import { MarkdownEditorView, useMarkdownEditor } from "@gravity-ui/markdown-editor"
-
+import React from 'react';
+import {useMarkdownEditor, MarkdownEditorView} from '@gravity-ui/markdown-editor';
 import styles from "./EditorPage.module.css"
 
-const ClientMarkdownEditorView = MarkdownEditorView as unknown as ComponentType<
-  Record<string, unknown>
->
+type EditorPageProps = {
+  onSubmit?: (markdown: string) => void;
+};
 
-export function EditorPage() {
-  const editor = useMarkdownEditor({
-    md: {
-      html: false,
-    },
-    initial: {
-      markup: "",
-    },
-  })
+function EditorPage({ onSubmit }: EditorPageProps) {
+  const editor = useMarkdownEditor({md: {html: false}});
 
-  return createElement(
-    "main",
-    { className: styles.page },
-    createElement(ClientMarkdownEditorView, {
-      autofocus: true,
-      className: styles.editor,
-      editor,
-      stickyToolbar: true,
-    }),
-  )
+  React.useEffect(() => {
+    function submitHandler() {
+      // Serialize current content to markdown markup
+      const value = editor.getValue();
+      onSubmit?.(value);
+    }
+
+    editor.on('submit', submitHandler);
+    return () => {
+      editor.off('submit', submitHandler);
+    };
+  }, [onSubmit]);
+
+  return <MarkdownEditorView stickyToolbar autofocus editor={editor} className={styles.editor} />;
 }
+
+export { EditorPage };
