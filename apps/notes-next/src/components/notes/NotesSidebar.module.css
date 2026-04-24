@@ -46,6 +46,13 @@
   min-height: 34px;
   padding: 2px 0 2px 8px;
   border-left: 2px solid transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.tagRow:focus-visible {
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
 }
 
 .tagRowAll {
@@ -64,13 +71,9 @@
 .tagLabel {
   flex: 1 1 auto;
   min-width: 0;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  padding: 0;
-  border: none;
-  background: transparent;
   color: inherit;
-  cursor: pointer;
   text-align: left;
   font: inherit;
   overflow: hidden;

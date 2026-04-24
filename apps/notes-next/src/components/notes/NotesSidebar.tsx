@@ -53,21 +53,26 @@ export function NotesSidebar({
           <Icon data={ChevronsLeft} size={16} />
         </Button>
       </div>
-      <div className={styles.tagList}>
+      <div className={styles.tagList} role="list">
           <div
             className={`${styles.tagRow} ${styles.tagRowAll} ${
               selectedCategoryId === null ? styles.tagRowActive : ""
             }`}
+            onClick={() => onSelectCategory(null)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                onSelectCategory(null)
+              }
+            }}
+            role="listitem"
+            tabIndex={0}
           >
-            <button
-              type="button"
-              className={styles.tagLabel}
-              onClick={() => onSelectCategory(null)}
-            >
+            <div className={styles.tagLabel}>
               <Text variant="body-2" as="span">
                 All categories
               </Text>
-            </button>
+            </div>
             <div className={styles.tagMeta}>
               <span className={styles.tagCount}>{notesCount}</span>
               <span className={styles.tagActionSlot} aria-hidden="true" />
@@ -80,24 +85,32 @@ export function NotesSidebar({
               <div
                 key={category.id}
                 className={`${styles.tagRow} ${isActive ? styles.tagRowActive : ""}`}
+                onClick={() => onSelectCategory(isActive ? null : category.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onSelectCategory(isActive ? null : category.id)
+                  }
+                }}
+                role="listitem"
+                tabIndex={0}
+                title={category.label}
               >
-                <button
-                  type="button"
-                  className={styles.tagLabel}
-                  onClick={() => onSelectCategory(isActive ? null : category.id)}
-                  title={category.label}
-                >
+                <div className={styles.tagLabel}>
                   <Text variant="body-2" as="span">
                     {category.label}
                   </Text>
-                </button>
+                </div>
                 <div className={styles.tagMeta}>
                   <span className={styles.tagCount}>{category.noteCount}</span>
                   <div className={styles.tagActionSlot}>
                     <Button
                       view="flat"
                       size="xs"
-                      onClick={() => onEditCategory(category)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEditCategory(category)
+                      }}
                       aria-label={`Edit ${category.label}`}
                     >
                       <Icon data={Pencil} size={14} />
@@ -108,7 +121,10 @@ export function NotesSidebar({
                       <Button
                         view="flat"
                         size="xs"
-                        onClick={() => onDeleteCategory(category)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDeleteCategory(category)
+                        }}
                         aria-label={`Delete ${category.label}`}
                       >
                         <Icon data={TrashBin} size={14} />
@@ -125,24 +141,29 @@ export function NotesSidebar({
             </Text>
           )}
         </div>
-        
+
         <p>&nbsp;</p>
 
-        <div className={styles.tagList}>
+        <div className={styles.tagList} role="list">
           <div
             className={`${styles.tagRow} ${styles.tagRowAll} ${
               selectedTagId === null ? styles.tagRowActive : ""
             }`}
+            onClick={() => onSelectTag(null)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                onSelectTag(null)
+              }
+            }}
+            role="listitem"
+            tabIndex={0}
           >
-            <button
-              type="button"
-              className={styles.tagLabel}
-              onClick={() => onSelectTag(null)}
-            >
+            <div className={styles.tagLabel}>
               <Text variant="body-2" as="span">
                 All tags
               </Text>
-            </button>
+            </div>
             <div className={styles.tagMeta}>
               <span className={styles.tagCount}>{notesCount}</span>
               <span className={styles.tagActionSlot} aria-hidden="true" />
@@ -155,24 +176,32 @@ export function NotesSidebar({
               <div
                 key={tag.id}
                 className={`${styles.tagRow} ${isActive ? styles.tagRowActive : ""}`}
+                onClick={() => onSelectTag(isActive ? null : tag.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    onSelectTag(isActive ? null : tag.id)
+                  }
+                }}
+                role="listitem"
+                tabIndex={0}
+                title={tag.label}
               >
-                <button
-                  type="button"
-                  className={styles.tagLabel}
-                  onClick={() => onSelectTag(isActive ? null : tag.id)}
-                  title={tag.label}
-                >
+                <div className={styles.tagLabel}>
                   <Text variant="body-2" as="span">
                     {tag.label}
                   </Text>
-                </button>
+                </div>
                 <div className={styles.tagMeta}>
                   <span className={styles.tagCount}>{tag.noteCount}</span>
                   <div className={styles.tagActionSlot}>
                     <Button
                       view="flat"
                       size="xs"
-                      onClick={() => onEditTag(tag)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEditTag(tag)
+                      }}
                       aria-label={`Edit ${tag.label}`}
                     >
                       <Icon data={Pencil} size={14} />
@@ -182,7 +211,10 @@ export function NotesSidebar({
                     <Button
                       view="flat"
                       size="xs"
-                      onClick={() => onDeleteTag(tag)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onDeleteTag(tag)
+                      }}
                       aria-label={`Delete ${tag.label}`}
                     >
                       <Icon data={TrashBin} size={14} />

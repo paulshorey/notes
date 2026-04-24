@@ -39,17 +39,21 @@ export function NoteResultsList({
 }: NoteResultsListProps) {
   if (loading) {
     return (
-      <Text variant="body-1" color="secondary">
-        Loading…
-      </Text>
+      <div className={styles.listStatus}>
+        <Text variant="body-1" color="secondary">
+          Loading…
+        </Text>
+      </div>
     )
   }
 
   if (items.length === 0) {
     return (
-      <Text variant="body-1" color="secondary">
-        {emptyMessage}
-      </Text>
+      <div className={styles.listStatus}>
+        <Text variant="body-1" color="secondary">
+          {emptyMessage}
+        </Text>
+      </div>
     )
   }
 

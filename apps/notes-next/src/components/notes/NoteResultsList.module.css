@@ -1,3 +1,8 @@
+/* Match .noteItem horizontal padding; vertical padding separates status from search above. */
+.listStatus {
+  padding: 8px 10px;
+}
+
 .noteList {
   display: flex;
   flex-direction: column;

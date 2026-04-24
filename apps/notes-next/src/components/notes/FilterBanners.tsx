@@ -1,6 +1,6 @@
 "use client"
 
-import { Button, Text } from "@gravity-ui/uikit"
+import { Text } from "@gravity-ui/uikit"
 import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import styles from "./FilterBanners.module.css"
 
@@ -24,26 +24,33 @@ export function FilterBanners({
   return (
     <div className={styles.filterBanners}>
       {selectedCategory && (
-        <div className={styles.filterBanner}>
-          <Text variant="body-2">
-            Filtered by category <strong>{selectedCategory.label}</strong> ·{" "}
-            {selectedCategory.noteCount}{" "}
-            {selectedCategory.noteCount === 1 ? "note" : "notes"}
+        <div>
+          <Text variant="body-2" as="span" className={styles.filterText}>
+            <button
+              type="button"
+              className={styles.clearInline}
+              onClick={onClearCategory}
+              aria-label="Clear category filter"
+            >
+              x
+            </button>
+            <span>category: </span>{selectedCategory.label}<span> {selectedCategory.noteCount}</span>
           </Text>
-          <Button view="flat" size="xs" onClick={onClearCategory}>
-            Clear
-          </Button>
         </div>
       )}
       {selectedTag && (
-        <div className={styles.filterBanner}>
-          <Text variant="body-2">
-            Filtered by <strong>{selectedTag.label}</strong> · {selectedTag.noteCount}{" "}
-            {selectedTag.noteCount === 1 ? "note" : "notes"}
+        <div>
+          <Text variant="body-2" as="span" className={styles.filterText}>
+            <button
+              type="button"
+              className={styles.clearInline}
+              onClick={onClearTag}
+              aria-label="Clear tag filter"
+            >
+              x
+            </button>
+            <span>tags: </span>{selectedTag.label}<span> {selectedTag.noteCount}</span>
           </Text>
-          <Button view="flat" size="xs" onClick={onClearTag}>
-            Clear
-          </Button>
         </div>
       )}
     </div>
