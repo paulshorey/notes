@@ -873,24 +873,23 @@ export default function NotesApp() {
       <div className={styles.content}>
         <section className={styles.resultsColumn}>
           <div className={styles.header}>
-            <div className={styles.headerActions} />
+            <FilterBanners
+              categories={categories}
+              tags={tags}
+              notesCount={notes.length}
+              selectedCategory={selectedCategory}
+              selectedTag={selectedTag}
+              selectedCategoryId={selectedCategoryId}
+              selectedTagId={selectedTagId}
+              fallbackCategoryId={fallbackCategoryId}
+              onSelectCategory={setSelectedCategoryId}
+              onSelectTag={setSelectedTagId}
+              onEditCategory={openEditCategory}
+              onDeleteCategory={openDeleteCategory}
+              onEditTag={openEditTag}
+              onDeleteTag={openDeleteTag}
+            />
           </div>
-          <FilterBanners
-            categories={categories}
-            tags={tags}
-            notesCount={notes.length}
-            selectedCategory={selectedCategory}
-            selectedTag={selectedTag}
-            selectedCategoryId={selectedCategoryId}
-            selectedTagId={selectedTagId}
-            fallbackCategoryId={fallbackCategoryId}
-            onSelectCategory={setSelectedCategoryId}
-            onSelectTag={setSelectedTagId}
-            onEditCategory={openEditCategory}
-            onDeleteCategory={openDeleteCategory}
-            onEditTag={openEditTag}
-            onDeleteTag={openDeleteTag}
-          />
           <div className={styles.searchForm}>
             <div className={styles.searchRow}>
               <TextInput
