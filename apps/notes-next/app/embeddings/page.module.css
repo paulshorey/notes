@@ -1,0 +1,186 @@
+.page {
+  min-height: 100vh;
+  padding: 24px 20px 48px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+@media (max-width: 820px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.leftCol {
+  display: flex;
+  flex-direction: column;
+}
+
+.rightCol {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.colHeading {
+  margin-bottom: 4px;
+}
+
+.inputGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.inputSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.divider {
+  height: 1px;
+  background: var(--g-color-line-generic, rgba(255, 255, 255, 0.07));
+  margin: 4px 0;
+}
+
+.taskRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.taskField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.fieldResult {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0 2px;
+}
+
+.embeddingPreview {
+  font-family: var(--g-font-family-monospace, monospace);
+  font-size: 11px;
+  color: var(--g-color-text-secondary);
+  word-break: break-all;
+}
+
+.dimText {
+  color: var(--g-color-text-secondary);
+  font-size: 12px;
+}
+
+.simBadge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.simLabel {
+  font-size: 12px;
+  color: var(--g-color-text-secondary);
+  min-width: 80px;
+}
+
+.simValue {
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.simRaw {
+  font-family: var(--g-font-family-monospace, monospace);
+  font-size: 11px;
+  color: var(--g-color-text-secondary);
+}
+
+.errorBox {
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--g-color-base-danger-light, rgba(255, 50, 50, 0.08));
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.resultCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--g-color-base-generic, rgba(255, 255, 255, 0.04));
+}
+
+.contentPreview {
+  word-break: break-word;
+}
+
+.contentPreview code {
+  font-size: 12px;
+  color: var(--g-color-text-complementary);
+  white-space: pre-wrap;
+}
+
+.scoringCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 8px;
+  background: var(--g-color-base-generic, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.07));
+}
+
+.scoringCard code {
+  font-size: 12px;
+  color: var(--g-color-text-complementary);
+}
+
+.channelGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.channelRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.compositeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: 8px;
+}
+
+.compositeValue {
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}

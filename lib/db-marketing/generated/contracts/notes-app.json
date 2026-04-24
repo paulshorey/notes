@@ -1,0 +1,801 @@
+{
+  "models": {
+    "SessionLookupRequest": {
+      "fields": [
+        {
+          "name": "identifier",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "UserSummary": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "username",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "email",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "phone",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
+    "CategoryRecord": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "noteCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "lastUsedAt",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
+    "TagRecord": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "noteCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "lastUsedAt",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
+    "NoteCategoryRef": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "NoteTagRef": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "NoteRecord": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "category",
+          "optional": false,
+          "kind": "model",
+          "type": "NoteCategoryRef",
+          "nullable": false
+        },
+        {
+          "name": "tags",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "NoteTagRef"
+          },
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeDue",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeRemind",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeCreated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeModified",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "SemanticSearchResult": {
+      "fields": [
+        {
+          "name": "note",
+          "optional": false,
+          "kind": "model",
+          "type": "NoteRecord",
+          "nullable": false
+        },
+        {
+          "name": "similarity",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "tagSimilarity",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "descriptionSimilarity",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        }
+      ]
+    },
+    "NoteInput": {
+      "fields": [
+        {
+          "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "tagIds",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "scalar",
+            "type": "number"
+          },
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeDue",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeRemind",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "SessionRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "NotesRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "TagsRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "CategoriesRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "CreateCategoryRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateCategoryRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteCategoryRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "CreateTagRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateTagRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "tagId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteTagRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "tagId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "CreateNoteRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "note",
+          "optional": false,
+          "kind": "model",
+          "type": "NoteInput",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateNoteRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "noteId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "note",
+          "optional": false,
+          "kind": "model",
+          "type": "NoteInput",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteNoteRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "noteId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "SearchRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "query",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "limit",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "EmbeddingMaintenanceRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "mode",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "limit",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "SessionResponse": {
+      "fields": [
+        {
+          "name": "user",
+          "optional": false,
+          "kind": "model",
+          "type": "UserSummary",
+          "nullable": false
+        }
+      ]
+    },
+    "NotesResponse": {
+      "fields": [
+        {
+          "name": "notes",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "NoteRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "TagsResponse": {
+      "fields": [
+        {
+          "name": "tags",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "TagRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "CategoriesResponse": {
+      "fields": [
+        {
+          "name": "categories",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "CategoryRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "CreateCategoryResponse": {
+      "fields": [
+        {
+          "name": "category",
+          "optional": false,
+          "kind": "model",
+          "type": "CategoryRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateCategoryResponse": {
+      "fields": [
+        {
+          "name": "category",
+          "optional": false,
+          "kind": "model",
+          "type": "CategoryRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteCategoryResponse": {
+      "fields": [
+        {
+          "name": "ok",
+          "optional": false,
+          "kind": "scalar",
+          "type": "true",
+          "nullable": false
+        }
+      ]
+    },
+    "CreateTagResponse": {
+      "fields": [
+        {
+          "name": "tag",
+          "optional": false,
+          "kind": "model",
+          "type": "TagRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateTagResponse": {
+      "fields": [
+        {
+          "name": "tag",
+          "optional": false,
+          "kind": "model",
+          "type": "TagRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteTagResponse": {
+      "fields": [
+        {
+          "name": "ok",
+          "optional": false,
+          "kind": "scalar",
+          "type": "true",
+          "nullable": false
+        },
+        {
+          "name": "deletedLinks",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "NoteResponse": {
+      "fields": [
+        {
+          "name": "note",
+          "optional": false,
+          "kind": "model",
+          "type": "NoteRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "SearchResponse": {
+      "fields": [
+        {
+          "name": "results",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "SemanticSearchResult"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "EmbeddingMaintenanceResponse": {
+      "fields": [
+        {
+          "name": "mode",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "processed",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "updated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "categoriesUpdated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "tagsUpdated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "hasMore",
+          "optional": false,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteResponse": {
+      "fields": [
+        {
+          "name": "ok",
+          "optional": false,
+          "kind": "scalar",
+          "type": "true",
+          "nullable": false
+        }
+      ]
+    },
+    "ErrorResponse": {
+      "fields": [
+        {
+          "name": "error",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "@lib/config",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    "./eslint/base": "./eslint/base.js",
+    "./eslint/next-js": "./eslint/next.js",
+    "./eslint/react-internal": "./eslint/react-internal.js",
+    "./jest/next-app": "./jest/next-app.js",
+    "./next/base": "./next/base.config.js",
+    "./next/common": "./next/common.config.js",
+    "./postcss": "./postcss/postcss.config.cjs",
+    "./tailwind": "./tailwind/shared-styles.css",
+    "./tailwind/base": "./tailwind/base.config.js",
+    "./tailwind/app": "./tailwind/app.config.js",
+    "./tailwind/postcss": "./tailwind/postcss.config.js",
+    "./typescript/base.json": "./typescript/base.json",
+    "./typescript/nextjs.json": "./typescript/nextjs.json",
+    "./typescript/react-library.json": "./typescript/react-library.json"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss-preset-mantine": "^1.17.0",
+    "postcss-simple-vars": "^7.0.1",
+    "tailwindcss": "^4.2.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.31.0",
+    "@next/eslint-plugin-next": "^15.4.2",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-only-warn": "^1.1.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-turbo": "^2.5.0",
+    "globals": "^16.3.0",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.37.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

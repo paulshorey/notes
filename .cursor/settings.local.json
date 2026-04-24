@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Applications/**)",
+      "Read(//Library/**)",
+      "Read(//usr/local/bin/**)",
+      "Bash(export PATH=/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH)",
+      "Bash(brew list:*)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//opt/homebrew/Cellar/**)",
+      "Read(//usr/local/**)",
+      "Bash(export PATH=/opt/homebrew/bin:$PATH)",
+      "Bash(/opt/homebrew/Cellar/libpq/18.2/bin/psql --version)",
+      "Bash(/opt/homebrew/opt/postgresql@17/bin/psql --version)",
+      "Bash(/opt/homebrew/opt/postgresql@17/bin/pg_dump --version)",
+      "Bash(brew unlink:*)",
+      "Bash(brew uninstall:*)",
+      "Bash(brew link:*)",
+      "Bash(brew info:*)",
+      "Bash(brew install:*)",
+      "Bash(psql --version)",
+      "Bash(pg_dump --version)",
+      "Bash(/usr/local/bin/node --version)",
+      "Bash($HOME/.nvm/versions/node/*/bin/node)",
+      "Bash(--version)",
+      "Bash($HOME/.volta/bin/node --version)",
+      "Bash(export PATH=\"$HOME/.volta/bin:$PATH\")",
+      "Bash(pnpm build:*)",
+      "Bash(export VOLTA_HOME=\"$HOME/.volta\")",
+      "Bash(export PATH=\"$VOLTA_HOME/bin:$PATH\")",
+      "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$HOME/.volta/bin:$PATH\")",
+      "Bash(pnpm --filter @lib/db-marketing check-types)",
+      "Bash(pnpm --filter notes-next build)",
+      "Bash(claude:*)"
+    ]
+  }
+}

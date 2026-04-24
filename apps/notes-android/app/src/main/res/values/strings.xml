@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Notes Android</string>
+    <string name="widget_name">Notes homepage widget</string>
+    <string name="widget_description">Read-only home screen view of the Notes app that deep links to the main app for add, edit, and search flows.</string>
+</resources>

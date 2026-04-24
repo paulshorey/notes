@@ -1,0 +1,479 @@
+.loginPage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 20px;
+}
+
+.loginForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(320px, 100%);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100dvh;
+  padding: 0 12px 12px;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 44px;
+  min-height: 44px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.userMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  min-width: 180px;
+}
+
+.userMenuSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.07));
+}
+
+.feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  width: min(500px, calc(100vw - 24px));
+}
+
+.feedbackNotification {
+  width: 100%;
+}
+
+.content {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.sidebarColumn {
+  position: relative;
+  display: flex;
+  flex: 0 0 280px;
+  width: 280px;
+  min-width: 280px;
+  max-width: 336px;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 4px 4px 4px 0;
+  transition:
+    max-width 0.18s ease,
+    min-width 0.18s ease,
+    flex-basis 0.18s ease,
+    padding 0.18s ease;
+}
+
+.tagList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tagRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 2px 0 2px 8px;
+  border-left: 2px solid transparent;
+}
+
+.tagRowAll {
+  margin-bottom: 2px;
+}
+
+.tagRow:hover {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.03));
+}
+
+.tagRowActive {
+  border-left-color: var(--g-color-line-brand, #60a5fa);
+  color: var(--g-color-text-link, #93c5fd);
+}
+
+.tagLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  overflow: hidden;
+}
+
+.tagLabel :global(*) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tagMeta {
+  display: grid;
+  grid-template-columns: 24px 28px 28px;
+  align-items: center;
+  justify-items: center;
+  column-gap: 2px;
+  flex-shrink: 0;
+  opacity: 0.52;
+  transition: opacity 0.15s ease;
+}
+
+.tagRow:hover .tagMeta,
+.tagRowActive .tagMeta {
+  opacity: 0.88;
+}
+
+.tagCount {
+  min-width: 22px;
+  color: var(--g-color-text-hint, #8a8a8a);
+  font-size: 12px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tagActionSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  min-height: 24px;
+}
+
+.resultsColumn {
+  position: relative;
+  display: flex;
+  flex: 0 0 360px;
+  width: 360px;
+  min-width: 360px;
+  max-width: 440px;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  transition:
+    max-width 0.18s ease,
+    min-width 0.18s ease,
+    flex-basis 0.18s ease;
+}
+
+.filterBanners {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filterBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--g-color-base-info-light, rgba(96, 165, 250, 0.12));
+}
+
+.searchForm {
+  display: flex;
+  flex-direction: column;
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchInput {
+  flex: 1 1 auto;
+}
+
+.searchInput :global(.g-text-input__content) {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.noteResults {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.noteList {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.noteItem {
+  border-bottom: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.07));
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 0;
+  user-select: none;
+}
+
+.noteItem:hover {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.03));
+}
+
+.noteItemActive {
+  background: var(--g-color-base-selection, rgba(96, 165, 250, 0.12));
+}
+
+.noteItem:last-child {
+  border-bottom: none;
+}
+
+.noteLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.noteTitleCollapsed {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.similarityBadge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--g-color-text-info, #60a5fa);
+  flex-shrink: 0;
+}
+
+.formColumn {
+  position: relative;
+  display: flex;
+  flex: 1 0 520px;
+  width: 520px;
+  min-width: 520px;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.columnCollapsed {
+  flex-basis: 0 !important;
+  max-width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.form {
+  display: flex;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  padding-right: 4px;
+}
+
+.formActions {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 0 0 auto;
+  margin-bottom: -2px;
+}
+
+.formSideButton {
+  width: 44px;
+  min-width: 44px;
+  flex: 0 0 44px;
+}
+
+.formDeleteButton {
+  color: rgba(239, 68, 68, 0.72);
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.formPrimaryAction {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.formPrimaryAction :global(.g-button__text) {
+  font-weight: 500;
+}
+
+.formDescription {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.formDescription :global(.g-text-area) {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.formDescription :global(.g-text-area__control) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Override fixed/auto heights so the control fills `.g-text-area__content`. */
+.formDescription :global(.g-text-area_size_s .g-text-area__control),
+.formDescription :global(.g-text-area_size_m .g-text-area__control),
+.formDescription :global(.g-text-area_size_l .g-text-area__control),
+.formDescription :global(.g-text-area_size_xl .g-text-area__control) {
+  height: 100% !important;
+  overflow-y: auto;
+}
+
+.tagBlock {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mantineField {
+  width: 100%;
+}
+
+.dateFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-top: -2px;
+}
+
+.dateField {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dateInput {
+  background: var(--g-color-base-generic, rgba(255, 255, 255, 0.08));
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.dateInput:hover {
+  background: var(--g-color-base-generic-hover, rgba(255, 255, 255, 0.12));
+}
+
+.dateInput:focus {
+  border-color: var(--g-color-line-brand, #60a5fa);
+  outline: none;
+}
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  min-width: 320px;
+  max-width: 420px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+@media (min-width: 1280px) {
+  .sidebarColumn {
+    flex-basis: 320px;
+    width: 320px;
+    min-width: 320px;
+  }
+
+  .resultsColumn {
+    flex-basis: 400px;
+    width: 400px;
+    min-width: 400px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .page {
+    padding-inline: 10px;
+  }
+
+  .content {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 0 8px 8px;
+  }
+
+  .dateFields {
+    grid-template-columns: 1fr;
+  }
+
+  .filterBanner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

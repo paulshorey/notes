@@ -1,0 +1,23 @@
+{
+  "name": "notes-android",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "contracts:check": "pnpm --filter @lib/db-marketing notes:contract:check && node tools/validate-marketing-contract.mjs",
+    "build:contracts": "pnpm run contracts:check",
+    "build:android": "bash ./tools/build-android.sh",
+    "build:dist:dev": "NOTES_ANDROID_API_BASE_URL=https://marketing-apps-notes-next-dev.up.railway.app bash ./tools/build-dist-apk.sh",
+    "build:dist:prod": "NOTES_ANDROID_API_BASE_URL=https://marketing-apps-notes-next.up.railway.app bash ./tools/build-dist-apk.sh",
+    "build": "pnpm run contracts:check && pnpm run build:android",
+    "verify": "pnpm run build"
+  },
+  "dependencies": {
+    "@gravity-ui/icons": "^2.18.0",
+    "@gravity-ui/uikit": "^7.35.2"
+  },
+  "devDependencies": {
+    "@lib/config": "workspace:*"
+  },
+  "packageManager": "pnpm@10.28.1"
+}

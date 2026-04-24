@@ -1,0 +1,187 @@
+{
+  "user_note_category_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "category_embedding",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_model",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_updated_at",
+      "nullable": true,
+      "type": "Date"
+    }
+  ],
+  "user_note_tag_link_v1": [
+    {
+      "column": "note_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "tag_id",
+      "nullable": false,
+      "type": "number"
+    }
+  ],
+  "user_note_tag_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "tag_embedding",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_model",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_updated_at",
+      "nullable": true,
+      "type": "Date"
+    }
+  ],
+  "user_note_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "description",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "time_due",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_remind",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "embedding_model",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_updated_at",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "description_embedding",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "category_id",
+      "nullable": false,
+      "type": "number"
+    }
+  ],
+  "user_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "username",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "email",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "phone",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    }
+  ]
+}
