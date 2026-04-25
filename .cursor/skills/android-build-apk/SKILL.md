@@ -31,8 +31,6 @@ git commit -m "Describe the feature and rebuilt APK"
 git push -u origin "$BRANCH"
 ```
 
-Do **not** commit machine-local `local.properties`. Restore it with `git restore apps/notes-android/local.properties` if the build script changed it.
-
 ## Share the direct GitHub download URL with the user
 
 How to get the raw downloadable URL:
