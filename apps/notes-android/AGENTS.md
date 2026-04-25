@@ -16,7 +16,7 @@ Native Android Notes client built with Kotlin, Jetpack Compose, WorkManager, and
 - `gradle.properties` - Gradle defaults such as configuration cache, parallelism, AndroidX, and non-transitive R classes.
 - `gradlew` / `gradlew.bat` - Gradle wrapper entrypoints.
 - `README.md` - human setup instructions for building the Android app.
-- `.gitignore` - ignores local Android/Gradle outputs plus `local.properties`.
+- `.gitignore` - ignores local Android/Gradle outputs plus `local.properties`, while allowing the canonical `dist/notes-android.apk` artifact.
 
 ## Non-obvious rules
 

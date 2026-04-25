@@ -7,8 +7,8 @@
     "contracts:check": "pnpm --filter @lib/db-marketing app:contract:check && node tools/validate-marketing-contract.mjs",
     "build:contracts": "pnpm run contracts:check",
     "build:android": "bash ./tools/build-android.sh",
-    "build:dist:dev": "NOTES_ANDROID_API_BASE_URL=https://marketing-apps-notes-next-dev.up.railway.app bash ./tools/build-dist-apk.sh",
-    "build:dist:prod": "NOTES_ANDROID_API_BASE_URL=https://marketing-apps-notes-next.up.railway.app bash ./tools/build-dist-apk.sh",
+    "build:dist:dev": "NOTES_ANDROID_API_BASE_URL=https://dev.alltext.app bash ./tools/build-dist-apk.sh",
+    "build:dist:prod": "NOTES_ANDROID_API_BASE_URL=https://alltext.app bash ./tools/build-dist-apk.sh",
     "build": "pnpm run contracts:check && pnpm run build:android",
     "verify": "pnpm run build"
   },

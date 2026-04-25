@@ -30,6 +30,8 @@ coverage
 out/
 build
 dist
+!apps/notes-android/dist/
+!apps/notes-android/dist/notes-android.apk
 
 # Debug
 npm-debug.log*

@@ -9,34 +9,23 @@ description: Only if in a cloud workspace - always build the .apk file after don
 
 Only do this if you are in the Cursor cloud workspace environment. Skip this if developing locally in the user's desktop IDE.
 
-## Before building the APK, merge latest changes from main
+## Build the APK
 
-1. If you're on branch `main`, not a feature branch, then create a new feature branch.
-2. Commit and push any local changes to the feature branch.
-3. Merge main branch into the current feature branch.
-4. If there are conflicts, fix, commit and push.
-
-## After merging from main
-
-Generate a new canonical APK file by running this bash script from the repo root:
+Generate the canonical dev APK file by running this command from the repo root:
 
 ```bash
-bash apps/notes-android/tools/build-dist-apk.sh
+pnpm --filter notes-android build:dist:dev
 ```
 
-Running this script does this:
+This writes `apps/notes-android/dist/notes-android.apk`, overwriting the previous APK.
 
-- sources from `apps/notes-android/tools/setup-android-sdk.sh` (installs the SDK if needed)
-- builds the debug APK with Gradle
-- writes `apps/notes-android/dist/notes-android.apk` (overwrites older build)
-
-## Commit and push the APK file
+## Commit and push the APK
 
 After the build succeeds:
 
 ```bash
 BRANCH="$(git branch --show-current)"
-git add -f apps/notes-android/dist/notes-android.apk
+git add apps/notes-android/dist/notes-android.apk
 # Stage any additional task files too.
 git commit -m "Describe the feature and rebuilt APK"
 git push -u origin "$BRANCH"
@@ -60,5 +49,5 @@ Include a link to that URL in your final response so the user can download and s
 Format as markdown, like this:
 
 ```
-[Direct download APK](https://github.com/paulshorey/marketing/raw/refs/heads/BRANCH_NAME/apps/notes-android/dist/notes-android.apk)
+[Direct download APK](https://github.com/paulshorey/notes/raw/refs/heads/BRANCH_NAME/apps/notes-android/dist/notes-android.apk)
 ```
