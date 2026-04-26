@@ -67,6 +67,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -1547,6 +1548,7 @@ private fun CategoryComboField(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var wasFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     val trimmedValue = value.trim()
     val matchingCategories = remember(categories, trimmedValue) {
         categories.matchingCategoryLabels(trimmedValue)
@@ -1594,6 +1596,7 @@ private fun CategoryComboField(
                     enabled = !busy,
                     onClick = {
                         expanded = false
+                        focusManager.clearFocus()
                         onAddCategory()
                     },
                 )
@@ -1606,6 +1609,7 @@ private fun CategoryComboField(
                     text = { Text(category.label) },
                     onClick = {
                         expanded = false
+                        focusManager.clearFocus()
                         onCategorySelected(category.id)
                     },
                 )
@@ -1658,6 +1662,7 @@ private fun TagComboField(
 ) {
     var expanded by remember { mutableStateOf(false) }
     var wasFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     val trimmedValue = value.trim()
     val availableTags = remember(tags, selectedTagIds) {
         val selectedIds = selectedTagIds.toSet()
@@ -1708,6 +1713,7 @@ private fun TagComboField(
                     enabled = !busy,
                     onClick = {
                         expanded = false
+                        focusManager.clearFocus()
                         onAddTag()
                     },
                 )
@@ -1720,6 +1726,7 @@ private fun TagComboField(
                     text = { Text(tag.label) },
                     onClick = {
                         expanded = false
+                        focusManager.clearFocus()
                         onTagSelected(tag.id)
                     },
                 )
