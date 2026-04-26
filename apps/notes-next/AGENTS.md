@@ -88,6 +88,11 @@ pnpm --filter notes-next check-types
 pnpm --filter notes-next verify
 ```
 
+## Build config notes
+
+- This app uses `next.config.mjs`, not `next.config.ts`.
+- On Next.js 16, production builds run with Turbopack by default, so keep the `turbopack.resolveAlias` config aligned with any browser-only webpack fallbacks such as the `fs` stub.
+
 ## Testing
 
 ```bash
