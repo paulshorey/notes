@@ -11,7 +11,7 @@
     "start": "next start",
     "test": "node --import tsx --test ./test/*.test.ts",
     "lint": "eslint . --ignore-pattern .next",
-    "check-types": "pnpm run contracts:check && next typegen && tsc --noEmit",
+    "check-types": "pnpm run contracts:check && tsc --noEmit",
     "verify": "pnpm run check-types && pnpm run test && pnpm run build"
   },
   "dependencies": {
@@ -22,7 +22,9 @@
     "@lib/db-marketing": "workspace:*",
     "@mantine/core": "^9.1.0",
     "@mantine/hooks": "^9.1.0",
-    "next": "14.2.35",
+    "highlight.js": "^11.11.1",
+    "lowlight": "^3.3.0",
+    "next": "16.2.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
