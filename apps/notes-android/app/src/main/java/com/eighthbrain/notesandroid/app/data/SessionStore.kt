@@ -79,7 +79,10 @@ class SessionStore(
                 ?: WidgetMode.NOTES
 
         return AppSnapshot(
-            user = userJson?.let { raw -> runCatching { userFromJson(JSONObject(raw)) }.getOrNull() },
+            user =
+                userJson?.let { raw ->
+                    runCatching { userFromJson(applyUserSummaryDefaults(JSONObject(raw))) }.getOrNull()
+                },
             categories =
                 runCatching { categoriesFromJson(this[PreferenceKeys.categoriesJson]) }
                     .getOrDefault(emptyList()),

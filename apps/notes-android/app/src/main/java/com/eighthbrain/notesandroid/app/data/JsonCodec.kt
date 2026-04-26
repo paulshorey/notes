@@ -34,6 +34,13 @@ private fun JSONObject.intOrNull(key: String): Int? =
         getInt(key)
     }
 
+fun applyUserSummaryDefaults(json: JSONObject): JSONObject =
+    json.apply {
+        if (opt("preferences") !is JSONObject) {
+            put("preferences", JSONObject())
+        }
+    }
+
 fun notesAppPreferencesToJson(preferences: NotesAppPreferences): JSONObject =
     JSONObject()
         .put("resultsColumnWidth", preferences.resultsColumnWidth)
