@@ -13,7 +13,6 @@ if [[ -d "$pg17_bindir" ]]; then
 fi
 
 expected_env_files=(
-  "apps/eighthbrain-next/.env"
   "apps/notes-next/.env"
 )
 

@@ -1,8 +1,8 @@
 # @lib/config — Shared Configuration Library
 
-Shared build-tooling configurations for apps in this monorepo. Currently consumed by `apps/eighthbrain-next`.
+Shared build-tooling for Next.js apps in this monorepo (TypeScript, ESLint, Jest) and optional PostCSS + Tailwind + Mantine presets for apps that use that stack. New apps from `pnpm create:next-app` are scaffolded with these presets.
 
-> **Note:** `apps/notes-next` uses **Gravity UI** and does not use Tailwind, Mantine, or these shared CSS configs. It only uses the shared TypeScript and Next.js base configs.
+> **Note:** `apps/notes-next` uses **Gravity UI** and does not use the shared Tailwind, Mantine, or PostCSS CSS pipeline. It may still depend on this package for TypeScript/ESLint alignment—see `apps/notes-next/package.json`.
 
 ## Available configurations
 
@@ -18,7 +18,7 @@ Shared build-tooling configurations for apps in this monorepo. Currently consume
 
 ### PostCSS (`/postcss`)
 
-- `postcss.config.cjs` — PostCSS config with Mantine presets, Tailwind CSS, and autoprefixer. Used by `eighthbrain-next`.
+- `postcss.config.cjs` — PostCSS config with Mantine presets, Tailwind CSS, and autoprefixer. Use with Mantine + Tailwind Next.js apps.
 
 ### Tailwind CSS (`/tailwind`)
 
@@ -85,4 +85,4 @@ module.exports = {
 @import '@lib/config/tailwind/shared-styles.css';
 ```
 
-> Note from `apps/eighthbrain-next/AGENTS.md`: import `@lib/config/tailwind` (the package), not deep paths like `@lib/config/tailwind/shared-styles.css`, because Next/PostCSS resolves package CSS through the package `exports` map.
+> When using shared CSS from this package, import `@lib/config/tailwind` (the package), not deep paths like `@lib/config/tailwind/shared-styles.css`, because Next/PostCSS resolves package CSS through the package `exports` map.

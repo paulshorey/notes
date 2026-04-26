@@ -32,11 +32,6 @@ const ROOT = resolve(__dirname, "..");
 // App configurations: logical app name -> candidate Infisical paths + local .env path.
 const APPS = [
   {
-    name: "eighthbrain-next",
-    outputFile: "apps/eighthbrain-next/.env",
-    infisicalPaths: ["/marketing/apps/eighthbrain-next"],
-  },
-  {
     name: "notes-next",
     outputFile: "apps/notes-next/.env",
     infisicalPaths: ["/marketing/apps/notes-next"],

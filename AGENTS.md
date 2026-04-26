@@ -8,7 +8,6 @@ Monorepo using pnpm + Turborepo.
 
 - `apps/notes-next` - Notes web UI and REST API, deployed to Railway
 - `apps/notes-android` - native Android client; release is an APK artifact, not a hosted service
-- `apps/eighthbrain-next` - Eighth Brain marketing site, deployed to Railway
 
 ### Libraries
 
@@ -20,7 +19,6 @@ Monorepo using pnpm + Turborepo.
 - `@lib/db-marketing` owns all Notes schema changes and migration scripts.
 - `notes-next` consumes `@lib/db-marketing` at runtime.
 - `notes-android` validates against the generated Notes app contract but does not touch Postgres directly.
-- `eighthbrain-next` should not depend on Notes database code or Notes migration flow.
 
 ## Context
 
@@ -48,7 +46,6 @@ This codebase is developed by AI agents.
 
 - `notes-next`: run `release:notes:prepare`, run Notes DB migration steps when needed, then deploy on Railway.
 - `notes-android`: run `build:android:dist:dev` or `build:android:dist:prod`, then share the APK download link in the PR; no Railway deploy.
-- `eighthbrain-next`: run `verify:eighthbrain`, then deploy on Railway; no Notes DB migration step.
 
 ## Database rules
 

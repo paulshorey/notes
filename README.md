@@ -1,10 +1,9 @@
 # Marketing Monorepo
 
-Monorepo for three separate release targets:
+Monorepo for two release targets:
 
 - `apps/notes-next` - Notes web app and REST API, deployed to Railway
 - `apps/notes-android` - Android client, released as an APK artifact in the PR
-- `apps/eighthbrain-next` - Eighth Brain marketing site, deployed to Railway
 
 `lib/db-marketing` is the source of truth for the Notes database schema, generated contracts, and shared Notes server workflows.
 
@@ -20,9 +19,8 @@ All day-to-day developer workflows run from the repo root. Each command is a thi
 | `pnpm run verify` | Repo-wide pre-push gate. Runs `verify:db-contracts` then every app's `verify`. |
 | `pnpm run verify:db-contracts` | Type-check `lib/db-marketing` and confirm generated Notes contract artifacts are up to date. |
 | `pnpm run verify:notes-web` | `notes-next`: type-check, tests, and production build. |
-| `pnpm run verify:eighthbrain` | `eighthbrain-next`: type-check and production build. |
 | `pnpm run verify:android` | `notes-android`: contract validation plus debug APK assembly. |
-| `pnpm run verify:apps` | Run `verify:notes-web`, `verify:eighthbrain`, and `verify:android` back to back. |
+| `pnpm run verify:apps` | Run `verify:notes-web` and `verify:android` back to back. |
 
 ### Build
 
@@ -30,7 +28,6 @@ All day-to-day developer workflows run from the repo root. Each command is a thi
 |---------|--------------|
 | `pnpm run build` | Turbo `build` across every package. |
 | `pnpm run build:notes-web` | Production build of `apps/notes-next`. |
-| `pnpm run build:eighthbrain` | Production build of `apps/eighthbrain-next`. |
 | `pnpm run build:android` | Contract validation plus debug APK assembly. |
 | `pnpm run build:android:dist:dev` | Produce `apps/notes-android/dist/notes-android.apk` pointed at the **dev** `notes-next` (`https://marketing-apps-notes-next-dev.up.railway.app`). |
 | `pnpm run build:android:dist:prod` | Produce `apps/notes-android/dist/notes-android.apk` pointed at the **production** `notes-next` (`https://marketing-apps-notes-next.up.railway.app`). |
@@ -52,7 +49,7 @@ The real scripts live in `lib/db-marketing/package.json`. App packages do not ow
 |---------|--------------|
 | `pnpm run release:notes:prepare` | `verify:db-contracts` + `verify:notes-web`. Run before a `notes-next` Railway deploy. |
 
-For `eighthbrain-next`, run `pnpm run verify:eighthbrain` directly — it is the pre-deploy check. For Android, run `pnpm run build:android:dist:dev` or `pnpm run build:android:dist:prod` — they produce the canonical APK pointed at the explicit target environment.
+For Android, run `pnpm run build:android:dist:dev` or `pnpm run build:android:dist:prod` — they produce the canonical APK pointed at the explicit target environment.
 
 ## Apps and deploy targets
 
@@ -60,7 +57,6 @@ For `eighthbrain-next`, run `pnpm run verify:eighthbrain` directly — it is the
 |------|---------------|-------------------------------|
 | `apps/notes-next` | Railway | Yes |
 | `apps/notes-android` | APK artifact only | Contract validation only |
-| `apps/eighthbrain-next` | Railway | No |
 
 ## Environment variables
 
@@ -92,14 +88,12 @@ Focused installs are still available:
 ```bash
 pnpm run deps:install -- notes-next...
 pnpm run deps:install -- notes-android...
-pnpm run deps:install -- eighthbrain-next...
 ```
 
 ### Local app entry points
 
 ```bash
 pnpm --filter notes-next dev         # http://localhost:3000
-pnpm --filter eighthbrain-next dev   # http://localhost:3340
 pnpm --filter notes-android build    # contract validation + debug APK
 ```
 
@@ -109,7 +103,6 @@ See the app README files for package-specific setup:
 
 - [`apps/notes-next/README.md`](apps/notes-next/README.md)
 - [`apps/notes-android/README.md`](apps/notes-android/README.md)
-- [`apps/eighthbrain-next/README.md`](apps/eighthbrain-next/README.md)
 - [`lib/db-marketing/README.md`](lib/db-marketing/README.md)
 
 ## Daily development loop
@@ -157,7 +150,7 @@ pnpm run deps:install
 pnpm run verify
 ```
 
-`pnpm run verify` is the repo-wide pre-push/pre-release gate. It verifies the DB contract package and the three release targets with package-specific checks.
+`pnpm run verify` is the repo-wide pre-push/pre-release gate. It verifies the DB contract package, `notes-next`, and `notes-android` with package-specific checks.
 
 ### 2. Notes web / API (`apps/notes-next`)
 
@@ -198,17 +191,7 @@ pnpm run release:notes:prepare
 
 6. Use `pnpm run db:verify` when you explicitly want to validate contract reproducibility against the target DB. It is not read-only and rewrites local generated files, so it is usually better before merge than during every production push.
 
-### 3. Eighth Brain (`apps/eighthbrain-next`)
-
-Use this when the marketing site changed.
-
-```bash
-pnpm run verify:eighthbrain
-```
-
-Then deploy `apps/eighthbrain-next` on Railway. This app does not depend on the Notes database or Notes migrations.
-
-### 4. Android (`apps/notes-android`)
+### 3. Android (`apps/notes-android`)
 
 Use this when Android code changed or when the APK should target a different `notes-next` base URL.
 
@@ -262,5 +245,4 @@ For a phone-side sideload, copy the APK to the device, then open the file and ac
 - Notes schema owner: `lib/db-marketing`
 - Notes production app: `apps/notes-next` (Railway)
 - Android release artifact: `apps/notes-android/dist/notes-android.apk` (built via `build:android:dist:{dev,prod}`)
-- Eighth Brain marketing site: `apps/eighthbrain-next` (Railway)
 - Repo-wide pre-push gate: `pnpm run verify`

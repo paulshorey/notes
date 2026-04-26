@@ -1,7 +1,7 @@
 database: postgres
 env_var: MARKETING_DB_URL
 owners:
-  - apps/eighthbrain
+  - apps/notes-next
 source_of_truth:
   migrations: ./migrations
   schema_snapshot: ./schema/current.sql

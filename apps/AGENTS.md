@@ -21,9 +21,6 @@
   - Android build validates Kotlin models and JSON codec against the generated Notes contract from `@lib/db-marketing` via `tools/validate-marketing-contract.mjs`
   - App-specific tooling and agent guidance: `apps/notes-android/AGENTS.md`
 
-- `eighthbrain-next`
-  - Marketing landing page; uses Tailwind CSS and PostCSS from `@lib/config`; no database access
-
 ## Change workflow
 
 - If a Notes table or column change affects app behavior, update `@lib/db-marketing` first.

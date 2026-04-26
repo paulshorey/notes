@@ -20,8 +20,6 @@ Each package contains:
   routes.
 - `apps/notes-android` validates its client-facing models against the generated
   Notes contract from `@lib/db-marketing`.
-- `apps/eighthbrain-next` should stay independent from the Notes DB package and
-  Notes migration flow.
 
 ## Migration policy
 

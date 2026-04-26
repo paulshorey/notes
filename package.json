@@ -4,7 +4,6 @@
   "scripts": {
     "build": "turbo run build",
     "build:notes-web": "pnpm --filter notes-next build",
-    "build:eighthbrain": "pnpm --filter eighthbrain-next build",
     "build:android": "pnpm --filter notes-android build",
     "build:android:dist:dev": "pnpm --filter notes-android build:dist:dev",
     "build:android:dist:prod": "pnpm --filter notes-android build:dist:prod",
@@ -16,9 +15,8 @@
     "test": "turbo run test",
     "verify:db-contracts": "pnpm --filter @lib/db-marketing check-types",
     "verify:notes-web": "pnpm --filter notes-next verify",
-    "verify:eighthbrain": "pnpm --filter eighthbrain-next verify",
     "verify:android": "pnpm --filter notes-android verify",
-    "verify:apps": "pnpm run verify:notes-web && pnpm run verify:eighthbrain && pnpm run verify:android",
+    "verify:apps": "pnpm run verify:notes-web && pnpm run verify:android",
     "verify": "pnpm run verify:db-contracts && pnpm run verify:apps",
     "release:notes:prepare": "pnpm run verify:db-contracts && pnpm run verify:notes-web",
     "dev": "turbo run dev",
