@@ -65,12 +65,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -81,6 +84,7 @@ import com.eighthbrain.notesandroid.app.model.AppSnapshot
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
+import com.eighthbrain.notesandroid.app.model.TagRecord
 import com.eighthbrain.notesandroid.app.model.descriptionBody
 import com.eighthbrain.notesandroid.app.model.formatConciseDate
 import com.eighthbrain.notesandroid.app.model.formatPercent
@@ -209,8 +213,15 @@ class NotesViewModel(
     }
 
     fun selectDraftCategory(categoryId: Int) {
+        val category = _uiState.value.snapshot.categories.firstOrNull { it.id == categoryId }
         _uiState.update {
-            it.copy(noteDraft = it.noteDraft.copy(selectedCategoryId = categoryId))
+            it.copy(
+                noteDraft =
+                    it.noteDraft.copy(
+                        selectedCategoryId = categoryId,
+                        newCategoryLabel = category?.label ?: it.noteDraft.newCategoryLabel,
+                    ),
+            )
         }
     }
 
@@ -220,7 +231,13 @@ class NotesViewModel(
             if (ids.contains(id)) {
                 state
             } else {
-                state.copy(noteDraft = state.noteDraft.copy(selectedTagIds = ids + id))
+                state.copy(
+                    noteDraft =
+                        state.noteDraft.copy(
+                            selectedTagIds = ids + id,
+                            newTagLabel = "",
+                        ),
+                )
             }
         }
     }
@@ -243,7 +260,7 @@ class NotesViewModel(
             return
         }
         runAction {
-            val tag = repository.createTag(label)
+            val tag = repository.resolveTag(label)
             _uiState.update {
                 it.copy(
                     noteDraft =
@@ -270,7 +287,7 @@ class NotesViewModel(
             return
         }
         runAction {
-            val category = repository.createCategory(label)
+            val category = repository.resolveCategory(label)
             _uiState.update {
                 it.copy(
                     noteDraft =
@@ -377,19 +394,23 @@ class NotesViewModel(
     }
 
     fun showNoteEditor() {
-        val defaultCategoryId = _uiState.value.snapshot.categories.minByOrNull { it.id }?.id
+        val defaultCategory = _uiState.value.snapshot.categories.minByOrNull { it.id }
         _uiState.update {
             it.copy(
                 showNoteEditor = true,
-                noteDraft = NoteDraft(selectedCategoryId = defaultCategoryId),
+                noteDraft =
+                    NoteDraft(
+                        selectedCategoryId = defaultCategory?.id,
+                        newCategoryLabel = defaultCategory?.label.orEmpty(),
+                    ),
             )
         }
     }
 
     fun saveNote() {
         val current = uiState.value
-        if (current.noteDraft.selectedCategoryId == null) {
-            _uiState.update { it.copy(error = "Choose a category before saving.") }
+        if (current.noteDraft.selectedCategoryId == null && current.noteDraft.newCategoryLabel.trim().isEmpty()) {
+            _uiState.update { it.copy(error = "Choose or type a category before saving.") }
             return
         }
         runAction {
@@ -1429,107 +1450,32 @@ private fun NoteEditorModal(
                             .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Row(
+                    OutlinedTextField(
+                        value = uiState.noteDraft.description,
+                        onValueChange = viewModel::updateNoteDescription,
+                        placeholder = { Text("Description") },
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        CategorySelectField(
-                            selectedLabel =
-                                uiState.noteDraft.selectedCategoryId?.let { categoryId ->
-                                    uiState.snapshot.categories.firstOrNull { it.id == categoryId }?.label
-                                },
-                            categories = uiState.snapshot.categories,
-                            onCategorySelected = viewModel::selectDraftCategory,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(0.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            OutlinedTextField(
-                                value = uiState.noteDraft.newCategoryLabel,
-                                onValueChange = viewModel::updateNewCategoryLabel,
-                                placeholder = { Text("New category") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                shape =
-                                    RoundedCornerShape(
-                                        topStart = 4.dp,
-                                        bottomStart = 4.dp,
-                                        topEnd = 0.dp,
-                                        bottomEnd = 0.dp,
-                                    ),
-                            )
-                            Button(
-                                onClick = viewModel::createCategoryFromInput,
-                                enabled = !uiState.isBusy && uiState.noteDraft.newCategoryLabel.trim().isNotEmpty(),
-                                shape =
-                                    RoundedCornerShape(
-                                        topStart = 0.dp,
-                                        bottomStart = 0.dp,
-                                        topEnd = 4.dp,
-                                        bottomEnd = 4.dp,
-                                    ),
-                                modifier = Modifier.height(56.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                            ) {
-                                Text("Add")
-                            }
-                        }
-                    }
-                    Text(
-                        text = "Tags",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
+                        minLines = 4,
                     )
-                    Row(
+                    CategoryComboField(
+                        value = uiState.noteDraft.newCategoryLabel,
+                        categories = uiState.snapshot.categories,
+                        busy = uiState.isBusy,
+                        onValueChange = viewModel::updateNewCategoryLabel,
+                        onCategorySelected = viewModel::selectDraftCategory,
+                        onAddCategory = viewModel::createCategoryFromInput,
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        TagAppendDropdownField(
-                            tags = uiState.snapshot.tags,
-                            onTagSelected = viewModel::appendTagId,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(0.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            OutlinedTextField(
-                                value = uiState.noteDraft.newTagLabel,
-                                onValueChange = viewModel::updateNewTagLabel,
-                                placeholder = { Text("New tag") },
-                                modifier = Modifier.weight(1f),
-                                singleLine = true,
-                                shape =
-                                    RoundedCornerShape(
-                                        topStart = 4.dp,
-                                        bottomStart = 4.dp,
-                                        topEnd = 0.dp,
-                                        bottomEnd = 0.dp,
-                                    ),
-                            )
-                            Button(
-                                onClick = viewModel::createTagFromInput,
-                                enabled = !uiState.isBusy && uiState.noteDraft.newTagLabel.trim().isNotEmpty(),
-                                shape =
-                                    RoundedCornerShape(
-                                        topStart = 0.dp,
-                                        bottomStart = 0.dp,
-                                        topEnd = 4.dp,
-                                        bottomEnd = 4.dp,
-                                    ),
-                                modifier = Modifier.height(56.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                            ) {
-                                Text("Add")
-                            }
-                        }
-                    }
+                    )
+                    TagComboField(
+                        value = uiState.noteDraft.newTagLabel,
+                        tags = uiState.snapshot.tags,
+                        selectedTagIds = uiState.noteDraft.selectedTagIds,
+                        busy = uiState.isBusy,
+                        onValueChange = viewModel::updateNewTagLabel,
+                        onTagSelected = viewModel::appendTagId,
+                        onAddTag = viewModel::createTagFromInput,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                     if (uiState.noteDraft.selectedTagIds.isNotEmpty()) {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
@@ -1547,18 +1493,6 @@ private fun NoteEditorModal(
                             }
                         }
                     }
-                    Text(
-                        text = "Note",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    OutlinedTextField(
-                        value = uiState.noteDraft.description,
-                        onValueChange = viewModel::updateNoteDescription,
-                        placeholder = { Text("Description") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 4,
-                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1593,37 +1527,79 @@ private fun NoteEditorModal(
 }
 
 @Composable
-private fun CategorySelectField(
-    selectedLabel: String?,
+private fun CategoryComboField(
+    value: String,
     categories: List<CategoryRecord>,
+    busy: Boolean,
+    onValueChange: (String) -> Unit,
     onCategorySelected: (Int) -> Unit,
+    onAddCategory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var wasFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val trimmedValue = value.trim()
+    val matchingCategories = remember(categories, trimmedValue) {
+        categories.matchingCategoryLabels(trimmedValue)
+    }
+    val hasExactMatch = remember(categories, trimmedValue) {
+        categories.any { it.label.equals(trimmedValue, ignoreCase = true) }
+    }
+    val canShowDropdown = expanded && (trimmedValue.isNotEmpty() || categories.isNotEmpty())
+
     Box(modifier = modifier) {
         OutlinedTextField(
-            value = selectedLabel ?: "",
-            onValueChange = {},
-            modifier = Modifier.fillMaxWidth(),
-            readOnly = true,
-            singleLine = true,
-            placeholder = { Text("Select category") },
-        )
-        Box(
+            value = value,
+            onValueChange = {
+                onValueChange(it)
+                expanded = true
+            },
+            enabled = !busy,
             modifier =
                 Modifier
-                    .matchParentSize()
-                    .clickable { expanded = true },
+                    .fillMaxWidth()
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused && !wasFocused) {
+                            onValueChange("")
+                            expanded = true
+                        }
+                        wasFocused = focusState.isFocused
+                    },
+            singleLine = true,
+            label = { Text("Category") },
+            placeholder = { Text("Type or select category") },
+            trailingIcon = {
+                IconButton(onClick = { expanded = true }) {
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Show categories")
+                }
+            },
         )
         DropdownMenu(
-            expanded = expanded,
+            expanded = canShowDropdown,
             onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
         ) {
-            categories.forEach { category ->
+            if (trimmedValue.isNotEmpty() && !hasExactMatch) {
+                DropdownMenuItem(
+                    text = { Text("Add \"$trimmedValue\"") },
+                    enabled = !busy,
+                    onClick = {
+                        expanded = false
+                        focusManager.clearFocus()
+                        onAddCategory()
+                    },
+                )
+                if (matchingCategories.isNotEmpty()) {
+                    HorizontalDivider()
+                }
+            }
+            matchingCategories.forEach { category ->
                 DropdownMenuItem(
                     text = { Text(category.label) },
                     onClick = {
                         expanded = false
+                        focusManager.clearFocus()
                         onCategorySelected(category.id)
                     },
                 )
@@ -1664,40 +1640,91 @@ private fun TagPill(
 }
 
 @Composable
-private fun TagAppendDropdownField(
-    tags: List<com.eighthbrain.notesandroid.app.model.TagRecord>,
+private fun TagComboField(
+    value: String,
+    tags: List<TagRecord>,
+    selectedTagIds: List<Int>,
+    busy: Boolean,
+    onValueChange: (String) -> Unit,
     onTagSelected: (Int) -> Unit,
+    onAddTag: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var wasFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    val trimmedValue = value.trim()
+    val availableTags = remember(tags, selectedTagIds) {
+        val selectedIds = selectedTagIds.toSet()
+        tags.filterNot { it.id in selectedIds }
+    }
+    val matchingTags = remember(availableTags, trimmedValue) {
+        availableTags.matchingTagLabels(trimmedValue)
+    }
+    val hasExactMatch = remember(availableTags, trimmedValue) {
+        availableTags.any { it.label.equals(trimmedValue, ignoreCase = true) }
+    }
+    val canShowDropdown = expanded && (trimmedValue.isNotEmpty() || matchingTags.isNotEmpty())
+    val shouldFloatLabelForSelectedTags = value.isEmpty() && selectedTagIds.isNotEmpty()
+    val displayValue = if (shouldFloatLabelForSelectedTags) " " else value
 
     Box(modifier = modifier) {
         OutlinedTextField(
-            value = "",
-            onValueChange = {},
-            modifier = Modifier.fillMaxWidth(),
-            readOnly = true,
+            value = displayValue,
+            onValueChange = { rawValue ->
+                val nextValue =
+                    if (shouldFloatLabelForSelectedTags && rawValue.startsWith(" ")) {
+                        rawValue.drop(1)
+                    } else {
+                        rawValue
+                    }
+                onValueChange(nextValue)
+                expanded = true
+            },
+            enabled = !busy,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused && !wasFocused) {
+                            onValueChange("")
+                            expanded = true
+                        }
+                        wasFocused = focusState.isFocused
+                    },
             singleLine = true,
-            placeholder = { Text(if (tags.isEmpty()) "No tags yet" else "Select tag") },
-            enabled = tags.isNotEmpty(),
+            label = { Text("Tags") },
+            trailingIcon = {
+                IconButton(onClick = { expanded = true }) {
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Show tags")
+                }
+            },
         )
-        if (tags.isNotEmpty()) {
-            Box(
-                modifier =
-                    Modifier
-                        .matchParentSize()
-                        .clickable { expanded = true },
-            )
-        }
         DropdownMenu(
-            expanded = expanded,
+            expanded = canShowDropdown,
             onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
         ) {
-            tags.forEach { tag ->
+            if (trimmedValue.isNotEmpty() && !hasExactMatch) {
+                DropdownMenuItem(
+                    text = { Text("Add \"$trimmedValue\"") },
+                    enabled = !busy,
+                    onClick = {
+                        expanded = false
+                        focusManager.clearFocus()
+                        onAddTag()
+                    },
+                )
+                if (matchingTags.isNotEmpty()) {
+                    HorizontalDivider()
+                }
+            }
+            matchingTags.forEach { tag ->
                 DropdownMenuItem(
                     text = { Text(tag.label) },
                     onClick = {
                         expanded = false
+                        focusManager.clearFocus()
                         onTagSelected(tag.id)
                     },
                 )
@@ -1705,6 +1732,23 @@ private fun TagAppendDropdownField(
         }
     }
 }
+
+private fun <T> matchingLabels(
+    items: List<T>,
+    query: String,
+    label: (T) -> String,
+): List<T> {
+    if (query.isBlank()) {
+        return items
+    }
+    return items.filter { label(it).contains(query, ignoreCase = true) }
+}
+
+private fun List<CategoryRecord>.matchingCategoryLabels(query: String): List<CategoryRecord> =
+    matchingLabels(this, query) { it.label }
+
+private fun List<TagRecord>.matchingTagLabels(query: String): List<TagRecord> =
+    matchingLabels(this, query) { it.label }
 
 @Composable
 private fun NotesTheme(content: @Composable () -> Unit) {

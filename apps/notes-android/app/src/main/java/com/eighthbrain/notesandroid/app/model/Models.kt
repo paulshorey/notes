@@ -113,7 +113,7 @@ fun defaultRemindInput(): String = nowLocalDateTime().plusMinutes(30).format(loc
 fun NoteRecord.toDraft(): NoteDraft =
     NoteDraft(
         selectedCategoryId = category.id,
-        newCategoryLabel = "",
+        newCategoryLabel = category.label,
         selectedTagIds = tags.map { it.id },
         newTagLabel = "",
         description = description.orEmpty(),

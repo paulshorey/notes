@@ -80,6 +80,12 @@ class NotesRepository(
         }
     }
 
+    suspend fun resolveTag(label: String): TagRecord {
+        val snapshot = readSnapshot()
+        snapshot.tags.findLabelMatch(label)?.let { return it }
+        return createTag(label)
+    }
+
     suspend fun createCategory(label: String): CategoryRecord {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
@@ -97,6 +103,12 @@ class NotesRepository(
             )
             throw error
         }
+    }
+
+    suspend fun resolveCategory(label: String): CategoryRecord {
+        val snapshot = readSnapshot()
+        snapshot.categories.findLabelMatch(label)?.let { return it }
+        return createCategory(label)
     }
 
     suspend fun updateCategory(
@@ -152,8 +164,46 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         return runWithErrorPersistence(snapshot) {
-            apiClient.saveNote(BuildConfig.DEFAULT_API_BASE_URL, user.id, noteId, noteDraft)
-            syncSnapshot(snapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            var resolvedSnapshot = snapshot
+            var resolvedDraft = noteDraft
+
+            val categoryLabel = noteDraft.newCategoryLabel.trim()
+            if (categoryLabel.isNotEmpty()) {
+                val category = snapshot.categories.findLabelMatch(categoryLabel) ?: run {
+                    val created = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, user.id, categoryLabel)
+                    resolvedSnapshot = syncSnapshot(snapshot, user, refreshSearch = false)
+                    created
+                }
+                resolvedDraft =
+                    resolvedDraft.copy(
+                        selectedCategoryId = category.id,
+                        newCategoryLabel = "",
+                    )
+            }
+
+            val extraTagLabel = noteDraft.newTagLabel.trim()
+            if (extraTagLabel.isNotEmpty()) {
+                val tag = resolvedSnapshot.tags.findLabelMatch(extraTagLabel) ?: run {
+                    val created = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, user.id, extraTagLabel)
+                    resolvedSnapshot = syncSnapshot(resolvedSnapshot, user, refreshSearch = false)
+                    created
+                }
+                resolvedDraft =
+                    resolvedDraft.copy(
+                        selectedTagIds =
+                            if (resolvedDraft.selectedTagIds.contains(tag.id)) {
+                                resolvedDraft.selectedTagIds
+                            } else {
+                                resolvedDraft.selectedTagIds + tag.id
+                            },
+                        newTagLabel = "",
+                    )
+            }
+
+            require(resolvedDraft.selectedCategoryId != null) { "Choose or type a category before saving." }
+
+            apiClient.saveNote(BuildConfig.DEFAULT_API_BASE_URL, user.id, noteId, resolvedDraft)
+            syncSnapshot(resolvedSnapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
 
@@ -274,4 +324,16 @@ class NotesRepository(
         sessionStore.saveSnapshot(snapshot)
         NotesHomeWidget().updateAll(appContext)
     }
+}
+
+private fun String.normalizedTaxonomyLabel(): String = trim().lowercase()
+
+private fun List<CategoryRecord>.findLabelMatch(label: String): CategoryRecord? {
+    val normalized = label.normalizedTaxonomyLabel()
+    return firstOrNull { it.label.normalizedTaxonomyLabel() == normalized }
+}
+
+private fun List<TagRecord>.findLabelMatch(label: String): TagRecord? {
+    val normalized = label.normalizedTaxonomyLabel()
+    return firstOrNull { it.label.normalizedTaxonomyLabel() == normalized }
 }
