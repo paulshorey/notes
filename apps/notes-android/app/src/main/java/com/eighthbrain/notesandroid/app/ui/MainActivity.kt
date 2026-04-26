@@ -65,12 +65,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -1544,6 +1546,7 @@ private fun CategoryComboField(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var wasFocused by remember { mutableStateOf(false) }
     val trimmedValue = value.trim()
     val matchingCategories = remember(categories, trimmedValue) {
         categories.matchingCategoryLabels(trimmedValue)
@@ -1561,7 +1564,16 @@ private fun CategoryComboField(
                 expanded = true
             },
             enabled = !busy,
-            modifier = Modifier.fillMaxWidth(),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused && !wasFocused) {
+                            onValueChange("")
+                            expanded = true
+                        }
+                        wasFocused = focusState.isFocused
+                    },
             singleLine = true,
             label = { Text("Category") },
             placeholder = { Text("Type or select category") },
@@ -1574,6 +1586,7 @@ private fun CategoryComboField(
         DropdownMenu(
             expanded = canShowDropdown,
             onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
         ) {
             if (trimmedValue.isNotEmpty() && !hasExactMatch) {
                 DropdownMenuItem(
@@ -1644,6 +1657,7 @@ private fun TagComboField(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var wasFocused by remember { mutableStateOf(false) }
     val trimmedValue = value.trim()
     val availableTags = remember(tags, selectedTagIds) {
         val selectedIds = selectedTagIds.toSet()
@@ -1665,7 +1679,16 @@ private fun TagComboField(
                 expanded = true
             },
             enabled = !busy,
-            modifier = Modifier.fillMaxWidth(),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused && !wasFocused) {
+                            onValueChange("")
+                            expanded = true
+                        }
+                        wasFocused = focusState.isFocused
+                    },
             singleLine = true,
             placeholder = { Text("Type or select tag") },
             trailingIcon = {
@@ -1677,6 +1700,7 @@ private fun TagComboField(
         DropdownMenu(
             expanded = canShowDropdown,
             onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
         ) {
             if (trimmedValue.isNotEmpty() && !hasExactMatch) {
                 DropdownMenuItem(
