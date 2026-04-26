@@ -11,7 +11,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -1253,21 +1252,18 @@ private fun TagsPickerDialog(
 
 @Composable
 private fun AddNoteListItem(onClick: () -> Unit) {
-    Surface(
+    Column(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .clickable(onClick = onClick)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        color = MaterialTheme.colorScheme.surface,
-        onClick = onClick,
     ) {
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                    .padding(vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -1276,9 +1272,18 @@ private fun AddNoteListItem(onClick: () -> Unit) {
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),
             )
-            Icon(Icons.Default.Add, contentDescription = "Add note")
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "Add note",
+                modifier = Modifier.padding(start = 12.dp),
+            )
         }
     }
+
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 12.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+    )
 }
 
 @Composable
