@@ -1450,6 +1450,13 @@ private fun NoteEditorModal(
                             .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    OutlinedTextField(
+                        value = uiState.noteDraft.description,
+                        onValueChange = viewModel::updateNoteDescription,
+                        placeholder = { Text("Description") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 4,
+                    )
                     CategoryComboField(
                         value = uiState.noteDraft.newCategoryLabel,
                         categories = uiState.snapshot.categories,
@@ -1458,11 +1465,6 @@ private fun NoteEditorModal(
                         onCategorySelected = viewModel::selectDraftCategory,
                         onAddCategory = viewModel::createCategoryFromInput,
                         modifier = Modifier.fillMaxWidth(),
-                    )
-                    Text(
-                        text = "Tags",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
                     )
                     TagComboField(
                         value = uiState.noteDraft.newTagLabel,
@@ -1491,18 +1493,6 @@ private fun NoteEditorModal(
                             }
                         }
                     }
-                    Text(
-                        text = "Note",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium,
-                    )
-                    OutlinedTextField(
-                        value = uiState.noteDraft.description,
-                        onValueChange = viewModel::updateNoteDescription,
-                        placeholder = { Text("Description") },
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 4,
-                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1675,12 +1665,20 @@ private fun TagComboField(
         availableTags.any { it.label.equals(trimmedValue, ignoreCase = true) }
     }
     val canShowDropdown = expanded && (trimmedValue.isNotEmpty() || matchingTags.isNotEmpty())
+    val shouldFloatLabelForSelectedTags = value.isEmpty() && selectedTagIds.isNotEmpty()
+    val displayValue = if (shouldFloatLabelForSelectedTags) " " else value
 
     Box(modifier = modifier) {
         OutlinedTextField(
-            value = value,
-            onValueChange = {
-                onValueChange(it)
+            value = displayValue,
+            onValueChange = { rawValue ->
+                val nextValue =
+                    if (shouldFloatLabelForSelectedTags && rawValue.startsWith(" ")) {
+                        rawValue.drop(1)
+                    } else {
+                        rawValue
+                    }
+                onValueChange(nextValue)
                 expanded = true
             },
             enabled = !busy,
@@ -1695,7 +1693,7 @@ private fun TagComboField(
                         wasFocused = focusState.isFocused
                     },
             singleLine = true,
-            placeholder = { Text("Type or select tag") },
+            label = { Text("Tags") },
             trailingIcon = {
                 IconButton(onClick = { expanded = true }) {
                     Icon(Icons.Default.ArrowDropDown, contentDescription = "Show tags")
