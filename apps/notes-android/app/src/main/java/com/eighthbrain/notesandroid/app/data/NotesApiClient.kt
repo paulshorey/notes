@@ -39,6 +39,7 @@ class NotesApiClient(
                     requestBody = requestBody,
                 )
 
+            applyUserSummaryDefaults(response.getJSONObject("user"))
             userFromJson(response.getJSONObject("user"))
         }
 
@@ -54,6 +55,7 @@ class NotesApiClient(
                     queryParameters = listOf("userId" to userId.toString()),
                 )
 
+            applyUserSummaryDefaults(response.getJSONObject("user"))
             userFromJson(response.getJSONObject("user"))
         }
 
