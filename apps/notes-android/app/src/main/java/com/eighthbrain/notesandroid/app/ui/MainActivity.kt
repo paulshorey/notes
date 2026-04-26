@@ -11,6 +11,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -29,21 +30,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,7 +50,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -85,8 +82,6 @@ import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.TagRecord
-import com.eighthbrain.notesandroid.app.model.descriptionBody
-import com.eighthbrain.notesandroid.app.model.formatConciseDate
 import com.eighthbrain.notesandroid.app.model.formatPercent
 import com.eighthbrain.notesandroid.app.model.headline
 import com.eighthbrain.notesandroid.app.model.sortedByLastUpdatedDescending
@@ -114,7 +109,6 @@ data class NotesUiState(
     val noteDraft: NoteDraft = NoteDraft(),
     val editingNoteId: Int? = null,
     val searchQuery: String = "",
-    val expandedNoteIds: Set<Int> = emptySet(),
     val showNoteEditor: Boolean = false,
     val searchLoading: Boolean = false,
     val isBusy: Boolean = false,
@@ -314,14 +308,6 @@ class NotesViewModel(
         _uiState.update { it.copy(noteDraft = it.noteDraft.copy(remindInput = value)) }
     }
 
-    fun toggleNoteExpanded(noteId: Int) {
-        _uiState.update { state ->
-            val ids = state.expandedNoteIds.toMutableSet()
-            if (noteId in ids) ids.remove(noteId) else ids.add(noteId)
-            state.copy(expandedNoteIds = ids)
-        }
-    }
-
     fun signIn() {
         val current = uiState.value
         runAction {
@@ -348,7 +334,6 @@ class NotesViewModel(
                     noteDraft = NoteDraft(),
                     editingNoteId = null,
                     searchQuery = "",
-                    expandedNoteIds = emptySet(),
                     message = "Signed out.",
                     error = null,
                 )
@@ -613,6 +598,7 @@ class NotesViewModel(
                 it.copy(
                     noteDraft = if (current.editingNoteId == noteId) NoteDraft() else it.noteDraft,
                     editingNoteId = if (current.editingNoteId == noteId) null else it.editingNoteId,
+                    showNoteEditor = if (current.editingNoteId == noteId) false else it.showNoteEditor,
                     message = "Note deleted.",
                     error = null,
                 )
@@ -930,6 +916,7 @@ private fun MainContent(
 
     var showCategoryPicker by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
+    val displayError = uiState.error ?: uiState.snapshot.lastError
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -994,18 +981,6 @@ private fun MainContent(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
-            val displayError = uiState.error ?: uiState.snapshot.lastError
-            if (uiState.message != null || displayError != null) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
-                    uiState.message?.let {
-                        Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-                    }
-                    displayError?.let {
-                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-
             TagSelectField(
                 selectedLabel = selectedCategory?.label,
                 allLabel = "All categories",
@@ -1057,8 +1032,11 @@ private fun MainContent(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 80.dp),
+                contentPadding = PaddingValues(bottom = 96.dp),
             ) {
+                item {
+                    AddNoteListItem(onClick = viewModel::showNoteEditor)
+                }
                 if (displayItems.isEmpty() && !isLoading) {
                     item {
                         Text(
@@ -1072,33 +1050,19 @@ private fun MainContent(
                     items(displayItems, key = { it.note.id }) { item ->
                         NoteItem(
                             item = item,
-                            isExpanded = item.note.id in uiState.expandedNoteIds,
-                            onToggle = { viewModel.toggleNoteExpanded(item.note.id) },
-                            onEdit = { viewModel.startEditing(item.note) },
-                            onDelete = { viewModel.deleteNote(item.note.id) },
+                            onClick = { viewModel.startEditing(item.note) },
                         )
                     }
                 }
             }
         }
 
-        Row(
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            FloatingActionButton(
-                onClick = viewModel::showNoteEditor,
-                shape = CircleShape,
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add note")
-            }
-        }
-
         NoteEditorModal(uiState = uiState, viewModel = viewModel)
+        FeedbackMessage(
+            message = uiState.message,
+            error = displayError,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
     }
 
     if (showCategoryPicker) {
@@ -1288,94 +1252,71 @@ private fun TagsPickerDialog(
 }
 
 @Composable
+private fun AddNoteListItem(onClick: () -> Unit) {
+    Surface(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        color = MaterialTheme.colorScheme.surface,
+        onClick = onClick,
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Add new note",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(Icons.Default.Add, contentDescription = "Add note")
+        }
+    }
+}
+
+@Composable
 private fun NoteItem(
     item: DisplayItem,
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
+    onClick: () -> Unit,
 ) {
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onToggle)
+                .clickable(onClick = onClick)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.align(Alignment.TopEnd),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                item.relevance?.let { rel ->
-                    Text(
-                        text = formatPercent(rel),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                    )
-                }
-                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-
-            val actionCount = 2 + if (item.relevance != null) 1 else 0
-            val reservedEnd = (actionCount * 34).dp
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 text = item.note.headline(),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
-                maxLines = if (isExpanded) Int.MAX_VALUE else 1,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(end = reservedEnd, top = 6.dp),
+                modifier = Modifier.weight(1f),
             )
-        }
-
-        if (isExpanded) {
-            val bodyText = item.note.descriptionBody()
-            if (bodyText.isNotBlank()) {
+            item.relevance?.let { rel ->
                 Text(
-                    text = bodyText,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 2.dp),
+                    text = formatPercent(rel),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 12.dp),
                 )
             }
-            if (item.note.tags.isNotEmpty()) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    item.note.tags.forEach { cat ->
-                        Text(
-                            text = "• ${cat.label}",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-            Text(
-                "Due ${formatConciseDate(item.note.timeDue)} · Remind ${formatConciseDate(item.note.timeRemind)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 6.dp),
-            )
         }
     }
 
@@ -1383,6 +1324,35 @@ private fun NoteItem(
         modifier = Modifier.padding(horizontal = 12.dp),
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
     )
+}
+
+@Composable
+private fun FeedbackMessage(
+    message: String?,
+    error: String?,
+    modifier: Modifier = Modifier,
+) {
+    if (message == null && error == null) {
+        return
+    }
+    Surface(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, top = 12.dp, end = 12.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        tonalElevation = 6.dp,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            message?.let {
+                Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+            }
+            error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
 }
 
 @Composable
@@ -1512,12 +1482,32 @@ private fun NoteEditorModal(
                             singleLine = true,
                         )
                     }
-                    Button(
-                        onClick = viewModel::saveNote,
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !uiState.isBusy,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(if (uiState.editingNoteId == null) "Create" else "Save")
+                        Button(
+                            onClick = viewModel::saveNote,
+                            modifier = Modifier.weight(1f),
+                            enabled = !uiState.isBusy,
+                        ) {
+                            Text(if (uiState.editingNoteId == null) "Create" else "Save")
+                        }
+                        uiState.editingNoteId?.let { noteId ->
+                            Button(
+                                onClick = { viewModel.deleteNote(noteId) },
+                                modifier = Modifier.weight(1f),
+                                enabled = !uiState.isBusy,
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Delete")
+                            }
+                        }
                     }
                     Spacer(Modifier.height(16.dp))
                 }
