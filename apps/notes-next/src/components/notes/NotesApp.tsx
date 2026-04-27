@@ -23,6 +23,7 @@ import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-marketing/notes-search-con
 import {
   type CSSProperties,
   type FormEvent,
+  type MouseEvent,
   type PointerEvent,
   useCallback,
   useEffect,
@@ -30,8 +31,10 @@ import {
   useRef,
   useState,
 } from "react"
-import { Text, TextInput } from "@gravity-ui/uikit"
+import { Pencil, TrashBin } from "@gravity-ui/icons"
+import { Button, Icon, Text, TextInput } from "@gravity-ui/uikit"
 import { STORAGE_KEY } from "@/constants/notes"
+import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import { getErrorMessage, readJson } from "@/lib/api"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import {
@@ -117,6 +120,28 @@ const withResultsColumnWidthPreference = (
 const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
   categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
 
+interface CategoryNoteGroup {
+  category: CategoryRecord
+  items: DisplayNoteItem[]
+  sortTime: number
+}
+
+const getTimeValue = (value: string | null | undefined) => {
+  if (!value) return 0
+  const time = new Date(value).getTime()
+  return Number.isFinite(time) ? time : 0
+}
+
+const getNoteSortTime = (note: NoteRecord) => getTimeValue(note.timeModified)
+
+const getCategorySortTime = (category: CategoryRecord, categoryNotes: NoteRecord[]) => {
+  if (category.lastUsedAt) {
+    return getTimeValue(category.lastUsedAt)
+  }
+
+  return categoryNotes.reduce((latest, note) => Math.max(latest, getNoteSortTime(note)), 0)
+}
+
 interface ResetNoteFormOptions {
   categoryList?: CategoryRecord[]
   selectedCategoryId?: number | null
@@ -156,7 +181,6 @@ export default function NotesApp() {
   const [tags, setTags] = useState<TagRecord[]>([])
   const fallbackCategoryId = getDefaultCategoryId(categories)
   const {
-    selectedCategoryId,
     selectedTagId,
     setSelectedTagId,
     resetDefaultState: resetNotesAppStore,
@@ -191,6 +215,7 @@ export default function NotesApp() {
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
   const [resultsListVisible, setResultsListVisible] = useState(true)
+  const [expandedCategoryId, setExpandedCategoryId] = useState<number | null>(null)
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
@@ -698,38 +723,77 @@ export default function NotesApp() {
     return () => window.clearTimeout(timeoutId)
   }, [editingNoteId, noteForm, notePending, saveCurrentNote, user])
 
-  const visibleItems = useMemo<DisplayNoteItem[]>(() => {
-    const matchesCategory = (note: NoteRecord) =>
-      selectedCategoryId === null || note.category.id === selectedCategoryId
-    const matchesTag = (note: NoteRecord) =>
-      selectedTagId === null || note.tags.some((c) => c.id === selectedTagId)
+  const matchesSelectedTag = useCallback(
+    (note: NoteRecord) =>
+      selectedTagId === null || note.tags.some((tag) => tag.id === selectedTagId),
+    [selectedTagId],
+  )
 
-    if (searchMode) {
-      return [...searchResults]
-        .filter((result) => matchesCategory(result.note) && matchesTag(result.note))
-        .sort((left, right) => right.similarity - left.similarity)
-        .map((result) => ({
-          note: result.note,
-          relevance: result.similarity,
-        }))
+  const getFilteredNoteCount = useCallback(
+    (category: CategoryRecord, items: DisplayNoteItem[]) =>
+      selectedTagId === null ? category.noteCount : items.length,
+    [selectedTagId],
+  )
+
+  const searchItems = useMemo<DisplayNoteItem[]>(() => {
+    if (!searchMode) {
+      return []
     }
 
-    return [...notes]
-      .filter((note) => matchesCategory(note) && matchesTag(note))
+    return [...searchResults]
+      .filter((result) => matchesSelectedTag(result.note))
+      .sort((left, right) => right.similarity - left.similarity)
+      .map((result) => ({
+        note: result.note,
+        relevance: result.similarity,
+      }))
+  }, [matchesSelectedTag, searchMode, searchResults])
+
+  const categoryNoteGroups = useMemo<CategoryNoteGroup[]>(() => {
+    const notesByCategory = new Map<number, NoteRecord[]>()
+    for (const category of categories) {
+      notesByCategory.set(category.id, [])
+    }
+
+    for (const note of notes) {
+      const categoryNotes = notesByCategory.get(note.category.id)
+      if (categoryNotes) {
+        categoryNotes.push(note)
+      }
+    }
+
+    return categories
+      .map((category) => {
+        const categoryNotes = notesByCategory.get(category.id) ?? []
+        const items = [...categoryNotes]
+          .filter(matchesSelectedTag)
+          .sort((left, right) => getNoteSortTime(right) - getNoteSortTime(left))
+          .map((note) => ({ note }))
+
+        return {
+          category,
+          items,
+          sortTime: getCategorySortTime(category, categoryNotes),
+        }
+      })
       .sort(
         (left, right) =>
-          new Date(right.timeModified).getTime() - new Date(left.timeModified).getTime(),
+          right.sortTime - left.sortTime ||
+          left.category.label.localeCompare(right.category.label, undefined, {
+            sensitivity: "base",
+          }) ||
+          left.category.id - right.category.id,
       )
-      .map((note) => ({ note }))
-  }, [notes, searchMode, searchResults, selectedCategoryId, selectedTagId])
+  }, [categories, matchesSelectedTag, notes])
 
-  const selectedCategory = useMemo(
-    () =>
-      selectedCategoryId === null
-        ? null
-        : (categories.find((category) => category.id === selectedCategoryId) ?? null),
-    [categories, selectedCategoryId],
-  )
+  useEffect(() => {
+    if (
+      expandedCategoryId !== null &&
+      !categories.some((category) => category.id === expandedCategoryId)
+    ) {
+      setExpandedCategoryId(null)
+    }
+  }, [categories, expandedCategoryId])
 
   const selectedTag = useMemo(
     () => (selectedTagId === null ? null : (tags.find((c) => c.id === selectedTagId) ?? null)),
@@ -1310,12 +1374,8 @@ export default function NotesApp() {
           <section className={styles.resultsColumn} style={resultsColumnStyle}>
             <div className={`${styles.header} ${styles.headerRight}`}></div>
             <FilterBanners
-              categories={categories}
               tags={tags}
               notesCount={notes.length}
-              fallbackCategoryId={fallbackCategoryId}
-              onEditCategory={openEditCategory}
-              onDeleteCategory={openDeleteCategory}
               onEditTag={openEditTag}
               onDeleteTag={openDeleteTag}
             />
@@ -1331,21 +1391,111 @@ export default function NotesApp() {
               </div>
             </div>
             <div className={styles.noteResults}>
-              <NoteResultsList
-                items={visibleItems}
-                activeNoteId={editingNoteId}
-                loading={searchMode ? searchLoading || notesLoading : notesLoading}
-                emptyMessage={
-                  selectedCategory
-                    ? `No notes in category “${selectedCategory.label}”.`
-                    : selectedTag
-                      ? `No notes in “${selectedTag.label}”.`
-                      : searchMode
-                        ? "No notes in your account."
-                        : "No notes yet."
-                }
-                onEdit={handleStartEdit}
-              />
+              {searchMode && (
+                <div className={styles.searchResultsSection}>
+                  <NoteResultsList
+                    items={searchItems}
+                    activeNoteId={editingNoteId}
+                    loading={searchLoading || notesLoading}
+                    emptyMessage={
+                      selectedTag ? `No search results in “${selectedTag.label}”.` : "No search results."
+                    }
+                    onEdit={handleStartEdit}
+                  />
+                </div>
+              )}
+
+              <div className={styles.categoryAccordion} role="list" aria-label="Notes by category">
+                {notesLoading ? (
+                  <div className={styles.categoryAccordionStatus}>
+                    <Text variant="body-1" color="secondary">
+                      Loading…
+                    </Text>
+                  </div>
+                ) : categoryNoteGroups.length === 0 ? (
+                  <div className={styles.categoryAccordionStatus}>
+                    <Text variant="body-1" color="secondary">
+                      No categories yet.
+                    </Text>
+                  </div>
+                ) : (
+                  categoryNoteGroups.map(({ category, items }) => {
+                    const expanded = expandedCategoryId === category.id
+                    const panelId = `category-notes-${category.id}`
+
+                    return (
+                      <div className={styles.categoryGroup} key={category.id} role="listitem">
+                        <div className={styles.categoryRow}>
+                          <button
+                            type="button"
+                            className={styles.categoryToggle}
+                            aria-expanded={expanded}
+                            aria-controls={panelId}
+                            onClick={() =>
+                              setExpandedCategoryId((current) =>
+                                current === category.id ? null : category.id,
+                              )
+                            }
+                          >
+                            <span
+                              className={`${styles.categoryToggleIcon} ${
+                                expanded ? styles.categoryToggleIconExpanded : ""
+                              }`}
+                            >
+                              <CaretDownIcon size={14} />
+                            </span>
+                            <span className={styles.categoryLabel}>{category.label}</span>
+                            <span className={styles.categoryCount}>
+                              {getFilteredNoteCount(category, items)}
+                            </span>
+                          </button>
+                          <Button
+                            view="flat"
+                            size="xs"
+                            onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                              event.stopPropagation()
+                              openEditCategory(category)
+                            }}
+                            aria-label={`Edit ${category.label}`}
+                            className={styles.categoryActionButton}
+                          >
+                            <Icon data={Pencil} size={14} />
+                          </Button>
+                          {category.id !== fallbackCategoryId && (
+                            <Button
+                              view="flat"
+                              size="xs"
+                              onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                                event.stopPropagation()
+                                openDeleteCategory(category)
+                              }}
+                              aria-label={`Delete ${category.label}`}
+                              className={styles.categoryActionButton}
+                            >
+                              <Icon data={TrashBin} size={14} />
+                            </Button>
+                          )}
+                        </div>
+                        {expanded && (
+                          <div id={panelId} className={styles.categoryPanel}>
+                            <NoteResultsList
+                              items={items}
+                              activeNoteId={editingNoteId}
+                              loading={false}
+                              emptyMessage={
+                                selectedTag
+                                  ? `No notes in “${selectedTag.label}” for this category.`
+                                  : `No notes in category “${category.label}”.`
+                              }
+                              onEdit={handleStartEdit}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </div>
           </section>
         )}
