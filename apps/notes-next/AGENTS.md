@@ -75,10 +75,10 @@ src/                        — non-route code (import with "@/..." alias)
 
 ## Environment variables
 
-| Variable | Purpose |
-|----------|---------|
-| `MARKETING_DB_URL` | PostgreSQL connection string |
-| `JINA_API_KEY` | Jina AI embeddings key (semantic search + embedding maintenance) |
+| Variable           | Purpose                                                          |
+| ------------------ | ---------------------------------------------------------------- |
+| `MARKETING_DB_URL` | PostgreSQL connection string                                     |
+| `JINA_API_KEY`     | Jina AI embeddings key (semantic search + embedding maintenance) |
 
 ## Build and dev
 
@@ -109,8 +109,6 @@ pnpm --filter notes-next test
 ## UI
 
 This web app uses 2 libraries. Whenever developing anything, feel free to use components and utilities from either library, whichever is most appropriate.
-
-Mantine is preferred.
 
 - Mantine (@mantine/core) mantine.dev/core
 - Gravity (@gravity-ui/uikit) gravity-ui.com/components/uikit

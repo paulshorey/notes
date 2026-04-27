@@ -1,11 +1,6 @@
 "use client"
 
-import {
-  Combobox,
-  TagsInput as MantineTagsInput,
-  TextInput as MantineTextInput,
-  useCombobox,
-} from "@mantine/core"
+import { TagsInput as MantineTagsInput } from "@mantine/core"
 import { Button, Icon, Text, TextArea } from "@gravity-ui/uikit"
 import { Calendar, TrashBin, Xmark } from "@gravity-ui/icons"
 import {
@@ -17,6 +12,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react"
 import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import type { NoteFormState } from "@/types/notes"
@@ -70,16 +66,14 @@ export function NoteForm({
   onCancelEdit,
   header,
 }: NoteFormProps) {
-  const categoryCombobox = useCombobox()
-  const categorySelectionCommittedRef = useRef(false)
+  const categoryPickerRef = useRef<HTMLDivElement | null>(null)
+  const categoryInputRef = useRef<HTMLInputElement | null>(null)
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
 
   const selectedCategoryLabel =
     form.selectedCategoryId === null
       ? ""
       : categories.find((category) => category.id === form.selectedCategoryId)?.label ?? ""
-  const categoryPlaceholder =
-    categories.length === 0 ? "Type a category and press Enter" : "Select category or type new"
-  const categorySizerValue = categoryInputValue || selectedCategoryLabel || "Category"
 
   const filteredCategoryOptions = useMemo(() => {
     const query = normalizeLabel(categoryInputValue)
@@ -108,22 +102,66 @@ export function NoteForm({
   }, [form.selectedTagIds, pendingTagLabels, tags])
 
   useEffect(() => {
-    onCategoryInputValueChange(selectedCategoryLabel)
-  }, [onCategoryInputValueChange, selectedCategoryLabel])
+    if (!categoryPickerOpen) {
+      onCategoryInputValueChange(selectedCategoryLabel)
+    }
+  }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
+
+  useEffect(() => {
+    if (!categoryPickerOpen) {
+      return
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (categoryPickerRef.current?.contains(event.target as Node)) {
+        return
+      }
+      setCategoryPickerOpen(false)
+      onCategoryInputValueChange(selectedCategoryLabel)
+    }
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return
+      }
+      setCategoryPickerOpen(false)
+      onCategoryInputValueChange(selectedCategoryLabel)
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown)
+    document.addEventListener("keydown", handleKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
 
   const openCategoryDropdown = () => {
-    if (selectedCategoryLabel !== "" && categoryInputValue === selectedCategoryLabel) {
-      onCategoryInputValueChange("")
-    }
-    categoryCombobox.openDropdown()
-    categoryCombobox.updateSelectedOptionIndex()
+    onCategoryInputValueChange("")
+    setCategoryPickerOpen(true)
+    window.setTimeout(() => categoryInputRef.current?.focus(), 0)
   }
 
   const restoreCategoryInputValue = () => {
     onCategoryInputValueChange(selectedCategoryLabel)
   }
 
+  const closeCategoryDropdown = () => {
+    setCategoryPickerOpen(false)
+    restoreCategoryInputValue()
+  }
+
+  const selectCategory = (categoryId: number) => {
+    onSelectCategoryId(String(categoryId))
+    setCategoryPickerOpen(false)
+  }
+
   const handleCategoryInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault()
+      closeCategoryDropdown()
+      return
+    }
     if (event.key !== "Enter") {
       return
     }
@@ -136,8 +174,7 @@ export function NoteForm({
     )
     if (matchingCategory) {
       event.preventDefault()
-      onSelectCategoryId(String(matchingCategory.id))
-      categoryCombobox.closeDropdown()
+      selectCategory(matchingCategory.id)
       return
     }
     if (filteredCategoryOptions.length === 0) {
@@ -146,7 +183,7 @@ export function NoteForm({
         try {
           await onCreateCategory(label)
         } finally {
-          categoryCombobox.closeDropdown()
+          setCategoryPickerOpen(false)
         }
       })()
     }
@@ -262,59 +299,64 @@ export function NoteForm({
           )}
         </div>
         <div className={styles.dateFields}>
-          <div className={styles.categoryFieldSizer} data-value={categorySizerValue}>
-            <Combobox
-              store={categoryCombobox}
-              onOptionSubmit={(optionValue) => {
-                categorySelectionCommittedRef.current = true
-                onSelectCategoryId(optionValue)
-                categoryCombobox.closeDropdown()
-              }}
+          <div className={styles.categoryPicker} ref={categoryPickerRef}>
+            <button
+              type="button"
+              className={styles.categoryTrigger}
+              onClick={categoryPickerOpen ? closeCategoryDropdown : openCategoryDropdown}
+              disabled={!userPresent || createCategoryPending}
+              aria-expanded={categoryPickerOpen}
+              aria-haspopup="dialog"
             >
-              <Combobox.Target>
-                <MantineTextInput
-                  placeholder={categoryPlaceholder}
+              <span className={styles.categoryTriggerLabel}>
+                Category:{" "}
+                <span className={styles.categoryTriggerValue}>
+                  {selectedCategoryLabel || "none"}
+                </span>
+              </span>
+              <CaretDownIcon size={14} />
+            </button>
+
+            {categoryPickerOpen && (
+              <div className={styles.categoryPanel}>
+                <input
+                  ref={categoryInputRef}
+                  type="text"
+                  className={styles.categoryInput}
+                  placeholder="Enter new or select below..."
                   value={categoryInputValue}
                   disabled={!userPresent || createCategoryPending}
-                  rightSection={<CaretDownIcon size={16} />}
-                  rightSectionPointerEvents="none"
                   onChange={(event) => {
                     onCategoryInputValueChange(toLowercaseInput(event.currentTarget.value))
-                    categoryCombobox.openDropdown()
-                    categoryCombobox.updateSelectedOptionIndex()
-                  }}
-                  onClick={openCategoryDropdown}
-                  onFocus={openCategoryDropdown}
-                  onBlur={() => {
-                    categoryCombobox.closeDropdown()
-                    window.setTimeout(() => {
-                      if (categorySelectionCommittedRef.current) {
-                        categorySelectionCommittedRef.current = false
-                        return
-                      }
-                      restoreCategoryInputValue()
-                    }, 0)
                   }}
                   onKeyDown={handleCategoryInputKeyDown}
                 />
-              </Combobox.Target>
-
-              <Combobox.Dropdown className={styles.categoryDropdown}>
-                <Combobox.Options>
-                  {filteredCategoryOptions.length === 0 ? (
-                    <Combobox.Empty>
-                      Press Enter to create "{categoryInputValue.trim()}"
-                    </Combobox.Empty>
+                <div className={styles.categoryOptions} role="listbox" aria-label="Category options">
+                  {filteredCategoryOptions.length === 0 && categoryInputValue.trim() !== "" ? (
+                    <div className={styles.categoryEmpty}>
+                      Press Enter to create &quot;{categoryInputValue.trim()}&quot;
+                    </div>
                   ) : (
                     filteredCategoryOptions.map((category) => (
-                      <Combobox.Option key={category.id} value={String(category.id)}>
+                      <button
+                        key={category.id}
+                        type="button"
+                        className={styles.categoryOption}
+                        data-active={form.selectedCategoryId === category.id || undefined}
+                        onClick={() => selectCategory(category.id)}
+                        role="option"
+                        aria-selected={form.selectedCategoryId === category.id}
+                      >
                         {category.label}
-                      </Combobox.Option>
+                      </button>
                     ))
                   )}
-                </Combobox.Options>
-              </Combobox.Dropdown>
-            </Combobox>
+                  {filteredCategoryOptions.length === 0 && categoryInputValue.trim() === "" && (
+                    <div className={styles.categoryEmpty}>No categories yet.</div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
