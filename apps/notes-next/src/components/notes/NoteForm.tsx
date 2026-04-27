@@ -16,6 +16,7 @@ import {
   type SetStateAction,
   useEffect,
   useMemo,
+  useRef,
 } from "react"
 import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import type { NoteFormState } from "@/types/notes"
@@ -70,6 +71,12 @@ export function NoteForm({
   header,
 }: NoteFormProps) {
   const categoryCombobox = useCombobox()
+  const categorySelectionCommittedRef = useRef(false)
+
+  const selectedCategoryLabel =
+    form.selectedCategoryId === null
+      ? ""
+      : categories.find((category) => category.id === form.selectedCategoryId)?.label ?? ""
 
   const filteredCategoryOptions = useMemo(() => {
     const query = normalizeLabel(categoryInputValue)
@@ -98,12 +105,20 @@ export function NoteForm({
   }, [form.selectedTagIds, pendingTagLabels, tags])
 
   useEffect(() => {
-    onCategoryInputValueChange(
-      form.selectedCategoryId === null
-        ? ""
-        : categories.find((category) => category.id === form.selectedCategoryId)?.label ?? "",
-    )
-  }, [categories, form.selectedCategoryId, onCategoryInputValueChange])
+    onCategoryInputValueChange(selectedCategoryLabel)
+  }, [onCategoryInputValueChange, selectedCategoryLabel])
+
+  const openCategoryDropdown = () => {
+    if (selectedCategoryLabel !== "" && categoryInputValue === selectedCategoryLabel) {
+      onCategoryInputValueChange("")
+    }
+    categoryCombobox.openDropdown()
+    categoryCombobox.updateSelectedOptionIndex()
+  }
+
+  const restoreCategoryInputValue = () => {
+    onCategoryInputValueChange(selectedCategoryLabel)
+  }
 
   const handleCategoryInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") {
@@ -252,6 +267,7 @@ export function NoteForm({
             <Combobox
               store={categoryCombobox}
               onOptionSubmit={(optionValue) => {
+                categorySelectionCommittedRef.current = true
                 onSelectCategoryId(optionValue)
                 categoryCombobox.closeDropdown()
               }}
@@ -272,9 +288,18 @@ export function NoteForm({
                     categoryCombobox.openDropdown()
                     categoryCombobox.updateSelectedOptionIndex()
                   }}
-                  onClick={() => categoryCombobox.openDropdown()}
-                  onFocus={() => categoryCombobox.openDropdown()}
-                  onBlur={() => categoryCombobox.closeDropdown()}
+                  onClick={openCategoryDropdown}
+                  onFocus={openCategoryDropdown}
+                  onBlur={() => {
+                    categoryCombobox.closeDropdown()
+                    window.setTimeout(() => {
+                      if (categorySelectionCommittedRef.current) {
+                        categorySelectionCommittedRef.current = false
+                        return
+                      }
+                      restoreCategoryInputValue()
+                    }, 0)
+                  }}
                   onKeyDown={handleCategoryInputKeyDown}
                 />
               </Combobox.Target>
