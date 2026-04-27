@@ -65,6 +65,9 @@ const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
 const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
+const ALL_CATEGORIES_EXPANDED_ID = "all-categories"
+
+type ExpandedCategoryId = number | typeof ALL_CATEGORIES_EXPANDED_ID
 
 const isPreferencesObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -215,7 +218,7 @@ export default function NotesApp() {
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
   const [resultsListVisible, setResultsListVisible] = useState(true)
-  const [expandedCategoryId, setExpandedCategoryId] = useState<number | null>(null)
+  const [expandedCategoryId, setExpandedCategoryId] = useState<ExpandedCategoryId | null>(null)
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
@@ -749,6 +752,17 @@ export default function NotesApp() {
       }))
   }, [matchesSelectedTag, searchMode, searchResults])
 
+  const allCategoryItems = useMemo<DisplayNoteItem[]>(
+    () =>
+      [...notes]
+        .filter(matchesSelectedTag)
+        .sort((left, right) => getNoteSortTime(right) - getNoteSortTime(left))
+        .map((note) => ({ note })),
+    [matchesSelectedTag, notes],
+  )
+
+  const allCategoriesNoteCount = selectedTagId === null ? notes.length : allCategoryItems.length
+
   const categoryNoteGroups = useMemo<CategoryNoteGroup[]>(() => {
     const notesByCategory = new Map<number, NoteRecord[]>()
     for (const category of categories) {
@@ -777,23 +791,38 @@ export default function NotesApp() {
         }
       })
       .sort(
-        (left, right) =>
-          right.sortTime - left.sortTime ||
-          left.category.label.localeCompare(right.category.label, undefined, {
-            sensitivity: "base",
-          }) ||
-          left.category.id - right.category.id,
+        (left, right) => {
+          const leftIsFallback = left.category.id === fallbackCategoryId
+          const rightIsFallback = right.category.id === fallbackCategoryId
+
+          if (leftIsFallback !== rightIsFallback) {
+            return leftIsFallback ? -1 : 1
+          }
+
+          return (
+            right.sortTime - left.sortTime ||
+            left.category.label.localeCompare(right.category.label, undefined, {
+              sensitivity: "base",
+            }) ||
+            left.category.id - right.category.id
+          )
+        },
       )
-  }, [categories, matchesSelectedTag, notes])
+  }, [categories, fallbackCategoryId, matchesSelectedTag, notes])
 
   useEffect(() => {
-    if (
-      expandedCategoryId !== null &&
-      !categories.some((category) => category.id === expandedCategoryId)
-    ) {
-      setExpandedCategoryId(null)
-    }
-  }, [categories, expandedCategoryId])
+    setExpandedCategoryId((current) => {
+      if (current === ALL_CATEGORIES_EXPANDED_ID) {
+        return current
+      }
+
+      if (current !== null && categories.some((category) => category.id === current)) {
+        return current
+      }
+
+      return fallbackCategoryId
+    })
+  }, [categories, fallbackCategoryId])
 
   const selectedTag = useMemo(
     () => (selectedTagId === null ? null : (tags.find((c) => c.id === selectedTagId) ?? null)),
@@ -1148,6 +1177,14 @@ export default function NotesApp() {
       setErrorMessage("Create another category before deleting the last one.")
       return
     }
+    if (category.id === fallbackCategoryId) {
+      setErrorMessage("The default category cannot be deleted.")
+      return
+    }
+    if (category.noteCount === 0) {
+      void performDeleteCategory(category)
+      return
+    }
     setDeletingCategory(category)
   }
 
@@ -1391,6 +1428,139 @@ export default function NotesApp() {
               </div>
             </div>
             <div className={styles.noteResults}>
+              <div className={styles.categoryAccordion} role="list" aria-label="Notes by category">
+                {notesLoading ? (
+                  <div className={styles.categoryAccordionStatus}>
+                    <Text variant="body-1" color="secondary">
+                      Loading…
+                    </Text>
+                  </div>
+                ) : categories.length === 0 ? (
+                  <div className={styles.categoryAccordionStatus}>
+                    <Text variant="body-1" color="secondary">
+                      No categories yet.
+                    </Text>
+                  </div>
+                ) : (
+                  <>
+                    <div className={styles.categoryGroup} role="listitem">
+                      <div className={styles.categoryRow}>
+                        <button
+                          type="button"
+                          className={styles.categoryToggle}
+                          aria-expanded={expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID}
+                          aria-controls="category-notes-all"
+                          onClick={() => setExpandedCategoryId(ALL_CATEGORIES_EXPANDED_ID)}
+                        >
+                          <span
+                            className={`${styles.categoryToggleIcon} ${
+                              expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID
+                                ? styles.categoryToggleIconExpanded
+                                : ""
+                            }`}
+                          >
+                            <CaretDownIcon size={14} />
+                          </span>
+                          <span className={styles.categoryLabel}>All categories</span>
+                          <span className={styles.categoryCount}>{allCategoriesNoteCount}</span>
+                        </button>
+                      </div>
+                      {expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID && (
+                        <div id="category-notes-all" className={styles.categoryPanel}>
+                          <NoteResultsList
+                            items={allCategoryItems}
+                            activeNoteId={editingNoteId}
+                            loading={false}
+                            emptyMessage={
+                              selectedTag
+                                ? `No notes in “${selectedTag.label}” for any category.`
+                                : "No notes yet."
+                            }
+                            onEdit={handleStartEdit}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {categoryNoteGroups.map(({ category, items }) => {
+                      const expanded = expandedCategoryId === category.id
+                      const panelId = `category-notes-${category.id}`
+                      const deleteDisabled = category.id === fallbackCategoryId
+
+                      return (
+                        <div className={styles.categoryGroup} key={category.id} role="listitem">
+                          <div className={styles.categoryRow}>
+                            <button
+                              type="button"
+                              className={styles.categoryToggle}
+                              aria-expanded={expanded}
+                              aria-controls={panelId}
+                              onClick={() => setExpandedCategoryId(category.id)}
+                            >
+                              <span
+                                className={`${styles.categoryToggleIcon} ${
+                                  expanded ? styles.categoryToggleIconExpanded : ""
+                                }`}
+                              >
+                                <CaretDownIcon size={14} />
+                              </span>
+                              <span className={styles.categoryLabel}>{category.label}</span>
+                              <span className={styles.categoryCount}>
+                                {getFilteredNoteCount(category, items)}
+                              </span>
+                            </button>
+                            <Button
+                              view="flat"
+                              size="xs"
+                              onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                                event.stopPropagation()
+                                openEditCategory(category)
+                              }}
+                              aria-label={`Edit ${category.label}`}
+                              className={styles.categoryActionButton}
+                            >
+                              <Icon data={Pencil} size={14} />
+                            </Button>
+                            <Button
+                              view="flat"
+                              size="xs"
+                              disabled={deleteDisabled}
+                              title={
+                                deleteDisabled
+                                  ? "The default category cannot be deleted"
+                                  : undefined
+                              }
+                              onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                                event.stopPropagation()
+                                openDeleteCategory(category)
+                              }}
+                              aria-label={`Delete ${category.label}`}
+                              className={styles.categoryActionButton}
+                            >
+                              <Icon data={TrashBin} size={14} />
+                            </Button>
+                          </div>
+                          {expanded && (
+                            <div id={panelId} className={styles.categoryPanel}>
+                              <NoteResultsList
+                                items={items}
+                                activeNoteId={editingNoteId}
+                                loading={false}
+                                emptyMessage={
+                                  selectedTag
+                                    ? `No notes in “${selectedTag.label}” for this category.`
+                                    : `No notes in category “${category.label}”.`
+                                }
+                                onEdit={handleStartEdit}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
+              </div>
               {searchMode && (
                 <div className={styles.searchResultsSection}>
                   <NoteResultsList
@@ -1404,98 +1574,6 @@ export default function NotesApp() {
                   />
                 </div>
               )}
-
-              <div className={styles.categoryAccordion} role="list" aria-label="Notes by category">
-                {notesLoading ? (
-                  <div className={styles.categoryAccordionStatus}>
-                    <Text variant="body-1" color="secondary">
-                      Loading…
-                    </Text>
-                  </div>
-                ) : categoryNoteGroups.length === 0 ? (
-                  <div className={styles.categoryAccordionStatus}>
-                    <Text variant="body-1" color="secondary">
-                      No categories yet.
-                    </Text>
-                  </div>
-                ) : (
-                  categoryNoteGroups.map(({ category, items }) => {
-                    const expanded = expandedCategoryId === category.id
-                    const panelId = `category-notes-${category.id}`
-
-                    return (
-                      <div className={styles.categoryGroup} key={category.id} role="listitem">
-                        <div className={styles.categoryRow}>
-                          <button
-                            type="button"
-                            className={styles.categoryToggle}
-                            aria-expanded={expanded}
-                            aria-controls={panelId}
-                            onClick={() =>
-                              setExpandedCategoryId((current) =>
-                                current === category.id ? null : category.id,
-                              )
-                            }
-                          >
-                            <span
-                              className={`${styles.categoryToggleIcon} ${
-                                expanded ? styles.categoryToggleIconExpanded : ""
-                              }`}
-                            >
-                              <CaretDownIcon size={14} />
-                            </span>
-                            <span className={styles.categoryLabel}>{category.label}</span>
-                            <span className={styles.categoryCount}>
-                              {getFilteredNoteCount(category, items)}
-                            </span>
-                          </button>
-                          <Button
-                            view="flat"
-                            size="xs"
-                            onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                              event.stopPropagation()
-                              openEditCategory(category)
-                            }}
-                            aria-label={`Edit ${category.label}`}
-                            className={styles.categoryActionButton}
-                          >
-                            <Icon data={Pencil} size={14} />
-                          </Button>
-                          {category.id !== fallbackCategoryId && (
-                            <Button
-                              view="flat"
-                              size="xs"
-                              onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                                event.stopPropagation()
-                                openDeleteCategory(category)
-                              }}
-                              aria-label={`Delete ${category.label}`}
-                              className={styles.categoryActionButton}
-                            >
-                              <Icon data={TrashBin} size={14} />
-                            </Button>
-                          )}
-                        </div>
-                        {expanded && (
-                          <div id={panelId} className={styles.categoryPanel}>
-                            <NoteResultsList
-                              items={items}
-                              activeNoteId={editingNoteId}
-                              loading={false}
-                              emptyMessage={
-                                selectedTag
-                                  ? `No notes in “${selectedTag.label}” for this category.`
-                                  : `No notes in category “${category.label}”.`
-                              }
-                              onEdit={handleStartEdit}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })
-                )}
-              </div>
             </div>
           </section>
         )}
