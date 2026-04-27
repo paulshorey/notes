@@ -813,7 +813,7 @@ private fun WidgetNoteEditorScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
-            value = dueInput,
+            value = dueInput.orEmpty(),
             onValueChange = {
                 dueInput = it
                 error = null
@@ -824,7 +824,7 @@ private fun WidgetNoteEditorScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
-            value = remindInput,
+            value = remindInput.orEmpty(),
             onValueChange = {
                 remindInput = it
                 error = null

@@ -1,8 +1,16 @@
 import type { NoteInput } from "./types";
 
-const toIsoTimestamp = (value: unknown, fieldName: string) => {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(`${fieldName} is required.`);
+const toOptionalIsoTimestamp = (value: unknown, fieldName: string) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a valid date.`);
+  }
+
+  if (value.trim() === "") {
+    return null;
   }
 
   const date = new Date(value);
@@ -72,7 +80,7 @@ export const parseNoteInput = (value: unknown): NoteInput => {
     tagIds: parseTagIds(record.tagIds),
     description:
       typeof record.description === "string" ? record.description : "",
-    timeDue: toIsoTimestamp(record.timeDue, "Due time"),
-    timeRemind: toIsoTimestamp(record.timeRemind, "Reminder time"),
+    timeDue: toOptionalIsoTimestamp(record.timeDue, "Due time"),
+    timeRemind: toOptionalIsoTimestamp(record.timeRemind, "Reminder time"),
   };
 };

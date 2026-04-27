@@ -40,8 +40,8 @@ export interface NoteRow {
   user_id: number;
   category: unknown;
   description: string | null;
-  time_due: Date;
-  time_remind: Date;
+  time_due: Date | null;
+  time_remind: Date | null;
   time_created: Date;
   time_modified: Date;
   tags: unknown;
@@ -174,8 +174,8 @@ export const mapNote = (row: NoteRow): NoteRecord => ({
   category: parseCategory(row.category),
   tags: parseTags(row.tags),
   description: row.description,
-  timeDue: row.time_due.toISOString(),
-  timeRemind: row.time_remind.toISOString(),
+  timeDue: row.time_due?.toISOString() ?? null,
+  timeRemind: row.time_remind?.toISOString() ?? null,
   timeCreated: row.time_created.toISOString(),
   timeModified: row.time_modified.toISOString(),
 });

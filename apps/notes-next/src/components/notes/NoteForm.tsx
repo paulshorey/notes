@@ -7,7 +7,7 @@ import {
   useCombobox,
 } from "@mantine/core"
 import { Button, Icon, Text, TextArea } from "@gravity-ui/uikit"
-import { TrashBin, Xmark } from "@gravity-ui/icons"
+import { Calendar, TrashBin, Xmark } from "@gravity-ui/icons"
 import {
   type Dispatch,
   type FormEvent,
@@ -20,6 +20,7 @@ import {
 import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
+import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
 import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import styles from "./NoteForm.module.css"
 
@@ -133,6 +134,60 @@ export function NoteForm({
     }
   }
 
+  const expandDateField = (field: "due" | "remind") => {
+    setForm((prev) =>
+      field === "due"
+        ? {
+            ...prev,
+            dueExpanded: true,
+            timeDue: prev.timeDue || createDefaultDueValue(),
+          }
+        : {
+            ...prev,
+            remindExpanded: true,
+            timeRemind: prev.timeRemind || createDefaultRemindValue(),
+          },
+    )
+  }
+
+  const renderDateField = (
+    field: "due" | "remind",
+    label: "Due" | "Remind",
+    expanded: boolean,
+    value: string | null,
+  ) => {
+    if (!expanded) {
+      return (
+        <button
+          type="button"
+          className={styles.dateLinkButton}
+          onClick={() => expandDateField(field)}
+        >
+          <span>{label}</span>
+          <Icon data={Calendar} size={14} />
+        </button>
+      )
+    }
+
+    return (
+      <label className={styles.dateField}>
+        <Text variant="caption-1" color="secondary">
+          {label}
+        </Text>
+        <input
+          type="datetime-local"
+          value={value ?? ""}
+          onChange={(e) =>
+            setForm((p) =>
+              field === "due" ? { ...p, timeDue: e.target.value } : { ...p, timeRemind: e.target.value },
+            )
+          }
+          className={styles.dateInput}
+        />
+      </label>
+    )
+  }
+
   return (
     <section className={styles.formColumn}>
       {header}
@@ -189,30 +244,8 @@ export function NoteForm({
           )}
         </div>
         <div className={styles.dateFields}>
-          <div className={styles.dateField}>
-            <Text variant="caption-1" color="secondary">
-              Due
-            </Text>
-            <input
-              type="datetime-local"
-              value={form.timeDue}
-              onChange={(e) => setForm((p) => ({ ...p, timeDue: e.target.value }))}
-              required
-              className={styles.dateInput}
-            />
-          </div>
-          <div className={styles.dateField}>
-            <Text variant="caption-1" color="secondary">
-              Remind
-            </Text>
-            <input
-              type="datetime-local"
-              value={form.timeRemind}
-              onChange={(e) => setForm((p) => ({ ...p, timeRemind: e.target.value }))}
-              required
-              className={styles.dateInput}
-            />
-          </div>
+          {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
+          {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
         </div>
         <div className={styles.tagBlock}>
           <div className={styles.mantineField}>

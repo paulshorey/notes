@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
@@ -85,6 +86,8 @@ import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.TagRecord
+import com.eighthbrain.notesandroid.app.model.defaultDueInput
+import com.eighthbrain.notesandroid.app.model.defaultRemindInput
 import com.eighthbrain.notesandroid.app.model.descriptionBody
 import com.eighthbrain.notesandroid.app.model.formatConciseDate
 import com.eighthbrain.notesandroid.app.model.formatPercent
@@ -312,6 +315,30 @@ class NotesViewModel(
 
     fun updateRemindInput(value: String) {
         _uiState.update { it.copy(noteDraft = it.noteDraft.copy(remindInput = value)) }
+    }
+
+    fun expandDueInput() {
+        _uiState.update {
+            it.copy(
+                noteDraft =
+                    it.noteDraft.copy(
+                        dueExpanded = true,
+                        dueInput = it.noteDraft.dueInput ?: defaultDueInput(),
+                    ),
+            )
+        }
+    }
+
+    fun expandRemindInput() {
+        _uiState.update {
+            it.copy(
+                noteDraft =
+                    it.noteDraft.copy(
+                        remindExpanded = true,
+                        remindInput = it.noteDraft.remindInput ?: defaultRemindInput(),
+                    ),
+            )
+        }
     }
 
     fun toggleNoteExpanded(noteId: Int) {
@@ -1370,12 +1397,19 @@ private fun NoteItem(
                     }
                 }
             }
-            Text(
-                "Due ${formatConciseDate(item.note.timeDue)} · Remind ${formatConciseDate(item.note.timeRemind)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 6.dp),
-            )
+            val dateLabels =
+                listOfNotNull(
+                    item.note.timeDue?.let { "Due ${formatConciseDate(it)}" },
+                    item.note.timeRemind?.let { "Remind ${formatConciseDate(it)}" },
+                )
+            if (dateLabels.isNotEmpty()) {
+                Text(
+                    dateLabels.joinToString(" · "),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
         }
     }
 
@@ -1496,20 +1530,31 @@ private fun NoteEditorModal(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        OutlinedTextField(
-                            value = uiState.noteDraft.dueInput,
+                        OptionalDateField(
+                            label = "Due",
+                            expanded = uiState.noteDraft.dueExpanded,
+                            value = uiState.noteDraft.dueInput.orEmpty(),
+                            onExpand = viewModel::expandDueInput,
                             onValueChange = viewModel::updateDueInput,
-                            label = { Text("Due") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
+                            modifier =
+                                Modifier.weight(
+                                    if (uiState.noteDraft.dueExpanded) 1f else 0.45f,
+                                    fill = uiState.noteDraft.dueExpanded,
+                                ),
                         )
-                        OutlinedTextField(
-                            value = uiState.noteDraft.remindInput,
+                        OptionalDateField(
+                            label = "Remind",
+                            expanded = uiState.noteDraft.remindExpanded,
+                            value = uiState.noteDraft.remindInput.orEmpty(),
+                            onExpand = viewModel::expandRemindInput,
                             onValueChange = viewModel::updateRemindInput,
-                            label = { Text("Remind") },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
+                            modifier =
+                                Modifier.weight(
+                                    if (uiState.noteDraft.remindExpanded) 1f else 0.45f,
+                                    fill = uiState.noteDraft.remindExpanded,
+                                ),
                         )
                     }
                     Button(
@@ -1524,6 +1569,41 @@ private fun NoteEditorModal(
             }
         }
     }
+}
+
+@Composable
+private fun OptionalDateField(
+    label: String,
+    expanded: Boolean,
+    value: String,
+    onExpand: () -> Unit,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (!expanded) {
+        TextButton(
+            onClick = onExpand,
+            modifier = modifier,
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+        ) {
+            Text(label)
+            Spacer(Modifier.width(4.dp))
+            Icon(
+                Icons.Default.DateRange,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        return
+    }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = modifier,
+        singleLine = true,
+    )
 }
 
 @Composable

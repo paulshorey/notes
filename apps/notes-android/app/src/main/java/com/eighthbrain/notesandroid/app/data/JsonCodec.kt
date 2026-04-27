@@ -211,8 +211,8 @@ fun noteFromJson(json: JSONObject): NoteRecord =
         category = categoryFromNoteJson(json),
         tags = tagsArrayFromJson(json),
         description = json.stringOrNull("description"),
-        timeDue = json.getString("timeDue"),
-        timeRemind = json.getString("timeRemind"),
+        timeDue = json.stringOrNull("timeDue"),
+        timeRemind = json.stringOrNull("timeRemind"),
         timeCreated = json.getString("timeCreated"),
         timeModified = json.getString("timeModified"),
     )

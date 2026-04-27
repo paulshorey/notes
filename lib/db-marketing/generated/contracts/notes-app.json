@@ -231,14 +231,14 @@
           "optional": false,
           "kind": "scalar",
           "type": "string",
-          "nullable": false
+          "nullable": true
         },
         {
           "name": "timeRemind",
           "optional": false,
           "kind": "scalar",
           "type": "string",
-          "nullable": false
+          "nullable": true
         },
         {
           "name": "timeCreated",
@@ -319,14 +319,14 @@
           "optional": false,
           "kind": "scalar",
           "type": "string",
-          "nullable": false
+          "nullable": true
         },
         {
           "name": "timeRemind",
           "optional": false,
           "kind": "scalar",
           "type": "string",
-          "nullable": false
+          "nullable": true
         }
       ]
     },

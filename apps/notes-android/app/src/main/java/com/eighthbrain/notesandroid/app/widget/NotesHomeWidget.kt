@@ -293,22 +293,26 @@ private fun NoteRow(
                         )
                     }
                 }
-                Text(
-                    text = "Due ${formatConciseDate(note.timeDue)}",
-                    modifier = GlanceModifier.padding(top = 4.dp),
-                    style = TextStyle(color = widgetTextDim),
-                    maxLines = 1,
-                )
+                note.timeDue?.let { due ->
+                    Text(
+                        text = "Due ${formatConciseDate(due)}",
+                        modifier = GlanceModifier.padding(top = 4.dp),
+                        style = TextStyle(color = widgetTextDim),
+                        maxLines = 1,
+                    )
+                }
                 Row(
                     modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = "Remind ${formatConciseDate(note.timeRemind)}",
-                        modifier = GlanceModifier.defaultWeight().padding(end = 4.dp),
-                        style = TextStyle(color = widgetTextDim),
-                        maxLines = 1,
-                    )
+                    note.timeRemind?.let { remind ->
+                        Text(
+                            text = "Remind ${formatConciseDate(remind)}",
+                            modifier = GlanceModifier.defaultWeight().padding(end = 4.dp),
+                            style = TextStyle(color = widgetTextDim),
+                            maxLines = 1,
+                        )
+                    } ?: Spacer(modifier = GlanceModifier.defaultWeight())
                     WidgetIconOnlyButton(
                         iconRes = R.drawable.ic_widget_delete,
                         contentDescription = "Delete note",
