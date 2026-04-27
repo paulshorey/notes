@@ -338,7 +338,7 @@ export function NoteForm({
           {editingNoteId !== null && (
             <Button
               view="flat"
-              size="l"
+              size="s"
               pin="round-brick"
               type="button"
               loading={deletingNoteId === editingNoteId}
@@ -353,7 +353,7 @@ export function NoteForm({
 
           {/* <Button
             view="flat"
-            size="l"
+            size="s"
             pin={primaryActionPin}
             type="submit"
             loading={notePending}
@@ -365,7 +365,7 @@ export function NoteForm({
           {showCancelButton && (
             <Button
               view="flat"
-              size="l"
+              size="s"
               pin="brick-round"
               type="button"
               onClick={onCancelEdit}
