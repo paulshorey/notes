@@ -294,18 +294,6 @@ export function NoteForm({
 
             {categoryPickerOpen && (
               <div className={styles.categoryPanel}>
-                <input
-                  ref={categoryInputRef}
-                  type="text"
-                  className={styles.categoryInput}
-                  placeholder="Enter new or select below..."
-                  value={categoryInputValue}
-                  disabled={!userPresent || createCategoryPending}
-                  onChange={(event) => {
-                    onCategoryInputValueChange(toLowercaseInput(event.currentTarget.value))
-                  }}
-                  onKeyDown={handleCategoryInputKeyDown}
-                />
                 <div
                   className={styles.categoryOptions}
                   role="listbox"
@@ -334,6 +322,18 @@ export function NoteForm({
                     <div className={styles.categoryEmpty}>No categories yet.</div>
                   )}
                 </div>
+                <input
+                  ref={categoryInputRef}
+                  type="text"
+                  className={styles.categoryInput}
+                  placeholder="Enter new or select below..."
+                  value={categoryInputValue}
+                  disabled={!userPresent || createCategoryPending}
+                  onChange={(event) => {
+                    onCategoryInputValueChange(toLowercaseInput(event.currentTarget.value))
+                  }}
+                  onKeyDown={handleCategoryInputKeyDown}
+                />
               </div>
             )}
           </div>
