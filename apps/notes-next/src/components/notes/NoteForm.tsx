@@ -1,8 +1,7 @@
 "use client"
 
-import { TagsInput as MantineTagsInput } from "@mantine/core"
 import { Button, Icon, Text, TextArea } from "@gravity-ui/uikit"
-import { Calendar, TrashBin, Xmark } from "@gravity-ui/icons"
+import { Calendar, Plus, TrashBin, Xmark } from "@gravity-ui/icons"
 import {
   type Dispatch,
   type FormEvent,
@@ -68,17 +67,16 @@ export function NoteForm({
 }: NoteFormProps) {
   const categoryPickerRef = useRef<HTMLDivElement | null>(null)
   const categoryInputRef = useRef<HTMLInputElement | null>(null)
+  const tagPickerRef = useRef<HTMLDivElement | null>(null)
+  const tagInputRef = useRef<HTMLInputElement | null>(null)
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
+  const [tagPickerOpen, setTagPickerOpen] = useState(false)
+  const [tagInputValue, setTagInputValue] = useState("")
 
   const selectedCategoryLabel =
     form.selectedCategoryId === null
       ? ""
       : (categories.find((category) => category.id === form.selectedCategoryId)?.label ?? "")
-
-  const defaultNewNoteCategoryId = useMemo(
-    () => (categories.length > 0 ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id : null),
-    [categories],
-  )
 
   const filteredCategoryOptions = useMemo(() => {
     const query = normalizeLabel(categoryInputValue)
@@ -104,6 +102,21 @@ export function NoteForm({
     })
   }, [form.selectedTagIds, pendingTagLabels, tags])
 
+  const selectedTagLabelSet = useMemo(() => {
+    return new Set(selectedTagLabels.map((label) => normalizeLabel(label)))
+  }, [selectedTagLabels])
+
+  const filteredTagOptions = useMemo(() => {
+    const query = normalizeLabel(tagInputValue)
+    return tags.filter((tag) => {
+      const normalized = normalizeLabel(tag.label)
+      if (selectedTagLabelSet.has(normalized)) {
+        return false
+      }
+      return query === "" || normalized.includes(query)
+    })
+  }, [selectedTagLabelSet, tagInputValue, tags])
+
   const newNoteHasUserInput =
     form.description !== "" ||
     form.selectedTagIds.length > 0 ||
@@ -123,15 +136,21 @@ export function NoteForm({
   }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
 
   useEffect(() => {
-    if (!categoryPickerOpen) {
+    if (!categoryPickerOpen && !tagPickerOpen) {
       return
     }
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (categoryPickerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (
+        categoryPickerRef.current?.contains(target) ||
+        tagPickerRef.current?.contains(target)
+      ) {
         return
       }
       setCategoryPickerOpen(false)
+      setTagPickerOpen(false)
+      setTagInputValue("")
       onCategoryInputValueChange(selectedCategoryLabel)
     }
 
@@ -140,6 +159,8 @@ export function NoteForm({
         return
       }
       setCategoryPickerOpen(false)
+      setTagPickerOpen(false)
+      setTagInputValue("")
       onCategoryInputValueChange(selectedCategoryLabel)
     }
 
@@ -149,11 +170,12 @@ export function NoteForm({
       document.removeEventListener("pointerdown", handlePointerDown)
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
+  }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel, tagPickerOpen])
 
   const openCategoryDropdown = () => {
     onCategoryInputValueChange("")
     setCategoryPickerOpen(true)
+    setTagPickerOpen(false)
     window.setTimeout(() => categoryInputRef.current?.focus(), 0)
   }
 
@@ -164,6 +186,19 @@ export function NoteForm({
   const closeCategoryDropdown = () => {
     setCategoryPickerOpen(false)
     restoreCategoryInputValue()
+  }
+
+  const openTagDropdown = () => {
+    setTagInputValue("")
+    setTagPickerOpen(true)
+    setCategoryPickerOpen(false)
+    restoreCategoryInputValue()
+    window.setTimeout(() => tagInputRef.current?.focus(), 0)
+  }
+
+  const closeTagDropdown = () => {
+    setTagPickerOpen(false)
+    setTagInputValue("")
   }
 
   const selectCategory = (categoryId: number) => {
@@ -202,6 +237,44 @@ export function NoteForm({
         }
       })()
     }
+  }
+
+  const addTagLabel = (label: string) => {
+    const normalized = normalizeLabel(label)
+    if (normalized === "" || selectedTagLabelSet.has(normalized)) {
+      setTagInputValue("")
+      return
+    }
+    onTagValuesChange([...selectedTagLabels, label])
+    setTagInputValue("")
+    window.setTimeout(() => tagInputRef.current?.focus(), 0)
+  }
+
+  const removeTagLabel = (label: string) => {
+    const normalized = normalizeLabel(label)
+    onTagValuesChange(
+      selectedTagLabels.filter((selectedLabel) => normalizeLabel(selectedLabel) !== normalized),
+    )
+  }
+
+  const handleTagInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault()
+      closeTagDropdown()
+      return
+    }
+    if (event.key !== "Enter") {
+      return
+    }
+    const label = tagInputValue.trim()
+    if (label === "") {
+      return
+    }
+    event.preventDefault()
+    const matchingTag = filteredTagOptions.find(
+      (tag) => normalizeLabel(tag.label) === normalizeLabel(label),
+    )
+    addTagLabel(matchingTag?.label ?? label)
   }
 
   const expandDateField = (field: "due" | "remind") => {
@@ -339,24 +412,73 @@ export function NoteForm({
           </div>
           {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
-        </div>
 
-        <div className={styles.tagBlock}>
-          <div className={styles.mantineField}>
-            <MantineTagsInput
-              placeholder="Add tags"
-              data={tags.map((tag) => tag.label)}
-              value={selectedTagLabels}
-              clearable
-              clearSectionMode="rightSection"
-              rightSection={<CaretDownIcon size={16} />}
-              rightSectionPointerEvents="none"
-              acceptValueOnBlur={false}
+          <div className={styles.categoryPicker} ref={tagPickerRef}>
+            <button
+              type="button"
+              className={styles.categoryTrigger}
+              onClick={tagPickerOpen ? closeTagDropdown : openTagDropdown}
               disabled={!userPresent || createTagPending}
-              comboboxProps={{ withinPortal: false }}
-              onChange={onTagValuesChange}
-            />
+              aria-expanded={tagPickerOpen}
+              aria-haspopup="dialog"
+            >
+              <span className={styles.categoryTriggerLabel}>Tag</span>
+              <Icon data={Plus} size={12} />
+            </button>
+
+            {tagPickerOpen && (
+              <div className={styles.categoryPanel}>
+                <div className={styles.categoryOptions} role="listbox" aria-label="Tag options">
+                  {filteredTagOptions.length === 0 && tagInputValue.trim() !== "" ? (
+                    <div className={styles.categoryEmpty}>
+                      Press Enter to create &quot;{tagInputValue.trim()}&quot;
+                    </div>
+                  ) : (
+                    filteredTagOptions.map((tag) => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        className={styles.categoryOption}
+                        onClick={() => addTagLabel(tag.label)}
+                        role="option"
+                        aria-selected={false}
+                      >
+                        {tag.label}
+                      </button>
+                    ))
+                  )}
+                  {filteredTagOptions.length === 0 && tagInputValue.trim() === "" && (
+                    <div className={styles.categoryEmpty}>No more tags.</div>
+                  )}
+                </div>
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  className={styles.categoryInput}
+                  placeholder="Enter new or select below..."
+                  value={tagInputValue}
+                  disabled={!userPresent || createTagPending}
+                  onChange={(event) => {
+                    setTagInputValue(toLowercaseInput(event.currentTarget.value))
+                  }}
+                  onKeyDown={handleTagInputKeyDown}
+                />
+              </div>
+            )}
           </div>
+
+          {selectedTagLabels.map((label) => (
+            <button
+              key={normalizeLabel(label)}
+              type="button"
+              className={styles.selectedTag}
+              onClick={() => removeTagLabel(label)}
+              aria-label={`Remove tag ${label}`}
+            >
+              <span>{label}</span>
+              <Icon data={Xmark} size={10} />
+            </button>
+          ))}
         </div>
 
         <div className={styles.formActions}>
