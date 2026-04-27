@@ -113,6 +113,9 @@ const withResultsColumnWidthPreference = (
   },
 })
 
+const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
+  categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
+
 export default function NotesApp() {
   const [identifier, setIdentifier] = useState("")
   const [user, setUser] = useState<UserSummary | null>(null)
@@ -120,8 +123,7 @@ export default function NotesApp() {
   const [notes, setNotes] = useState<NoteRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [tags, setTags] = useState<TagRecord[]>([])
-  const fallbackCategoryId =
-    categories.length > 0 ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id : null
+  const fallbackCategoryId = getDefaultCategoryId(categories)
   const {
     selectedCategoryId,
     selectedTagId,
@@ -285,9 +287,8 @@ export default function NotesApp() {
     [clampResultsColumnWidth],
   )
 
-  const resetNoteForm = useCallback(() => {
-    const defaultCategoryId =
-      categories.length > 0 ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id : null
+  const resetNoteForm = useCallback((categoryList = categories) => {
+    const defaultCategoryId = getDefaultCategoryId(categoryList)
     setNoteForm(() => ({
       ...createDefaultNoteForm(),
       selectedCategoryId: defaultCategoryId,
@@ -362,9 +363,9 @@ export default function NotesApp() {
           loadCategories(sessionData.user.id),
           loadTags(sessionData.user.id),
         ])
-        if (loadedCategories && loadedCategories.length > 0) {
-          const defaultCat = loadedCategories.reduce((a, b) => (a.id < b.id ? a : b))
-          setNoteForm((prev) => ({ ...prev, selectedCategoryId: defaultCat.id }))
+        const defaultCategoryId = getDefaultCategoryId(loadedCategories ?? [])
+        if (defaultCategoryId !== null) {
+          setNoteForm((prev) => ({ ...prev, selectedCategoryId: defaultCategoryId }))
         }
       } catch (error) {
         if (!active) return
@@ -500,7 +501,7 @@ export default function NotesApp() {
 
         return {
           ...prev,
-          selectedCategoryId: latestCategories[0]?.id ?? null,
+          selectedCategoryId: getDefaultCategoryId(latestCategories),
         }
       })
       if (trimmedSearchQuery) {
@@ -639,10 +640,10 @@ export default function NotesApp() {
       const data = await readJson<SessionResponse>(response)
       window.localStorage.setItem(STORAGE_KEY, String(data.user.id))
       applyLoadedUser(data.user)
-      await loadCategories(data.user.id)
+      const loadedCategories = await loadCategories(data.user.id)
       await loadTags(data.user.id)
       setIdentifier("")
-      resetNoteForm()
+      resetNoteForm(loadedCategories)
       setSearchQuery("")
       setSearchResults([])
       setSearchErrorMessage(null)

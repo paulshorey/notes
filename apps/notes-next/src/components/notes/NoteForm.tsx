@@ -75,6 +75,12 @@ export function NoteForm({
       ? ""
       : (categories.find((category) => category.id === form.selectedCategoryId)?.label ?? "")
 
+  const defaultNewNoteCategoryId = useMemo(
+    () =>
+      categories.length > 0 ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id : null,
+    [categories],
+  )
+
   const filteredCategoryOptions = useMemo(() => {
     const query = normalizeLabel(categoryInputValue)
     if (query === "") {
@@ -98,6 +104,24 @@ export function NoteForm({
       return true
     })
   }, [form.selectedTagIds, pendingTagLabels, tags])
+
+  const hasCategoryDraft =
+    categoryPickerOpen &&
+    normalizeLabel(categoryInputValue) !== "" &&
+    normalizeLabel(categoryInputValue) !== normalizeLabel(selectedCategoryLabel)
+  const newNoteHasUserInput =
+    form.description !== "" ||
+    form.selectedCategoryId !== defaultNewNoteCategoryId ||
+    form.selectedTagIds.length > 0 ||
+    pendingTagLabels.length > 0 ||
+    form.dueExpanded ||
+    form.timeDue !== null ||
+    form.remindExpanded ||
+    form.timeRemind !== null ||
+    hasCategoryDraft
+  const showCancelButton = editingNoteId !== null || newNoteHasUserInput
+  const primaryActionPin =
+    editingNoteId !== null ? "brick-brick" : showCancelButton ? "round-brick" : "round-round"
 
   useEffect(() => {
     if (!categoryPickerOpen) {
@@ -343,7 +367,7 @@ export function NoteForm({
         </div>
 
         <div className={styles.formActions}>
-          {editingNoteId && (
+          {editingNoteId !== null && (
             <Button
               view="outlined"
               size="l"
@@ -361,21 +385,21 @@ export function NoteForm({
           <Button
             view="action"
             size="l"
-            pin="brick-brick"
+            pin={primaryActionPin}
             type="submit"
             loading={notePending}
             className={styles.formPrimaryAction}
           >
-            Edit note
+            Save
           </Button>
-          {editingNoteId && (
+          {showCancelButton && (
             <Button
               view="outlined"
               size="l"
-              pin={editingNoteId ? "brick-round" : "round-round"}
+              pin="brick-round"
               type="button"
               onClick={onCancelEdit}
-              aria-label="Cancel editing"
+              aria-label={editingNoteId !== null ? "Cancel editing" : "Cancel changes"}
               className={styles.formSideButton}
             >
               <Icon data={Xmark} size={14} />
