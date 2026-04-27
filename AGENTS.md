@@ -73,6 +73,10 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 - Remove stale instructions when structure or release flow changes.
 - `AGENTS.md` is for agents; `README.md` is for humans.
 
+## Pull requests
+
+- After completing a feature request, create or update the PR and include the PR link in the final response.
+
 ## Maintenance
 
 Keep this file up to date after major workspace-level changes. Edit it when app boundaries, release workflows, script ownership, or shared contracts change.
