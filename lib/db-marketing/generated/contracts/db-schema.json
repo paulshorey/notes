@@ -113,12 +113,12 @@
     },
     {
       "column": "time_due",
-      "nullable": false,
+      "nullable": true,
       "type": "Date"
     },
     {
       "column": "time_remind",
-      "nullable": false,
+      "nullable": true,
       "type": "Date"
     },
     {

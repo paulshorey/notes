@@ -829,8 +829,8 @@ export default function NotesApp() {
             categoryId: noteForm.selectedCategoryId,
             tagIds: noteForm.selectedTagIds,
             description: noteForm.description,
-            timeDue: noteForm.timeDue,
-            timeRemind: noteForm.timeRemind,
+            timeDue: noteForm.dueExpanded ? noteForm.timeDue : null,
+            timeRemind: noteForm.remindExpanded ? noteForm.timeRemind : null,
           },
         }),
       })

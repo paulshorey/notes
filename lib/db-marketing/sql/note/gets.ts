@@ -18,7 +18,7 @@ export const listNotesByUser = async (userId: number) => {
     `
       ${noteSelect}
       WHERE n.user_id = $1
-      ORDER BY n.time_due ASC, n.id ASC
+      ORDER BY n.time_due ASC NULLS LAST, n.time_modified DESC, n.id ASC
     `,
     [userId]
   );

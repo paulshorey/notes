@@ -6,7 +6,8 @@ import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.SemanticSearchResult
 import com.eighthbrain.notesandroid.app.model.TagRecord
 import com.eighthbrain.notesandroid.app.model.UserSummary
-import com.eighthbrain.notesandroid.app.model.parseLocalInputToIso
+import com.eighthbrain.notesandroid.app.model.parseOptionalLocalInputToIso
+import org.json.JSONObject.NULL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -134,8 +135,8 @@ class NotesApiClient(
                     .put("categoryId", noteDraft.selectedCategoryId)
                     .put("tagIds", tagIdsJson)
                     .put("description", noteDraft.description)
-                    .put("timeDue", parseLocalInputToIso(noteDraft.dueInput, "Due time"))
-                    .put("timeRemind", parseLocalInputToIso(noteDraft.remindInput, "Reminder time"))
+                    .put("timeDue", parseOptionalLocalInputToIso(noteDraft.dueInput, "Due time") ?: NULL)
+                    .put("timeRemind", parseOptionalLocalInputToIso(noteDraft.remindInput, "Reminder time") ?: NULL)
 
             val payload =
                 JSONObject()

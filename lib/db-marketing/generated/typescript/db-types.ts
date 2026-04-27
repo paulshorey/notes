@@ -32,8 +32,8 @@ export interface UserNoteV1Row {
   "id": number;
   "user_id": number;
   "description": string | null;
-  "time_due": Date;
-  "time_remind": Date;
+  "time_due": Date | null;
+  "time_remind": Date | null;
   "time_created": Date;
   "time_modified": Date;
   "embedding_model": string | null;

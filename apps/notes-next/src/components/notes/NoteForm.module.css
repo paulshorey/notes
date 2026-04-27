@@ -75,29 +75,52 @@
 }
 
 .dateFields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .dateField {
   display: flex;
-  flex-direction: column;
+  min-width: 160px;
+  flex: 1 1 180px;
+  align-items: center;
+  gap: 6px;
+}
+
+.dateLinkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--g-color-text-link, #4da2ff);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.dateLinkButton:hover {
+  color: var(--g-color-text-link-hover, #7abaff);
 }
 
 .dateInput {
-  background: var(--g-color-base-generic, rgba(255, 255, 255, 0.08));
+  min-width: 0;
+  flex: 1 1 auto;
+  background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 4px;
   color: inherit;
-  padding: 5px 8px;
+  padding: 3px 4px;
   font: inherit;
   font-size: 13px;
 }
 
 .dateInput:hover {
-  background: var(--g-color-base-generic-hover, rgba(255, 255, 255, 0.12));
+  background: var(--g-color-base-generic-hover, rgba(255, 255, 255, 0.08));
 }
 
 .dateInput:focus {

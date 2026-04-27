@@ -457,6 +457,55 @@ export const registerNotesApiAdapterSuite = (
     ])
   })
 
+  test(`${adapterName} allows notes without due or reminder times`, async (t) => {
+    const requests: Array<unknown> = []
+    const noteWithoutDates = {
+      ...sampleNote,
+      timeDue: null,
+      timeRemind: null,
+    }
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        createNoteForNotesApp: async (request) => {
+          requests.push(request)
+          return { note: noteWithoutDates }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "POST",
+      path: "/api/notes",
+      body: {
+        userId: 7,
+        note: {
+          categoryId: 5,
+          tagIds: [12],
+          description: "No due or reminder dates selected.",
+        },
+      },
+    })
+
+    assert.equal(response.status, 201)
+    assert.deepEqual(response.body, { note: noteWithoutDates })
+    assert.deepEqual(requests, [
+      {
+        userId: 7,
+        note: {
+          categoryId: 5,
+          tagIds: [12],
+          description: "No due or reminder dates selected.",
+          timeDue: null,
+          timeRemind: null,
+        },
+      },
+    ])
+  })
+
   test(`${adapterName} returns 404 when an update target is missing`, async (t) => {
     const adapter = await createAdapter(
       createFakeNotesAppService({

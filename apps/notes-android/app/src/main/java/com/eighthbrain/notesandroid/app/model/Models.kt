@@ -60,8 +60,8 @@ data class NoteRecord(
     val category: NoteCategoryRef,
     val tags: List<NoteTagRef>,
     val description: String?,
-    val timeDue: String,
-    val timeRemind: String,
+    val timeDue: String?,
+    val timeRemind: String?,
     val timeCreated: String,
     val timeModified: String,
 )
@@ -82,8 +82,10 @@ data class NoteDraft(
     val selectedTagIds: List<Int> = emptyList(),
     val newTagLabel: String = "",
     val description: String = "",
-    val dueInput: String = defaultDueInput(),
-    val remindInput: String = defaultRemindInput(),
+    val dueInput: String? = null,
+    val remindInput: String? = null,
+    val dueExpanded: Boolean = false,
+    val remindExpanded: Boolean = false,
 )
 
 data class AppSnapshot(
@@ -117,8 +119,10 @@ fun NoteRecord.toDraft(): NoteDraft =
         selectedTagIds = tags.map { it.id },
         newTagLabel = "",
         description = description.orEmpty(),
-        dueInput = isoToLocalInput(timeDue),
-        remindInput = isoToLocalInput(timeRemind),
+        dueInput = timeDue?.let(::isoToLocalInput),
+        remindInput = timeRemind?.let(::isoToLocalInput),
+        dueExpanded = timeDue != null,
+        remindExpanded = timeRemind != null,
     )
 
 fun NoteRecord.headline(): String {
@@ -140,10 +144,10 @@ fun isoToLocalInput(value: String): String =
     Instant.parse(value).atZone(ZoneId.systemDefault()).toLocalDateTime().format(localInputFormatter)
 
 fun parseLocalInputToIso(
-    value: String,
+    value: String?,
     fieldName: String,
 ): String {
-    val trimmed = value.trim()
+    val trimmed = value?.trim().orEmpty()
     require(trimmed.isNotEmpty()) { "$fieldName is required." }
 
     return try {
@@ -155,6 +159,11 @@ fun parseLocalInputToIso(
         throw IllegalArgumentException("$fieldName must use the format yyyy-MM-dd'T'HH:mm.")
     }
 }
+
+fun parseOptionalLocalInputToIso(
+    value: String?,
+    fieldName: String,
+): String? = value?.let { parseLocalInputToIso(it, fieldName) }
 
 fun formatTimestamp(value: String): String =
     Instant.parse(value).atZone(ZoneId.systemDefault()).format(dateTimeFormatter)
@@ -168,6 +177,8 @@ fun formatConciseDate(isoValue: String): String {
     val now = ZonedDateTime.now()
     return zoned.format(if (zoned.year != now.year) conciseDateFull else conciseDateShort)
 }
+
+fun formatOptionalConciseDate(isoValue: String?): String? = isoValue?.let(::formatConciseDate)
 
 fun List<NoteRecord>.sortedByLastUpdatedDescending(): List<NoteRecord> =
     sortedByDescending { Instant.parse(it.timeModified) }

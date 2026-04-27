@@ -50,8 +50,8 @@ export interface NoteRecord {
   category: NoteCategoryRef;
   tags: NoteTagRef[];
   description: string | null;
-  timeDue: string;
-  timeRemind: string;
+  timeDue: string | null;
+  timeRemind: string | null;
   timeCreated: string;
   timeModified: string;
 }
@@ -67,8 +67,8 @@ export interface NoteInput {
   categoryId: number;
   tagIds: number[];
   description: string;
-  timeDue: string;
-  timeRemind: string;
+  timeDue: string | null;
+  timeRemind: string | null;
 }
 
 export interface SessionRequest {
