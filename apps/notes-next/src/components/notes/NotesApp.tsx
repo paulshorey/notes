@@ -63,6 +63,7 @@ const RESULTS_COLUMN_MAX_WIDTH = 720
 const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
+const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 
 const isPreferencesObject = (value: unknown): value is Record<string, unknown> =>
@@ -146,6 +147,31 @@ interface ResetNoteFormOptions {
   selectedCategoryId?: number | null
 }
 
+type NoteSaveMode = "manual" | "autosave"
+
+const snapshotNoteForm = (form: NoteFormState): NoteFormState => ({
+  ...form,
+  selectedTagIds: [...form.selectedTagIds],
+})
+
+const serializeNoteDraft = (noteId: number | null, form: NoteFormState) =>
+  JSON.stringify({
+    noteId,
+    categoryId: form.selectedCategoryId,
+    tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
+    description: form.description,
+    timeDue: form.dueExpanded ? form.timeDue : null,
+    timeRemind: form.remindExpanded ? form.timeRemind : null,
+  })
+
+const noteRequestBody = (form: NoteFormState) => ({
+  categoryId: form.selectedCategoryId,
+  tagIds: form.selectedTagIds,
+  description: form.description,
+  timeDue: form.dueExpanded ? form.timeDue : null,
+  timeRemind: form.remindExpanded ? form.timeRemind : null,
+})
+
 export default function NotesApp() {
   const [identifier, setIdentifier] = useState("")
   const [user, setUser] = useState<UserSummary | null>(null)
@@ -195,6 +221,12 @@ export default function NotesApp() {
   )
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
   const contentRef = useRef<HTMLDivElement | null>(null)
+  const userRef = useRef<UserSummary | null>(null)
+  const noteFormRef = useRef<NoteFormState>(noteForm)
+  const editingNoteIdRef = useRef<number | null>(editingNoteId)
+  const noteSavePromiseRef = useRef<Promise<void> | null>(null)
+  const queuedAutosaveRef = useRef(false)
+  const lastSavedNoteDraftRef = useRef<string | null>(null)
   const pendingTagLabelsRef = useRef<string[]>([])
   const creatingTagLabelsRef = useRef(new Set<string>())
   const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
@@ -281,6 +313,18 @@ export default function NotesApp() {
   }
 
   useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  useEffect(() => {
+    noteFormRef.current = noteForm
+  }, [noteForm])
+
+  useEffect(() => {
+    editingNoteIdRef.current = editingNoteId
+  }, [editingNoteId])
+
+  useEffect(() => {
     const handleWindowResize = () => {
       setResultsColumnWidth(clampResultsColumnWidth(preferredResultsColumnWidth))
     }
@@ -317,19 +361,27 @@ export default function NotesApp() {
     [clampResultsColumnWidth],
   )
 
-  const resetNoteForm = useCallback((options: ResetNoteFormOptions = {}) => {
-    const categoryList = options.categoryList ?? categories
-    const selectedCategoryId: number | null =
-      "selectedCategoryId" in options
-        ? (options.selectedCategoryId ?? null)
-        : getDefaultCategoryId(categoryList)
-    setNoteForm(() => ({
-      ...createDefaultNoteForm(),
-      selectedCategoryId,
-    }))
-    setEditingNoteId(null)
-    setPendingTagLabels([])
-  }, [categories])
+  const resetNoteForm = useCallback(
+    (options: ResetNoteFormOptions = {}) => {
+      const categoryList = options.categoryList ?? categories
+      const selectedCategoryId: number | null =
+        "selectedCategoryId" in options
+          ? (options.selectedCategoryId ?? null)
+          : getDefaultCategoryId(categoryList)
+      const nextForm = {
+        ...createDefaultNoteForm(),
+        selectedCategoryId,
+      }
+
+      noteFormRef.current = nextForm
+      editingNoteIdRef.current = null
+      lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
+      setNoteForm(nextForm)
+      setEditingNoteId(null)
+      setPendingTagLabels([])
+    },
+    [categories],
+  )
 
   const handleCancelEdit = useCallback(() => {
     resetNoteForm({ selectedCategoryId: noteForm.selectedCategoryId })
@@ -549,6 +601,128 @@ export default function NotesApp() {
     [loadCategories, loadTags, loadNotes, runSearch, trimmedSearchQuery],
   )
 
+  const saveCurrentNote = useCallback(
+    async function saveCurrentNote(mode: NoteSaveMode): Promise<void> {
+      if (noteSavePromiseRef.current) {
+        if (mode === "autosave") {
+          queuedAutosaveRef.current = true
+          return
+        }
+
+        await noteSavePromiseRef.current.catch(() => undefined)
+      }
+
+      const currentUser = userRef.current
+      const formSnapshot = snapshotNoteForm(noteFormRef.current)
+      const noteId = editingNoteIdRef.current
+      const draftSignature = serializeNoteDraft(noteId, formSnapshot)
+
+      if (!currentUser) {
+        if (mode === "manual") setErrorMessage("Sign in before editing notes.")
+        return
+      }
+
+      if (formSnapshot.selectedCategoryId === null) {
+        if (mode === "manual") setErrorMessage("Choose a category before saving the note.")
+        return
+      }
+
+      if (mode === "autosave") {
+        if (formSnapshot.description.trim() === "") return
+        if (draftSignature === lastSavedNoteDraftRef.current) return
+      } else {
+        clearMessages()
+        setNotePending(true)
+      }
+
+      const savePromise = (async () => {
+        const requestBody =
+          noteId === null
+            ? {
+                userId: currentUser.id,
+                note: noteRequestBody(formSnapshot),
+              }
+            : {
+                userId: currentUser.id,
+                noteId,
+                note: noteRequestBody(formSnapshot),
+              }
+        const response = await fetch("/api/notes", {
+          method: noteId === null ? "POST" : "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        })
+        const data = await readJson<{ note: NoteRecord }>(response)
+
+        if (userRef.current?.id !== currentUser.id) return
+
+        await refreshResults(currentUser.id)
+
+        const savedNoteId = data.note.id
+        lastSavedNoteDraftRef.current = serializeNoteDraft(savedNoteId, formSnapshot)
+
+        if (mode === "autosave") {
+          const currentForm = noteFormRef.current
+          const currentDescriptionHasText = currentForm.description.trim() !== ""
+
+          if (noteId === null && editingNoteIdRef.current === null && currentDescriptionHasText) {
+            editingNoteIdRef.current = savedNoteId
+            setEditingNoteId(savedNoteId)
+          }
+          return
+        }
+
+        resetNoteForm()
+        setStatusMessage(noteId === null ? "Note created." : "Note updated.")
+      })()
+
+      noteSavePromiseRef.current = savePromise
+
+      try {
+        await savePromise
+      } catch (error) {
+        if (userRef.current?.id === currentUser.id) {
+          setErrorMessage(getErrorMessage(error))
+        }
+      } finally {
+        if (noteSavePromiseRef.current === savePromise) {
+          noteSavePromiseRef.current = null
+        }
+        if (mode === "manual") setNotePending(false)
+      }
+
+      if (queuedAutosaveRef.current) {
+        queuedAutosaveRef.current = false
+        const latestForm = noteFormRef.current
+        const latestSignature = serializeNoteDraft(editingNoteIdRef.current, latestForm)
+        if (
+          latestForm.description.trim() !== "" &&
+          latestForm.selectedCategoryId !== null &&
+          latestSignature !== lastSavedNoteDraftRef.current
+        ) {
+          void saveCurrentNote("autosave")
+        }
+      }
+    },
+    [clearMessages, refreshResults, resetNoteForm],
+  )
+
+  useEffect(() => {
+    if (!user) return
+    if (notePending) return
+    if (noteForm.description.trim() === "") return
+    if (noteForm.selectedCategoryId === null) return
+
+    const draftSignature = serializeNoteDraft(editingNoteId, noteForm)
+    if (draftSignature === lastSavedNoteDraftRef.current) return
+
+    const timeoutId = window.setTimeout(() => {
+      void saveCurrentNote("autosave")
+    }, NOTE_AUTOSAVE_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [editingNoteId, noteForm, notePending, saveCurrentNote, user])
+
   const matchesSelectedTag = useCallback(
     (note: NoteRecord) =>
       selectedTagId === null || note.tags.some((tag) => tag.id === selectedTagId),
@@ -755,9 +929,13 @@ export default function NotesApp() {
 
   const handleStartEdit = (note: NoteRecord) => {
     clearMessages()
+    const nextForm = noteToFormState(note)
+    editingNoteIdRef.current = note.id
+    noteFormRef.current = nextForm
+    lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
     setEditingNoteId(note.id)
     setPendingTagLabels([])
-    setNoteForm(noteToFormState(note))
+    setNoteForm(nextForm)
   }
 
   const handleSelectCategory = (rawId: string) => {
@@ -889,43 +1067,9 @@ export default function NotesApp() {
     }
   }
 
-  const handleSaveNote = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveNote = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!user) {
-      setErrorMessage("Sign in before editing notes.")
-      return
-    }
-    if (noteForm.selectedCategoryId === null) {
-      setErrorMessage("Choose a category before saving the note.")
-      return
-    }
-    clearMessages()
-    setNotePending(true)
-    try {
-      const response = await fetch("/api/notes", {
-        method: editingNoteId ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          noteId: editingNoteId,
-          note: {
-            categoryId: noteForm.selectedCategoryId,
-            tagIds: noteForm.selectedTagIds,
-            description: noteForm.description,
-            timeDue: noteForm.dueExpanded ? noteForm.timeDue : null,
-            timeRemind: noteForm.remindExpanded ? noteForm.timeRemind : null,
-          },
-        }),
-      })
-      await readJson<{ note: NoteRecord }>(response)
-      await refreshResults(user.id)
-      resetNoteForm()
-      setStatusMessage(editingNoteId ? "Note updated." : "Note created.")
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
-    } finally {
-      setNotePending(false)
-    }
+    void saveCurrentNote("manual")
   }
 
   const openEditCategory = (category: CategoryRecord) => {
