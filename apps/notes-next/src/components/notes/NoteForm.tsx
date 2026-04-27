@@ -77,6 +77,9 @@ export function NoteForm({
     form.selectedCategoryId === null
       ? ""
       : categories.find((category) => category.id === form.selectedCategoryId)?.label ?? ""
+  const categoryPlaceholder =
+    categories.length === 0 ? "Type a category and press Enter" : "Select category or type new"
+  const categorySizerValue = categoryInputValue || selectedCategoryLabel || "Category"
 
   const filteredCategoryOptions = useMemo(() => {
     const query = normalizeLabel(categoryInputValue)
@@ -259,11 +262,7 @@ export function NoteForm({
           )}
         </div>
         <div className={styles.dateFields}>
-          {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
-          {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
-        </div>
-        <div className={styles.tagBlock}>
-          <div className={styles.mantineField}>
+          <div className={styles.categoryFieldSizer} data-value={categorySizerValue}>
             <Combobox
               store={categoryCombobox}
               onOptionSubmit={(optionValue) => {
@@ -274,11 +273,7 @@ export function NoteForm({
             >
               <Combobox.Target>
                 <MantineTextInput
-                  placeholder={
-                    categories.length === 0
-                      ? "Type a category and press Enter"
-                      : "Select category or type new"
-                  }
+                  placeholder={categoryPlaceholder}
                   value={categoryInputValue}
                   disabled={!userPresent || createCategoryPending}
                   rightSection={<CaretDownIcon size={16} />}
@@ -304,7 +299,7 @@ export function NoteForm({
                 />
               </Combobox.Target>
 
-              <Combobox.Dropdown>
+              <Combobox.Dropdown className={styles.categoryDropdown}>
                 <Combobox.Options>
                   {filteredCategoryOptions.length === 0 ? (
                     <Combobox.Empty>
@@ -321,6 +316,10 @@ export function NoteForm({
               </Combobox.Dropdown>
             </Combobox>
           </div>
+          {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
+          {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
+        </div>
+        <div className={styles.tagBlock}>
           <div className={styles.mantineField}>
             <MantineTagsInput
               placeholder="Enter tags"
