@@ -2,45 +2,28 @@
 
 import { Button, Icon, Text } from "@gravity-ui/uikit"
 import { Pencil, TrashBin } from "@gravity-ui/icons"
-import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
+import type { TagRecord } from "@lib/db-marketing"
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react"
 import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import styles from "./FilterBanners.module.css"
 
 interface FilterBannersProps {
-  categories: CategoryRecord[]
   tags: TagRecord[]
   notesCount: number
-  fallbackCategoryId: number | null
-  onEditCategory: (category: CategoryRecord) => void
-  onDeleteCategory: (category: CategoryRecord) => void
   onEditTag: (tag: TagRecord) => void
   onDeleteTag: (tag: TagRecord) => void
 }
 
 export function FilterBanners({
-  categories,
   tags,
   notesCount,
-  fallbackCategoryId,
-  onEditCategory,
-  onDeleteCategory,
   onEditTag,
   onDeleteTag,
 }: FilterBannersProps) {
-  const [openDropdown, setOpenDropdown] = useState<"category" | "tag" | null>(null)
+  const [openDropdown, setOpenDropdown] = useState<"tag" | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  const {
-    selectedCategoryId,
-    selectedTagId,
-    setSelectedCategoryId,
-    setSelectedTagId,
-  } = useNotesAppStore()
-  const selectedCategory =
-    selectedCategoryId === null
-      ? null
-      : (categories.find((category) => category.id === selectedCategoryId) ?? null)
+  const { selectedTagId, setSelectedTagId } = useNotesAppStore()
   const selectedTag =
     selectedTagId === null ? null : (tags.find((tag) => tag.id === selectedTagId) ?? null)
 
@@ -68,7 +51,7 @@ export function FilterBanners({
 
   const handleSelectorKeyDown = (
     event: KeyboardEvent<HTMLButtonElement>,
-    dropdown: "category" | "tag",
+    dropdown: "tag",
   ) => {
     if (event.key === "ArrowDown") {
       event.preventDefault()
@@ -76,13 +59,9 @@ export function FilterBanners({
     }
   }
 
-  const handleClearClick = (event: MouseEvent<HTMLButtonElement>, kind: "category" | "tag") => {
+  const handleClearClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    if (kind === "category") {
-      setSelectedCategoryId(null)
-    } else {
-      setSelectedTagId(null)
-    }
+    setSelectedTagId(null)
     setOpenDropdown(null)
   }
 
@@ -90,93 +69,11 @@ export function FilterBanners({
     <div className={styles.filterBanners} ref={rootRef}>
       <div className={styles.selectorWrap}>
         <Text variant="body-2" as="span" className={styles.filterText}>
-          {selectedCategory && (
-            <button
-              type="button"
-              className={styles.clearInline}
-              onClick={(event) => handleClearClick(event, "category")}
-              aria-label="Clear category filter"
-            >
-              x
-            </button>
-          )}
-          <button
-            type="button"
-            className={styles.selectorButton}
-            onClick={() =>
-              setOpenDropdown((current) => (current === "category" ? null : "category"))
-            }
-            onKeyDown={(event) => handleSelectorKeyDown(event, "category")}
-            aria-expanded={openDropdown === "category"}
-            aria-haspopup="true"
-          >
-            <span className={styles.selectorLabel}>
-              {selectedCategory ? (
-                <>
-                  <span>category: </span>
-                  {selectedCategory.label}
-                  <span> {selectedCategory.noteCount}</span>
-                </>
-              ) : (
-                "all categories"
-              )}
-            </span>
-            <CaretDownIcon size={14} />
-          </button>
-        </Text>
-
-        {openDropdown === "category" && (
-          <div className={styles.dropdown} role="list" aria-label="Category filter">
-            <FilterRow
-              active={selectedCategoryId === null}
-              label="All categories"
-              count={notesCount}
-              bold
-              onSelect={() => {
-                setSelectedCategoryId(null)
-                setOpenDropdown(null)
-              }}
-            />
-            {categories.map((category) => (
-              <FilterRow
-                key={category.id}
-                active={selectedCategoryId === category.id}
-                label={category.label}
-                count={category.noteCount}
-                onSelect={() => {
-                  setSelectedCategoryId(selectedCategoryId === category.id ? null : category.id)
-                  setOpenDropdown(null)
-                }}
-                onEdit={() => {
-                  setOpenDropdown(null)
-                  onEditCategory(category)
-                }}
-                onDelete={
-                  category.id !== fallbackCategoryId
-                    ? () => {
-                        setOpenDropdown(null)
-                        onDeleteCategory(category)
-                      }
-                    : undefined
-                }
-              />
-            ))}
-            {categories.length === 0 && (
-              <Text variant="caption-1" color="secondary" className={styles.emptyText}>
-                No categories yet. Create one from the note form.
-              </Text>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className={styles.selectorWrap}>
-        <Text variant="body-2" as="span" className={styles.filterText}>
           {selectedTag && (
             <button
               type="button"
               className={styles.clearInline}
-              onClick={(event) => handleClearClick(event, "tag")}
+              onClick={handleClearClick}
               aria-label="Clear tag filter"
             >
               x

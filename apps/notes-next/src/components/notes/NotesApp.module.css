@@ -99,7 +99,109 @@
 }
 
 .noteResults {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
+}
+
+.searchResultsSection {
+  flex: 0 0 auto;
+  max-height: 42%;
+  min-height: 0;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
+}
+
+.categoryAccordion {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 8px;
+}
+
+.categoryAccordionStatus {
+  padding: 8px 8px 8px 6px;
+}
+
+.categoryGroup {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.categoryRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  padding-right: 2px;
+}
+
+.categoryRow:hover {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.03));
+}
+
+.categoryToggle {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 4px 6px 6px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.categoryToggle:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
+  outline-offset: -2px;
+}
+
+.categoryToggleIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--g-color-text-secondary);
+  transition: transform 0.12s ease;
+}
+
+.categoryToggleIconExpanded {
+  transform: rotate(-90deg);
+}
+
+.categoryLabel {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.categoryCount {
+  flex: 0 0 auto;
+  color: var(--g-color-text-hint, #8a8a8a);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.categoryActionButton {
+  flex: 0 0 auto;
+  opacity: 0.68;
+}
+
+.categoryRow:hover .categoryActionButton,
+.categoryActionButton:focus-visible {
+  opacity: 1;
+}
+
+.categoryPanel {
+  min-width: 0;
+  padding-left: 16px;
 }
