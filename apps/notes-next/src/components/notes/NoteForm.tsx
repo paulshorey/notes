@@ -76,8 +76,7 @@ export function NoteForm({
       : (categories.find((category) => category.id === form.selectedCategoryId)?.label ?? "")
 
   const defaultNewNoteCategoryId = useMemo(
-    () =>
-      categories.length > 0 ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id : null,
+    () => (categories.length > 0 ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id : null),
     [categories],
   )
 
@@ -105,20 +104,14 @@ export function NoteForm({
     })
   }, [form.selectedTagIds, pendingTagLabels, tags])
 
-  const hasCategoryDraft =
-    categoryPickerOpen &&
-    normalizeLabel(categoryInputValue) !== "" &&
-    normalizeLabel(categoryInputValue) !== normalizeLabel(selectedCategoryLabel)
   const newNoteHasUserInput =
     form.description !== "" ||
-    form.selectedCategoryId !== defaultNewNoteCategoryId ||
     form.selectedTagIds.length > 0 ||
     pendingTagLabels.length > 0 ||
     form.dueExpanded ||
     form.timeDue !== null ||
     form.remindExpanded ||
-    form.timeRemind !== null ||
-    hasCategoryDraft
+    form.timeRemind !== null
   const showCancelButton = editingNoteId !== null || newNoteHasUserInput
   const primaryActionPin =
     editingNoteId !== null ? "brick-brick" : showCancelButton ? "round-brick" : "round-round"

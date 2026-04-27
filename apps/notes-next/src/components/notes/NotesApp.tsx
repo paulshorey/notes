@@ -116,6 +116,11 @@ const withResultsColumnWidthPreference = (
 const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
   categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
 
+interface ResetNoteFormOptions {
+  categoryList?: CategoryRecord[]
+  selectedCategoryId?: number | null
+}
+
 export default function NotesApp() {
   const [identifier, setIdentifier] = useState("")
   const [user, setUser] = useState<UserSummary | null>(null)
@@ -287,15 +292,23 @@ export default function NotesApp() {
     [clampResultsColumnWidth],
   )
 
-  const resetNoteForm = useCallback((categoryList = categories) => {
-    const defaultCategoryId = getDefaultCategoryId(categoryList)
+  const resetNoteForm = useCallback((options: ResetNoteFormOptions = {}) => {
+    const categoryList = options.categoryList ?? categories
+    const selectedCategoryId: number | null =
+      "selectedCategoryId" in options
+        ? (options.selectedCategoryId ?? null)
+        : getDefaultCategoryId(categoryList)
     setNoteForm(() => ({
       ...createDefaultNoteForm(),
-      selectedCategoryId: defaultCategoryId,
+      selectedCategoryId,
     }))
     setEditingNoteId(null)
     setPendingTagLabels([])
   }, [categories])
+
+  const handleCancelEdit = useCallback(() => {
+    resetNoteForm({ selectedCategoryId: noteForm.selectedCategoryId })
+  }, [noteForm.selectedCategoryId, resetNoteForm])
 
   const loadNotes = useCallback(async (userId: number) => {
     setNotesLoading(true)
@@ -643,7 +656,7 @@ export default function NotesApp() {
       const loadedCategories = await loadCategories(data.user.id)
       await loadTags(data.user.id)
       setIdentifier("")
-      resetNoteForm(loadedCategories)
+      resetNoteForm({ categoryList: loadedCategories })
       setSearchQuery("")
       setSearchResults([])
       setSearchErrorMessage(null)
@@ -1112,7 +1125,7 @@ export default function NotesApp() {
           onTagValuesChange={handleTagValuesChange}
           onSubmit={handleSaveNote}
           onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
-          onCancelEdit={resetNoteForm}
+          onCancelEdit={handleCancelEdit}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader
