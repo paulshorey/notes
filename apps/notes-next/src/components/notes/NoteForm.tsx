@@ -73,7 +73,7 @@ export function NoteForm({
   const selectedCategoryLabel =
     form.selectedCategoryId === null
       ? ""
-      : categories.find((category) => category.id === form.selectedCategoryId)?.label ?? ""
+      : (categories.find((category) => category.id === form.selectedCategoryId)?.label ?? "")
 
   const filteredCategoryOptions = useMemo(() => {
     const query = normalizeLabel(categoryInputValue)
@@ -85,9 +85,7 @@ export function NoteForm({
 
   const selectedTagLabels = useMemo(() => {
     const next = [
-      ...form.selectedTagIds.map(
-        (id) => tags.find((tag) => tag.id === id)?.label ?? `Tag #${id}`,
-      ),
+      ...form.selectedTagIds.map((id) => tags.find((tag) => tag.id === id)?.label ?? `Tag #${id}`),
       ...pendingTagLabels,
     ]
     const seen = new Set<string>()
@@ -234,7 +232,9 @@ export function NoteForm({
           value={value ?? ""}
           onChange={(e) =>
             setForm((p) =>
-              field === "due" ? { ...p, timeDue: e.target.value } : { ...p, timeRemind: e.target.value },
+              field === "due"
+                ? { ...p, timeDue: e.target.value }
+                : { ...p, timeRemind: e.target.value },
             )
           }
           className={styles.dateInput}
@@ -247,57 +247,15 @@ export function NoteForm({
     <section className={styles.formColumn}>
       {header}
       <form className={styles.form} onSubmit={onSubmit}>
-        <div className={styles.formActions}>
-          {editingNoteId ? (
-            <>
-              <Button
-                view="outlined"
-                size="l"
-                pin="round-brick"
-                type="button"
-                loading={deletingNoteId === editingNoteId}
-                disabled={notePending}
-                onClick={() => onDeleteNote(editingNoteId)}
-                aria-label="Delete note"
-                className={`${styles.formSideButton} ${styles.formDeleteButton}`}
-              >
-                <Icon data={TrashBin} size={12} />
-              </Button>
-              <Button
-                view="action"
-                size="l"
-                pin="brick-brick"
-                type="submit"
-                loading={notePending}
-                className={styles.formPrimaryAction}
-              >
-                Edit note
-              </Button>
-              <Button
-                view="outlined"
-                size="l"
-                pin="brick-round"
-                type="button"
-                onClick={onCancelEdit}
-                aria-label="Cancel editing"
-                className={styles.formSideButton}
-              >
-                <Icon data={Xmark} size={14} />
-              </Button>
-            </>
-          ) : (
-            <Button
-              view="action"
-              size="l"
-              pin="round-round"
-              type="submit"
-              loading={notePending}
-              className={styles.formPrimaryAction}
-            >
-              Add note
-            </Button>
-          )}
-        </div>
+        <TextArea
+          size="m"
+          placeholder="Description"
+          rows={1}
+          value={form.description}
+          onUpdate={(v) => setForm((p) => ({ ...p, description: v }))}
+          className={styles.formDescription}
+        />
+
         <div className={styles.dateFields}>
           <div className={styles.categoryPicker} ref={categoryPickerRef}>
             <button
@@ -331,7 +289,11 @@ export function NoteForm({
                   }}
                   onKeyDown={handleCategoryInputKeyDown}
                 />
-                <div className={styles.categoryOptions} role="listbox" aria-label="Category options">
+                <div
+                  className={styles.categoryOptions}
+                  role="listbox"
+                  aria-label="Category options"
+                >
                   {filteredCategoryOptions.length === 0 && categoryInputValue.trim() !== "" ? (
                     <div className={styles.categoryEmpty}>
                       Press Enter to create &quot;{categoryInputValue.trim()}&quot;
@@ -361,10 +323,11 @@ export function NoteForm({
           {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
         </div>
+
         <div className={styles.tagBlock}>
           <div className={styles.mantineField}>
             <MantineTagsInput
-              placeholder="Enter tags"
+              placeholder="Add tags"
               data={tags.map((tag) => tag.label)}
               value={selectedTagLabels}
               clearable
@@ -378,14 +341,47 @@ export function NoteForm({
             />
           </div>
         </div>
-        <TextArea
-          size="m"
-          placeholder="Description"
-          rows={1}
-          value={form.description}
-          onUpdate={(v) => setForm((p) => ({ ...p, description: v }))}
-          className={styles.formDescription}
-        />
+
+        <div className={styles.formActions}>
+          {editingNoteId && (
+            <Button
+              view="outlined"
+              size="l"
+              pin="round-brick"
+              type="button"
+              loading={deletingNoteId === editingNoteId}
+              disabled={notePending}
+              onClick={() => onDeleteNote(editingNoteId)}
+              aria-label="Delete note"
+              className={`${styles.formSideButton} ${styles.formDeleteButton}`}
+            >
+              <Icon data={TrashBin} size={12} />
+            </Button>
+          )}
+          <Button
+            view="action"
+            size="l"
+            pin="brick-brick"
+            type="submit"
+            loading={notePending}
+            className={styles.formPrimaryAction}
+          >
+            Edit note
+          </Button>
+          {editingNoteId && (
+            <Button
+              view="outlined"
+              size="l"
+              pin={editingNoteId ? "brick-round" : "round-round"}
+              type="button"
+              onClick={onCancelEdit}
+              aria-label="Cancel editing"
+              className={styles.formSideButton}
+            >
+              <Icon data={Xmark} size={14} />
+            </Button>
+          )}
+        </div>
       </form>
     </section>
   )
