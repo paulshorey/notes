@@ -142,10 +142,7 @@ export function NoteForm({
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node
-      if (
-        categoryPickerRef.current?.contains(target) ||
-        tagPickerRef.current?.contains(target)
-      ) {
+      if (categoryPickerRef.current?.contains(target) || tagPickerRef.current?.contains(target)) {
         return
       }
       setCategoryPickerOpen(false)
@@ -337,6 +334,49 @@ export function NoteForm({
     <section className={styles.formColumn}>
       {header}
       <form className={styles.form} onSubmit={onSubmit}>
+        <div className={styles.formActions}>
+          {editingNoteId !== null && (
+            <Button
+              view="flat"
+              size="l"
+              pin="round-brick"
+              type="button"
+              loading={deletingNoteId === editingNoteId}
+              disabled={notePending}
+              onClick={() => onDeleteNote(editingNoteId)}
+              aria-label="Delete note"
+              className={`${styles.formSideButton} ${styles.formDeleteButton}`}
+            >
+              <Icon data={TrashBin} size={12} />
+            </Button>
+          )}
+
+          {/* <Button
+            view="flat"
+            size="l"
+            pin={primaryActionPin}
+            type="submit"
+            loading={notePending}
+            className={styles.formPrimaryAction}
+          >
+            Save and close
+          </Button> */}
+
+          {showCancelButton && (
+            <Button
+              view="flat"
+              size="l"
+              pin="brick-round"
+              type="button"
+              onClick={onCancelEdit}
+              aria-label={editingNoteId !== null ? "Cancel editing" : "Cancel changes"}
+              className={styles.formSideButton}
+            >
+              <Icon data={Xmark} size={14} />
+            </Button>
+          )}
+        </div>
+
         <TextArea
           size="m"
           placeholder="Description"
@@ -479,47 +519,6 @@ export function NoteForm({
               <Icon data={Xmark} size={10} />
             </button>
           ))}
-        </div>
-
-        <div className={styles.formActions}>
-          {editingNoteId !== null && (
-            <Button
-              view="outlined"
-              size="l"
-              pin="round-brick"
-              type="button"
-              loading={deletingNoteId === editingNoteId}
-              disabled={notePending}
-              onClick={() => onDeleteNote(editingNoteId)}
-              aria-label="Delete note"
-              className={`${styles.formSideButton} ${styles.formDeleteButton}`}
-            >
-              <Icon data={TrashBin} size={12} />
-            </Button>
-          )}
-          <Button
-            view="action"
-            size="l"
-            pin={primaryActionPin}
-            type="submit"
-            loading={notePending}
-            className={styles.formPrimaryAction}
-          >
-            Save
-          </Button>
-          {showCancelButton && (
-            <Button
-              view="outlined"
-              size="l"
-              pin="brick-round"
-              type="button"
-              onClick={onCancelEdit}
-              aria-label={editingNoteId !== null ? "Cancel editing" : "Cancel changes"}
-              className={styles.formSideButton}
-            >
-              <Icon data={Xmark} size={14} />
-            </Button>
-          )}
         </div>
       </form>
     </section>
