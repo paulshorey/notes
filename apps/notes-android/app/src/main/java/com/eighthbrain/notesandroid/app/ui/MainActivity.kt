@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
@@ -1588,7 +1589,7 @@ private fun OptionalDateField(
             Text(label)
             Spacer(Modifier.width(4.dp))
             Icon(
-                Icons.Default.CalendarToday,
+                Icons.Default.DateRange,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
             )
