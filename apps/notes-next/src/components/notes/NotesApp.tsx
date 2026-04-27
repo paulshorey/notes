@@ -41,6 +41,7 @@ import {
   type NoteFormState,
 } from "@/types/notes"
 import { useAutoDismissStatus } from "@/hooks/useAutoDismissStatus"
+import { useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
 import { FilterBanners } from "./FilterBanners"
 import { LoginForm } from "./LoginForm"
@@ -121,8 +122,12 @@ export default function NotesApp() {
   const [tags, setTags] = useState<TagRecord[]>([])
   const fallbackCategoryId =
     categories.length > 0 ? categories.reduce((a, b) => (a.id < b.id ? a : b)).id : null
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
-  const [selectedTagId, setSelectedTagId] = useState<number | null>(null)
+  const {
+    selectedCategoryId,
+    selectedTagId,
+    setSelectedTagId,
+    resetDefaultState: resetNotesAppStore,
+  } = useNotesAppStore()
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [noteForm, setNoteForm] = useState<NoteFormState>(() => createDefaultNoteForm())
@@ -371,6 +376,7 @@ export default function NotesApp() {
         setCategories([])
         setTags([])
         setNotes([])
+        resetNotesAppStore()
         setResultsListVisible(true)
         setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
         setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
@@ -384,7 +390,7 @@ export default function NotesApp() {
     return () => {
       active = false
     }
-  }, [applyLoadedUser, loadCategories, loadTags, loadNotes])
+  }, [applyLoadedUser, loadCategories, loadTags, loadNotes, resetNotesAppStore])
 
   useEffect(() => {
     if (!user) return
@@ -424,7 +430,7 @@ export default function NotesApp() {
     }, PREFERENCES_SAVE_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timeoutId)
-  }, [user, userPreferences])
+  }, [clampResultsColumnWidth, user, userPreferences])
 
   useEffect(() => {
     if (!user) {
@@ -661,8 +667,7 @@ export default function NotesApp() {
     setSearchQuery("")
     setSearchResults([])
     setSearchErrorMessage(null)
-    setSelectedCategoryId(null)
-    setSelectedTagId(null)
+    resetNotesAppStore()
     setResultsListVisible(true)
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
@@ -1150,13 +1155,7 @@ export default function NotesApp() {
               categories={categories}
               tags={tags}
               notesCount={notes.length}
-              selectedCategory={selectedCategory}
-              selectedTag={selectedTag}
-              selectedCategoryId={selectedCategoryId}
-              selectedTagId={selectedTagId}
               fallbackCategoryId={fallbackCategoryId}
-              onSelectCategory={setSelectedCategoryId}
-              onSelectTag={setSelectedTagId}
               onEditCategory={openEditCategory}
               onDeleteCategory={openDeleteCategory}
               onEditTag={openEditTag}

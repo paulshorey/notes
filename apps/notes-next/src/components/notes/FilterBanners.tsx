@@ -5,19 +5,14 @@ import { Pencil, TrashBin } from "@gravity-ui/icons"
 import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react"
 import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
+import { useNotesAppStore } from "@/stores/notesAppStore"
 import styles from "./FilterBanners.module.css"
 
 interface FilterBannersProps {
   categories: CategoryRecord[]
   tags: TagRecord[]
   notesCount: number
-  selectedCategory: CategoryRecord | null
-  selectedTag: TagRecord | null
-  selectedCategoryId: number | null
-  selectedTagId: number | null
   fallbackCategoryId: number | null
-  onSelectCategory: (id: number | null) => void
-  onSelectTag: (id: number | null) => void
   onEditCategory: (category: CategoryRecord) => void
   onDeleteCategory: (category: CategoryRecord) => void
   onEditTag: (tag: TagRecord) => void
@@ -28,13 +23,7 @@ export function FilterBanners({
   categories,
   tags,
   notesCount,
-  selectedCategory,
-  selectedTag,
-  selectedCategoryId,
-  selectedTagId,
   fallbackCategoryId,
-  onSelectCategory,
-  onSelectTag,
   onEditCategory,
   onDeleteCategory,
   onEditTag,
@@ -42,6 +31,18 @@ export function FilterBanners({
 }: FilterBannersProps) {
   const [openDropdown, setOpenDropdown] = useState<"category" | "tag" | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const {
+    selectedCategoryId,
+    selectedTagId,
+    setSelectedCategoryId,
+    setSelectedTagId,
+  } = useNotesAppStore()
+  const selectedCategory =
+    selectedCategoryId === null
+      ? null
+      : (categories.find((category) => category.id === selectedCategoryId) ?? null)
+  const selectedTag =
+    selectedTagId === null ? null : (tags.find((tag) => tag.id === selectedTagId) ?? null)
 
   useEffect(() => {
     if (!openDropdown) return
@@ -78,9 +79,9 @@ export function FilterBanners({
   const handleClearClick = (event: MouseEvent<HTMLButtonElement>, kind: "category" | "tag") => {
     event.stopPropagation()
     if (kind === "category") {
-      onSelectCategory(null)
+      setSelectedCategoryId(null)
     } else {
-      onSelectTag(null)
+      setSelectedTagId(null)
     }
     setOpenDropdown(null)
   }
@@ -132,7 +133,7 @@ export function FilterBanners({
               count={notesCount}
               bold
               onSelect={() => {
-                onSelectCategory(null)
+                setSelectedCategoryId(null)
                 setOpenDropdown(null)
               }}
             />
@@ -143,7 +144,7 @@ export function FilterBanners({
                 label={category.label}
                 count={category.noteCount}
                 onSelect={() => {
-                  onSelectCategory(selectedCategoryId === category.id ? null : category.id)
+                  setSelectedCategoryId(selectedCategoryId === category.id ? null : category.id)
                   setOpenDropdown(null)
                 }}
                 onEdit={() => {
@@ -212,7 +213,7 @@ export function FilterBanners({
               count={notesCount}
               bold
               onSelect={() => {
-                onSelectTag(null)
+                setSelectedTagId(null)
                 setOpenDropdown(null)
               }}
             />
@@ -223,7 +224,7 @@ export function FilterBanners({
                 label={tag.label}
                 count={tag.noteCount}
                 onSelect={() => {
-                  onSelectTag(selectedTagId === tag.id ? null : tag.id)
+                  setSelectedTagId(selectedTagId === tag.id ? null : tag.id)
                   setOpenDropdown(null)
                 }}
                 onEdit={() => {

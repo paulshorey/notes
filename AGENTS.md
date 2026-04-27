@@ -39,6 +39,7 @@ This codebase is developed by AI agents.
 - Use `pnpm` only.
 - Keep the repo root as the default working directory.
 - Prefer root-scoped commands such as `pnpm run db:migrate` or `pnpm --filter <pkg> ...`.
+- In `apps/notes-next`, use Zustand stores for app-wide UI state instead of prop-drilling state through multiple components.
 - For Android Gradle, prefer `bash apps/notes-android/gradlew --no-daemon -p apps/notes-android <task>`.
 - Do not add package-local install steps to build, dev, test, or start scripts.
 
