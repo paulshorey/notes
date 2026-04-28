@@ -63,6 +63,7 @@ const RESULTS_COLUMN_MAX_WIDTH = 720
 const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
+const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
 const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 const ALL_CATEGORIES_EXPANDED_ID = "all-categories"
@@ -96,6 +97,9 @@ const serializeUserPreferences = (preferences: UserPreferences) =>
 
 const clampStoredResultsColumnWidth = (width: number) =>
   Math.round(Math.min(Math.max(width, RESULTS_COLUMN_MIN_WIDTH), RESULTS_COLUMN_MAX_WIDTH))
+
+const isMobileResultsLayout = () =>
+  typeof window !== "undefined" && window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY).matches
 
 const getStoredResultsColumnWidth = (preferences: UserPreferences) => {
   const notesAppPreferences = preferences.notesApp
@@ -217,13 +221,15 @@ export default function NotesApp() {
   const [editTagPending, setEditTagPending] = useState(false)
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
-  const [resultsListVisible, setResultsListVisible] = useState(true)
+  const [resultsListVisible, setResultsListVisible] = useState(() => !isMobileResultsLayout())
   const [expandedCategoryId, setExpandedCategoryId] = useState<ExpandedCategoryId | null>(null)
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
   const contentRef = useRef<HTMLDivElement | null>(null)
+  const resizeHandleRef = useRef<HTMLButtonElement | null>(null)
+  const resultsColumnShellRef = useRef<HTMLDivElement | null>(null)
   const userRef = useRef<UserSummary | null>(null)
   const noteFormRef = useRef<NoteFormState>(noteForm)
   const editingNoteIdRef = useRef<number | null>(editingNoteId)
@@ -276,6 +282,8 @@ export default function NotesApp() {
   }
 
   const handleResizePointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    if (isMobileResultsLayout()) return
+
     const resizeState = resizeStateRef.current
     if (!resizeState || resizeState.pointerId !== event.pointerId) return
 
@@ -314,6 +322,52 @@ export default function NotesApp() {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
   }
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
+    const syncResultsVisibility = () => {
+      if (mediaQuery.matches) {
+        setResultsListVisible(false)
+      } else {
+        setResultsListVisible(true)
+      }
+    }
+
+    syncResultsVisibility()
+    mediaQuery.addEventListener("change", syncResultsVisibility)
+    return () => mediaQuery.removeEventListener("change", syncResultsVisibility)
+  }, [])
+
+  useEffect(() => {
+    if (!resultsListVisible) return
+
+    const handleDocumentPointerDown = (event: globalThis.PointerEvent) => {
+      if (!isMobileResultsLayout()) return
+
+      const target = event.target as Node
+      if (
+        resultsColumnShellRef.current?.contains(target) ||
+        resizeHandleRef.current?.contains(target)
+      ) {
+        return
+      }
+
+      setResultsListVisible(false)
+    }
+
+    const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && isMobileResultsLayout()) {
+        setResultsListVisible(false)
+      }
+    }
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown)
+    document.addEventListener("keydown", handleDocumentKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", handleDocumentPointerDown)
+      document.removeEventListener("keydown", handleDocumentKeyDown)
+    }
+  }, [resultsListVisible])
 
   useEffect(() => {
     userRef.current = user
@@ -471,7 +525,7 @@ export default function NotesApp() {
         setTags([])
         setNotes([])
         resetNotesAppStore()
-        setResultsListVisible(true)
+        setResultsListVisible(!isMobileResultsLayout())
         setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
         setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
         setErrorMessage(getErrorMessage(error))
@@ -949,7 +1003,7 @@ export default function NotesApp() {
     setSearchResults([])
     setSearchErrorMessage(null)
     resetNotesAppStore()
-    setResultsListVisible(true)
+    setResultsListVisible(!isMobileResultsLayout())
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     resetNoteForm()
@@ -1386,6 +1440,7 @@ export default function NotesApp() {
         />
 
         <button
+          ref={resizeHandleRef}
           type="button"
           className={`${styles.resizeHandle} ${
             resultsListVisible ? "" : styles.resizeHandleCollapsed
@@ -1407,7 +1462,14 @@ export default function NotesApp() {
           }}
         />
 
-        {resultsListVisible && (
+        <div
+          ref={resultsColumnShellRef}
+          className={`${styles.resultsColumnShell} ${
+            resultsListVisible
+              ? styles.resultsColumnShellOpen
+              : styles.resultsColumnShellCollapsed
+          }`}
+        >
           <section className={styles.resultsColumn} style={resultsColumnStyle}>
             <div className={`${styles.header} ${styles.headerRight}`}></div>
             <FilterBanners
@@ -1576,7 +1638,7 @@ export default function NotesApp() {
               )}
             </div>
           </section>
-        )}
+        </div>
       </div>
 
       <EditCategoryModal

@@ -292,6 +292,33 @@
   outline: none;
 }
 
+@media (max-width: 720px) {
+  .formColumn {
+    width: calc(100vw - 12px);
+    min-width: 0;
+    max-width: calc(100vw - 12px);
+    flex: 0 0 calc(100vw - 12px);
+  }
+
+  .formDescription {
+    padding: 0 8px;
+  }
+
+  .dateFields {
+    padding: 0 8px 6px;
+    gap: 6px;
+  }
+
+  .categoryTrigger,
+  .selectedTag {
+    max-width: calc(100vw - 28px);
+  }
+
+  .dateField {
+    min-width: min(160px, calc(100vw - 28px));
+  }
+}
+
 /* 
     --g-color-line-brand: var(--g-color-private-yellow-600-solid);
     --g-color-line-focus: var(--g-color-private-cool-grey-450);
