@@ -77,33 +77,10 @@
   background: var(--g-color-line-generic, #ffffff1f);
 }
 
-.resizeHandle::before {
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 5px;
-  width: 2px;
-  border-radius: 999px;
-  background: var(--g-color-line-generic-active, rgba(255, 255, 255, 0.28));
-  content: "";
-  opacity: 0.55;
-  transition:
-    left 0.12s ease,
-    background 0.12s ease,
-    opacity 0.12s ease;
-}
-
-.resizeHandle:hover::before,
-.resizeHandle:focus-visible::before,
-.resizeHandleCollapsed::before {
-  left: 2px;
+.resizeHandle:hover,
+.resizeHandleCollapsed {
   background: var(--g-color-line-brand, #60a5fa);
-  opacity: 0.9;
-}
-
-.resizeHandle:focus-visible {
-  outline: 2px solid var(--g-color-line-focus, #60a5fa);
-  outline-offset: -2px;
+  opacity: 0.75;
 }
 
 .searchForm {
@@ -278,17 +255,6 @@
     width: 12px;
     min-width: 12px;
     cursor: pointer;
-  }
-
-  .resizeHandle::before {
-    left: 3px;
-    width: 6px;
-  }
-
-  .resizeHandle:hover::before,
-  .resizeHandle:focus-visible::before,
-  .resizeHandleCollapsed::before {
-    left: 3px;
   }
 
   .searchForm {
