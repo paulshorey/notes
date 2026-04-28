@@ -244,7 +244,7 @@ export function ResultsColumn({
               </div>
             ) : (
               <>
-                <div className={styles.categoryGroup} role="listitem">
+                {/* <div className={styles.categoryGroup} role="listitem">
                   <div className={styles.categoryRow}>
                     <button
                       type="button"
@@ -271,7 +271,7 @@ export function ResultsColumn({
                       />
                     </div>
                   )}
-                </div>
+                </div> */}
 
                 {categoryNoteGroups.map(({ category, items }) => {
                   const expanded = expandedCategoryId === category.id
@@ -330,7 +330,8 @@ export function ResultsColumn({
           {!notesLoading && (
             <div className={styles.tagAccordion} role="list" aria-label="Notes by tag">
               <div className={styles.accordionHeading}>Tags</div>
-              <div className={styles.categoryGroup} role="listitem">
+
+              {/* <div className={styles.categoryGroup} role="listitem">
                 <div className={styles.categoryRow}>
                   <button
                     type="button"
@@ -353,7 +354,8 @@ export function ResultsColumn({
                     />
                   </div>
                 )}
-              </div>
+              </div> */}
+
               {tagNoteGroups.map(({ tag, items }) => {
                 const expanded = expandedTagId === tag.id
                 const panelId = `tag-notes-${tag.id}`

@@ -195,7 +195,7 @@
 .categoryNameText {
   min-width: 0;
   overflow: hidden;
-  color: var(--g-color-text-primary);
+  color: var(--g-color-text-secondary);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
