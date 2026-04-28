@@ -33,7 +33,6 @@ import {
 } from "react"
 import { Pencil, TrashBin } from "@gravity-ui/icons"
 import { Button, Icon, Text, TextInput } from "@gravity-ui/uikit"
-import { SquareHalfIcon } from "@phosphor-icons/react"
 import { STORAGE_KEY } from "@/constants/notes"
 import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import { getErrorMessage, readJson } from "@/lib/api"
@@ -189,6 +188,8 @@ export default function NotesApp() {
   const [tags, setTags] = useState<TagRecord[]>([])
   const fallbackCategoryId = getDefaultCategoryId(categories)
   const {
+    resultsListVisible,
+    setResultsListVisible,
     selectedTagId,
     setSelectedTagId,
     resetDefaultState: resetNotesAppStore,
@@ -222,7 +223,6 @@ export default function NotesApp() {
   const [editTagPending, setEditTagPending] = useState(false)
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
-  const [resultsListVisible, setResultsListVisible] = useState(() => !isMobileResultsLayout())
   const [expandedCategoryId, setExpandedCategoryId] = useState<ExpandedCategoryId | null>(null)
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
@@ -337,7 +337,7 @@ export default function NotesApp() {
     syncResultsVisibility()
     mediaQuery.addEventListener("change", syncResultsVisibility)
     return () => mediaQuery.removeEventListener("change", syncResultsVisibility)
-  }, [])
+  }, [setResultsListVisible])
 
   useEffect(() => {
     if (!resultsListVisible) return
@@ -368,7 +368,7 @@ export default function NotesApp() {
       document.removeEventListener("pointerdown", handleDocumentPointerDown)
       document.removeEventListener("keydown", handleDocumentKeyDown)
     }
-  }, [resultsListVisible])
+  }, [resultsListVisible, setResultsListVisible])
 
   useEffect(() => {
     userRef.current = user
@@ -539,7 +539,14 @@ export default function NotesApp() {
     return () => {
       active = false
     }
-  }, [applyLoadedUser, loadCategories, loadTags, loadNotes, resetNotesAppStore])
+  }, [
+    applyLoadedUser,
+    loadCategories,
+    loadTags,
+    loadNotes,
+    resetNotesAppStore,
+    setResultsListVisible,
+  ])
 
   useEffect(() => {
     if (!user) return
@@ -1472,15 +1479,6 @@ export default function NotesApp() {
           }`}
         >
           <section className={styles.resultsColumn} style={resultsColumnStyle}>
-            <button
-              type="button"
-              className={styles.mobileResultsToggle}
-              aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
-              aria-pressed={resultsListVisible}
-              onClick={() => setResultsListVisible((visible) => !visible)}
-            >
-              <SquareHalfIcon size={20} weight="regular" />
-            </button>
             <div className={`${styles.header} ${styles.headerRight}`}></div>
             <FilterBanners
               tags={tags}
