@@ -23,7 +23,6 @@ import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-marketing/notes-search-con
 import {
   type CSSProperties,
   type FormEvent,
-  type MouseEvent,
   type PointerEvent,
   useCallback,
   useEffect,
@@ -31,11 +30,10 @@ import {
   useRef,
   useState,
 } from "react"
-import { CaretDown, PencilSimple, Trash } from "@phosphor-icons/react"
-import { Button, Text, TextInput } from "@gravity-ui/uikit"
+import { Text } from "@gravity-ui/uikit"
 import { STORAGE_KEY } from "@/constants/notes"
 import { getErrorMessage, readJson } from "@/lib/api"
-import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
+import { normalizeLabel } from "@/lib/strings"
 import {
   createDefaultNoteForm,
   noteToFormState,
@@ -45,11 +43,11 @@ import {
 import { useAutoDismissStatus } from "@/hooks/useAutoDismissStatus"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
-import { FilterBanners } from "./FilterBanners"
 import { LoginForm } from "./LoginForm"
 import { NoteForm } from "./NoteForm"
-import { NoteResultsList, type DisplayNoteItem } from "./NoteResultsList"
+import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader } from "./NotesHeader"
+import { ResultsColumn, type CategoryNoteGroup, type TagNoteGroup } from "./ResultsColumn"
 import { DeleteCategoryModal } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
@@ -65,9 +63,6 @@ const RESIZE_DRAG_THRESHOLD = 4
 const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
 const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
-const ALL_CATEGORIES_EXPANDED_ID = "all-categories"
-
-type ExpandedCategoryId = number | typeof ALL_CATEGORIES_EXPANDED_ID
 
 const isPreferencesObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -125,12 +120,6 @@ const withResultsColumnWidthPreference = (
 
 const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
   categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
-
-interface CategoryNoteGroup {
-  category: CategoryRecord
-  items: DisplayNoteItem[]
-  sortTime: number
-}
 
 const getTimeValue = (value: string | null | undefined) => {
   if (!value) return 0
@@ -191,9 +180,10 @@ export default function NotesApp() {
     setResultsListVisible,
     selectedTagId,
     setSelectedTagId,
+    searchQuery,
+    setSearchQuery,
     resetDefaultState: resetNotesAppStore,
   } = useNotesAppStore()
-  const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [noteForm, setNoteForm] = useState<NoteFormState>(() => createDefaultNoteForm())
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
@@ -222,14 +212,11 @@ export default function NotesApp() {
   const [editTagPending, setEditTagPending] = useState(false)
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
-  const [expandedCategoryId, setExpandedCategoryId] = useState<ExpandedCategoryId | null>(null)
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
   const contentRef = useRef<HTMLDivElement | null>(null)
-  const resizeHandleRef = useRef<HTMLButtonElement | null>(null)
-  const resultsColumnShellRef = useRef<HTMLDivElement | null>(null)
   const userRef = useRef<UserSummary | null>(null)
   const noteFormRef = useRef<NoteFormState>(noteForm)
   const editingNoteIdRef = useRef<number | null>(editingNoteId)
@@ -323,6 +310,12 @@ export default function NotesApp() {
     }
   }
 
+  const handleNoteFormClick = useCallback(() => {
+    if (resultsListVisible && isMobileResultsLayout()) {
+      setResultsListVisible(false)
+    }
+  }, [resultsListVisible, setResultsListVisible])
+
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
     const syncResultsVisibility = () => {
@@ -341,30 +334,14 @@ export default function NotesApp() {
   useEffect(() => {
     if (!resultsListVisible) return
 
-    const handleDocumentPointerDown = (event: globalThis.PointerEvent) => {
-      if (!isMobileResultsLayout()) return
-
-      const target = event.target as Node
-      if (
-        resultsColumnShellRef.current?.contains(target) ||
-        resizeHandleRef.current?.contains(target)
-      ) {
-        return
-      }
-
-      setResultsListVisible(false)
-    }
-
     const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape" && isMobileResultsLayout()) {
         setResultsListVisible(false)
       }
     }
 
-    document.addEventListener("pointerdown", handleDocumentPointerDown)
     document.addEventListener("keydown", handleDocumentKeyDown)
     return () => {
-      document.removeEventListener("pointerdown", handleDocumentPointerDown)
       document.removeEventListener("keydown", handleDocumentKeyDown)
     }
   }, [resultsListVisible, setResultsListVisible])
@@ -793,12 +770,6 @@ export default function NotesApp() {
     [selectedTagId],
   )
 
-  const getFilteredNoteCount = useCallback(
-    (category: CategoryRecord, items: DisplayNoteItem[]) =>
-      selectedTagId === null ? category.noteCount : items.length,
-    [selectedTagId],
-  )
-
   const searchItems = useMemo<DisplayNoteItem[]>(() => {
     if (!searchMode) {
       return []
@@ -813,13 +784,17 @@ export default function NotesApp() {
       }))
   }, [matchesSelectedTag, searchMode, searchResults])
 
-  const allCategoryItems = useMemo<DisplayNoteItem[]>(
+  const allNoteItems = useMemo<DisplayNoteItem[]>(
     () =>
       [...notes]
-        .filter(matchesSelectedTag)
         .sort((left, right) => getNoteSortTime(right) - getNoteSortTime(left))
         .map((note) => ({ note })),
-    [matchesSelectedTag, notes],
+    [notes],
+  )
+
+  const allCategoryItems = useMemo<DisplayNoteItem[]>(
+    () => allNoteItems.filter(({ note }) => matchesSelectedTag(note)),
+    [allNoteItems, matchesSelectedTag],
   )
 
   const allCategoriesNoteCount = selectedTagId === null ? notes.length : allCategoryItems.length
@@ -871,19 +846,23 @@ export default function NotesApp() {
       )
   }, [categories, fallbackCategoryId, matchesSelectedTag, notes])
 
-  useEffect(() => {
-    setExpandedCategoryId((current) => {
-      if (current === ALL_CATEGORIES_EXPANDED_ID) {
-        return current
-      }
+  const tagNoteGroups = useMemo<TagNoteGroup[]>(() => {
+    const notesByTag = new Map<number, DisplayNoteItem[]>()
+    for (const tag of tags) {
+      notesByTag.set(tag.id, [])
+    }
 
-      if (current !== null && categories.some((category) => category.id === current)) {
-        return current
+    for (const item of allNoteItems) {
+      for (const tag of item.note.tags) {
+        notesByTag.get(tag.id)?.push(item)
       }
+    }
 
-      return fallbackCategoryId
-    })
-  }, [categories, fallbackCategoryId])
+    return tags.map((tag) => ({
+      tag,
+      items: notesByTag.get(tag.id) ?? [],
+    }))
+  }, [allNoteItems, tags])
 
   const selectedTag = useMemo(
     () => (selectedTagId === null ? null : (tags.find((c) => c.id === selectedTagId) ?? null)),
@@ -1432,11 +1411,13 @@ export default function NotesApp() {
           onSubmit={handleSaveNote}
           onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           onCancelEdit={handleCancelEdit}
+          onClick={handleNoteFormClick}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader
                 user={user}
                 notesLoading={notesLoading}
+                resultsListVisible={resultsListVisible}
                 onRefresh={() => void handleRefreshNotes()}
                 onLogout={handleLogout}
                 embeddingMaintenancePending={embeddingMaintenancePending}
@@ -1447,7 +1428,6 @@ export default function NotesApp() {
         />
 
         <button
-          ref={resizeHandleRef}
           type="button"
           className={`${styles.resizeHandle} ${
             resultsListVisible ? "" : styles.resizeHandleCollapsed
@@ -1469,183 +1449,31 @@ export default function NotesApp() {
           }}
         />
 
-        <div
-          ref={resultsColumnShellRef}
-          className={`${styles.resultsColumnShell} ${
-            resultsListVisible
-              ? styles.resultsColumnShellOpen
-              : styles.resultsColumnShellCollapsed
-          }`}
-        >
-          <section className={styles.resultsColumn} style={resultsColumnStyle}>
-            <div className={`${styles.header} ${styles.headerRight}`}></div>
-            <FilterBanners
-              tags={tags}
-              notesCount={notes.length}
-              onEditTag={openEditTag}
-              onDeleteTag={openDeleteTag}
-            />
-            <div className={styles.searchForm}>
-              <div className={styles.searchRow}>
-                <TextInput
-                  size="l"
-                  placeholder="Search"
-                  value={searchQuery}
-                  onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
-                  className={styles.searchInput}
-                />
-              </div>
-            </div>
-            <div className={styles.noteResults}>
-              <div className={styles.categoryAccordion} role="list" aria-label="Notes by category">
-                {notesLoading ? (
-                  <div className={styles.categoryAccordionStatus}>
-                    <Text variant="body-1" color="secondary">
-                      Loading…
-                    </Text>
-                  </div>
-                ) : categories.length === 0 ? (
-                  <div className={styles.categoryAccordionStatus}>
-                    <Text variant="body-1" color="secondary">
-                      No categories yet.
-                    </Text>
-                  </div>
-                ) : (
-                  <>
-                    <div className={styles.categoryGroup} role="listitem">
-                      <div className={styles.categoryRow}>
-                        <button
-                          type="button"
-                          className={styles.categoryToggle}
-                          aria-expanded={expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID}
-                          aria-controls="category-notes-all"
-                          onClick={() => setExpandedCategoryId(ALL_CATEGORIES_EXPANDED_ID)}
-                        >
-                          <span
-                            className={`${styles.categoryToggleIcon} ${
-                              expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID
-                                ? styles.categoryToggleIconExpanded
-                                : ""
-                            }`}
-                          >
-                            <CaretDown size={14} weight="regular" />
-                          </span>
-                          <span className={styles.categoryLabel}>All categories</span>
-                          <span className={styles.categoryCount}>{allCategoriesNoteCount}</span>
-                        </button>
-                      </div>
-                      {expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID && (
-                        <div id="category-notes-all" className={styles.categoryPanel}>
-                          <NoteResultsList
-                            items={allCategoryItems}
-                            activeNoteId={editingNoteId}
-                            loading={false}
-                            emptyMessage={
-                              selectedTag
-                                ? `No notes in “${selectedTag.label}” for any category.`
-                                : "No notes yet."
-                            }
-                            onEdit={handleStartEdit}
-                          />
-                        </div>
-                      )}
-                    </div>
-
-                    {categoryNoteGroups.map(({ category, items }) => {
-                      const expanded = expandedCategoryId === category.id
-                      const panelId = `category-notes-${category.id}`
-                      const deleteDisabled = category.id === fallbackCategoryId
-
-                      return (
-                        <div className={styles.categoryGroup} key={category.id} role="listitem">
-                          <div className={styles.categoryRow}>
-                            <button
-                              type="button"
-                              className={styles.categoryToggle}
-                              aria-expanded={expanded}
-                              aria-controls={panelId}
-                              onClick={() => setExpandedCategoryId(category.id)}
-                            >
-                              <span
-                                className={`${styles.categoryToggleIcon} ${
-                                  expanded ? styles.categoryToggleIconExpanded : ""
-                                }`}
-                              >
-                                <CaretDown size={14} weight="regular" />
-                              </span>
-                              <span className={styles.categoryLabel}>{category.label}</span>
-                              <span className={styles.categoryCount}>
-                                {getFilteredNoteCount(category, items)}
-                              </span>
-                            </button>
-                            <Button
-                              view="flat"
-                              size="xs"
-                              onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                                event.stopPropagation()
-                                openEditCategory(category)
-                              }}
-                              aria-label={`Edit ${category.label}`}
-                              className={styles.categoryActionButton}
-                            >
-                              <PencilSimple size={14} weight="regular" />
-                            </Button>
-                            <Button
-                              view="flat"
-                              size="xs"
-                              disabled={deleteDisabled}
-                              title={
-                                deleteDisabled
-                                  ? "The default category cannot be deleted"
-                                  : undefined
-                              }
-                              onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                                event.stopPropagation()
-                                openDeleteCategory(category)
-                              }}
-                              aria-label={`Delete ${category.label}`}
-                              className={styles.categoryActionButton}
-                            >
-                              <Trash size={14} weight="regular" />
-                            </Button>
-                          </div>
-                          {expanded && (
-                            <div id={panelId} className={styles.categoryPanel}>
-                              <NoteResultsList
-                                items={items}
-                                activeNoteId={editingNoteId}
-                                loading={false}
-                                emptyMessage={
-                                  selectedTag
-                                    ? `No notes in “${selectedTag.label}” for this category.`
-                                    : `No notes in category “${category.label}”.`
-                                }
-                                onEdit={handleStartEdit}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </>
-                )}
-              </div>
-              {searchMode && (
-                <div className={styles.searchResultsSection}>
-                  <NoteResultsList
-                    items={searchItems}
-                    activeNoteId={editingNoteId}
-                    loading={searchLoading || notesLoading}
-                    emptyMessage={
-                      selectedTag ? `No search results in “${selectedTag.label}”.` : "No search results."
-                    }
-                    onEdit={handleStartEdit}
-                  />
-                </div>
-              )}
-            </div>
-          </section>
-        </div>
+        <ResultsColumn
+          visible={resultsListVisible}
+          columnStyle={resultsColumnStyle}
+          tags={tags}
+          notesCount={notes.length}
+          notesLoading={notesLoading}
+          categories={categories}
+          fallbackCategoryId={fallbackCategoryId}
+          selectedTag={selectedTag}
+          searchMode={searchMode}
+          searchItems={searchItems}
+          searchLoading={searchLoading}
+          allCategoryItems={allCategoryItems}
+          allCategoriesNoteCount={allCategoriesNoteCount}
+          categoryNoteGroups={categoryNoteGroups}
+          allTagItems={allNoteItems}
+          tagNoteGroups={tagNoteGroups}
+          activeNoteId={editingNoteId}
+          onEditNote={handleStartEdit}
+          onEditCategory={openEditCategory}
+          onDeleteCategory={openDeleteCategory}
+          onEditTag={openEditTag}
+          onDeleteTag={openDeleteTag}
+          onClose={() => setResultsListVisible(false)}
+        />
       </div>
 
       <EditCategoryModal

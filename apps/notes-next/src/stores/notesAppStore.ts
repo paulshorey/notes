@@ -16,6 +16,10 @@ type State = {
    * Null means all tags are visible.
    */
   selectedTagId: number | null
+  /**
+   * Query used by the notes results search field.
+   */
+  searchQuery: string
 }
 
 type Actions = {
@@ -23,6 +27,7 @@ type Actions = {
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
   setSelectedCategoryId: (categoryId: number | null) => void
   setSelectedTagId: (tagId: number | null) => void
+  setSearchQuery: (query: string) => void
 }
 
 export type NotesAppStore = State & Actions
@@ -31,6 +36,7 @@ const defaultState: State = {
   resultsListVisible: true,
   selectedCategoryId: null,
   selectedTagId: null,
+  searchQuery: "",
 }
 
 export const useNotesAppStore = create<NotesAppStore>((set) => ({
@@ -49,5 +55,8 @@ export const useNotesAppStore = create<NotesAppStore>((set) => ({
   },
   setSelectedTagId: (tagId) => {
     set({ selectedTagId: tagId })
+  },
+  setSearchQuery: (query) => {
+    set({ searchQuery: query })
   },
 }))

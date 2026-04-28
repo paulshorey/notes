@@ -18,8 +18,18 @@
 }
 
 .mobileResultsButton {
-  display: none;
+  display: inline-flex;
   margin-left: auto;
+  transform: scaleX(-1);
+}
+
+@media (min-width: 721px) {
+  .mobileResultsButtonHiddenDesktop {
+    display: none;
+  }
+  .mobileResultsButton {
+    margin-right: -12px;
+  }
 }
 
 .userMenu {
@@ -36,10 +46,4 @@
   gap: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.07));
-}
-
-@media (max-width: 720px) {
-  .mobileResultsButton {
-    display: inline-flex;
-  }
 }
