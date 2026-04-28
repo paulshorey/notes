@@ -4,6 +4,17 @@
   align-items: center;
   gap: 2px;
   min-width: 0;
+  height: 100%;
+}
+
+.headerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.headerIcon {
+  display: block;
 }
 
 .mobileResultsButton {

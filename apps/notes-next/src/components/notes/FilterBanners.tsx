@@ -1,10 +1,9 @@
 "use client"
 
-import { Button, Icon, Text } from "@gravity-ui/uikit"
-import { Pencil, TrashBin } from "@gravity-ui/icons"
+import { Button, Text } from "@gravity-ui/uikit"
+import { CaretDown, PencilSimple, Trash } from "@phosphor-icons/react"
 import type { TagRecord } from "@lib/db-marketing"
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react"
-import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import styles from "./FilterBanners.module.css"
 
@@ -98,7 +97,7 @@ export function FilterBanners({
                 "all tags"
               )}
             </span>
-            <CaretDownIcon size={14} />
+            <CaretDown size={14} weight="regular" />
           </button>
         </Text>
 
@@ -201,7 +200,7 @@ function FilterRow({
               }}
               aria-label={`Edit ${label}`}
             >
-              <Icon data={Pencil} size={14} />
+              <PencilSimple size={14} weight="regular" />
             </Button>
           )}
         </div>
@@ -216,7 +215,7 @@ function FilterRow({
               }}
               aria-label={`Delete ${label}`}
             >
-              <Icon data={TrashBin} size={14} />
+              <Trash size={14} weight="regular" />
             </Button>
           )}
         </div>

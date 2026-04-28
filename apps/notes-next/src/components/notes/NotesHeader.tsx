@@ -1,9 +1,8 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Button, Icon, Popup, Text } from "@gravity-ui/uikit"
-import { ArrowsRotateLeft, Person } from "@gravity-ui/icons"
-import { SquareHalfIcon } from "@phosphor-icons/react"
+import { Button, Popup, Text } from "@gravity-ui/uikit"
+import { ArrowClockwise, SidebarSimple, User } from "@phosphor-icons/react"
 import type { UserSummary } from "@lib/db-marketing"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import type { EmbeddingMaintenanceMode } from "@/types/notes"
@@ -32,25 +31,32 @@ export function NotesHeader({
 
   return (
     <div className={styles.headerActions}>
-      <Button view="flat" size="m" onClick={onRefresh} loading={notesLoading}>
-        <Icon data={ArrowsRotateLeft} size={16} />
+      <Button
+        view="flat"
+        size="m"
+        onClick={onRefresh}
+        loading={notesLoading}
+        className={styles.headerButton}
+      >
+        <ArrowClockwise size={18} weight="regular" className={styles.headerIcon} />
       </Button>
       <Button
         ref={userBtnRef}
         view="flat"
         size="m"
         onClick={() => setMenuOpen((v) => !v)}
+        className={styles.headerButton}
       >
-        <Icon data={Person} size={16} />
+        <User size={18} weight="regular" className={styles.headerIcon} />
       </Button>
       <Button
         view="flat"
         size="m"
         onClick={() => setResultsListVisible(true)}
         aria-label="Show notes list"
-        className={styles.mobileResultsButton}
+        className={`${styles.headerButton} ${styles.mobileResultsButton}`}
       >
-        <SquareHalfIcon size={20} weight="regular" />
+        <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
       </Button>
       <Popup
         anchorRef={userBtnRef}

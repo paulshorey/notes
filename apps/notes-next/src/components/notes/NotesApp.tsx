@@ -31,10 +31,9 @@ import {
   useRef,
   useState,
 } from "react"
-import { Pencil, TrashBin } from "@gravity-ui/icons"
-import { Button, Icon, Text, TextInput } from "@gravity-ui/uikit"
+import { CaretDown, PencilSimple, Trash } from "@phosphor-icons/react"
+import { Button, Text, TextInput } from "@gravity-ui/uikit"
 import { STORAGE_KEY } from "@/constants/notes"
-import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import { getErrorMessage, readJson } from "@/lib/api"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import {
@@ -1529,7 +1528,7 @@ export default function NotesApp() {
                                 : ""
                             }`}
                           >
-                            <CaretDownIcon size={14} />
+                            <CaretDown size={14} weight="regular" />
                           </span>
                           <span className={styles.categoryLabel}>All categories</span>
                           <span className={styles.categoryCount}>{allCategoriesNoteCount}</span>
@@ -1572,7 +1571,7 @@ export default function NotesApp() {
                                   expanded ? styles.categoryToggleIconExpanded : ""
                                 }`}
                               >
-                                <CaretDownIcon size={14} />
+                                <CaretDown size={14} weight="regular" />
                               </span>
                               <span className={styles.categoryLabel}>{category.label}</span>
                               <span className={styles.categoryCount}>
@@ -1589,7 +1588,7 @@ export default function NotesApp() {
                               aria-label={`Edit ${category.label}`}
                               className={styles.categoryActionButton}
                             >
-                              <Icon data={Pencil} size={14} />
+                              <PencilSimple size={14} weight="regular" />
                             </Button>
                             <Button
                               view="flat"
@@ -1607,7 +1606,7 @@ export default function NotesApp() {
                               aria-label={`Delete ${category.label}`}
                               className={styles.categoryActionButton}
                             >
-                              <Icon data={TrashBin} size={14} />
+                              <Trash size={14} weight="regular" />
                             </Button>
                           </div>
                           {expanded && (
