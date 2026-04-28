@@ -33,6 +33,7 @@ import {
 } from "react"
 import { Pencil, TrashBin } from "@gravity-ui/icons"
 import { Button, Icon, Text, TextInput } from "@gravity-ui/uikit"
+import { SquareHalfIcon } from "@phosphor-icons/react"
 import { STORAGE_KEY } from "@/constants/notes"
 import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import { getErrorMessage, readJson } from "@/lib/api"
@@ -1471,6 +1472,15 @@ export default function NotesApp() {
           }`}
         >
           <section className={styles.resultsColumn} style={resultsColumnStyle}>
+            <button
+              type="button"
+              className={styles.mobileResultsToggle}
+              aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
+              aria-pressed={resultsListVisible}
+              onClick={() => setResultsListVisible((visible) => !visible)}
+            >
+              <SquareHalfIcon size={20} weight="regular" />
+            </button>
             <div className={`${styles.header} ${styles.headerRight}`}></div>
             <FilterBanners
               tags={tags}
