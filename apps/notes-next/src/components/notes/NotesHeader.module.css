@@ -20,6 +20,16 @@
 .mobileResultsButton {
   display: inline-flex;
   margin-left: auto;
+  transform: scaleX(-1);
+}
+
+@media (min-width: 721px) {
+  .mobileResultsButtonHiddenDesktop {
+    display: none;
+  }
+  .mobileResultsButton {
+    margin-right: -12px;
+  }
 }
 
 .userMenu {

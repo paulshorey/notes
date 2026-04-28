@@ -1417,6 +1417,7 @@ export default function NotesApp() {
               <NotesHeader
                 user={user}
                 notesLoading={notesLoading}
+                resultsListVisible={resultsListVisible}
                 onRefresh={() => void handleRefreshNotes()}
                 onLogout={handleLogout}
                 embeddingMaintenancePending={embeddingMaintenancePending}

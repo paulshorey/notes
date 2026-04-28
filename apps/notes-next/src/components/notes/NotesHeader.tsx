@@ -11,6 +11,7 @@ import styles from "./NotesHeader.module.css"
 interface NotesHeaderProps {
   user: UserSummary
   notesLoading: boolean
+  resultsListVisible: boolean
   onRefresh: () => void
   onLogout: () => void
   embeddingMaintenancePending: EmbeddingMaintenanceMode | null
@@ -20,6 +21,7 @@ interface NotesHeaderProps {
 export function NotesHeader({
   user,
   notesLoading,
+  resultsListVisible,
   onRefresh,
   onLogout,
   embeddingMaintenancePending,
@@ -28,6 +30,9 @@ export function NotesHeader({
   const userBtnRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
+  const resultsButtonClassName = `${styles.headerButton} ${styles.mobileResultsButton} ${
+    resultsListVisible ? styles.mobileResultsButtonHiddenDesktop : ""
+  }`
 
   return (
     <div className={styles.headerActions}>
@@ -54,7 +59,7 @@ export function NotesHeader({
         size="m"
         onClick={() => setResultsListVisible(true)}
         aria-label="Show notes list"
-        className={`${styles.headerButton} ${styles.mobileResultsButton}`}
+        className={resultsButtonClassName}
       >
         <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
       </Button>
