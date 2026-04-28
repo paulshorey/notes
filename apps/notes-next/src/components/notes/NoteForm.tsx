@@ -1,7 +1,7 @@
 "use client"
 
-import { Button, Icon, Text, TextArea } from "@gravity-ui/uikit"
-import { Calendar, Plus, TrashBin, Xmark } from "@gravity-ui/icons"
+import { Button, Text, TextArea } from "@gravity-ui/uikit"
+import { CalendarBlank, CaretDown, Plus, Trash, X } from "@phosphor-icons/react"
 import {
   type Dispatch,
   type FormEvent,
@@ -17,7 +17,6 @@ import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
-import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import styles from "./NoteForm.module.css"
 
 interface NoteFormProps {
@@ -126,8 +125,6 @@ export function NoteForm({
     form.remindExpanded ||
     form.timeRemind !== null
   const showCancelButton = editingNoteId !== null || newNoteHasUserInput
-  const primaryActionPin =
-    editingNoteId !== null ? "brick-brick" : showCancelButton ? "round-brick" : "round-round"
 
   useEffect(() => {
     if (!categoryPickerOpen) {
@@ -304,7 +301,7 @@ export function NoteForm({
           onClick={() => expandDateField(field)}
         >
           <span>{label}</span>
-          <Icon data={Calendar} size={14} />
+          <CalendarBlank size={14} weight="regular" />
         </button>
       )
     }
@@ -347,20 +344,9 @@ export function NoteForm({
               aria-label="Delete note"
               className={`${styles.formSideButton} ${styles.formDeleteButton}`}
             >
-              <Icon data={TrashBin} size={12} />
+              <Trash size={14} weight="regular" />
             </Button>
           )}
-
-          {/* <Button
-            view="flat"
-            size="s"
-            pin={primaryActionPin}
-            type="submit"
-            loading={notePending}
-            className={styles.formPrimaryAction}
-          >
-            Save and close
-          </Button> */}
 
           {showCancelButton && (
             <Button
@@ -372,7 +358,7 @@ export function NoteForm({
               aria-label={editingNoteId !== null ? "Cancel editing" : "Cancel changes"}
               className={styles.formSideButton}
             >
-              <Icon data={Xmark} size={14} />
+              <X size={14} weight="regular" />
             </Button>
           )}
         </div>
@@ -402,7 +388,7 @@ export function NoteForm({
                   {selectedCategoryLabel || "none"}
                 </span>
               </span>
-              <CaretDownIcon size={14} />
+              <CaretDown size={14} weight="regular" />
             </button>
 
             {categoryPickerOpen && (
@@ -463,7 +449,7 @@ export function NoteForm({
               aria-haspopup="dialog"
             >
               <span className={styles.categoryTriggerLabel}>Tag</span>
-              <Icon data={Plus} size={12} />
+              <Plus size={12} weight="regular" />
             </button>
 
             {tagPickerOpen && (
@@ -516,7 +502,7 @@ export function NoteForm({
               aria-label={`Remove tag ${label}`}
             >
               <span>{label}</span>
-              <Icon data={Xmark} size={10} />
+              <X size={10} weight="regular" />
             </button>
           ))}
         </div>

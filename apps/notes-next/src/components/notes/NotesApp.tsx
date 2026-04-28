@@ -31,10 +31,9 @@ import {
   useRef,
   useState,
 } from "react"
-import { Pencil, TrashBin } from "@gravity-ui/icons"
-import { Button, Icon, Text, TextInput } from "@gravity-ui/uikit"
+import { CaretDown, PencilSimple, Trash } from "@phosphor-icons/react"
+import { Button, Text, TextInput } from "@gravity-ui/uikit"
 import { STORAGE_KEY } from "@/constants/notes"
-import { CaretDownIcon } from "@/components/ui/icons/CaretDownIcon"
 import { getErrorMessage, readJson } from "@/lib/api"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import {
@@ -63,6 +62,7 @@ const RESULTS_COLUMN_MAX_WIDTH = 720
 const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
+const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
 const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 const ALL_CATEGORIES_EXPANDED_ID = "all-categories"
@@ -96,6 +96,9 @@ const serializeUserPreferences = (preferences: UserPreferences) =>
 
 const clampStoredResultsColumnWidth = (width: number) =>
   Math.round(Math.min(Math.max(width, RESULTS_COLUMN_MIN_WIDTH), RESULTS_COLUMN_MAX_WIDTH))
+
+const isMobileResultsLayout = () =>
+  typeof window !== "undefined" && window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY).matches
 
 const getStoredResultsColumnWidth = (preferences: UserPreferences) => {
   const notesAppPreferences = preferences.notesApp
@@ -184,6 +187,8 @@ export default function NotesApp() {
   const [tags, setTags] = useState<TagRecord[]>([])
   const fallbackCategoryId = getDefaultCategoryId(categories)
   const {
+    resultsListVisible,
+    setResultsListVisible,
     selectedTagId,
     setSelectedTagId,
     resetDefaultState: resetNotesAppStore,
@@ -217,13 +222,14 @@ export default function NotesApp() {
   const [editTagPending, setEditTagPending] = useState(false)
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
-  const [resultsListVisible, setResultsListVisible] = useState(true)
   const [expandedCategoryId, setExpandedCategoryId] = useState<ExpandedCategoryId | null>(null)
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
   const contentRef = useRef<HTMLDivElement | null>(null)
+  const resizeHandleRef = useRef<HTMLButtonElement | null>(null)
+  const resultsColumnShellRef = useRef<HTMLDivElement | null>(null)
   const userRef = useRef<UserSummary | null>(null)
   const noteFormRef = useRef<NoteFormState>(noteForm)
   const editingNoteIdRef = useRef<number | null>(editingNoteId)
@@ -276,6 +282,8 @@ export default function NotesApp() {
   }
 
   const handleResizePointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    if (isMobileResultsLayout()) return
+
     const resizeState = resizeStateRef.current
     if (!resizeState || resizeState.pointerId !== event.pointerId) return
 
@@ -314,6 +322,52 @@ export default function NotesApp() {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
   }
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
+    const syncResultsVisibility = () => {
+      if (mediaQuery.matches) {
+        setResultsListVisible(false)
+      } else {
+        setResultsListVisible(true)
+      }
+    }
+
+    syncResultsVisibility()
+    mediaQuery.addEventListener("change", syncResultsVisibility)
+    return () => mediaQuery.removeEventListener("change", syncResultsVisibility)
+  }, [setResultsListVisible])
+
+  useEffect(() => {
+    if (!resultsListVisible) return
+
+    const handleDocumentPointerDown = (event: globalThis.PointerEvent) => {
+      if (!isMobileResultsLayout()) return
+
+      const target = event.target as Node
+      if (
+        resultsColumnShellRef.current?.contains(target) ||
+        resizeHandleRef.current?.contains(target)
+      ) {
+        return
+      }
+
+      setResultsListVisible(false)
+    }
+
+    const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && isMobileResultsLayout()) {
+        setResultsListVisible(false)
+      }
+    }
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown)
+    document.addEventListener("keydown", handleDocumentKeyDown)
+    return () => {
+      document.removeEventListener("pointerdown", handleDocumentPointerDown)
+      document.removeEventListener("keydown", handleDocumentKeyDown)
+    }
+  }, [resultsListVisible, setResultsListVisible])
 
   useEffect(() => {
     userRef.current = user
@@ -471,7 +525,7 @@ export default function NotesApp() {
         setTags([])
         setNotes([])
         resetNotesAppStore()
-        setResultsListVisible(true)
+        setResultsListVisible(!isMobileResultsLayout())
         setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
         setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
         setErrorMessage(getErrorMessage(error))
@@ -484,7 +538,14 @@ export default function NotesApp() {
     return () => {
       active = false
     }
-  }, [applyLoadedUser, loadCategories, loadTags, loadNotes, resetNotesAppStore])
+  }, [
+    applyLoadedUser,
+    loadCategories,
+    loadTags,
+    loadNotes,
+    resetNotesAppStore,
+    setResultsListVisible,
+  ])
 
   useEffect(() => {
     if (!user) return
@@ -949,7 +1010,7 @@ export default function NotesApp() {
     setSearchResults([])
     setSearchErrorMessage(null)
     resetNotesAppStore()
-    setResultsListVisible(true)
+    setResultsListVisible(!isMobileResultsLayout())
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     resetNoteForm()
@@ -1386,6 +1447,7 @@ export default function NotesApp() {
         />
 
         <button
+          ref={resizeHandleRef}
           type="button"
           className={`${styles.resizeHandle} ${
             resultsListVisible ? "" : styles.resizeHandleCollapsed
@@ -1407,7 +1469,14 @@ export default function NotesApp() {
           }}
         />
 
-        {resultsListVisible && (
+        <div
+          ref={resultsColumnShellRef}
+          className={`${styles.resultsColumnShell} ${
+            resultsListVisible
+              ? styles.resultsColumnShellOpen
+              : styles.resultsColumnShellCollapsed
+          }`}
+        >
           <section className={styles.resultsColumn} style={resultsColumnStyle}>
             <div className={`${styles.header} ${styles.headerRight}`}></div>
             <FilterBanners
@@ -1459,7 +1528,7 @@ export default function NotesApp() {
                                 : ""
                             }`}
                           >
-                            <CaretDownIcon size={14} />
+                            <CaretDown size={14} weight="regular" />
                           </span>
                           <span className={styles.categoryLabel}>All categories</span>
                           <span className={styles.categoryCount}>{allCategoriesNoteCount}</span>
@@ -1502,7 +1571,7 @@ export default function NotesApp() {
                                   expanded ? styles.categoryToggleIconExpanded : ""
                                 }`}
                               >
-                                <CaretDownIcon size={14} />
+                                <CaretDown size={14} weight="regular" />
                               </span>
                               <span className={styles.categoryLabel}>{category.label}</span>
                               <span className={styles.categoryCount}>
@@ -1519,7 +1588,7 @@ export default function NotesApp() {
                               aria-label={`Edit ${category.label}`}
                               className={styles.categoryActionButton}
                             >
-                              <Icon data={Pencil} size={14} />
+                              <PencilSimple size={14} weight="regular" />
                             </Button>
                             <Button
                               view="flat"
@@ -1537,7 +1606,7 @@ export default function NotesApp() {
                               aria-label={`Delete ${category.label}`}
                               className={styles.categoryActionButton}
                             >
-                              <Icon data={TrashBin} size={14} />
+                              <Trash size={14} weight="regular" />
                             </Button>
                           </div>
                           {expanded && (
@@ -1576,7 +1645,7 @@ export default function NotesApp() {
               )}
             </div>
           </section>
-        )}
+        </div>
       </div>
 
       <EditCategoryModal
