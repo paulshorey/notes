@@ -1,6 +1,7 @@
 "use client"
 
-import { Button, Text, TextArea } from "@gravity-ui/uikit"
+import dynamic from "next/dynamic"
+import { Button, Text } from "@gravity-ui/uikit"
 import { CalendarBlank, CaretDown, Plus, Trash, X } from "@phosphor-icons/react"
 import {
   type Dispatch,
@@ -17,7 +18,15 @@ import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
+import type { MarkdownEditorProps } from "@/components/editor/MarkdownEditor"
 import styles from "./NoteForm.module.css"
+
+const MarkdownEditor = dynamic<MarkdownEditorProps>(
+  () => import("@/components/editor/MarkdownEditor").then((mod) => mod.MarkdownEditor),
+  {
+    ssr: false,
+  },
+)
 
 interface NoteFormProps {
   form: NoteFormState
@@ -365,12 +374,10 @@ export function NoteForm({
           )}
         </div>
 
-        <TextArea
-          size="m"
+        <MarkdownEditor
           placeholder="Description"
-          rows={1}
           value={form.description}
-          onUpdate={(v) => setForm((p) => ({ ...p, description: v }))}
+          onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
           className={styles.formDescription}
         />
 

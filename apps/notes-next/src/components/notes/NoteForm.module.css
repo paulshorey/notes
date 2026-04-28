@@ -47,12 +47,7 @@
 }
 
 .formDescription {
-  /* --g-text-area-border-color: var(--g-color-base-brand);
-  --g-text-area-border-color-hover: var(--g-color-base-brand);
-  --g-text-area-border-color-active: var(--g-color-base-generic, rgba(255, 255, 255, 0.08)); */
-  --g-text-area-border-color: transparent;
-  --g-text-area-border-color-hover: transparent;
-  --g-text-area-border-color-active: transparent;
+  box-sizing: border-box;
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
