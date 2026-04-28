@@ -1,13 +1,13 @@
 "use client"
 
 import type { CategoryRecord, NoteRecord, TagRecord } from "@lib/db-marketing"
-import { DotsThreeVertical, PencilSimple, Trash, XIcon } from "@phosphor-icons/react"
+import { DotsThreeVertical, PencilSimple, SidebarSimple, Trash } from "@phosphor-icons/react"
 import { Button, Text, TextInput } from "@gravity-ui/uikit"
 import { toLowercaseInput } from "@/lib/strings"
 import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from "react"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import { NoteResultsList, type DisplayNoteItem } from "./NoteResultsList"
-import styles from "./NotesApp.module.css"
+import styles from "./ResultsColumn.module.css"
 
 const ALL_CATEGORIES_EXPANDED_ID = "all-categories"
 const ALL_TAGS_EXPANDED_ID = "all-tags"
@@ -178,6 +178,11 @@ export function ResultsColumn({
     setSelectedTagId(tagId === ALL_TAGS_EXPANDED_ID ? null : tagId)
   }
 
+  const handleSearchResultEdit = (note: NoteRecord) => {
+    onEditNote(note)
+    onClose()
+  }
+
   return (
     <div
       className={`${styles.resultsColumnShell} ${
@@ -203,7 +208,7 @@ export function ResultsColumn({
             title="Hide notes list"
             className={styles.resultsColumnCloseButton}
           >
-            <XIcon size={16} weight="regular" />
+            <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
           </Button>
         </div>
         <div className={styles.noteResults} ref={actionMenuRootRef}>
@@ -219,7 +224,7 @@ export function ResultsColumn({
                     ? `No search results in “${selectedTag.label}”.`
                     : "No search results."
                 }
-                onEdit={onEditNote}
+                onEdit={handleSearchResultEdit}
               />
             </div>
           )}
@@ -412,7 +417,7 @@ function SectionTitle({ count, label }: SectionTitleProps) {
   return (
     <span className={styles.categoryLabel}>
       <span className={styles.categoryCountText}>{count}</span>
-      <span className={styles.categoryPreposition}>in</span>
+      <sub className={styles.categoryPreposition}>in</sub>
       <span className={styles.categoryNameText}>{label}</span>
     </span>
   )

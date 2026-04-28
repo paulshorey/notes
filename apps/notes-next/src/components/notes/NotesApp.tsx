@@ -310,6 +310,12 @@ export default function NotesApp() {
     }
   }
 
+  const handleNoteFormClick = useCallback(() => {
+    if (resultsListVisible && isMobileResultsLayout()) {
+      setResultsListVisible(false)
+    }
+  }, [resultsListVisible, setResultsListVisible])
+
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
     const syncResultsVisibility = () => {
@@ -1405,6 +1411,7 @@ export default function NotesApp() {
           onSubmit={handleSaveNote}
           onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           onCancelEdit={handleCancelEdit}
+          onClick={handleNoteFormClick}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader
