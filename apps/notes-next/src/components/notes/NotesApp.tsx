@@ -33,7 +33,7 @@ import {
 import { Text } from "@gravity-ui/uikit"
 import { STORAGE_KEY } from "@/constants/notes"
 import { getErrorMessage, readJson } from "@/lib/api"
-import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
+import { normalizeLabel } from "@/lib/strings"
 import {
   createDefaultNoteForm,
   noteToFormState,
@@ -47,7 +47,7 @@ import { LoginForm } from "./LoginForm"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader } from "./NotesHeader"
-import { ResultsColumn, type CategoryNoteGroup } from "./ResultsColumn"
+import { ResultsColumn, type CategoryNoteGroup, type TagNoteGroup } from "./ResultsColumn"
 import { DeleteCategoryModal } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
@@ -180,9 +180,10 @@ export default function NotesApp() {
     setResultsListVisible,
     selectedTagId,
     setSelectedTagId,
+    searchQuery,
+    setSearchQuery,
     resetDefaultState: resetNotesAppStore,
   } = useNotesAppStore()
-  const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [noteForm, setNoteForm] = useState<NoteFormState>(() => createDefaultNoteForm())
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
@@ -777,13 +778,17 @@ export default function NotesApp() {
       }))
   }, [matchesSelectedTag, searchMode, searchResults])
 
-  const allCategoryItems = useMemo<DisplayNoteItem[]>(
+  const allNoteItems = useMemo<DisplayNoteItem[]>(
     () =>
       [...notes]
-        .filter(matchesSelectedTag)
         .sort((left, right) => getNoteSortTime(right) - getNoteSortTime(left))
         .map((note) => ({ note })),
-    [matchesSelectedTag, notes],
+    [notes],
+  )
+
+  const allCategoryItems = useMemo<DisplayNoteItem[]>(
+    () => allNoteItems.filter(({ note }) => matchesSelectedTag(note)),
+    [allNoteItems, matchesSelectedTag],
   )
 
   const allCategoriesNoteCount = selectedTagId === null ? notes.length : allCategoryItems.length
@@ -834,6 +839,24 @@ export default function NotesApp() {
         },
       )
   }, [categories, fallbackCategoryId, matchesSelectedTag, notes])
+
+  const tagNoteGroups = useMemo<TagNoteGroup[]>(() => {
+    const notesByTag = new Map<number, DisplayNoteItem[]>()
+    for (const tag of tags) {
+      notesByTag.set(tag.id, [])
+    }
+
+    for (const item of allNoteItems) {
+      for (const tag of item.note.tags) {
+        notesByTag.get(tag.id)?.push(item)
+      }
+    }
+
+    return tags.map((tag) => ({
+      tag,
+      items: notesByTag.get(tag.id) ?? [],
+    }))
+  }, [allNoteItems, tags])
 
   const selectedTag = useMemo(
     () => (selectedTagId === null ? null : (tags.find((c) => c.id === selectedTagId) ?? null)),
@@ -1427,15 +1450,15 @@ export default function NotesApp() {
           categories={categories}
           fallbackCategoryId={fallbackCategoryId}
           selectedTag={selectedTag}
-          searchQuery={searchQuery}
           searchMode={searchMode}
           searchItems={searchItems}
           searchLoading={searchLoading}
           allCategoryItems={allCategoryItems}
           allCategoriesNoteCount={allCategoriesNoteCount}
           categoryNoteGroups={categoryNoteGroups}
+          allTagItems={allNoteItems}
+          tagNoteGroups={tagNoteGroups}
           activeNoteId={editingNoteId}
-          onSearchQueryChange={(value) => setSearchQuery(toLowercaseInput(value))}
           onEditNote={handleStartEdit}
           onEditCategory={openEditCategory}
           onDeleteCategory={openDeleteCategory}
