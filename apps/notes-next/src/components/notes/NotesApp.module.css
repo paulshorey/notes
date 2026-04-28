@@ -55,6 +55,7 @@
 .resizeHandle {
   position: relative;
   width: 12px;
+  min-width: 12px;
   align-self: stretch;
   padding: 0;
   border: 0;
