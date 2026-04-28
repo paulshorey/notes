@@ -47,6 +47,11 @@
   justify-content: flex-end;
 }
 
+.resultsColumnCloseButton {
+  flex: 0 0 auto;
+  margin-right: 4px;
+}
+
 .resultsColumn {
   position: relative;
   margin: 0;
