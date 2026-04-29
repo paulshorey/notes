@@ -7,6 +7,7 @@ import {
   PencilSimple,
   SidebarSimple,
   Trash,
+  X,
 } from "@phosphor-icons/react"
 import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
@@ -115,6 +116,10 @@ export function ResultsColumn({
   const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
   const actionMenuRootRef = useRef<HTMLDivElement>(null)
   const { selectedTagId, setSelectedTagId, searchQuery, setSearchQuery } = useNotesAppStore()
+  const trimmedSearchQuery = searchQuery.trim()
+  const visibleCategoryNoteGroups = categoryNoteGroups.filter(
+    ({ category }) => !(category.id === 1 && category.noteCount === 0),
+  )
 
   useEffect(() => {
     setExpandedCategoryId((current) => {
@@ -289,6 +294,17 @@ export function ResultsColumn({
               onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
               className={styles.searchInput}
             />
+            {trimmedSearchQuery !== "" && (
+              <button
+                type="button"
+                className={styles.searchClearButton}
+                aria-label="Clear search"
+                title="Clear search"
+                onClick={() => setSearchQuery("")}
+              >
+                <X size={14} weight="bold" />
+              </button>
+            )}
           </div>
           <Button
             view="flat"
@@ -363,7 +379,7 @@ export function ResultsColumn({
                   )}
                 </div> */}
 
-                {categoryNoteGroups.map(({ category, items }) => {
+                {visibleCategoryNoteGroups.map(({ category, items }) => {
                   const expanded = expandedCategoryId === category.id
                   const panelId = `category-notes-${category.id}`
                   const deleteDisabled = category.id === fallbackCategoryId
