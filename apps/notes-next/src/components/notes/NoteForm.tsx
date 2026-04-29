@@ -181,7 +181,6 @@ export function NoteForm({
     onCategoryInputValueChange("")
     setCategoryPickerOpen(true)
     setTagPickerOpen(false)
-    window.setTimeout(() => categoryInputRef.current?.focus(), 0)
   }
 
   const restoreCategoryInputValue = () => {
@@ -198,7 +197,6 @@ export function NoteForm({
     setTagPickerOpen(true)
     setCategoryPickerOpen(false)
     restoreCategoryInputValue()
-    window.setTimeout(() => tagInputRef.current?.focus(), 0)
   }
 
   const closeTagDropdown = () => {
@@ -434,7 +432,7 @@ export function NoteForm({
                   ref={categoryInputRef}
                   type="text"
                   className={styles.categoryInput}
-                  placeholder="Enter new or select below..."
+                  placeholder="Enter new..."
                   value={categoryInputValue}
                   disabled={!userPresent || createCategoryPending}
                   onChange={(event) => {
@@ -490,7 +488,7 @@ export function NoteForm({
                   ref={tagInputRef}
                   type="text"
                   className={styles.categoryInput}
-                  placeholder="Enter new or select below..."
+                  placeholder="Enter new..."
                   value={tagInputValue}
                   disabled={!userPresent || createTagPending}
                   onChange={(event) => {
