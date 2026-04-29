@@ -37,7 +37,7 @@ export function MarkdownEditor({
   mode = "wysiwyg",
   splitMode = false,
   splitModeEnabled = false,
-  toolbarVisible = true,
+  toolbarVisible = false,
   placeholder,
   className,
   autofocus = false,
