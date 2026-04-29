@@ -1,10 +1,25 @@
 "use client"
 
 import type { CategoryRecord, NoteRecord, TagRecord } from "@lib/db-marketing"
-import { DotsThreeVertical, PencilSimple, SidebarSimple, Trash } from "@phosphor-icons/react"
+import {
+  ArrowsLeftRight,
+  DotsThreeVertical,
+  PencilSimple,
+  SidebarSimple,
+  Trash,
+} from "@phosphor-icons/react"
 import { Button, Text, TextInput } from "@gravity-ui/uikit"
-import { toLowercaseInput } from "@/lib/strings"
-import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from "react"
+import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import { NoteResultsList, type DisplayNoteItem } from "./NoteResultsList"
 import styles from "./ResultsColumn.module.css"
@@ -14,6 +29,19 @@ const ALL_TAGS_EXPANDED_ID = "all-tags"
 
 type ExpandedCategoryId = number | typeof ALL_CATEGORIES_EXPANDED_ID
 type ExpandedTagId = number | typeof ALL_TAGS_EXPANDED_ID
+
+type MovePickerState =
+  | {
+      kind: "category"
+      id: string
+      note: NoteRecord
+    }
+  | {
+      kind: "tag"
+      id: string
+      note: NoteRecord
+      fromTagId: number
+    }
 
 export interface CategoryNoteGroup {
   category: CategoryRecord
@@ -45,6 +73,8 @@ interface ResultsColumnProps {
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
   onEditNote: (note: NoteRecord) => void
+  onMoveNoteCategory: (note: NoteRecord, categoryLabel: string) => void | Promise<void>
+  onMoveNoteTag: (note: NoteRecord, fromTagId: number, tagLabel: string) => void | Promise<void>
   onEditCategory: (category: CategoryRecord) => void
   onDeleteCategory: (category: CategoryRecord) => void
   onEditTag: (tag: TagRecord) => void
@@ -71,6 +101,8 @@ export function ResultsColumn({
   tagNoteGroups,
   activeNoteId,
   onEditNote,
+  onMoveNoteCategory,
+  onMoveNoteTag,
   onEditCategory,
   onDeleteCategory,
   onEditTag,
@@ -80,6 +112,7 @@ export function ResultsColumn({
   const [expandedCategoryId, setExpandedCategoryId] = useState<ExpandedCategoryId | null>(null)
   const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
+  const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
   const actionMenuRootRef = useRef<HTMLDivElement>(null)
   const { selectedTagId, setSelectedTagId, searchQuery, setSearchQuery } = useNotesAppStore()
 
@@ -132,18 +165,20 @@ export function ResultsColumn({
   }, [selectedTagId, setSelectedTagId, tags])
 
   useEffect(() => {
-    if (openActionMenuId === null) {
+    if (openActionMenuId === null && activeMovePicker === null) {
       return
     }
 
     const handlePointerDown = (event: globalThis.MouseEvent) => {
       if (!actionMenuRootRef.current?.contains(event.target as Node)) {
         setOpenActionMenuId(null)
+        setActiveMovePicker(null)
       }
     }
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpenActionMenuId(null)
+        setActiveMovePicker(null)
       }
     }
 
@@ -153,18 +188,20 @@ export function ResultsColumn({
       document.removeEventListener("mousedown", handlePointerDown)
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [openActionMenuId])
+  }, [activeMovePicker, openActionMenuId])
 
   const getFilteredNoteCount = (category: CategoryRecord, items: DisplayNoteItem[]) =>
     selectedTag === null ? category.noteCount : items.length
 
   const toggleCategory = (categoryId: ExpandedCategoryId) => {
     setOpenActionMenuId(null)
+    setActiveMovePicker(null)
     setExpandedCategoryId((current) => (current === categoryId ? null : categoryId))
   }
 
   const toggleTag = (tagId: ExpandedTagId) => {
     setOpenActionMenuId(null)
+    setActiveMovePicker(null)
 
     if (expandedTagId === tagId) {
       setExpandedTagId(null)
@@ -181,6 +218,61 @@ export function ResultsColumn({
   const handleSearchResultEdit = (note: NoteRecord) => {
     onEditNote(note)
     onClose()
+  }
+
+  const closeMovePicker = () => {
+    setActiveMovePicker(null)
+  }
+
+  const openCategoryMovePicker = (note: NoteRecord, categoryId: number) => {
+    setOpenActionMenuId(null)
+    setActiveMovePicker({
+      kind: "category",
+      note,
+      id: `category-${categoryId}-note-${note.id}`,
+    })
+  }
+
+  const openTagMovePicker = (note: NoteRecord, tagId: number) => {
+    setOpenActionMenuId(null)
+    setActiveMovePicker({
+      kind: "tag",
+      note,
+      fromTagId: tagId,
+      id: `tag-${tagId}-note-${note.id}`,
+    })
+  }
+
+  const renderMovePicker = (note: NoteRecord, pickerId: string) => {
+    if (activeMovePicker?.note.id !== note.id || activeMovePicker.id !== pickerId) {
+      return null
+    }
+
+    if (activeMovePicker.kind === "category") {
+      return (
+        <NoteMovePicker
+          mode="category"
+          options={categories}
+          currentOptionIds={[note.category.id]}
+          inputPlaceholder="Enter new..."
+          emptyMessage="No other categories."
+          onClose={closeMovePicker}
+          onSelect={(label) => onMoveNoteCategory(note, label)}
+        />
+      )
+    }
+
+    return (
+      <NoteMovePicker
+        mode="tag"
+        options={tags}
+        currentOptionIds={[activeMovePicker.fromTagId]}
+        inputPlaceholder="Enter new..."
+        emptyMessage="No other tags."
+        onClose={closeMovePicker}
+        onSelect={(label) => onMoveNoteTag(note, activeMovePicker.fromTagId, label)}
+      />
+    )
   }
 
   return (
@@ -318,6 +410,18 @@ export function ResultsColumn({
                                 : `No notes in category “${category.label}”.`
                             }
                             onEdit={onEditNote}
+                            renderAction={(note) => {
+                              const pickerId = `category-${category.id}-note-${note.id}`
+                              return (
+                                <NoteMoveAction
+                                  active={activeMovePicker?.id === pickerId}
+                                  label={`Move note from ${category.label} to another category`}
+                                  onClick={() => openCategoryMovePicker(note, category.id)}
+                                >
+                                  {renderMovePicker(note, pickerId)}
+                                </NoteMoveAction>
+                              )
+                            }}
                           />
                         </div>
                       )}
@@ -389,6 +493,18 @@ export function ResultsColumn({
                           loading={false}
                           emptyMessage={`No notes tagged “${tag.label}”.`}
                           onEdit={onEditNote}
+                          renderAction={(note) => {
+                            const pickerId = `tag-${tag.id}-note-${note.id}`
+                            return (
+                              <NoteMoveAction
+                                active={activeMovePicker?.id === pickerId}
+                                label={`Move note from ${tag.label} to another tag`}
+                                onClick={() => openTagMovePicker(note, tag.id)}
+                              >
+                                {renderMovePicker(note, pickerId)}
+                              </NoteMoveAction>
+                            )
+                          }}
                         />
                       </div>
                     )}
@@ -496,6 +612,153 @@ function SectionActionMenu({
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+interface NoteMoveActionProps {
+  active: boolean
+  label: string
+  onClick: () => void
+  children: ReactNode
+}
+
+function NoteMoveAction({ active, label, onClick, children }: NoteMoveActionProps) {
+  return (
+    <div className={styles.noteMoveActionWrap} onClick={(event) => event.stopPropagation()}>
+      <button
+        type="button"
+        className={styles.noteMoveActionButton}
+        onClick={onClick}
+        aria-label={label}
+        aria-haspopup="dialog"
+        aria-expanded={active}
+        title={label}
+      >
+        <ArrowsLeftRight size={14} weight="regular" />
+      </button>
+      {active && children}
+    </div>
+  )
+}
+
+interface NoteMovePickerProps {
+  mode: "category" | "tag"
+  options: Array<CategoryRecord | TagRecord>
+  currentOptionIds: number[]
+  inputPlaceholder: string
+  emptyMessage: string
+  onClose: () => void
+  onSelect: (label: string) => void | Promise<void>
+}
+
+function NoteMovePicker({
+  mode,
+  options,
+  currentOptionIds,
+  inputPlaceholder,
+  emptyMessage,
+  onClose,
+  onSelect,
+}: NoteMovePickerProps) {
+  const [inputValue, setInputValue] = useState("")
+  const [pending, setPending] = useState(false)
+  const currentOptionIdSet = useMemo(() => new Set(currentOptionIds), [currentOptionIds])
+  const filteredOptions = useMemo(() => {
+    const query = normalizeLabel(inputValue)
+
+    return options.filter((option) => {
+      if (currentOptionIdSet.has(option.id)) {
+        return false
+      }
+
+      const normalized = normalizeLabel(option.label)
+      return query === "" || normalized.includes(query)
+    })
+  }, [currentOptionIdSet, inputValue, options])
+
+  const submitLabel = (rawLabel: string) => {
+    const label = rawLabel.trim()
+    if (label === "" || pending) {
+      return
+    }
+
+    void (async () => {
+      setPending(true)
+      try {
+        await onSelect(label)
+        onClose()
+      } finally {
+        setPending(false)
+      }
+    })()
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault()
+      onClose()
+      return
+    }
+    if (event.key !== "Enter") {
+      return
+    }
+
+    event.preventDefault()
+    const label = inputValue.trim()
+    if (label === "") {
+      return
+    }
+    const matchingOption = options.find(
+      (option) => normalizeLabel(option.label) === normalizeLabel(label),
+    )
+    submitLabel(matchingOption?.label ?? label)
+  }
+
+  return (
+    <div
+      className={styles.noteMovePicker}
+      role="dialog"
+      aria-label={`Move note to ${mode === "category" ? "category" : "tag"}`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div
+        className={styles.noteMovePickerOptions}
+        role="listbox"
+        aria-label={mode === "category" ? "Category options" : "Tag options"}
+      >
+        {filteredOptions.length === 0 && inputValue.trim() !== "" ? (
+          <div className={styles.noteMovePickerEmpty}>
+            Press Enter to create &quot;{inputValue.trim()}&quot;
+          </div>
+        ) : (
+          filteredOptions.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={styles.noteMovePickerOption}
+              disabled={pending}
+              onClick={() => submitLabel(option.label)}
+              role="option"
+              aria-selected={false}
+            >
+              {option.label}
+            </button>
+          ))
+        )}
+        {filteredOptions.length === 0 && inputValue.trim() === "" && (
+          <div className={styles.noteMovePickerEmpty}>{emptyMessage}</div>
+        )}
+      </div>
+      <input
+        type="text"
+        className={styles.noteMovePickerInput}
+        placeholder={inputPlaceholder}
+        value={inputValue}
+        disabled={pending}
+        onChange={(event) => setInputValue(toLowercaseInput(event.currentTarget.value))}
+        onKeyDown={handleKeyDown}
+      />
     </div>
   )
 }
