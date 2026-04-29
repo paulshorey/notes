@@ -294,10 +294,6 @@
 }
 
 .noteMovePicker {
-  position: absolute;
-  z-index: 45;
-  top: calc(100% + 2px);
-  right: 0;
   display: flex;
   width: min(220px, calc(100vw - 32px));
   flex-direction: column;

@@ -8,7 +8,7 @@ import {
   SidebarSimple,
   Trash,
 } from "@phosphor-icons/react"
-import { Button, Text, TextInput } from "@gravity-ui/uikit"
+import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import {
   type CSSProperties,
@@ -165,20 +165,18 @@ export function ResultsColumn({
   }, [selectedTagId, setSelectedTagId, tags])
 
   useEffect(() => {
-    if (openActionMenuId === null && activeMovePicker === null) {
+    if (openActionMenuId === null) {
       return
     }
 
     const handlePointerDown = (event: globalThis.MouseEvent) => {
       if (!actionMenuRootRef.current?.contains(event.target as Node)) {
         setOpenActionMenuId(null)
-        setActiveMovePicker(null)
       }
     }
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpenActionMenuId(null)
-        setActiveMovePicker(null)
       }
     }
 
@@ -188,7 +186,7 @@ export function ResultsColumn({
       document.removeEventListener("mousedown", handlePointerDown)
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [activeMovePicker, openActionMenuId])
+  }, [openActionMenuId])
 
   const getFilteredNoteCount = (category: CategoryRecord, items: DisplayNoteItem[]) =>
     selectedTag === null ? category.noteCount : items.length
@@ -416,6 +414,7 @@ export function ResultsColumn({
                                 <NoteMoveAction
                                   active={activeMovePicker?.id === pickerId}
                                   label={`Move note from ${category.label} to another category`}
+                                  onClose={closeMovePicker}
                                   onClick={() => openCategoryMovePicker(note, category.id)}
                                 >
                                   {renderMovePicker(note, pickerId)}
@@ -499,6 +498,7 @@ export function ResultsColumn({
                               <NoteMoveAction
                                 active={activeMovePicker?.id === pickerId}
                                 label={`Move note from ${tag.label} to another tag`}
+                                onClose={closeMovePicker}
                                 onClick={() => openTagMovePicker(note, tag.id)}
                               >
                                 {renderMovePicker(note, pickerId)}
@@ -620,13 +620,17 @@ interface NoteMoveActionProps {
   active: boolean
   label: string
   onClick: () => void
+  onClose: () => void
   children: ReactNode
 }
 
-function NoteMoveAction({ active, label, onClick, children }: NoteMoveActionProps) {
+function NoteMoveAction({ active, label, onClick, onClose, children }: NoteMoveActionProps) {
+  const buttonRef = useRef<HTMLButtonElement>(null)
+
   return (
     <div className={styles.noteMoveActionWrap} onClick={(event) => event.stopPropagation()}>
       <button
+        ref={buttonRef}
         type="button"
         className={styles.noteMoveActionButton}
         onClick={onClick}
@@ -637,7 +641,9 @@ function NoteMoveAction({ active, label, onClick, children }: NoteMoveActionProp
       >
         <ArrowsLeftRight size={14} weight="regular" />
       </button>
-      {active && children}
+      <Popup anchorRef={buttonRef} open={active} onClose={onClose} placement="bottom-end">
+        {children}
+      </Popup>
     </div>
   )
 }
