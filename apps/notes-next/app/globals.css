@@ -27,5 +27,9 @@ a {
 .g-md-editor-settings {
   opacity: 0.25;
   position: relative;
-  right: 2rem;
+}
+@media (min-width: 721px) {
+  .g-md-editor-settings {
+    right: 2rem;
+  }
 }
