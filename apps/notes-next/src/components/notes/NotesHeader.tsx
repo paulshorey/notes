@@ -36,7 +36,7 @@ export function NotesHeader({
 
   return (
     <div className={styles.headerActions}>
-      <Button
+      {/* <Button
         view="flat"
         size="m"
         onClick={onRefresh}
@@ -44,25 +44,30 @@ export function NotesHeader({
         className={styles.headerButton}
       >
         <ArrowClockwise size={18} weight="regular" className={styles.headerIcon} />
-      </Button>
-      <Button
-        ref={userBtnRef}
-        view="flat"
-        size="m"
-        onClick={() => setMenuOpen((v) => !v)}
-        className={styles.headerButton}
-      >
-        <User size={18} weight="regular" className={styles.headerIcon} />
-      </Button>
-      <Button
-        view="flat"
-        size="m"
-        onClick={() => setResultsListVisible(true)}
-        aria-label="Show notes list"
-        className={resultsButtonClassName}
-      >
-        <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
-      </Button>
+      </Button> */}
+      <span className={styles.headerLogo} onClick={onRefresh}>
+        jot.new
+      </span>
+      <span>
+        <Button
+          ref={userBtnRef}
+          view="flat"
+          size="m"
+          onClick={() => setMenuOpen((v) => !v)}
+          className={styles.headerButton}
+        >
+          <User size={18} weight="regular" className={styles.headerIcon} />
+        </Button>
+        <Button
+          view="flat"
+          size="m"
+          onClick={() => setResultsListVisible(true)}
+          aria-label="Show notes list"
+          className={resultsButtonClassName}
+        >
+          <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
+        </Button>
+      </span>
       <Popup
         anchorRef={userBtnRef}
         open={menuOpen}
