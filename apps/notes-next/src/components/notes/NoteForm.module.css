@@ -76,7 +76,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 8px 8px 8px 14px;
+  padding: 8px 8px 14px 14px;
 }
 
 .categoryPicker {
@@ -97,7 +97,7 @@
   color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 1rem;
   line-height: inherit;
   text-align: left;
 }
@@ -206,7 +206,7 @@
 .categoryEmpty {
   padding: 6px 8px;
   color: var(--g-color-text-secondary, rgba(255, 255, 255, 0.62));
-  font-size: 13px;
+  font-size: 1rem;
 }
 
 .selectedTag {
@@ -221,7 +221,7 @@
   color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 1rem;
   line-height: inherit;
 }
 
@@ -260,7 +260,7 @@
   color: var(--g-color-text-link, #4da2ff);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 1rem;
 }
 
 .dateLinkButton:hover {
@@ -276,7 +276,7 @@
   color: inherit;
   padding: 3px 4px;
   font: inherit;
-  font-size: 13px;
+  font-size: 1rem;
 }
 
 .dateInput:hover {
