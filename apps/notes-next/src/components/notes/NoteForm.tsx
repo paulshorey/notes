@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { Button, Text } from "@gravity-ui/uikit"
+import { Button, Popup, Text } from "@gravity-ui/uikit"
 import { CalendarBlank, CaretDown, Plus, Trash, X } from "@phosphor-icons/react"
 import {
   type Dispatch,
@@ -73,9 +73,9 @@ export function NoteForm({
   onCancelEdit,
   header,
 }: NoteFormProps) {
-  const categoryPickerRef = useRef<HTMLDivElement | null>(null)
+  const categoryTriggerRef = useRef<HTMLButtonElement | null>(null)
   const categoryInputRef = useRef<HTMLInputElement | null>(null)
-  const tagPickerRef = useRef<HTMLDivElement | null>(null)
+  const tagTriggerRef = useRef<HTMLButtonElement | null>(null)
   const tagInputRef = useRef<HTMLInputElement | null>(null)
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
@@ -142,38 +142,16 @@ export function NoteForm({
   }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
 
   useEffect(() => {
-    if (!categoryPickerOpen && !tagPickerOpen) {
-      return
+    if (categoryPickerOpen) {
+      window.setTimeout(() => categoryInputRef.current?.focus(), 0)
     }
+  }, [categoryPickerOpen])
 
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node
-      if (categoryPickerRef.current?.contains(target) || tagPickerRef.current?.contains(target)) {
-        return
-      }
-      setCategoryPickerOpen(false)
-      setTagPickerOpen(false)
-      setTagInputValue("")
-      onCategoryInputValueChange(selectedCategoryLabel)
+  useEffect(() => {
+    if (tagPickerOpen) {
+      window.setTimeout(() => tagInputRef.current?.focus(), 0)
     }
-
-    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return
-      }
-      setCategoryPickerOpen(false)
-      setTagPickerOpen(false)
-      setTagInputValue("")
-      onCategoryInputValueChange(selectedCategoryLabel)
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown)
-    document.addEventListener("keydown", handleKeyDown)
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown)
-      document.removeEventListener("keydown", handleKeyDown)
-    }
-  }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel, tagPickerOpen])
+  }, [tagPickerOpen])
 
   const openCategoryDropdown = () => {
     onCategoryInputValueChange("")
@@ -378,8 +356,9 @@ export function NoteForm({
         />
 
         <div className={styles.dateFields}>
-          <div className={styles.categoryPicker} ref={categoryPickerRef}>
+          <div className={styles.categoryPicker}>
             <button
+              ref={categoryTriggerRef}
               type="button"
               className={styles.categoryTrigger}
               onClick={categoryPickerOpen ? closeCategoryDropdown : openCategoryDropdown}
@@ -396,7 +375,14 @@ export function NoteForm({
               <CaretDown size={14} weight="regular" />
             </button>
 
-            {categoryPickerOpen && (
+            <Popup
+              anchorRef={categoryTriggerRef}
+              open={categoryPickerOpen}
+              onClose={closeCategoryDropdown}
+              placement={["top-start", "top-end", "bottom-start", "bottom-end"]}
+              offset={6}
+              role="dialog"
+            >
               <div className={styles.categoryPanel}>
                 <div
                   className={styles.categoryOptions}
@@ -439,13 +425,14 @@ export function NoteForm({
                   onKeyDown={handleCategoryInputKeyDown}
                 />
               </div>
-            )}
+            </Popup>
           </div>
           {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
 
-          <div className={styles.categoryPicker} ref={tagPickerRef}>
+          <div className={styles.categoryPicker}>
             <button
+              ref={tagTriggerRef}
               type="button"
               className={styles.categoryTrigger}
               onClick={tagPickerOpen ? closeTagDropdown : openTagDropdown}
@@ -457,7 +444,14 @@ export function NoteForm({
               <Plus size={12} weight="regular" />
             </button>
 
-            {tagPickerOpen && (
+            <Popup
+              anchorRef={tagTriggerRef}
+              open={tagPickerOpen}
+              onClose={closeTagDropdown}
+              placement={["top-start", "top-end", "bottom-start", "bottom-end"]}
+              offset={6}
+              role="dialog"
+            >
               <div className={styles.categoryPanel}>
                 <div className={styles.categoryOptions} role="listbox" aria-label="Tag options">
                   {filteredTagOptions.length === 0 && tagInputValue.trim() !== "" ? (
@@ -495,7 +489,7 @@ export function NoteForm({
                   onKeyDown={handleTagInputKeyDown}
                 />
               </div>
-            )}
+            </Popup>
           </div>
 
           {selectedTagLabels.map((label) => (
