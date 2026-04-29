@@ -13,6 +13,7 @@
 }
 
 .noteItem {
+  position: relative;
   padding: 3px 4px 3px 6px;
   cursor: pointer;
   border-radius: 0;
@@ -54,4 +55,38 @@
   font-weight: 600;
   color: var(--g-color-text-info, #60a5fa);
   flex-shrink: 0;
+}
+
+.moveActionWrap {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.moveActionButton {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.58;
+}
+
+.noteItem:hover .moveActionButton,
+.moveActionButton:focus-visible,
+.moveActionWrapOpen .moveActionButton {
+  opacity: 1;
+}
+
+.moveActionButton:hover,
+.moveActionButton:focus-visible,
+.moveActionWrapOpen .moveActionButton {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06));
+  outline: none;
 }

@@ -10,6 +10,7 @@ import type {
   CreateTagResponse,
   DeleteTagResponse,
   EmbeddingMaintenanceResponse,
+  NoteResponse,
   NotesResponse,
   NoteRecord,
   SearchResponse,
@@ -165,6 +166,14 @@ const noteRequestBody = (form: NoteFormState) => ({
   description: form.description,
   timeDue: form.dueExpanded ? form.timeDue : null,
   timeRemind: form.remindExpanded ? form.timeRemind : null,
+})
+
+const notePatchBody = (note: NoteRecord) => ({
+  categoryId: note.category.id,
+  tagIds: note.tags.map((tag) => tag.id),
+  description: note.description ?? "",
+  timeDue: note.timeDue,
+  timeRemind: note.timeRemind,
 })
 
 export default function NotesApp() {
@@ -1141,6 +1150,151 @@ export default function NotesApp() {
     void saveCurrentNote("manual")
   }
 
+  const resolveCategoryForSidebarMove = async (rawLabel: string): Promise<CategoryRecord | null> => {
+    if (!user) {
+      setErrorMessage("Sign in before moving notes.")
+      return null
+    }
+    const label = normalizeLabel(rawLabel)
+    if (label === "") {
+      return null
+    }
+    const existingCategory = categories.find(
+      (category) => normalizeLabel(category.label) === normalizeLabel(label),
+    )
+    if (existingCategory) {
+      return existingCategory
+    }
+
+    const response = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, label }),
+    })
+    const data = await readJson<CreateCategoryResponse>(response)
+    setCategories((prev) => {
+      const without = prev.filter((category) => category.id !== data.category.id)
+      return [...without, data.category].sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+      )
+    })
+    return data.category
+  }
+
+  const resolveTagForSidebarMove = async (rawLabel: string): Promise<TagRecord | null> => {
+    if (!user) {
+      setErrorMessage("Sign in before moving notes.")
+      return null
+    }
+    const label = normalizeLabel(rawLabel)
+    if (label === "") {
+      return null
+    }
+    const existingTag = tags.find((tag) => normalizeLabel(tag.label) === normalizeLabel(label))
+    if (existingTag) {
+      return existingTag
+    }
+
+    const response = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, label }),
+    })
+    const data = await readJson<CreateTagResponse>(response)
+    setTags((prev) => {
+      const without = prev.filter((tag) => tag.id !== data.tag.id)
+      return [...without, data.tag].sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+      )
+    })
+    return data.tag
+  }
+
+  const patchNoteFromSidebar = async (
+    note: NoteRecord,
+    nextCategoryId: number,
+    nextTagIds: number[],
+  ) => {
+    if (!user) return null
+
+    const response = await fetch("/api/notes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        noteId: note.id,
+        note: {
+          categoryId: nextCategoryId,
+          tagIds: nextTagIds,
+          description: note.description ?? "",
+          timeDue: note.timeDue,
+          timeRemind: note.timeRemind,
+        },
+      }),
+    })
+    const data = await readJson<{ note: NoteRecord }>(response)
+    await refreshResults(user.id)
+    return data.note
+  }
+
+  const handleMoveNoteCategory = async (note: NoteRecord, categoryLabel: string) => {
+    if (!user) return
+    clearMessages()
+    setNotePending(true)
+    try {
+      const category = await resolveCategoryForSidebarMove(categoryLabel)
+      if (!category) return
+      if (category.id === note.category.id) return
+
+      const updatedNote = await patchNoteFromSidebar(
+        note,
+        category.id,
+        note.tags.map((tag) => tag.id),
+      )
+      if (updatedNote && editingNoteId === note.id) {
+        const nextForm = noteToFormState(updatedNote)
+        noteFormRef.current = nextForm
+        lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
+        setPendingTagLabels([])
+        setNoteForm(nextForm)
+      }
+      setStatusMessage(`Note moved to “${category.label}”.`)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setNotePending(false)
+    }
+  }
+
+  const handleMoveNoteTag = async (note: NoteRecord, fromTagId: number, tagLabel: string) => {
+    if (!user) return
+    clearMessages()
+    setNotePending(true)
+    try {
+      const tag = await resolveTagForSidebarMove(tagLabel)
+      if (!tag) return
+
+      const nextTagIds = note.tags
+        .filter((noteTag) => noteTag.id !== fromTagId && noteTag.id !== tag.id)
+        .map((noteTag) => noteTag.id)
+      nextTagIds.push(tag.id)
+
+      const updatedNote = await patchNoteFromSidebar(note, note.category.id, nextTagIds)
+      if (updatedNote && editingNoteId === note.id) {
+        const nextForm = noteToFormState(updatedNote)
+        noteFormRef.current = nextForm
+        lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
+        setPendingTagLabels([])
+        setNoteForm(nextForm)
+      }
+      setStatusMessage(`Note tag changed to “${tag.label}”.`)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setNotePending(false)
+    }
+  }
+
   const openEditCategory = (category: CategoryRecord) => {
     clearMessages()
     setEditingCategory(category)
@@ -1468,6 +1622,8 @@ export default function NotesApp() {
           tagNoteGroups={tagNoteGroups}
           activeNoteId={editingNoteId}
           onEditNote={handleStartEdit}
+          onMoveNoteCategory={handleMoveNoteCategory}
+          onMoveNoteTag={handleMoveNoteTag}
           onEditCategory={openEditCategory}
           onDeleteCategory={openDeleteCategory}
           onEditTag={openEditTag}
