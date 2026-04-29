@@ -48,7 +48,6 @@ interface NoteFormProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onDeleteNote: (noteId: number) => void
   onCancelEdit: () => void
-  onClick?: () => void
   header: JSX.Element
 }
 
@@ -72,7 +71,6 @@ export function NoteForm({
   onSubmit,
   onDeleteNote,
   onCancelEdit,
-  onClick,
   header,
 }: NoteFormProps) {
   const categoryPickerRef = useRef<HTMLDivElement | null>(null)
@@ -339,7 +337,7 @@ export function NoteForm({
   }
 
   return (
-    <section className={styles.formColumn} onClick={onClick}>
+    <section className={styles.formColumn}>
       {header}
       <form className={styles.form} onSubmit={onSubmit}>
         <div className={styles.formActions}>
