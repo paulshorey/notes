@@ -48,16 +48,17 @@ export function NotesHeader({
       <span className={styles.headerLogo} onClick={onRefresh}>
         jot.new
       </span>
-      <span>
+      <span className={styles.headerButtons}>
         <Button
           ref={userBtnRef}
           view="flat"
           size="m"
           onClick={() => setMenuOpen((v) => !v)}
-          className={styles.headerButton}
+          className={styles.headerButton + " " + styles.headerButtonUser}
         >
           <User size={18} weight="regular" className={styles.headerIcon} />
         </Button>
+
         <Button
           view="flat"
           size="m"

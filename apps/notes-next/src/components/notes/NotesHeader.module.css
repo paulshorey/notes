@@ -14,21 +14,39 @@
   margin-left: 0.825rem;
 }
 
-/* .headerLogo::before {
-  content: "/";
+.headerLogo::before {
+  content: "//";
   opacity: 0.33;
   margin-right: 0.15rem;
-} */
+}
+@media (min-width: 721px) {
+  .headerLogo::before {
+    content: "";
+  }
+}
+
 .headerLogo::after {
   content: "/";
   opacity: 0.33;
   margin-left: 0.125rem;
+}
+@media (min-width: 721px) {
+  .headerLogo::after {
+    content: "/ write now, sync and organize later";
+  }
+}
+
+.headerButtons {
+  display: flex;
 }
 
 .headerButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.headerButtonUser {
+  color: var(--g-color-text-link, #4da2ff);
 }
 
 .headerIcon {
