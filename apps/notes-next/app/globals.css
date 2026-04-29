@@ -24,3 +24,8 @@ a {
 .g-md-markup-preview__preview-sign {
   display: none !important;
 }
+.g-md-editor-settings {
+  opacity: 0.25;
+  position: relative;
+  right: 2rem;
+}
