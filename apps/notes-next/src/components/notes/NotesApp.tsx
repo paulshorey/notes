@@ -62,6 +62,7 @@ const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
 const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
+const MOBILE_RESULTS_TRANSITION_MS = 400
 const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 
@@ -225,6 +226,7 @@ export default function NotesApp() {
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
+  const [mobileResultsOverlayMounted, setMobileResultsOverlayMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const userRef = useRef<UserSummary | null>(null)
   const noteFormRef = useRef<NoteFormState>(noteForm)
@@ -236,6 +238,7 @@ export default function NotesApp() {
   const creatingTagLabelsRef = useRef(new Set<string>())
   const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
   const preferenceSaveRequestIdRef = useRef(0)
+  const mobileResultsOverlayTimeoutRef = useRef<number | null>(null)
   const resizeStateRef = useRef<{
     pointerId: number
     startX: number
@@ -265,6 +268,13 @@ export default function NotesApp() {
     }),
     [resultsColumnWidth],
   )
+
+  const clearMobileResultsOverlayTimeout = useCallback(() => {
+    if (mobileResultsOverlayTimeoutRef.current === null) return
+
+    window.clearTimeout(mobileResultsOverlayTimeoutRef.current)
+    mobileResultsOverlayTimeoutRef.current = null
+  }, [])
 
   const handleResizePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
@@ -319,11 +329,9 @@ export default function NotesApp() {
     }
   }
 
-  const handleNoteFormClick = useCallback(() => {
-    if (resultsListVisible && isMobileResultsLayout()) {
-      setResultsListVisible(false)
-    }
-  }, [resultsListVisible, setResultsListVisible])
+  const handleMobileResultsOverlayClick = useCallback(() => {
+    setResultsListVisible(false)
+  }, [setResultsListVisible])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
@@ -331,6 +339,7 @@ export default function NotesApp() {
       if (mediaQuery.matches) {
         setResultsListVisible(false)
       } else {
+        setMobileResultsOverlayMounted(false)
         setResultsListVisible(true)
       }
     }
@@ -339,6 +348,26 @@ export default function NotesApp() {
     mediaQuery.addEventListener("change", syncResultsVisibility)
     return () => mediaQuery.removeEventListener("change", syncResultsVisibility)
   }, [setResultsListVisible])
+
+  useEffect(() => {
+    if (resultsListVisible) {
+      clearMobileResultsOverlayTimeout()
+      setMobileResultsOverlayMounted(isMobileResultsLayout())
+      return
+    }
+
+    if (!mobileResultsOverlayMounted) return
+
+    clearMobileResultsOverlayTimeout()
+    mobileResultsOverlayTimeoutRef.current = window.setTimeout(() => {
+      mobileResultsOverlayTimeoutRef.current = null
+      setMobileResultsOverlayMounted(false)
+    }, MOBILE_RESULTS_TRANSITION_MS)
+
+    return clearMobileResultsOverlayTimeout
+  }, [clearMobileResultsOverlayTimeout, mobileResultsOverlayMounted, resultsListVisible])
+
+  useEffect(() => clearMobileResultsOverlayTimeout, [clearMobileResultsOverlayTimeout])
 
   useEffect(() => {
     if (!resultsListVisible) return
@@ -1565,7 +1594,6 @@ export default function NotesApp() {
           onSubmit={handleSaveNote}
           onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           onCancelEdit={handleCancelEdit}
-          onClick={handleNoteFormClick}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader
@@ -1580,6 +1608,17 @@ export default function NotesApp() {
             </div>
           }
         />
+
+        {mobileResultsOverlayMounted && (
+          <button
+            type="button"
+            className={`${styles.mobileResultsOverlay} ${
+              resultsListVisible ? "" : styles.mobileResultsOverlayClosing
+            }`}
+            aria-label="Hide notes list"
+            onClick={handleMobileResultsOverlayClick}
+          />
+        )}
 
         <button
           type="button"
@@ -1628,7 +1667,7 @@ export default function NotesApp() {
           onDeleteCategory={openDeleteCategory}
           onEditTag={openEditTag}
           onDeleteTag={openDeleteTag}
-          onClose={() => setResultsListVisible(false)}
+          onClose={handleMobileResultsOverlayClick}
         />
       </div>
 
