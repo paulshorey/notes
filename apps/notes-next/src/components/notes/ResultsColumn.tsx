@@ -178,7 +178,7 @@ export function ResultsColumn({
     setSelectedTagId(tagId === ALL_TAGS_EXPANDED_ID ? null : tagId)
   }
 
-  const handleSearchResultEdit = (note: NoteRecord) => {
+  const handleResultEdit = (note: NoteRecord) => {
     onEditNote(note)
     onClose()
   }
@@ -224,7 +224,7 @@ export function ResultsColumn({
                     ? `No search results in “${selectedTag.label}”.`
                     : "No search results."
                 }
-                onEdit={handleSearchResultEdit}
+                onEdit={handleResultEdit}
               />
             </div>
           )}
@@ -317,7 +317,7 @@ export function ResultsColumn({
                                 ? `No notes in “${selectedTag.label}” for this category.`
                                 : `No notes in category “${category.label}”.`
                             }
-                            onEdit={onEditNote}
+                            onEdit={handleResultEdit}
                           />
                         </div>
                       )}
@@ -388,7 +388,7 @@ export function ResultsColumn({
                           activeNoteId={activeNoteId}
                           loading={false}
                           emptyMessage={`No notes tagged “${tag.label}”.`}
-                          onEdit={onEditNote}
+                          onEdit={handleResultEdit}
                         />
                       </div>
                     )}
