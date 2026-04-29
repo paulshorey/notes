@@ -23,7 +23,7 @@
   align-items: end;
   justify-content: end;
   min-height: 32px;
-  margin: 0 8px;
+  margin: 0.125rem 0.825rem 0 0;
   gap: 16px;
   flex: 0 0 auto;
 }

@@ -32,7 +32,7 @@
 }
 @media (min-width: 721px) {
   .headerLogo::after {
-    content: "/ write now, sync and organize later";
+    content: "/ write now, sync later";
   }
 }
 

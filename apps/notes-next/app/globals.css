@@ -30,6 +30,12 @@ a {
 }
 @media (min-width: 721px) {
   .g-md-editor-settings {
-    right: 2rem;
+    right: 0.2875rem;
+  }
+}
+@media (max-width: 720px) {
+  .g-md-editor-settings {
+    top: -0.125rem;
+    right: 0rem;
   }
 }
