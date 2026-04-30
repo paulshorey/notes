@@ -45,6 +45,7 @@ export function MarkdownEditor({
   settingsVisible,
   renderPreview,
 }: MarkdownEditorProps) {
+  const editorContainerRef = React.useRef<HTMLDivElement>(null)
   const defaultRenderPreview = React.useCallback<RenderPreview>(
     (params) => <SplitModePreview {...params} />,
     [],
@@ -106,13 +107,50 @@ export function MarkdownEditor({
     }
   }, [editor, onSubmit, onUpdate])
 
+  React.useEffect(() => {
+    if (!autofocus) {
+      return
+    }
+
+    let frameId = 0
+    let timeoutId: number | undefined
+    let attempts = 0
+
+    const focusEditor = () => {
+      const editorElement = editorContainerRef.current?.querySelector<HTMLElement>(
+        '[contenteditable="true"]',
+      )
+
+      if (editorElement) {
+        editorElement.focus()
+        return
+      }
+
+      attempts += 1
+      if (attempts < 10) {
+        timeoutId = window.setTimeout(focusEditor, 50)
+      }
+    }
+
+    frameId = window.requestAnimationFrame(focusEditor)
+
+    return () => {
+      window.cancelAnimationFrame(frameId)
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [autofocus])
+
   return (
-    <MarkdownEditorView
-      autofocus={autofocus}
-      className={`${styles.editor} ${className ?? ""}`}
-      editor={editor}
-      settingsVisible={settingsVisible}
-      stickyToolbar={stickyToolbar}
-    />
+    <div ref={editorContainerRef} className={`${styles.editor} ${className ?? ""}`}>
+      <MarkdownEditorView
+        autofocus={autofocus}
+        className={styles.editor}
+        editor={editor}
+        settingsVisible={settingsVisible}
+        stickyToolbar={stickyToolbar}
+      />
+    </div>
   )
 }
