@@ -657,7 +657,13 @@ function NoteMoveAction({ active, label, onClick, onClose, children }: NoteMoveA
       >
         <ArrowsLeftRight size={14} weight="regular" />
       </button>
-      <Popup anchorRef={buttonRef} open={active} onClose={onClose} placement="bottom-end">
+      <Popup
+        anchorRef={buttonRef}
+        open={active}
+        onClose={onClose}
+        placement={["bottom-end", "top-end", "bottom-start", "top-start"]}
+        offset={6}
+      >
         {children}
       </Popup>
     </div>
