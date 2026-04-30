@@ -16,7 +16,11 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: solid 1px var(--g-color-base-brand);
+}
+@media (min-width: 721px) {
+  .form {
+    border: solid 1px var(--g-color-base-brand);
+  }
 }
 
 .formActions {
