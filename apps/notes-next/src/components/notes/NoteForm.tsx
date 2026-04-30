@@ -38,6 +38,7 @@ interface NoteFormProps {
   categories: CategoryRecord[]
   tags: TagRecord[]
   pendingTagLabels: string[]
+  descriptionEditorSessionId: number
   categoryInputValue: string
   onCategoryInputValueChange: (value: string) => void
   createCategoryPending: boolean
@@ -61,6 +62,7 @@ export function NoteForm({
   categories,
   tags,
   pendingTagLabels,
+  descriptionEditorSessionId,
   categoryInputValue,
   onCategoryInputValueChange,
   createCategoryPending,
@@ -349,6 +351,7 @@ export function NoteForm({
         </div>
 
         <MarkdownEditor
+          key={descriptionEditorSessionId}
           placeholder="Description"
           value={form.description}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}

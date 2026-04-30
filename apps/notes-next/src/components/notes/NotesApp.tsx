@@ -197,6 +197,7 @@ export default function NotesApp() {
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [noteForm, setNoteForm] = useState<NoteFormState>(() => createDefaultNoteForm())
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
+  const [descriptionEditorSessionId, setDescriptionEditorSessionId] = useState(0)
   const [sessionLoading, setSessionLoading] = useState(true)
   const [notesLoading, setNotesLoading] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -450,6 +451,7 @@ export default function NotesApp() {
       lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
       setNoteForm(nextForm)
       setEditingNoteId(null)
+      setDescriptionEditorSessionId((sessionId) => sessionId + 1)
       setPendingTagLabels([])
     },
     [categories],
@@ -1037,10 +1039,14 @@ export default function NotesApp() {
   const handleStartEdit = (note: NoteRecord) => {
     clearMessages()
     const nextForm = noteToFormState(note)
+    const shouldResetDescriptionEditor = editingNoteIdRef.current !== note.id
     editingNoteIdRef.current = note.id
     noteFormRef.current = nextForm
     lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
     setEditingNoteId(note.id)
+    if (shouldResetDescriptionEditor) {
+      setDescriptionEditorSessionId((sessionId) => sessionId + 1)
+    }
     setPendingTagLabels([])
     setNoteForm(nextForm)
   }
@@ -1584,6 +1590,7 @@ export default function NotesApp() {
           categories={categories}
           tags={tags}
           pendingTagLabels={pendingTagLabels}
+          descriptionEditorSessionId={descriptionEditorSessionId}
           categoryInputValue={categoryInputValue}
           onCategoryInputValueChange={setCategoryInputValue}
           createCategoryPending={createCategoryPending}
