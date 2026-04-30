@@ -271,6 +271,7 @@ export function ResultsColumn({
                           <SectionTitle
                             count={getFilteredNoteCount(category, items)}
                             label={category.label}
+                            active={activeCategoryId === category.id}
                           />
                         </button>
                         <SectionActionMenu
@@ -423,14 +424,17 @@ function SectionAddNoteButton({ label, active = false, onClick }: SectionAddNote
 interface SectionTitleProps {
   count: number
   label: string
+  active?: boolean
 }
 
-function SectionTitle({ count, label }: SectionTitleProps) {
+function SectionTitle({ count, label, active = false }: SectionTitleProps) {
   return (
     <span className={styles.categoryLabel}>
       <span className={styles.categoryCountText}>{count}</span>
       <sub className={styles.categoryPreposition}>in</sub>
-      <span className={styles.categoryNameText}>{label}</span>
+      <span className={`${styles.categoryNameText} ${active ? styles.categoryNameTextActive : ""}`}>
+        {label}
+      </span>
     </span>
   )
 }

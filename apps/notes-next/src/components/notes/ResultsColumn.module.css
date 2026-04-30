@@ -201,6 +201,10 @@
   white-space: nowrap;
 }
 
+.categoryNameTextActive {
+  color: var(--g-color-base-brand);
+}
+
 .categoryActionWrap {
   position: relative;
   display: flex;
