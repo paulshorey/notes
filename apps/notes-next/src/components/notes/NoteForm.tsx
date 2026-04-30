@@ -363,7 +363,7 @@ export function NoteForm({
 
         <MarkdownEditor
           key={descriptionEditorSessionId}
-          placeholder="Write before you forget! Login, sync, and organize later..."
+          placeholder="Write now, sync later..."
           value={form.description}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
           className={styles.formDescription}
