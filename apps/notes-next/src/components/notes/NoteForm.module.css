@@ -17,11 +17,11 @@
   flex-direction: column;
   overflow: hidden;
 }
-@media (min-width: 721px) {
+/* @media (min-width: 721px) {
   .form {
     border: solid 1px var(--g-color-base-brand);
   }
-}
+} */
 
 .formActions {
   display: flex;
