@@ -1115,7 +1115,6 @@ export default function NotesApp() {
             : [...prev.selectedTagIds, data.tag.id],
         }))
       }
-      setStatusMessage(`Tag “${data.tag.label}” added.`)
     } catch (error) {
       setPendingTagLabels((prev) => prev.filter((item) => normalizeLabel(item) !== normalizedLabel))
       setErrorMessage(getErrorMessage(error))
@@ -1165,7 +1164,6 @@ export default function NotesApp() {
         selectedCategoryId: data.category.id,
       }))
       setCategoryInputValue(data.category.label)
-      setStatusMessage(`Category “${data.category.label}” added.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -1239,7 +1237,6 @@ export default function NotesApp() {
       })
       await readJson<DeleteCategoryResponse>(response)
       await refreshResults(user.id)
-      setStatusMessage(`Category “${category.label}” deleted.`)
       setDeletingCategory(null)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -1333,19 +1330,12 @@ export default function NotesApp() {
           tagId: tag.id,
         }),
       })
-      const data = await readJson<DeleteTagResponse>(response)
+      await readJson<DeleteTagResponse>(response)
       setTags((prev) => prev.filter((c) => c.id !== tag.id))
       if (selectedTagId === tag.id) {
         setSelectedTagId(null)
       }
       await refreshResults(user.id)
-      setStatusMessage(
-        data.deletedLinks === 0
-          ? `Tag “${tag.label}” deleted.`
-          : `Tag “${tag.label}” deleted (removed from ${data.deletedLinks} ${
-              data.deletedLinks === 1 ? "note" : "notes"
-            }).`,
-      )
       setDeletingTag(null)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
