@@ -358,7 +358,7 @@ export function NoteForm({
 
         <MarkdownEditor
           key={descriptionEditorSessionId}
-          placeholder="Description"
+          placeholder="Write before you forget! Login, sync, and organize later..."
           value={form.description}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
           className={styles.formDescription}
@@ -376,7 +376,6 @@ export function NoteForm({
               aria-haspopup="dialog"
             >
               <span className={styles.categoryTriggerLabel}>
-                Category:{" "}
                 <span className={styles.categoryTriggerValue}>
                   {selectedCategoryLabel || "none"}
                 </span>
@@ -530,8 +529,7 @@ export function NoteForm({
               role="menu"
             >
               <div className={styles.morePanel} aria-label="More note settings">
-                {!form.dueExpanded &&
-                  renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
+                {!form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
                 {!form.remindExpanded &&
                   renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
                 <button
