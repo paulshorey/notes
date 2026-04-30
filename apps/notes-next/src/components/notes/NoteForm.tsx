@@ -362,6 +362,7 @@ export function NoteForm({
         </div>
 
         <MarkdownEditor
+          autofocus
           key={descriptionEditorSessionId}
           placeholder="Write now, sync later..."
           value={form.description}
