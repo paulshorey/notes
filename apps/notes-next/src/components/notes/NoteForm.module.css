@@ -16,6 +16,7 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+  border: solid 1px var(--g-color-base-brand);
 }
 
 .formActions {
@@ -276,6 +277,7 @@
 .morePicker {
   position: relative;
   flex: 0 0 auto;
+  display: flex;
 }
 
 .moreTrigger {
