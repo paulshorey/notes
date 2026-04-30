@@ -140,6 +140,7 @@ const getCategorySortTime = (category: CategoryRecord, categoryNotes: NoteRecord
 interface ResetNoteFormOptions {
   categoryList?: CategoryRecord[]
   selectedCategoryId?: number | null
+  selectedTagIds?: number[]
 }
 
 type NoteSaveMode = "manual" | "autosave"
@@ -402,9 +403,11 @@ export default function NotesApp() {
         "selectedCategoryId" in options
           ? (options.selectedCategoryId ?? null)
           : getDefaultCategoryId(categoryList)
+      const selectedTagIds = options.selectedTagIds ?? []
       const nextForm = {
         ...createDefaultNoteForm(),
         selectedCategoryId,
+        selectedTagIds,
       }
 
       noteFormRef.current = nextForm
@@ -1007,6 +1010,40 @@ export default function NotesApp() {
     setNoteForm(nextForm)
   }
 
+  const closeResultsListOnMobile = () => {
+    if (isMobileResultsLayout()) {
+      setResultsListVisible(false)
+    }
+  }
+
+  const handleOpenNoteFromResults = (note: NoteRecord) => {
+    handleStartEdit(note)
+    closeResultsListOnMobile()
+  }
+
+  const handleAddNoteForCategory = (category: CategoryRecord) => {
+    clearMessages()
+    resetNoteForm({ selectedCategoryId: category.id })
+    setCategoryInputValue(category.label)
+    closeResultsListOnMobile()
+  }
+
+  const handleAddNoteForTag = (tag: TagRecord) => {
+    clearMessages()
+    const currentCategoryId = noteFormRef.current.selectedCategoryId
+    const selectedCategoryId =
+      currentCategoryId !== null && categories.some((category) => category.id === currentCategoryId)
+        ? currentCategoryId
+        : getDefaultCategoryId(categories)
+    resetNoteForm({ selectedCategoryId, selectedTagIds: [tag.id] })
+    const categoryLabel =
+      selectedCategoryId === null
+        ? ""
+        : (categories.find((category) => category.id === selectedCategoryId)?.label ?? "")
+    setCategoryInputValue(categoryLabel)
+    closeResultsListOnMobile()
+  }
+
   const handleSelectCategory = (rawId: string) => {
     if (rawId === "") {
       return
@@ -1467,7 +1504,9 @@ export default function NotesApp() {
           allTagItems={allNoteItems}
           tagNoteGroups={tagNoteGroups}
           activeNoteId={editingNoteId}
-          onEditNote={handleStartEdit}
+          onEditNote={handleOpenNoteFromResults}
+          onAddNoteForCategory={handleAddNoteForCategory}
+          onAddNoteForTag={handleAddNoteForTag}
           onEditCategory={openEditCategory}
           onDeleteCategory={openDeleteCategory}
           onEditTag={openEditTag}

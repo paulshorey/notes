@@ -272,6 +272,37 @@
   padding-left: 10px;
 }
 
+.sectionAddNoteButton {
+  display: flex;
+  width: calc(100% - 4px);
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 4px 2px 0;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--g-color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.sectionAddNoteButton:hover,
+.sectionAddNoteButton:focus-visible {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06));
+  color: var(--g-color-text-primary);
+  outline: none;
+}
+
+.sectionAddNoteButton > svg,
+.sectionAddNoteButton > span {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 720px) {
   .resultsColumnShell,
   .resultsColumnShellCollapsed {

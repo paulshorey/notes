@@ -1,7 +1,7 @@
 "use client"
 
 import type { CategoryRecord, NoteRecord, TagRecord } from "@lib/db-marketing"
-import { DotsThreeVertical, PencilSimple, SidebarSimple, Trash } from "@phosphor-icons/react"
+import { DotsThreeVertical, PencilSimple, Plus, SidebarSimple, Trash } from "@phosphor-icons/react"
 import { Button, Text, TextInput } from "@gravity-ui/uikit"
 import { toLowercaseInput } from "@/lib/strings"
 import { type CSSProperties, type MouseEvent, useEffect, useRef, useState } from "react"
@@ -45,6 +45,8 @@ interface ResultsColumnProps {
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
   onEditNote: (note: NoteRecord) => void
+  onAddNoteForCategory: (category: CategoryRecord) => void
+  onAddNoteForTag: (tag: TagRecord) => void
   onEditCategory: (category: CategoryRecord) => void
   onDeleteCategory: (category: CategoryRecord) => void
   onEditTag: (tag: TagRecord) => void
@@ -71,6 +73,8 @@ export function ResultsColumn({
   tagNoteGroups,
   activeNoteId,
   onEditNote,
+  onAddNoteForCategory,
+  onAddNoteForTag,
   onEditCategory,
   onDeleteCategory,
   onEditTag,
@@ -81,6 +85,7 @@ export function ResultsColumn({
   const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
   const actionMenuRootRef = useRef<HTMLDivElement>(null)
+  const categoryExpansionTouchedRef = useRef(false)
   const { selectedTagId, setSelectedTagId, searchQuery, setSearchQuery } = useNotesAppStore()
 
   useEffect(() => {
@@ -132,6 +137,19 @@ export function ResultsColumn({
   }, [selectedTagId, setSelectedTagId, tags])
 
   useEffect(() => {
+    if (categoryExpansionTouchedRef.current || expandedCategoryId !== null || notesLoading) {
+      return
+    }
+
+    const firstCategoryWithResults = categoryNoteGroups.find(({ category, items }) =>
+      selectedTag === null ? category.noteCount > 0 : items.length > 0,
+    )
+    if (firstCategoryWithResults) {
+      setExpandedCategoryId(firstCategoryWithResults.category.id)
+    }
+  }, [categoryNoteGroups, expandedCategoryId, notesLoading, selectedTag])
+
+  useEffect(() => {
     if (openActionMenuId === null) {
       return
     }
@@ -160,6 +178,7 @@ export function ResultsColumn({
 
   const toggleCategory = (categoryId: ExpandedCategoryId) => {
     setOpenActionMenuId(null)
+    categoryExpansionTouchedRef.current = true
     setExpandedCategoryId((current) => (current === categoryId ? null : categoryId))
   }
 
@@ -176,11 +195,6 @@ export function ResultsColumn({
 
     setExpandedTagId(tagId)
     setSelectedTagId(tagId === ALL_TAGS_EXPANDED_ID ? null : tagId)
-  }
-
-  const handleSearchResultEdit = (note: NoteRecord) => {
-    onEditNote(note)
-    onClose()
   }
 
   return (
@@ -224,7 +238,7 @@ export function ResultsColumn({
                     ? `No search results in “${selectedTag.label}”.`
                     : "No search results."
                 }
-                onEdit={handleSearchResultEdit}
+                onEdit={onEditNote}
               />
             </div>
           )}
@@ -308,6 +322,10 @@ export function ResultsColumn({
                       </div>
                       {expanded && (
                         <div id={panelId} className={styles.categoryPanel}>
+                          <SectionAddNoteButton
+                            label={`Add note in ${category.label}`}
+                            onClick={() => onAddNoteForCategory(category)}
+                          />
                           <NoteResultsList
                             items={items}
                             activeNoteId={activeNoteId}
@@ -383,6 +401,10 @@ export function ResultsColumn({
                     </div>
                     {expanded && (
                       <div id={panelId} className={styles.categoryPanel}>
+                        <SectionAddNoteButton
+                          label={`Add note tagged ${tag.label}`}
+                          onClick={() => onAddNoteForTag(tag)}
+                        />
                         <NoteResultsList
                           items={items}
                           activeNoteId={activeNoteId}
@@ -407,6 +429,25 @@ export function ResultsColumn({
         </div>
       </section>
     </div>
+  )
+}
+
+interface SectionAddNoteButtonProps {
+  label: string
+  onClick: () => void
+}
+
+function SectionAddNoteButton({ label, onClick }: SectionAddNoteButtonProps) {
+  return (
+    <button
+      type="button"
+      className={styles.sectionAddNoteButton}
+      onClick={onClick}
+      aria-label={label}
+    >
+      <Plus size={13} weight="regular" />
+      <span>Add note</span>
+    </button>
   )
 }
 
