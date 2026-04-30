@@ -10,6 +10,7 @@ import type {
   CreateTagResponse,
   DeleteTagResponse,
   EmbeddingMaintenanceResponse,
+  NoteResponse,
   NotesResponse,
   NoteRecord,
   SearchResponse,
@@ -61,6 +62,7 @@ const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
 const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
+const MOBILE_RESULTS_TRANSITION_MS = 400
 const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 
@@ -168,6 +170,14 @@ const noteRequestBody = (form: NoteFormState) => ({
   timeRemind: form.remindExpanded ? form.timeRemind : null,
 })
 
+const notePatchBody = (note: NoteRecord) => ({
+  categoryId: note.category.id,
+  tagIds: note.tags.map((tag) => tag.id),
+  description: note.description ?? "",
+  timeDue: note.timeDue,
+  timeRemind: note.timeRemind,
+})
+
 export default function NotesApp() {
   const [identifier, setIdentifier] = useState("")
   const [user, setUser] = useState<UserSummary | null>(null)
@@ -188,6 +198,7 @@ export default function NotesApp() {
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [noteForm, setNoteForm] = useState<NoteFormState>(() => createDefaultNoteForm())
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
+  const [descriptionEditorSessionId, setDescriptionEditorSessionId] = useState(0)
   const [sessionLoading, setSessionLoading] = useState(true)
   const [notesLoading, setNotesLoading] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -217,6 +228,7 @@ export default function NotesApp() {
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
+  const [mobileResultsOverlayMounted, setMobileResultsOverlayMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const userRef = useRef<UserSummary | null>(null)
   const noteFormRef = useRef<NoteFormState>(noteForm)
@@ -228,6 +240,7 @@ export default function NotesApp() {
   const creatingTagLabelsRef = useRef(new Set<string>())
   const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
   const preferenceSaveRequestIdRef = useRef(0)
+  const mobileResultsOverlayTimeoutRef = useRef<number | null>(null)
   const resizeStateRef = useRef<{
     pointerId: number
     startX: number
@@ -257,6 +270,13 @@ export default function NotesApp() {
     }),
     [resultsColumnWidth],
   )
+
+  const clearMobileResultsOverlayTimeout = useCallback(() => {
+    if (mobileResultsOverlayTimeoutRef.current === null) return
+
+    window.clearTimeout(mobileResultsOverlayTimeoutRef.current)
+    mobileResultsOverlayTimeoutRef.current = null
+  }, [])
 
   const handleResizePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
@@ -311,11 +331,9 @@ export default function NotesApp() {
     }
   }
 
-  const handleNoteFormClick = useCallback(() => {
-    if (resultsListVisible && isMobileResultsLayout()) {
-      setResultsListVisible(false)
-    }
-  }, [resultsListVisible, setResultsListVisible])
+  const handleMobileResultsOverlayClick = useCallback(() => {
+    setResultsListVisible(false)
+  }, [setResultsListVisible])
 
   useEffect(() => {
     const mediaQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
@@ -323,6 +341,7 @@ export default function NotesApp() {
       if (mediaQuery.matches) {
         setResultsListVisible(false)
       } else {
+        setMobileResultsOverlayMounted(false)
         setResultsListVisible(true)
       }
     }
@@ -331,6 +350,26 @@ export default function NotesApp() {
     mediaQuery.addEventListener("change", syncResultsVisibility)
     return () => mediaQuery.removeEventListener("change", syncResultsVisibility)
   }, [setResultsListVisible])
+
+  useEffect(() => {
+    if (resultsListVisible) {
+      clearMobileResultsOverlayTimeout()
+      setMobileResultsOverlayMounted(isMobileResultsLayout())
+      return
+    }
+
+    if (!mobileResultsOverlayMounted) return
+
+    clearMobileResultsOverlayTimeout()
+    mobileResultsOverlayTimeoutRef.current = window.setTimeout(() => {
+      mobileResultsOverlayTimeoutRef.current = null
+      setMobileResultsOverlayMounted(false)
+    }, MOBILE_RESULTS_TRANSITION_MS)
+
+    return clearMobileResultsOverlayTimeout
+  }, [clearMobileResultsOverlayTimeout, mobileResultsOverlayMounted, resultsListVisible])
+
+  useEffect(() => clearMobileResultsOverlayTimeout, [clearMobileResultsOverlayTimeout])
 
   useEffect(() => {
     if (!resultsListVisible) return
@@ -415,6 +454,7 @@ export default function NotesApp() {
       lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
       setNoteForm(nextForm)
       setEditingNoteId(null)
+      setDescriptionEditorSessionId((sessionId) => sessionId + 1)
       setPendingTagLabels([])
     },
     [categories],
@@ -1002,10 +1042,14 @@ export default function NotesApp() {
   const handleStartEdit = (note: NoteRecord) => {
     clearMessages()
     const nextForm = noteToFormState(note)
+    const shouldResetDescriptionEditor = editingNoteIdRef.current !== note.id
     editingNoteIdRef.current = note.id
     noteFormRef.current = nextForm
     lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
     setEditingNoteId(note.id)
+    if (shouldResetDescriptionEditor) {
+      setDescriptionEditorSessionId((sessionId) => sessionId + 1)
+    }
     setPendingTagLabels([])
     setNoteForm(nextForm)
   }
@@ -1115,6 +1159,7 @@ export default function NotesApp() {
             : [...prev.selectedTagIds, data.tag.id],
         }))
       }
+      setStatusMessage(`Tag “${data.tag.label}” added.`)
     } catch (error) {
       setPendingTagLabels((prev) => prev.filter((item) => normalizeLabel(item) !== normalizedLabel))
       setErrorMessage(getErrorMessage(error))
@@ -1164,6 +1209,7 @@ export default function NotesApp() {
         selectedCategoryId: data.category.id,
       }))
       setCategoryInputValue(data.category.label)
+      setStatusMessage(`Category “${data.category.label}” added.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -1174,6 +1220,151 @@ export default function NotesApp() {
   const handleSaveNote = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     void saveCurrentNote("manual")
+  }
+
+  const resolveCategoryForSidebarMove = async (rawLabel: string): Promise<CategoryRecord | null> => {
+    if (!user) {
+      setErrorMessage("Sign in before moving notes.")
+      return null
+    }
+    const label = normalizeLabel(rawLabel)
+    if (label === "") {
+      return null
+    }
+    const existingCategory = categories.find(
+      (category) => normalizeLabel(category.label) === normalizeLabel(label),
+    )
+    if (existingCategory) {
+      return existingCategory
+    }
+
+    const response = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, label }),
+    })
+    const data = await readJson<CreateCategoryResponse>(response)
+    setCategories((prev) => {
+      const without = prev.filter((category) => category.id !== data.category.id)
+      return [...without, data.category].sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+      )
+    })
+    return data.category
+  }
+
+  const resolveTagForSidebarMove = async (rawLabel: string): Promise<TagRecord | null> => {
+    if (!user) {
+      setErrorMessage("Sign in before moving notes.")
+      return null
+    }
+    const label = normalizeLabel(rawLabel)
+    if (label === "") {
+      return null
+    }
+    const existingTag = tags.find((tag) => normalizeLabel(tag.label) === normalizeLabel(label))
+    if (existingTag) {
+      return existingTag
+    }
+
+    const response = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, label }),
+    })
+    const data = await readJson<CreateTagResponse>(response)
+    setTags((prev) => {
+      const without = prev.filter((tag) => tag.id !== data.tag.id)
+      return [...without, data.tag].sort((a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+      )
+    })
+    return data.tag
+  }
+
+  const patchNoteFromSidebar = async (
+    note: NoteRecord,
+    nextCategoryId: number,
+    nextTagIds: number[],
+  ) => {
+    if (!user) return null
+
+    const response = await fetch("/api/notes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        noteId: note.id,
+        note: {
+          categoryId: nextCategoryId,
+          tagIds: nextTagIds,
+          description: note.description ?? "",
+          timeDue: note.timeDue,
+          timeRemind: note.timeRemind,
+        },
+      }),
+    })
+    const data = await readJson<{ note: NoteRecord }>(response)
+    await refreshResults(user.id)
+    return data.note
+  }
+
+  const handleMoveNoteCategory = async (note: NoteRecord, categoryLabel: string) => {
+    if (!user) return
+    clearMessages()
+    setNotePending(true)
+    try {
+      const category = await resolveCategoryForSidebarMove(categoryLabel)
+      if (!category) return
+      if (category.id === note.category.id) return
+
+      const updatedNote = await patchNoteFromSidebar(
+        note,
+        category.id,
+        note.tags.map((tag) => tag.id),
+      )
+      if (updatedNote && editingNoteId === note.id) {
+        const nextForm = noteToFormState(updatedNote)
+        noteFormRef.current = nextForm
+        lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
+        setPendingTagLabels([])
+        setNoteForm(nextForm)
+      }
+      setStatusMessage(`Note moved to “${category.label}”.`)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setNotePending(false)
+    }
+  }
+
+  const handleMoveNoteTag = async (note: NoteRecord, fromTagId: number, tagLabel: string) => {
+    if (!user) return
+    clearMessages()
+    setNotePending(true)
+    try {
+      const tag = await resolveTagForSidebarMove(tagLabel)
+      if (!tag) return
+
+      const nextTagIds = note.tags
+        .filter((noteTag) => noteTag.id !== fromTagId && noteTag.id !== tag.id)
+        .map((noteTag) => noteTag.id)
+      nextTagIds.push(tag.id)
+
+      const updatedNote = await patchNoteFromSidebar(note, note.category.id, nextTagIds)
+      if (updatedNote && editingNoteId === note.id) {
+        const nextForm = noteToFormState(updatedNote)
+        noteFormRef.current = nextForm
+        lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
+        setPendingTagLabels([])
+        setNoteForm(nextForm)
+      }
+      setStatusMessage(`Note tag changed to “${tag.label}”.`)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setNotePending(false)
+    }
   }
 
   const openEditCategory = (category: CategoryRecord) => {
@@ -1237,6 +1428,7 @@ export default function NotesApp() {
       })
       await readJson<DeleteCategoryResponse>(response)
       await refreshResults(user.id)
+      setStatusMessage(`Category “${category.label}” deleted.`)
       setDeletingCategory(null)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -1330,12 +1522,19 @@ export default function NotesApp() {
           tagId: tag.id,
         }),
       })
-      await readJson<DeleteTagResponse>(response)
+      const data = await readJson<DeleteTagResponse>(response)
       setTags((prev) => prev.filter((c) => c.id !== tag.id))
       if (selectedTagId === tag.id) {
         setSelectedTagId(null)
       }
       await refreshResults(user.id)
+      setStatusMessage(
+        data.deletedLinks === 0
+          ? `Tag “${tag.label}” deleted.`
+          : `Tag “${tag.label}” deleted (removed from ${data.deletedLinks} ${
+              data.deletedLinks === 1 ? "note" : "notes"
+            }).`,
+      )
       setDeletingTag(null)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -1428,6 +1627,7 @@ export default function NotesApp() {
           categories={categories}
           tags={tags}
           pendingTagLabels={pendingTagLabels}
+          descriptionEditorSessionId={descriptionEditorSessionId}
           categoryInputValue={categoryInputValue}
           onCategoryInputValueChange={setCategoryInputValue}
           createCategoryPending={createCategoryPending}
@@ -1438,7 +1638,6 @@ export default function NotesApp() {
           onSubmit={handleSaveNote}
           onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           onCancelEdit={handleCancelEdit}
-          onClick={handleNoteFormClick}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader
@@ -1453,6 +1652,17 @@ export default function NotesApp() {
             </div>
           }
         />
+
+        {mobileResultsOverlayMounted && (
+          <button
+            type="button"
+            className={`${styles.mobileResultsOverlay} ${
+              resultsListVisible ? "" : styles.mobileResultsOverlayClosing
+            }`}
+            aria-label="Hide notes list"
+            onClick={handleMobileResultsOverlayClick}
+          />
+        )}
 
         <button
           type="button"
@@ -1498,11 +1708,13 @@ export default function NotesApp() {
           onEditNote={handleOpenNoteFromResults}
           onAddNoteForCategory={handleAddNoteForCategory}
           onAddNoteForTag={handleAddNoteForTag}
+          onMoveNoteCategory={handleMoveNoteCategory}
+          onMoveNoteTag={handleMoveNoteTag}
           onEditCategory={openEditCategory}
           onDeleteCategory={openDeleteCategory}
           onEditTag={openEditTag}
           onDeleteTag={openDeleteTag}
-          onClose={() => setResultsListVisible(false)}
+          onClose={handleMobileResultsOverlayClick}
         />
       </div>
 

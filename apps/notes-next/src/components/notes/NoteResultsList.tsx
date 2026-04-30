@@ -2,6 +2,7 @@
 
 import type { NoteRecord } from "@lib/db-marketing"
 import { Text } from "@gravity-ui/uikit"
+import type { ReactNode } from "react"
 import styles from "./NoteResultsList.module.css"
 
 export interface DisplayNoteItem {
@@ -15,6 +16,7 @@ interface NoteResultsListProps {
   loading: boolean
   emptyMessage: string
   onEdit: (note: NoteRecord) => void
+  renderAction?: (note: NoteRecord) => ReactNode
 }
 
 const formatSimilarity = (value: number | null | undefined) => {
@@ -36,6 +38,7 @@ export function NoteResultsList({
   loading,
   emptyMessage,
   onEdit,
+  renderAction,
 }: NoteResultsListProps) {
   if (loading) {
     return (
@@ -83,6 +86,11 @@ export function NoteResultsList({
                 {noteHeadline(note)}
               </div>
               {relevanceLabel && <span className={styles.similarityBadge}>{relevanceLabel}</span>}
+              {renderAction && (
+                <div className={styles.noteAction} onClick={(event) => event.stopPropagation()}>
+                  {renderAction(note)}
+                </div>
+              )}
             </div>
           </div>
         )

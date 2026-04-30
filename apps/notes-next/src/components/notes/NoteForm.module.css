@@ -136,10 +136,6 @@
 }
 
 .categoryPanel {
-  position: absolute;
-  z-index: 20;
-  bottom: 0;
-  right: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -151,7 +147,6 @@
   border-radius: 6px;
   background: var(--g-color-base-float, #1f1f1f);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
-  text-align: left;
 }
 
 .categoryInput {
@@ -251,9 +246,8 @@
 .dateField {
   display: flex;
   min-width: 160px;
-  flex: 0 1 260px;
+  flex: 1 1 180px;
   align-items: center;
-  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -288,10 +282,6 @@
 }
 
 .morePanel {
-  position: absolute;
-  z-index: 20;
-  right: 0;
-  bottom: calc(100% + 6px);
   display: flex;
   min-width: 132px;
   flex-direction: column;

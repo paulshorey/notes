@@ -50,9 +50,43 @@
   /* opacity: 0.75; */
 }
 
+.mobileResultsOverlay {
+  display: none;
+}
+
 @media (max-width: 720px) {
   .content {
     overflow: hidden;
+  }
+
+  .mobileResultsOverlay {
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: block;
+    border: 0;
+    background: transparent;
+    cursor: default;
+    overflow: hidden;
+  }
+
+  .mobileResultsOverlay::before {
+    position: absolute;
+    inset: 0;
+    content: "";
+    opacity: 1;
+    transform: translateX(0);
+    transition:
+      opacity 0.4s ease,
+      transform 0.4s ease;
+  }
+
+  .mobileResultsOverlayClosing::before {
+    opacity: 0;
+    transform: translateX(100%);
   }
 
   .resizeHandle {

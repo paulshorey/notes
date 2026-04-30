@@ -61,6 +61,7 @@
 }
 
 .resultsColumnHeaderSearch {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   align-items: center;
@@ -79,8 +80,32 @@
 }
 
 .searchInput :global(.g-text-input__content) {
-  padding-left: 10px;
-  padding-right: 10px;
+  padding-left: 6px;
+  padding-right: 30px;
+}
+
+.searchClearButton {
+  position: absolute;
+  z-index: 1;
+  right: 5px;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--g-color-text-secondary);
+  cursor: pointer;
+}
+
+.searchClearButton:hover,
+.searchClearButton:focus-visible {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06));
+  color: var(--g-color-text-primary);
+  outline: none;
 }
 
 .noteResults {
@@ -97,7 +122,7 @@
   min-height: 0;
   overflow-y: visible;
   border-bottom: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
-  padding-bottom: 8px;
+  padding: 4px 0 12px;
 }
 
 .categoryAccordion,
@@ -107,17 +132,17 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: visible;
-  padding-bottom: 8px;
+  padding: 8px 0 12px;
 }
 
 .tagAccordion {
-  margin-top: 4px;
+  margin-top: 8px;
   border-top: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
-  padding-top: 4px;
+  padding-top: 12px;
 }
 
 .searchResultsSection + .categoryAccordion {
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .accordionHeading {
@@ -316,6 +341,89 @@
 .sectionAddNoteButton > svg,
 .sectionAddNoteButton > span {
   flex: 0 0 auto;
+}
+
+.noteMoveActionWrap {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.noteMoveActionButton {
+  min-width: 24px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.68;
+}
+
+.noteMoveActionWrap:hover .noteMoveActionButton,
+.noteMoveActionButton:focus-visible,
+.noteMoveActionButton[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.noteMovePicker {
+  display: flex;
+  width: min(220px, calc(100vw - 32px));
+  max-height: min(260px, calc(100vh - 32px));
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  background: var(--g-color-base-float, #1f1f1f);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+}
+
+.noteMovePickerOptions {
+  display: flex;
+  max-height: 168px;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.noteMovePickerOption,
+.noteMovePickerEmpty {
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--g-color-text-primary);
+  font: inherit;
+  text-align: left;
+}
+
+.noteMovePickerOption {
+  cursor: pointer;
+}
+
+.noteMovePickerOption:hover,
+.noteMovePickerOption:focus-visible {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06));
+  outline: none;
+}
+
+.noteMovePickerEmpty {
+  color: var(--g-color-text-secondary);
+}
+
+.noteMovePickerInput {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
+  border-radius: 4px;
+  background: var(--g-color-base-background, #151515);
+  color: var(--g-color-text-primary);
+  font: inherit;
+}
+
+.noteMovePickerInput:focus {
+  border-color: var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
+  outline: none;
 }
 
 @media (max-width: 720px) {
