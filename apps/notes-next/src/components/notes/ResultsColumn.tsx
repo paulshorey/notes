@@ -9,10 +9,8 @@ import { useNotesAppStore } from "@/stores/notesAppStore"
 import { NoteResultsList, type DisplayNoteItem } from "./NoteResultsList"
 import styles from "./ResultsColumn.module.css"
 
-const ALL_CATEGORIES_EXPANDED_ID = "all-categories"
 const ALL_TAGS_EXPANDED_ID = "all-tags"
 
-type ExpandedCategoryId = number | typeof ALL_CATEGORIES_EXPANDED_ID
 type ExpandedTagId = number | typeof ALL_TAGS_EXPANDED_ID
 
 export interface CategoryNoteGroup {
@@ -44,6 +42,7 @@ interface ResultsColumnProps {
   allTagItems: DisplayNoteItem[]
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
+  activeCategoryId: number | null
   onEditNote: (note: NoteRecord) => void
   onAddNoteForCategory: (category: CategoryRecord) => void
   onAddNoteForTag: (tag: TagRecord) => void
@@ -72,6 +71,7 @@ export function ResultsColumn({
   allTagItems,
   tagNoteGroups,
   activeNoteId,
+  activeCategoryId,
   onEditNote,
   onAddNoteForCategory,
   onAddNoteForTag,
@@ -81,30 +81,34 @@ export function ResultsColumn({
   onDeleteTag,
   onClose,
 }: ResultsColumnProps) {
-  const [expandedCategoryId, setExpandedCategoryId] = useState<ExpandedCategoryId | null>(null)
   const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
   const actionMenuRootRef = useRef<HTMLDivElement>(null)
-  const categoryExpansionTouchedRef = useRef(false)
-  const { selectedTagId, setSelectedTagId, searchQuery, setSearchQuery } = useNotesAppStore()
+  const {
+    manuallyExpandedCategoryId,
+    setManuallyExpandedCategoryId,
+    selectedTagId,
+    setSelectedTagId,
+    searchQuery,
+    setSearchQuery,
+  } = useNotesAppStore()
 
   useEffect(() => {
-    setExpandedCategoryId((current) => {
-      if (current === null) {
-        return current
-      }
+    if (manuallyExpandedCategoryId === null) {
+      return
+    }
 
-      if (current === ALL_CATEGORIES_EXPANDED_ID) {
-        return current
-      }
+    if (manuallyExpandedCategoryId === activeCategoryId) {
+      setManuallyExpandedCategoryId(null)
+      return
+    }
 
-      if (categories.some((category) => category.id === current)) {
-        return current
-      }
+    if (categories.some((category) => category.id === manuallyExpandedCategoryId)) {
+      return
+    }
 
-      return null
-    })
-  }, [categories])
+    setManuallyExpandedCategoryId(null)
+  }, [activeCategoryId, categories, manuallyExpandedCategoryId, setManuallyExpandedCategoryId])
 
   useEffect(() => {
     setExpandedTagId((current) => {
@@ -137,19 +141,6 @@ export function ResultsColumn({
   }, [selectedTagId, setSelectedTagId, tags])
 
   useEffect(() => {
-    if (categoryExpansionTouchedRef.current || expandedCategoryId !== null || notesLoading) {
-      return
-    }
-
-    const firstCategoryWithResults = categoryNoteGroups.find(({ category, items }) =>
-      selectedTag === null ? category.noteCount > 0 : items.length > 0,
-    )
-    if (firstCategoryWithResults) {
-      setExpandedCategoryId(firstCategoryWithResults.category.id)
-    }
-  }, [categoryNoteGroups, expandedCategoryId, notesLoading, selectedTag])
-
-  useEffect(() => {
     if (openActionMenuId === null) {
       return
     }
@@ -176,10 +167,12 @@ export function ResultsColumn({
   const getFilteredNoteCount = (category: CategoryRecord, items: DisplayNoteItem[]) =>
     selectedTag === null ? category.noteCount : items.length
 
-  const toggleCategory = (categoryId: ExpandedCategoryId) => {
+  const toggleCategory = (categoryId: number) => {
     setOpenActionMenuId(null)
-    categoryExpansionTouchedRef.current = true
-    setExpandedCategoryId((current) => (current === categoryId ? null : categoryId))
+    if (categoryId === activeCategoryId) {
+      return
+    }
+    setManuallyExpandedCategoryId(manuallyExpandedCategoryId === categoryId ? null : categoryId)
   }
 
   const toggleTag = (tagId: ExpandedTagId) => {
@@ -258,39 +251,12 @@ export function ResultsColumn({
               </div>
             ) : (
               <>
-                {/* <div className={styles.categoryGroup} role="listitem">
-                  <div className={styles.categoryRow}>
-                    <button
-                      type="button"
-                      className={styles.categoryToggle}
-                      aria-expanded={expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID}
-                      aria-controls="category-notes-all"
-                      onClick={() => toggleCategory(ALL_CATEGORIES_EXPANDED_ID)}
-                    >
-                      <SectionTitle count={allCategoriesNoteCount} label="all categories" />
-                    </button>
-                  </div>
-                  {expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID && (
-                    <div id="category-notes-all" className={styles.categoryPanel}>
-                      <NoteResultsList
-                        items={allCategoryItems}
-                        activeNoteId={activeNoteId}
-                        loading={false}
-                        emptyMessage={
-                          selectedTag
-                            ? `No notes in “${selectedTag.label}” for any category.`
-                            : "No notes yet."
-                        }
-                        onEdit={onEditNote}
-                      />
-                    </div>
-                  )}
-                </div> */}
-
                 {categoryNoteGroups.map(({ category, items }) => {
-                  const expanded = expandedCategoryId === category.id
+                  const expanded =
+                    activeCategoryId === category.id || manuallyExpandedCategoryId === category.id
                   const panelId = `category-notes-${category.id}`
                   const deleteDisabled = category.id === fallbackCategoryId
+                  const addNoteActive = activeNoteId === null && activeCategoryId === category.id
 
                   return (
                     <div className={styles.categoryGroup} key={category.id} role="listitem">
@@ -324,6 +290,7 @@ export function ResultsColumn({
                         <div id={panelId} className={styles.categoryPanel}>
                           <SectionAddNoteButton
                             label={`Add note in ${category.label}`}
+                            active={addNoteActive}
                             onClick={() => onAddNoteForCategory(category)}
                           />
                           {items.length > 0 && (
@@ -434,16 +401,18 @@ export function ResultsColumn({
 
 interface SectionAddNoteButtonProps {
   label: string
+  active?: boolean
   onClick: () => void
 }
 
-function SectionAddNoteButton({ label, onClick }: SectionAddNoteButtonProps) {
+function SectionAddNoteButton({ label, active = false, onClick }: SectionAddNoteButtonProps) {
   return (
     <button
       type="button"
-      className={styles.sectionAddNoteButton}
+      className={`${styles.sectionAddNoteButton} ${active ? styles.sectionAddNoteButtonActive : ""}`}
       onClick={onClick}
       aria-label={label}
+      aria-current={active ? "true" : undefined}
     >
       <Plus size={13} weight="regular" />
       <span>Add note</span>
