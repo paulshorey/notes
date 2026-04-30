@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { Button, Text } from "@gravity-ui/uikit"
-import { CalendarBlank, CaretDown, Plus, Trash, X } from "@phosphor-icons/react"
+import { CalendarBlank, CaretDown, DotsThree, Plus, Trash, X } from "@phosphor-icons/react"
 import {
   type Dispatch,
   type FormEvent,
@@ -79,8 +79,10 @@ export function NoteForm({
   const categoryInputRef = useRef<HTMLInputElement | null>(null)
   const tagPickerRef = useRef<HTMLDivElement | null>(null)
   const tagInputRef = useRef<HTMLInputElement | null>(null)
+  const morePickerRef = useRef<HTMLDivElement | null>(null)
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
+  const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [tagInputValue, setTagInputValue] = useState("")
 
   const selectedCategoryLabel =
@@ -144,17 +146,22 @@ export function NoteForm({
   }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
 
   useEffect(() => {
-    if (!categoryPickerOpen && !tagPickerOpen) {
+    if (!categoryPickerOpen && !tagPickerOpen && !morePickerOpen) {
       return
     }
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node
-      if (categoryPickerRef.current?.contains(target) || tagPickerRef.current?.contains(target)) {
+      if (
+        categoryPickerRef.current?.contains(target) ||
+        tagPickerRef.current?.contains(target) ||
+        morePickerRef.current?.contains(target)
+      ) {
         return
       }
       setCategoryPickerOpen(false)
       setTagPickerOpen(false)
+      setMorePickerOpen(false)
       setTagInputValue("")
       onCategoryInputValueChange(selectedCategoryLabel)
     }
@@ -165,6 +172,7 @@ export function NoteForm({
       }
       setCategoryPickerOpen(false)
       setTagPickerOpen(false)
+      setMorePickerOpen(false)
       setTagInputValue("")
       onCategoryInputValueChange(selectedCategoryLabel)
     }
@@ -175,12 +183,19 @@ export function NoteForm({
       document.removeEventListener("pointerdown", handlePointerDown)
       document.removeEventListener("keydown", handleKeyDown)
     }
-  }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel, tagPickerOpen])
+  }, [
+    categoryPickerOpen,
+    morePickerOpen,
+    onCategoryInputValueChange,
+    selectedCategoryLabel,
+    tagPickerOpen,
+  ])
 
   const openCategoryDropdown = () => {
     onCategoryInputValueChange("")
     setCategoryPickerOpen(true)
     setTagPickerOpen(false)
+    setMorePickerOpen(false)
     window.setTimeout(() => categoryInputRef.current?.focus(), 0)
   }
 
@@ -197,6 +212,7 @@ export function NoteForm({
     setTagInputValue("")
     setTagPickerOpen(true)
     setCategoryPickerOpen(false)
+    setMorePickerOpen(false)
     restoreCategoryInputValue()
     window.setTimeout(() => tagInputRef.current?.focus(), 0)
   }
@@ -283,6 +299,7 @@ export function NoteForm({
   }
 
   const expandDateField = (field: "due" | "remind") => {
+    setMorePickerOpen(false)
     setForm((prev) =>
       field === "due"
         ? {
@@ -308,8 +325,9 @@ export function NoteForm({
       return (
         <button
           type="button"
-          className={styles.dateLinkButton}
+          className={styles.moreMenuItem}
           onClick={() => expandDateField(field)}
+          role="menuitem"
         >
           <span>{label}</span>
           <CalendarBlank size={14} weight="regular" />
@@ -392,7 +410,6 @@ export function NoteForm({
               aria-haspopup="dialog"
             >
               <span className={styles.categoryTriggerLabel}>
-                Category:{" "}
                 <span className={styles.categoryTriggerValue}>
                   {selectedCategoryLabel || "none"}
                 </span>
@@ -445,23 +462,13 @@ export function NoteForm({
               </div>
             )}
           </div>
-          {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
-          {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
 
-          <div className={styles.categoryPicker} ref={tagPickerRef}>
-            <button
-              type="button"
-              className={styles.categoryTrigger}
-              onClick={tagPickerOpen ? closeTagDropdown : openTagDropdown}
-              disabled={!userPresent || createTagPending}
-              aria-expanded={tagPickerOpen}
-              aria-haspopup="dialog"
-            >
-              <span className={styles.categoryTriggerLabel}>Tag</span>
-              <Plus size={12} weight="regular" />
-            </button>
+          {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
+          {form.remindExpanded &&
+            renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
 
-            {tagPickerOpen && (
+          {tagPickerOpen && (
+            <div className={styles.categoryPicker} ref={tagPickerRef}>
               <div className={styles.categoryPanel}>
                 <div className={styles.categoryOptions} role="listbox" aria-label="Tag options">
                   {filteredTagOptions.length === 0 && tagInputValue.trim() !== "" ? (
@@ -499,8 +506,8 @@ export function NoteForm({
                   onKeyDown={handleTagInputKeyDown}
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {selectedTagLabels.map((label) => (
             <button
@@ -514,6 +521,44 @@ export function NoteForm({
               <X size={10} weight="regular" />
             </button>
           ))}
+
+          <div className={styles.morePicker} ref={morePickerRef}>
+            <button
+              type="button"
+              className={`${styles.categoryTrigger} ${styles.moreTrigger}`}
+              onClick={() => {
+                setMorePickerOpen((open) => !open)
+                setCategoryPickerOpen(false)
+                setTagPickerOpen(false)
+                restoreCategoryInputValue()
+              }}
+              disabled={!userPresent}
+              aria-label="More note settings"
+              aria-expanded={morePickerOpen}
+              aria-haspopup="menu"
+            >
+              <DotsThree size={22} weight="bold" />
+            </button>
+
+            {morePickerOpen && (
+              <div className={styles.morePanel} role="menu" aria-label="More note settings">
+                {!form.dueExpanded &&
+                  renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
+                {!form.remindExpanded &&
+                  renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
+                <button
+                  type="button"
+                  className={styles.moreMenuItem}
+                  onClick={openTagDropdown}
+                  disabled={!userPresent || createTagPending}
+                  role="menuitem"
+                >
+                  <span>Tag</span>
+                  <Plus size={12} weight="regular" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </form>
     </section>
