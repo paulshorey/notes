@@ -5,6 +5,7 @@ import {
   ArrowsLeftRight,
   DotsThreeVertical,
   PencilSimple,
+  Plus,
   SidebarSimple,
   Trash,
   X,
@@ -25,10 +26,8 @@ import { useNotesAppStore } from "@/stores/notesAppStore"
 import { NoteResultsList, type DisplayNoteItem } from "./NoteResultsList"
 import styles from "./ResultsColumn.module.css"
 
-const ALL_CATEGORIES_EXPANDED_ID = "all-categories"
 const ALL_TAGS_EXPANDED_ID = "all-tags"
 
-type ExpandedCategoryId = number | typeof ALL_CATEGORIES_EXPANDED_ID
 type ExpandedTagId = number | typeof ALL_TAGS_EXPANDED_ID
 
 type MovePickerState =
@@ -73,7 +72,10 @@ interface ResultsColumnProps {
   allTagItems: DisplayNoteItem[]
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
+  activeCategoryId: number | null
   onEditNote: (note: NoteRecord) => void
+  onAddNoteForCategory: (category: CategoryRecord) => void
+  onAddNoteForTag: (tag: TagRecord) => void
   onMoveNoteCategory: (note: NoteRecord, categoryLabel: string) => void | Promise<void>
   onMoveNoteTag: (note: NoteRecord, fromTagId: number, tagLabel: string) => void | Promise<void>
   onEditCategory: (category: CategoryRecord) => void
@@ -101,7 +103,10 @@ export function ResultsColumn({
   allTagItems,
   tagNoteGroups,
   activeNoteId,
+  activeCategoryId,
   onEditNote,
+  onAddNoteForCategory,
+  onAddNoteForTag,
   onMoveNoteCategory,
   onMoveNoteTag,
   onEditCategory,
@@ -110,34 +115,40 @@ export function ResultsColumn({
   onDeleteTag,
   onClose,
 }: ResultsColumnProps) {
-  const [expandedCategoryId, setExpandedCategoryId] = useState<ExpandedCategoryId | null>(null)
   const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
   const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
   const actionMenuRootRef = useRef<HTMLDivElement>(null)
-  const { selectedTagId, setSelectedTagId, searchQuery, setSearchQuery } = useNotesAppStore()
+  const {
+    manuallyExpandedCategoryId,
+    setManuallyExpandedCategoryId,
+    selectedTagId,
+    setSelectedTagId,
+    searchQuery,
+    setSearchQuery,
+  } = useNotesAppStore()
   const trimmedSearchQuery = searchQuery.trim()
   const visibleCategoryNoteGroups = categoryNoteGroups.filter(
-    ({ category }) => !(category.id === 1 && category.noteCount === 0),
+    ({ category }) =>
+      category.id === activeCategoryId || !(category.id === 1 && category.noteCount === 0),
   )
 
   useEffect(() => {
-    setExpandedCategoryId((current) => {
-      if (current === null) {
-        return current
-      }
+    if (manuallyExpandedCategoryId === null) {
+      return
+    }
 
-      if (current === ALL_CATEGORIES_EXPANDED_ID) {
-        return current
-      }
+    if (manuallyExpandedCategoryId === activeCategoryId) {
+      setManuallyExpandedCategoryId(null)
+      return
+    }
 
-      if (categories.some((category) => category.id === current)) {
-        return current
-      }
+    if (categories.some((category) => category.id === manuallyExpandedCategoryId)) {
+      return
+    }
 
-      return null
-    })
-  }, [categories])
+    setManuallyExpandedCategoryId(null)
+  }, [activeCategoryId, categories, manuallyExpandedCategoryId, setManuallyExpandedCategoryId])
 
   useEffect(() => {
     setExpandedTagId((current) => {
@@ -196,10 +207,13 @@ export function ResultsColumn({
   const getFilteredNoteCount = (category: CategoryRecord, items: DisplayNoteItem[]) =>
     selectedTag === null ? category.noteCount : items.length
 
-  const toggleCategory = (categoryId: ExpandedCategoryId) => {
+  const toggleCategory = (categoryId: number) => {
     setOpenActionMenuId(null)
     setActiveMovePicker(null)
-    setExpandedCategoryId((current) => (current === categoryId ? null : categoryId))
+    if (categoryId === activeCategoryId) {
+      return
+    }
+    setManuallyExpandedCategoryId(manuallyExpandedCategoryId === categoryId ? null : categoryId)
   }
 
   const toggleTag = (tagId: ExpandedTagId) => {
@@ -220,7 +234,6 @@ export function ResultsColumn({
 
   const handleResultEdit = (note: NoteRecord) => {
     onEditNote(note)
-    onClose()
   }
 
   const closeMovePicker = () => {
@@ -350,39 +363,12 @@ export function ResultsColumn({
               </div>
             ) : (
               <>
-                {/* <div className={styles.categoryGroup} role="listitem">
-                  <div className={styles.categoryRow}>
-                    <button
-                      type="button"
-                      className={styles.categoryToggle}
-                      aria-expanded={expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID}
-                      aria-controls="category-notes-all"
-                      onClick={() => toggleCategory(ALL_CATEGORIES_EXPANDED_ID)}
-                    >
-                      <SectionTitle count={allCategoriesNoteCount} label="all categories" />
-                    </button>
-                  </div>
-                  {expandedCategoryId === ALL_CATEGORIES_EXPANDED_ID && (
-                    <div id="category-notes-all" className={styles.categoryPanel}>
-                      <NoteResultsList
-                        items={allCategoryItems}
-                        activeNoteId={activeNoteId}
-                        loading={false}
-                        emptyMessage={
-                          selectedTag
-                            ? `No notes in “${selectedTag.label}” for any category.`
-                            : "No notes yet."
-                        }
-                        onEdit={onEditNote}
-                      />
-                    </div>
-                  )}
-                </div> */}
-
                 {visibleCategoryNoteGroups.map(({ category, items }) => {
-                  const expanded = expandedCategoryId === category.id
+                  const expanded =
+                    activeCategoryId === category.id || manuallyExpandedCategoryId === category.id
                   const panelId = `category-notes-${category.id}`
                   const deleteDisabled = category.id === fallbackCategoryId
+                  const addNoteActive = activeNoteId === null && activeCategoryId === category.id
 
                   return (
                     <div className={styles.categoryGroup} key={category.id} role="listitem">
@@ -397,6 +383,7 @@ export function ResultsColumn({
                           <SectionTitle
                             count={getFilteredNoteCount(category, items)}
                             label={category.label}
+                            active={activeCategoryId === category.id}
                           />
                         </button>
                         <SectionActionMenu
@@ -414,30 +401,33 @@ export function ResultsColumn({
                       </div>
                       {expanded && (
                         <div id={panelId} className={styles.categoryPanel}>
-                          <NoteResultsList
-                            items={items}
-                            activeNoteId={activeNoteId}
-                            loading={false}
-                            emptyMessage={
-                              selectedTag
-                                ? `No notes in “${selectedTag.label}” for this category.`
-                                : `No notes in category “${category.label}”.`
-                            }
-                            onEdit={handleResultEdit}
-                            renderAction={(note) => {
-                              const pickerId = `category-${category.id}-note-${note.id}`
-                              return (
-                                <NoteMoveAction
-                                  active={activeMovePicker?.id === pickerId}
-                                  label={`Move note from ${category.label} to another category`}
-                                  onClose={closeMovePicker}
-                                  onClick={() => openCategoryMovePicker(note, category.id)}
-                                >
-                                  {renderMovePicker(note, pickerId)}
-                                </NoteMoveAction>
-                              )
-                            }}
+                          <SectionAddNoteButton
+                            label={`Add note in ${category.label}`}
+                            active={addNoteActive}
+                            onClick={() => onAddNoteForCategory(category)}
                           />
+                          {items.length > 0 && (
+                            <NoteResultsList
+                              items={items}
+                              activeNoteId={activeNoteId}
+                              loading={false}
+                              emptyMessage=""
+                              onEdit={handleResultEdit}
+                              renderAction={(note) => {
+                                const pickerId = `category-${category.id}-note-${note.id}`
+                                return (
+                                  <NoteMoveAction
+                                    active={activeMovePicker?.id === pickerId}
+                                    label={`Move note from ${category.label} to another category`}
+                                    onClose={closeMovePicker}
+                                    onClick={() => openCategoryMovePicker(note, category.id)}
+                                  >
+                                    {renderMovePicker(note, pickerId)}
+                                  </NoteMoveAction>
+                                )
+                              }}
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -502,26 +492,32 @@ export function ResultsColumn({
                     </div>
                     {expanded && (
                       <div id={panelId} className={styles.categoryPanel}>
-                        <NoteResultsList
-                          items={items}
-                          activeNoteId={activeNoteId}
-                          loading={false}
-                          emptyMessage={`No notes tagged “${tag.label}”.`}
-                          onEdit={handleResultEdit}
-                          renderAction={(note) => {
-                            const pickerId = `tag-${tag.id}-note-${note.id}`
-                            return (
-                              <NoteMoveAction
-                                active={activeMovePicker?.id === pickerId}
-                                label={`Move note from ${tag.label} to another tag`}
-                                onClose={closeMovePicker}
-                                onClick={() => openTagMovePicker(note, tag.id)}
-                              >
-                                {renderMovePicker(note, pickerId)}
-                              </NoteMoveAction>
-                            )
-                          }}
+                        <SectionAddNoteButton
+                          label={`Add note tagged ${tag.label}`}
+                          onClick={() => onAddNoteForTag(tag)}
                         />
+                        {items.length > 0 && (
+                          <NoteResultsList
+                            items={items}
+                            activeNoteId={activeNoteId}
+                            loading={false}
+                            emptyMessage=""
+                            onEdit={handleResultEdit}
+                            renderAction={(note) => {
+                              const pickerId = `tag-${tag.id}-note-${note.id}`
+                              return (
+                                <NoteMoveAction
+                                  active={activeMovePicker?.id === pickerId}
+                                  label={`Move note from ${tag.label} to another tag`}
+                                  onClose={closeMovePicker}
+                                  onClick={() => openTagMovePicker(note, tag.id)}
+                                >
+                                  {renderMovePicker(note, pickerId)}
+                                </NoteMoveAction>
+                              )
+                            }}
+                          />
+                        )}
                       </div>
                     )}
                   </div>
@@ -542,17 +538,41 @@ export function ResultsColumn({
   )
 }
 
+interface SectionAddNoteButtonProps {
+  label: string
+  active?: boolean
+  onClick: () => void
+}
+
+function SectionAddNoteButton({ label, active = false, onClick }: SectionAddNoteButtonProps) {
+  return (
+    <button
+      type="button"
+      className={`${styles.sectionAddNoteButton} ${active ? styles.sectionAddNoteButtonActive : ""}`}
+      onClick={onClick}
+      aria-label={label}
+      aria-current={active ? "true" : undefined}
+    >
+      <Plus size={13} weight="regular" />
+      <span>Add note</span>
+    </button>
+  )
+}
+
 interface SectionTitleProps {
   count: number
   label: string
+  active?: boolean
 }
 
-function SectionTitle({ count, label }: SectionTitleProps) {
+function SectionTitle({ count, label, active = false }: SectionTitleProps) {
   return (
     <span className={styles.categoryLabel}>
       <span className={styles.categoryCountText}>{count}</span>
       <sub className={styles.categoryPreposition}>in</sub>
-      <span className={styles.categoryNameText}>{label}</span>
+      <span className={`${styles.categoryNameText} ${active ? styles.categoryNameTextActive : ""}`}>
+        {label}
+      </span>
     </span>
   )
 }

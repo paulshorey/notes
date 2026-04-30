@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { Button, Popup, Text } from "@gravity-ui/uikit"
-import { CalendarBlank, CaretDown, Plus, Trash, X } from "@phosphor-icons/react"
+import { CalendarBlank, CaretDown, DotsThree, Plus, Trash, X } from "@phosphor-icons/react"
 import {
   type Dispatch,
   type FormEvent,
@@ -79,8 +79,10 @@ export function NoteForm({
   const categoryInputRef = useRef<HTMLInputElement | null>(null)
   const tagTriggerRef = useRef<HTMLButtonElement | null>(null)
   const tagInputRef = useRef<HTMLInputElement | null>(null)
+  const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
+  const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [tagInputValue, setTagInputValue] = useState("")
 
   const selectedCategoryLabel =
@@ -159,6 +161,7 @@ export function NoteForm({
     onCategoryInputValueChange("")
     setCategoryPickerOpen(true)
     setTagPickerOpen(false)
+    setMorePickerOpen(false)
   }
 
   const restoreCategoryInputValue = () => {
@@ -174,12 +177,18 @@ export function NoteForm({
     setTagInputValue("")
     setTagPickerOpen(true)
     setCategoryPickerOpen(false)
+    setMorePickerOpen(true)
     restoreCategoryInputValue()
   }
 
   const closeTagDropdown = () => {
     setTagPickerOpen(false)
     setTagInputValue("")
+  }
+
+  const closeMoreDropdown = () => {
+    setMorePickerOpen(false)
+    closeTagDropdown()
   }
 
   const selectCategory = (categoryId: number) => {
@@ -259,6 +268,7 @@ export function NoteForm({
   }
 
   const expandDateField = (field: "due" | "remind") => {
+    setMorePickerOpen(false)
     setForm((prev) =>
       field === "due"
         ? {
@@ -284,8 +294,9 @@ export function NoteForm({
       return (
         <button
           type="button"
-          className={styles.dateLinkButton}
+          className={styles.moreMenuItem}
           onClick={() => expandDateField(field)}
+          role="menuitem"
         >
           <span>{label}</span>
           <CalendarBlank size={14} weight="regular" />
@@ -352,7 +363,7 @@ export function NoteForm({
 
         <MarkdownEditor
           key={descriptionEditorSessionId}
-          placeholder="Description"
+          placeholder="Write before you forget! Login, sync, and organize later..."
           value={form.description}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
           className={styles.formDescription}
@@ -370,7 +381,6 @@ export function NoteForm({
               aria-haspopup="dialog"
             >
               <span className={styles.categoryTriggerLabel}>
-                Category:{" "}
                 <span className={styles.categoryTriggerValue}>
                   {selectedCategoryLabel || "none"}
                 </span>
@@ -430,67 +440,100 @@ export function NoteForm({
               </div>
             </Popup>
           </div>
-          {renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
-          {renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
+          {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
+          {form.remindExpanded &&
+            renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
 
-          <div className={styles.categoryPicker}>
+          <div className={styles.morePicker}>
             <button
-              ref={tagTriggerRef}
+              ref={moreTriggerRef}
               type="button"
-              className={styles.categoryTrigger}
-              onClick={tagPickerOpen ? closeTagDropdown : openTagDropdown}
-              disabled={!userPresent || createTagPending}
-              aria-expanded={tagPickerOpen}
-              aria-haspopup="dialog"
+              className={`${styles.categoryTrigger} ${styles.moreTrigger}`}
+              onClick={() => {
+                setMorePickerOpen((open) => !open)
+                setCategoryPickerOpen(false)
+                setTagPickerOpen(false)
+                restoreCategoryInputValue()
+              }}
+              disabled={!userPresent}
+              aria-label="More note settings"
+              aria-expanded={morePickerOpen}
+              aria-haspopup="menu"
             >
-              <span className={styles.categoryTriggerLabel}>Tag</span>
-              <Plus size={12} weight="regular" />
+              <DotsThree size={22} weight="bold" />
             </button>
 
             <Popup
-              anchorRef={tagTriggerRef}
-              open={tagPickerOpen}
-              onClose={closeTagDropdown}
-              placement={["top-start", "top-end", "bottom-start", "bottom-end"]}
+              anchorRef={moreTriggerRef}
+              open={morePickerOpen}
+              onClose={closeMoreDropdown}
+              placement={["top-end", "top-start", "bottom-end", "bottom-start"]}
               offset={6}
-              role="dialog"
+              role="menu"
             >
-              <div className={styles.categoryPanel}>
-                <div className={styles.categoryOptions} role="listbox" aria-label="Tag options">
-                  {filteredTagOptions.length === 0 && tagInputValue.trim() !== "" ? (
-                    <div className={styles.categoryEmpty}>
-                      Press Enter to create &quot;{tagInputValue.trim()}&quot;
-                    </div>
-                  ) : (
-                    filteredTagOptions.map((tag) => (
-                      <button
-                        key={tag.id}
-                        type="button"
-                        className={styles.categoryOption}
-                        onClick={() => addTagLabel(tag.label)}
-                        role="option"
-                        aria-selected={false}
-                      >
-                        {tag.label}
-                      </button>
-                    ))
-                  )}
-                  {filteredTagOptions.length === 0 && tagInputValue.trim() === "" && (
-                    <div className={styles.categoryEmpty}>No more tags.</div>
-                  )}
-                </div>
-                <input
-                  ref={tagInputRef}
-                  type="text"
-                  className={styles.categoryInput}
-                  placeholder="Enter new..."
-                  value={tagInputValue}
+              <div className={styles.morePanel} aria-label="More note settings">
+                {!form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
+                {!form.remindExpanded &&
+                  renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
+                <button
+                  ref={tagTriggerRef}
+                  type="button"
+                  className={styles.moreMenuItem}
+                  onClick={tagPickerOpen ? closeTagDropdown : openTagDropdown}
                   disabled={!userPresent || createTagPending}
-                  onChange={(event) => {
-                    setTagInputValue(toLowercaseInput(event.currentTarget.value))
-                  }}
-                  onKeyDown={handleTagInputKeyDown}
-                />
+                  aria-expanded={tagPickerOpen}
+                  aria-haspopup="dialog"
+                  role="menuitem"
+                >
+                  <span>Tag</span>
+                  <Plus size={12} weight="regular" />
+                </button>
+                <Popup
+                  anchorRef={tagTriggerRef}
+                  open={tagPickerOpen}
+                  onClose={closeTagDropdown}
+                  placement={["left-start", "right-start", "top-start", "bottom-start"]}
+                  offset={6}
+                  role="dialog"
+                >
+                  <div className={styles.categoryPanel}>
+                    <div className={styles.categoryOptions} role="listbox" aria-label="Tag options">
+                      {filteredTagOptions.length === 0 && tagInputValue.trim() !== "" ? (
+                        <div className={styles.categoryEmpty}>
+                          Press Enter to create &quot;{tagInputValue.trim()}&quot;
+                        </div>
+                      ) : (
+                        filteredTagOptions.map((tag) => (
+                          <button
+                            key={tag.id}
+                            type="button"
+                            className={styles.categoryOption}
+                            onClick={() => addTagLabel(tag.label)}
+                            role="option"
+                            aria-selected={false}
+                          >
+                            {tag.label}
+                          </button>
+                        ))
+                      )}
+                      {filteredTagOptions.length === 0 && tagInputValue.trim() === "" && (
+                        <div className={styles.categoryEmpty}>No more tags.</div>
+                      )}
+                    </div>
+                    <input
+                      ref={tagInputRef}
+                      type="text"
+                      className={styles.categoryInput}
+                      placeholder="Enter new..."
+                      value={tagInputValue}
+                      disabled={!userPresent || createTagPending}
+                      onChange={(event) => {
+                        setTagInputValue(toLowercaseInput(event.currentTarget.value))
+                      }}
+                      onKeyDown={handleTagInputKeyDown}
+                    />
+                  </div>
+                </Popup>
               </div>
             </Popup>
           </div>
