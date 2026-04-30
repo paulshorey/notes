@@ -326,17 +326,15 @@ export function ResultsColumn({
                             label={`Add note in ${category.label}`}
                             onClick={() => onAddNoteForCategory(category)}
                           />
-                          <NoteResultsList
-                            items={items}
-                            activeNoteId={activeNoteId}
-                            loading={false}
-                            emptyMessage={
-                              selectedTag
-                                ? `No notes in “${selectedTag.label}” for this category.`
-                                : `No notes in category “${category.label}”.`
-                            }
-                            onEdit={onEditNote}
-                          />
+                          {items.length > 0 && (
+                            <NoteResultsList
+                              items={items}
+                              activeNoteId={activeNoteId}
+                              loading={false}
+                              emptyMessage=""
+                              onEdit={onEditNote}
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -405,13 +403,15 @@ export function ResultsColumn({
                           label={`Add note tagged ${tag.label}`}
                           onClick={() => onAddNoteForTag(tag)}
                         />
-                        <NoteResultsList
-                          items={items}
-                          activeNoteId={activeNoteId}
-                          loading={false}
-                          emptyMessage={`No notes tagged “${tag.label}”.`}
-                          onEdit={onEditNote}
-                        />
+                        {items.length > 0 && (
+                          <NoteResultsList
+                            items={items}
+                            activeNoteId={activeNoteId}
+                            loading={false}
+                            emptyMessage=""
+                            onEdit={onEditNote}
+                          />
+                        )}
                       </div>
                     )}
                   </div>
