@@ -15,7 +15,7 @@
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
 }
 
-.headerLogo::before {
+/* .headerLogo::before {
   content: "//";
   opacity: 0.33;
   margin-right: 0.15rem;
@@ -25,7 +25,7 @@
   .headerLogo::before {
     content: "";
   }
-}
+} */
 
 .headerLogo::after {
   content: "/";
@@ -48,9 +48,6 @@
   align-items: center;
   justify-content: center;
 }
-.headerButtonUser {
-  color: var(--g-color-text-link, #4da2ff);
-}
 
 .headerIcon {
   display: block;
@@ -60,6 +57,7 @@
   display: inline-flex;
   margin-left: auto;
   transform: scaleX(-1);
+  color: var(--g-color-text-link, #4da2ff);
 }
 
 @media (min-width: 721px) {
