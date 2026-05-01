@@ -27,7 +27,7 @@ const formatSimilarity = (value: number | null | undefined) => {
 function noteHeadline(note: NoteRecord): string {
   const raw = note.description?.trim() ?? ""
   if (raw === "") return "Untitled"
-  const firstLine = (raw.split(/\r?\n/)[0] ?? "").replaceAll(/[^\w\s]/g, "")
+  const firstLine = (raw.split(/\r?\n/)[0] ?? "").replaceAll(/[^\w\s]/g, "").trim()
   if (firstLine.length <= 100) return firstLine
   return firstLine.slice(0, 100) + "…"
 }
