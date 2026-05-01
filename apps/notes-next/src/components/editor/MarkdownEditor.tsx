@@ -34,7 +34,7 @@ export function MarkdownEditor({
   value = "",
   onUpdate,
   onSubmit,
-  mode = "markup",
+  mode = "wysiwyg",
   splitMode = "vertical",
   splitModeEnabled = false,
   toolbarVisible = false,
