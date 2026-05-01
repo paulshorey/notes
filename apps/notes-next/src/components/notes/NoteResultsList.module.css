@@ -26,7 +26,7 @@
 } */
 
 .noteItemActive {
-  border-color: var(--g-color-base-brand);
+  /* border-color: var(--g-color-base-brand); */
   color: var(--g-color-base-brand);
 }
 

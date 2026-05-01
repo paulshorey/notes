@@ -35,7 +35,7 @@
 }
 @media (min-width: 721px) {
   .headerLogo::after {
-    content: "/ note";
+    content: "/";
   }
 }
 

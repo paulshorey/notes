@@ -39,3 +39,8 @@ a {
     right: 0rem;
   }
 }
+
+sub {
+  font-size: 75%;
+  margin: 0 -0.5px 0 -1px;
+}
