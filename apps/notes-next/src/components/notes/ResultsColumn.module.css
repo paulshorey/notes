@@ -307,7 +307,7 @@
   width: calc(100% - 4px);
   min-height: 28px;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   margin: 2px 4px 2px 0;
   padding: 3px 6px;
   border: 1px solid transparent;
