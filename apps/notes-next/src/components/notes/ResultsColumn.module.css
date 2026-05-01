@@ -320,6 +320,7 @@
   margin-top: 0;
   margin-bottom: 0;
   margin-left: -2.25px;
+  color: var(--g-color-text-hint, #8a8a8a);
 }
 
 .sectionAddNoteButton:hover,
