@@ -65,6 +65,9 @@ const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
 const MOBILE_RESULTS_TRANSITION_MS = 400
 const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
+const DEFAULT_MARKDOWN_EDITOR_MODE = "wysiwyg"
+
+type MarkdownEditorModePreference = "wysiwyg" | "markup"
 
 const isPreferencesObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -97,6 +100,17 @@ const clampStoredResultsColumnWidth = (width: number) =>
 const isMobileResultsLayout = () =>
   typeof window !== "undefined" && window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY).matches
 
+const isMarkdownEditorModePreference = (value: unknown): value is MarkdownEditorModePreference =>
+  value === "wysiwyg" || value === "markup"
+
+const getStoredMarkdownEditorMode = (preferences: UserPreferences) => {
+  const notesAppPreferences = preferences.notesApp
+  if (!isPreferencesObject(notesAppPreferences)) return null
+
+  const mode = notesAppPreferences.markdownEditorMode
+  return isMarkdownEditorModePreference(mode) ? mode : null
+}
+
 const getStoredResultsColumnWidth = (preferences: UserPreferences) => {
   const notesAppPreferences = preferences.notesApp
   if (!isPreferencesObject(notesAppPreferences)) return null
@@ -117,6 +131,17 @@ const withResultsColumnWidthPreference = (
   notesApp: {
     ...(isPreferencesObject(preferences.notesApp) ? preferences.notesApp : {}),
     resultsColumnWidth: clampStoredResultsColumnWidth(width),
+  },
+})
+
+const withMarkdownEditorModePreference = (
+  preferences: UserPreferences,
+  mode: MarkdownEditorModePreference,
+): UserPreferences => ({
+  ...preferences,
+  notesApp: {
+    ...(isPreferencesObject(preferences.notesApp) ? preferences.notesApp : {}),
+    markdownEditorMode: mode,
   },
 })
 
@@ -264,6 +289,8 @@ export default function NotesApp() {
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
+  const [preferredMarkdownEditorMode, setPreferredMarkdownEditorMode] =
+    useState<MarkdownEditorModePreference>(DEFAULT_MARKDOWN_EDITOR_MODE)
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
   const [mobileResultsOverlayMounted, setMobileResultsOverlayMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -462,11 +489,14 @@ export default function NotesApp() {
       const nextPreferences = normalizeUserPreferences(nextUser.preferences)
       const nextPreferredResultsColumnWidth =
         getStoredResultsColumnWidth(nextPreferences) ?? RESULTS_COLUMN_DEFAULT_WIDTH
+      const nextPreferredMarkdownEditorMode =
+        getStoredMarkdownEditorMode(nextPreferences) ?? DEFAULT_MARKDOWN_EDITOR_MODE
 
       lastSavedPreferencesRef.current = serializeUserPreferences(nextPreferences)
       setUser({ ...nextUser, preferences: nextPreferences })
       setUserPreferences(nextPreferences)
       setPreferredResultsColumnWidth(nextPreferredResultsColumnWidth)
+      setPreferredMarkdownEditorMode(nextPreferredMarkdownEditorMode)
       setResultsColumnWidth(clampResultsColumnWidth(nextPreferredResultsColumnWidth))
     },
     [clampResultsColumnWidth],
@@ -585,6 +615,7 @@ export default function NotesApp() {
         resetNotesAppStore()
         setResultsListVisible(!isMobileResultsLayout())
         setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+        setPreferredMarkdownEditorMode(DEFAULT_MARKDOWN_EDITOR_MODE)
         setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
         setErrorMessage(getErrorMessage(error))
       } finally {
@@ -630,10 +661,13 @@ export default function NotesApp() {
           const nextPreferences = normalizeUserPreferences(data.user.preferences)
           const nextPreferredResultsColumnWidth =
             getStoredResultsColumnWidth(nextPreferences) ?? RESULTS_COLUMN_DEFAULT_WIDTH
+          const nextPreferredMarkdownEditorMode =
+            getStoredMarkdownEditorMode(nextPreferences) ?? DEFAULT_MARKDOWN_EDITOR_MODE
           lastSavedPreferencesRef.current = serializeUserPreferences(nextPreferences)
           setUser({ ...data.user, preferences: nextPreferences })
           setUserPreferences(nextPreferences)
           setPreferredResultsColumnWidth(nextPreferredResultsColumnWidth)
+          setPreferredMarkdownEditorMode(nextPreferredMarkdownEditorMode)
           setResultsColumnWidth(clampResultsColumnWidth(nextPreferredResultsColumnWidth))
         })
         .catch((error: unknown) => {
@@ -1064,10 +1098,20 @@ export default function NotesApp() {
     resetNotesAppStore()
     setResultsListVisible(!isMobileResultsLayout())
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+    setPreferredMarkdownEditorMode(DEFAULT_MARKDOWN_EDITOR_MODE)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     resetNoteForm({ categoryList: [], noteList: [] })
     clearMessages()
   }
+
+  const handleMarkdownEditorModeChange = useCallback((mode: MarkdownEditorModePreference) => {
+    setPreferredMarkdownEditorMode(mode)
+    setUserPreferences((current) =>
+      getStoredMarkdownEditorMode(current) === mode
+        ? current
+        : withMarkdownEditorModePreference(current, mode),
+    )
+  }, [])
 
   const handleStartEdit = (note: NoteRecord) => {
     clearMessages()
@@ -1660,6 +1704,7 @@ export default function NotesApp() {
           tags={tags}
           pendingTagLabels={pendingTagLabels}
           descriptionEditorSessionId={descriptionEditorSessionId}
+          markdownEditorMode={preferredMarkdownEditorMode}
           categoryInputValue={categoryInputValue}
           onCategoryInputValueChange={setCategoryInputValue}
           createCategoryPending={createCategoryPending}
@@ -1670,6 +1715,7 @@ export default function NotesApp() {
           onSubmit={handleSaveNote}
           onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           onCancelEdit={handleCancelEdit}
+          onMarkdownEditorModeChange={handleMarkdownEditorModeChange}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader

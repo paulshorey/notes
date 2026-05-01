@@ -3,6 +3,7 @@ export interface SessionLookupRequest {
 }
 
 export interface NotesAppPreferences {
+  markdownEditorMode?: string;
   resultsColumnWidth?: number;
 }
 
