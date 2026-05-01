@@ -21,9 +21,10 @@
   border: 1px solid transparent;
 }
 
-/* .noteItem:hover {
-  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.03));
-} */
+.noteItem:hover {
+  /* background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.03)); */
+  text-decoration: underline;
+}
 
 .noteItemActive {
   /* border-color: var(--g-color-base-brand); */
