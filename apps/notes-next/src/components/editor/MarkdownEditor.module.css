@@ -8,8 +8,8 @@
 .modeToggle {
   position: absolute;
   z-index: 2;
-  top: 4px;
-  right: 4px;
+  top: 3px;
+  right: 6.5px;
 }
 
 .editor :global(.g-md-editor-component__editor-wrapper),
