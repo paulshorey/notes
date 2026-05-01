@@ -153,8 +153,31 @@ const compareNoteGroups = <T extends { sortTime: number } & (
   )
 }
 
+const getTopCategorySectionId = (categoryList: CategoryRecord[], noteList: NoteRecord[]) => {
+  const sortTimesByCategory = new Map(categoryList.map((category) => [category.id, 0]))
+
+  for (const note of noteList) {
+    const currentSortTime = sortTimesByCategory.get(note.category.id)
+    if (currentSortTime === undefined) {
+      continue
+    }
+
+    sortTimesByCategory.set(note.category.id, Math.max(currentSortTime, getNoteSortTime(note)))
+  }
+
+  return (
+    categoryList
+      .map((category) => ({
+        category,
+        sortTime: sortTimesByCategory.get(category.id) ?? 0,
+      }))
+      .sort(compareNoteGroups)[0]?.category.id ?? null
+  )
+}
+
 interface ResetNoteFormOptions {
   categoryList?: CategoryRecord[]
+  noteList?: NoteRecord[]
   selectedCategoryId?: number | null
   selectedTagIds?: number[]
 }
@@ -452,10 +475,11 @@ export default function NotesApp() {
   const resetNoteForm = useCallback(
     (options: ResetNoteFormOptions = {}) => {
       const categoryList = options.categoryList ?? categories
+      const noteList = options.noteList ?? notes
       const selectedCategoryId: number | null =
         "selectedCategoryId" in options
           ? (options.selectedCategoryId ?? null)
-          : getDefaultCategoryId(categoryList)
+          : getTopCategorySectionId(categoryList, noteList)
       const selectedTagIds = options.selectedTagIds ?? []
       const nextForm = {
         ...createDefaultNoteForm(),
@@ -471,7 +495,7 @@ export default function NotesApp() {
       setDescriptionEditorSessionId((sessionId) => sessionId + 1)
       setPendingTagLabels([])
     },
-    [categories],
+    [categories, notes],
   )
 
   const handleCancelEdit = useCallback(() => {
@@ -539,12 +563,12 @@ export default function NotesApp() {
         if (!active) return
 
         applyLoadedUser(sessionData.user)
-        const [, loadedCategories] = await Promise.all([
+        const [loadedNotes, loadedCategories] = await Promise.all([
           loadNotes(sessionData.user.id),
           loadCategories(sessionData.user.id),
           loadTags(sessionData.user.id),
         ])
-        const defaultCategoryId = getDefaultCategoryId(loadedCategories ?? [])
+        const defaultCategoryId = getTopCategorySectionId(loadedCategories ?? [], loadedNotes ?? [])
         if (defaultCategoryId !== null) {
           setNoteForm((prev) => ({ ...prev, selectedCategoryId: defaultCategoryId }))
         }
@@ -678,7 +702,6 @@ export default function NotesApp() {
         loadCategories(userId),
         loadTags(userId),
       ])
-      void latestNotes
       setNoteForm((prev) => {
         if (
           prev.selectedCategoryId !== null &&
@@ -689,12 +712,13 @@ export default function NotesApp() {
 
         return {
           ...prev,
-          selectedCategoryId: getDefaultCategoryId(latestCategories),
+          selectedCategoryId: getTopCategorySectionId(latestCategories, latestNotes),
         }
       })
       if (trimmedSearchQuery) {
         await runSearch(userId, trimmedSearchQuery, NOTES_APP_SEARCH_MAX_RESULTS)
       }
+      return { latestNotes, latestCategories }
     },
     [loadCategories, loadTags, loadNotes, runSearch, trimmedSearchQuery],
   )
@@ -754,7 +778,7 @@ export default function NotesApp() {
 
         if (userRef.current?.id !== currentUser.id) return
 
-        await refreshResults(currentUser.id)
+        const { latestNotes, latestCategories } = await refreshResults(currentUser.id)
 
         const savedNoteId = data.note.id
         lastSavedNoteDraftRef.current = serializeNoteDraft(savedNoteId, formSnapshot)
@@ -770,7 +794,7 @@ export default function NotesApp() {
           return
         }
 
-        resetNoteForm()
+        resetNoteForm({ categoryList: latestCategories, noteList: latestNotes })
         setStatusMessage(noteId === null ? "Note created." : "Note updated.")
       })()
 
@@ -1007,14 +1031,16 @@ export default function NotesApp() {
       const data = await readJson<SessionResponse>(response)
       window.localStorage.setItem(STORAGE_KEY, String(data.user.id))
       applyLoadedUser(data.user)
-      const loadedCategories = await loadCategories(data.user.id)
-      await loadTags(data.user.id)
+      const [loadedCategories, , loadedNotes] = await Promise.all([
+        loadCategories(data.user.id),
+        loadTags(data.user.id),
+        loadNotes(data.user.id),
+      ])
       setIdentifier("")
-      resetNoteForm({ categoryList: loadedCategories })
+      resetNoteForm({ categoryList: loadedCategories, noteList: loadedNotes })
       setSearchQuery("")
       setSearchResults([])
       setSearchErrorMessage(null)
-      await loadNotes(data.user.id)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -1039,7 +1065,7 @@ export default function NotesApp() {
     setResultsListVisible(!isMobileResultsLayout())
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-    resetNoteForm()
+    resetNoteForm({ categoryList: [], noteList: [] })
     clearMessages()
   }
 
@@ -1082,7 +1108,7 @@ export default function NotesApp() {
     const selectedCategoryId =
       currentCategoryId !== null && categories.some((category) => category.id === currentCategoryId)
         ? currentCategoryId
-        : getDefaultCategoryId(categories)
+        : getTopCategorySectionId(categories, notes)
     resetNoteForm({ selectedCategoryId, selectedTagIds: [tag.id] })
     const categoryLabel =
       selectedCategoryId === null
@@ -1576,8 +1602,10 @@ export default function NotesApp() {
         body: JSON.stringify({ userId: user.id, noteId }),
       })
       await readJson<{ ok: true }>(response)
-      await refreshResults(user.id)
-      if (editingNoteId === noteId) resetNoteForm()
+      const { latestNotes, latestCategories } = await refreshResults(user.id)
+      if (editingNoteId === noteId) {
+        resetNoteForm({ categoryList: latestCategories, noteList: latestNotes })
+      }
       setStatusMessage("Note deleted.")
     } catch (error) {
       setErrorMessage(getErrorMessage(error))

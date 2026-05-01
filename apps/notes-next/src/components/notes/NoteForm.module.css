@@ -59,6 +59,12 @@
   overflow: hidden;
   padding: 0 2.5px 0 2vw;
 }
+.formDescription a {
+  color: var(--g-color-text-link, #4da2ff) !important;
+}
+.formDescription a:hover {
+  color: var(--g-color-text-link-hover, #7abaff) !important;
+}
 
 .formDescription :global(.g-text-area__content) {
   height: 100%;
