@@ -16,10 +16,17 @@ import { ActionTooltip, Button, Icon } from "@gravity-ui/uikit"
 import styles from "./MarkdownEditor.module.css"
 import { SplitModePreview } from "./SplitModePreview"
 
+type MarkdownEditorOptionsWithPreviewToggle = Omit<MarkdownEditorOptions, "markupConfig"> & {
+  markupConfig?: Omit<NonNullable<MarkdownEditorOptions["markupConfig"]>, "renderPreview"> & {
+    renderPreview?: RenderPreview | false
+  }
+}
+
 export type MarkdownEditorProps = {
   value?: string
   onUpdate?: (markdown: string) => void
   onSubmit?: (markdown: string) => void
+  onModeChange?: (mode: MarkdownEditorMode) => void
   mode?: MarkdownEditorMode
   splitMode?: MarkdownEditorSplitMode
   splitModeEnabled?: boolean
@@ -29,13 +36,14 @@ export type MarkdownEditorProps = {
   autofocus?: boolean
   stickyToolbar?: boolean
   settingsVisible?: MarkdownEditorViewProps["settingsVisible"]
-  renderPreview?: RenderPreview
+  renderPreview?: RenderPreview | false
 }
 
 export function MarkdownEditor({
   value = "",
   onUpdate,
   onSubmit,
+  onModeChange,
   mode = "wysiwyg",
   splitMode = "vertical",
   splitModeEnabled = false,
@@ -44,7 +52,7 @@ export function MarkdownEditor({
   className,
   autofocus = false,
   stickyToolbar = false,
-  settingsVisible,
+  settingsVisible = false,
   renderPreview,
 }: MarkdownEditorProps) {
   const editorContainerRef = React.useRef<HTMLDivElement>(null)
@@ -56,7 +64,7 @@ export function MarkdownEditor({
   const effectiveRenderPreview = renderPreview ?? (splitMode ? defaultRenderPreview : undefined)
   const effectiveSettingsVisible = settingsVisible ?? false
 
-  const editorOptions = React.useMemo<MarkdownEditorOptions>(
+  const editorOptions = React.useMemo<MarkdownEditorOptionsWithPreviewToggle>(
     () => ({
       initial: {
         markup: value as MarkupString,
@@ -75,7 +83,7 @@ export function MarkdownEditor({
     }),
     [effectiveRenderPreview, mode, placeholder, splitMode, splitModeEnabled, toolbarVisible, value],
   )
-  const editor = useMarkdownEditor(editorOptions, [
+  const editor = useMarkdownEditor(editorOptions as MarkdownEditorOptions, [
     effectiveRenderPreview,
     mode,
     placeholder,
@@ -107,6 +115,7 @@ export function MarkdownEditor({
 
     const syncMode = ({ mode: nextEditorMode }: { mode: MarkdownEditorMode }) => {
       setActiveMode(nextEditorMode)
+      onModeChange?.(nextEditorMode)
       syncValue()
     }
 
@@ -125,7 +134,7 @@ export function MarkdownEditor({
       editor.off("change-editor-mode", syncMode)
       editor.off("submit", submitHandler)
     }
-  }, [editor, onSubmit, onUpdate])
+  }, [editor, onModeChange, onSubmit, onUpdate])
 
   const toggleMode = React.useCallback(() => {
     editor.setEditorMode(nextMode)

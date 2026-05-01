@@ -12,6 +12,10 @@
   right: 6.5px;
 }
 
+.editor :global(.g-md-markup-preview-button) {
+  display: none;
+}
+
 .editor :global(.g-md-editor-component__editor-wrapper),
 .editor :global(.g-md-editor-component__editor),
 .editor :global(.g-md-wysiwyg-editor),

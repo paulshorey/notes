@@ -39,6 +39,7 @@ interface NoteFormProps {
   tags: TagRecord[]
   pendingTagLabels: string[]
   descriptionEditorSessionId: number
+  markdownEditorMode: MarkdownEditorProps["mode"]
   categoryInputValue: string
   onCategoryInputValueChange: (value: string) => void
   createCategoryPending: boolean
@@ -49,6 +50,7 @@ interface NoteFormProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onDeleteNote: (noteId: number) => void
   onCancelEdit: () => void
+  onMarkdownEditorModeChange: NonNullable<MarkdownEditorProps["onModeChange"]>
   header: JSX.Element
 }
 
@@ -63,6 +65,7 @@ export function NoteForm({
   tags,
   pendingTagLabels,
   descriptionEditorSessionId,
+  markdownEditorMode,
   categoryInputValue,
   onCategoryInputValueChange,
   createCategoryPending,
@@ -73,6 +76,7 @@ export function NoteForm({
   onSubmit,
   onDeleteNote,
   onCancelEdit,
+  onMarkdownEditorModeChange,
   header,
 }: NoteFormProps) {
   const categoryTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -366,7 +370,9 @@ export function NoteForm({
           key={descriptionEditorSessionId}
           placeholder="Write now, sync later..."
           value={form.description}
+          mode={markdownEditorMode}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
+          onModeChange={onMarkdownEditorModeChange}
           className={styles.formDescription}
         />
 
