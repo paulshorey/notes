@@ -569,10 +569,10 @@ interface SectionTitleProps {
 function SectionTitle({ count, label, active = false }: SectionTitleProps) {
   return (
     <span className={styles.categoryLabel}>
-      <span className={styles.categoryCountText}>{count}</span>
-      <sub className={styles.categoryPreposition}>in</sub>
+      {/* <span className={styles.categoryCountText}>{count}</span>
+      <sub className={styles.categoryPreposition}>in</sub> */}
       <span className={`${styles.categoryNameText} ${active ? styles.categoryNameTextActive : ""}`}>
-        {label}
+        {label} <sup className={styles.categoryCountTextSup}>{count}</sup>
       </span>
     </span>
   )
