@@ -131,12 +131,26 @@ const getTimeValue = (value: string | null | undefined) => {
 
 const getNoteSortTime = (note: NoteRecord) => getTimeValue(note.timeModified)
 
-const getCategorySortTime = (category: CategoryRecord, categoryNotes: NoteRecord[]) => {
-  if (category.lastUsedAt) {
-    return getTimeValue(category.lastUsedAt)
-  }
+const getGroupSortTime = (items: DisplayNoteItem[]) =>
+  items.reduce((latest, { note }) => Math.max(latest, getNoteSortTime(note)), 0)
 
-  return categoryNotes.reduce((latest, note) => Math.max(latest, getNoteSortTime(note)), 0)
+type NoteGroupSortRecord = CategoryRecord | TagRecord
+
+const compareNoteGroups = <T extends { sortTime: number } & (
+  | { category: NoteGroupSortRecord }
+  | { tag: NoteGroupSortRecord }
+)>(
+  left: T,
+  right: T,
+) => {
+  const leftRecord = "category" in left ? left.category : left.tag
+  const rightRecord = "category" in right ? right.category : right.tag
+
+  return (
+    right.sortTime - left.sortTime ||
+    leftRecord.label.localeCompare(rightRecord.label, undefined, { sensitivity: "base" }) ||
+    leftRecord.id - rightRecord.id
+  )
 }
 
 interface ResetNoteFormOptions {
@@ -866,28 +880,11 @@ export default function NotesApp() {
         return {
           category,
           items,
-          sortTime: getCategorySortTime(category, categoryNotes),
+          sortTime: getGroupSortTime(items),
         }
       })
-      .sort(
-        (left, right) => {
-          const leftIsFallback = left.category.id === fallbackCategoryId
-          const rightIsFallback = right.category.id === fallbackCategoryId
-
-          if (leftIsFallback !== rightIsFallback) {
-            return leftIsFallback ? -1 : 1
-          }
-
-          return (
-            right.sortTime - left.sortTime ||
-            left.category.label.localeCompare(right.category.label, undefined, {
-              sensitivity: "base",
-            }) ||
-            left.category.id - right.category.id
-          )
-        },
-      )
-  }, [categories, fallbackCategoryId, matchesSelectedTag, notes])
+      .sort(compareNoteGroups)
+  }, [categories, matchesSelectedTag, notes])
 
   const tagNoteGroups = useMemo<TagNoteGroup[]>(() => {
     const notesByTag = new Map<number, DisplayNoteItem[]>()
@@ -901,10 +898,17 @@ export default function NotesApp() {
       }
     }
 
-    return tags.map((tag) => ({
-      tag,
-      items: notesByTag.get(tag.id) ?? [],
-    }))
+    return tags
+      .map((tag) => {
+        const items = notesByTag.get(tag.id) ?? []
+
+        return {
+          tag,
+          items,
+          sortTime: getGroupSortTime(items),
+        }
+      })
+      .sort(compareNoteGroups)
   }, [allNoteItems, tags])
 
   const selectedTag = useMemo(
