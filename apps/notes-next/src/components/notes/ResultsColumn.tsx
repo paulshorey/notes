@@ -52,6 +52,7 @@ export interface CategoryNoteGroup {
 export interface TagNoteGroup {
   tag: TagRecord
   items: DisplayNoteItem[]
+  sortTime: number
 }
 
 interface ResultsColumnProps {
