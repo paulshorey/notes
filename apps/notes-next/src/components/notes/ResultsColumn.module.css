@@ -234,6 +234,13 @@
   color: var(--g-color-base-brand);
 }
 
+.sectionTitleActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: var(--g-color-text-secondary);
+}
+
 .categoryActionWrap {
   position: relative;
   display: flex;
@@ -242,6 +249,7 @@
 
 .categoryActionButton {
   flex: 0 0 auto;
+  color: inherit;
   opacity: 0.68;
 }
 
@@ -306,40 +314,30 @@
 }
 
 .sectionAddNoteButton {
-  display: flex;
+  display: inline-flex;
   box-sizing: border-box;
-  width: calc(100% - 4px);
-  min-height: 28px;
+  width: 26px;
+  height: 26px;
   align-items: center;
-  gap: 2px;
-  margin: 2px 4px 2px 0;
-  padding: 3px 6px;
-  border: 1px solid transparent;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
   border-radius: 4px;
   background: transparent;
+  color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: 12px;
-  text-align: left;
-  margin-top: 0;
-  margin-bottom: 0;
-  margin-left: -2.25px;
-  color: var(--g-color-text-hint, #8a8a8a);
 }
 
 .sectionAddNoteButton:hover,
 .sectionAddNoteButton:focus-visible {
-  /* background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06)); */
-  text-decoration: underline;
-  color: var(--g-color-text-primary);
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06));
+  color: inherit;
   outline: none;
 }
 
-.sectionAddNoteButtonActive {
-  /* border-color: var(--g-color-base-brand); */
-  color: var(--g-color-base-brand);
-}
-
+.sectionAddNoteButtonActive,
 .sectionAddNoteButtonActive:hover,
 .sectionAddNoteButtonActive:focus-visible {
   color: var(--g-color-base-brand);

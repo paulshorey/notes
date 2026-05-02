@@ -369,44 +369,38 @@ export function ResultsColumn({
                     activeCategoryId === category.id || manuallyExpandedCategoryId === category.id
                   const panelId = `category-notes-${category.id}`
                   const deleteDisabled = category.id === fallbackCategoryId
-                  const addNoteActive = activeNoteId === null && activeCategoryId === category.id
-
                   return (
                     <div className={styles.categoryGroup} key={category.id} role="listitem">
                       <div className={styles.categoryRow}>
-                        <button
-                          type="button"
-                          className={styles.categoryToggle}
-                          aria-expanded={expanded}
-                          aria-controls={panelId}
-                          onClick={() => toggleCategory(category.id)}
-                        >
-                          <SectionTitle
-                            count={getFilteredNoteCount(category, items)}
-                            label={category.label}
-                            active={activeCategoryId === category.id}
-                          />
-                        </button>
-                        <SectionActionMenu
-                          id={`category-${category.id}`}
+                        <SectionTitle
+                          count={getFilteredNoteCount(category, items)}
                           label={category.label}
-                          openActionMenuId={openActionMenuId}
-                          onOpenActionMenuChange={setOpenActionMenuId}
-                          onEdit={() => onEditCategory(category)}
-                          onDelete={() => onDeleteCategory(category)}
-                          deleteDisabled={deleteDisabled}
-                          deleteTitle={
-                            deleteDisabled ? "The default category cannot be deleted" : undefined
-                          }
-                        />
+                          active={expanded}
+                          expanded={expanded}
+                          panelId={panelId}
+                          onToggle={() => toggleCategory(category.id)}
+                        >
+                          <SectionAddNoteButton
+                            label={`Add note in ${category.label}`}
+                            active={expanded}
+                            onClick={() => onAddNoteForCategory(category)}
+                          />
+                          <SectionActionMenu
+                            id={`category-${category.id}`}
+                            label={category.label}
+                            openActionMenuId={openActionMenuId}
+                            onOpenActionMenuChange={setOpenActionMenuId}
+                            onEdit={() => onEditCategory(category)}
+                            onDelete={() => onDeleteCategory(category)}
+                            deleteDisabled={deleteDisabled}
+                            deleteTitle={
+                              deleteDisabled ? "The default category cannot be deleted" : undefined
+                            }
+                          />
+                        </SectionTitle>
                       </div>
                       {expanded && (
                         <div id={panelId} className={styles.categoryPanel}>
-                          <SectionAddNoteButton
-                            label={`Add note in ${category.label}`}
-                            active={addNoteActive}
-                            onClick={() => onAddNoteForCategory(category)}
-                          />
                           {items.length > 0 && (
                             <NoteResultsList
                               items={items}
@@ -473,30 +467,29 @@ export function ResultsColumn({
                 return (
                   <div className={styles.categoryGroup} key={tag.id} role="listitem">
                     <div className={styles.categoryRow}>
-                      <button
-                        type="button"
-                        className={styles.categoryToggle}
-                        aria-expanded={expanded}
-                        aria-controls={panelId}
-                        onClick={() => toggleTag(tag.id)}
-                      >
-                        <SectionTitle count={tag.noteCount} label={tag.label} />
-                      </button>
-                      <SectionActionMenu
-                        id={`tag-${tag.id}`}
+                      <SectionTitle
+                        count={tag.noteCount}
                         label={tag.label}
-                        openActionMenuId={openActionMenuId}
-                        onOpenActionMenuChange={setOpenActionMenuId}
-                        onEdit={() => onEditTag(tag)}
-                        onDelete={() => onDeleteTag(tag)}
-                      />
-                    </div>
-                    {expanded && (
-                      <div id={panelId} className={styles.categoryPanel}>
+                        expanded={expanded}
+                        panelId={panelId}
+                        onToggle={() => toggleTag(tag.id)}
+                      >
                         <SectionAddNoteButton
                           label={`Add note tagged ${tag.label}`}
                           onClick={() => onAddNoteForTag(tag)}
                         />
+                        <SectionActionMenu
+                          id={`tag-${tag.id}`}
+                          label={tag.label}
+                          openActionMenuId={openActionMenuId}
+                          onOpenActionMenuChange={setOpenActionMenuId}
+                          onEdit={() => onEditTag(tag)}
+                          onDelete={() => onDeleteTag(tag)}
+                        />
+                      </SectionTitle>
+                    </div>
+                    {expanded && (
+                      <div id={panelId} className={styles.categoryPanel}>
                         {items.length > 0 && (
                           <NoteResultsList
                             items={items}
@@ -550,12 +543,15 @@ function SectionAddNoteButton({ label, active = false, onClick }: SectionAddNote
     <button
       type="button"
       className={`${styles.sectionAddNoteButton} ${active ? styles.sectionAddNoteButtonActive : ""}`}
-      onClick={onClick}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick()
+      }}
       aria-label={label}
       aria-current={active ? "true" : undefined}
+      title={label}
     >
-      <Plus size={13} weight="regular" />
-      <span>Add note</span>
+      <Plus size={14} weight="regular" />
     </button>
   )
 }
@@ -564,17 +560,42 @@ interface SectionTitleProps {
   count: number
   label: string
   active?: boolean
+  expanded: boolean
+  panelId: string
+  onToggle: () => void
+  children: ReactNode
 }
 
-function SectionTitle({ count, label, active = false }: SectionTitleProps) {
+function SectionTitle({
+  count,
+  label,
+  active = false,
+  expanded,
+  panelId,
+  onToggle,
+  children,
+}: SectionTitleProps) {
   return (
-    <span className={styles.categoryLabel}>
-      {/* <span className={styles.categoryCountText}>{count}</span>
-      <sub className={styles.categoryPreposition}>in</sub> */}
-      <span className={`${styles.categoryNameText} ${active ? styles.categoryNameTextActive : ""}`}>
-        {label} <sup className={styles.categoryCountTextSup}>{count}</sup>
-      </span>
-    </span>
+    <>
+      <button
+        type="button"
+        className={styles.categoryToggle}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={onToggle}
+      >
+        <span className={styles.categoryLabel}>
+          {/* <span className={styles.categoryCountText}>{count}</span>
+          <sub className={styles.categoryPreposition}>in</sub> */}
+          <span
+            className={`${styles.categoryNameText} ${active ? styles.categoryNameTextActive : ""}`}
+          >
+            {label} <sup className={styles.categoryCountTextSup}>{count}</sup>
+          </span>
+        </span>
+      </button>
+      <div className={styles.sectionTitleActions}>{children}</div>
+    </>
   )
 }
 
