@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { createDefaultNoteForm, type NoteFormState } from "@/types/notes"
 
 type State = {
   /**
@@ -25,6 +26,27 @@ type State = {
    * Query used by the notes results search field.
    */
   searchQuery: string
+  /**
+   * Current note editor draft. Description/due fields stay in memory only; the
+   * category/tag selections are mirrored into the URL by the page container.
+   */
+  noteForm: NoteFormState
+  /**
+   * Note currently open for editing. Null means the editor is preparing a new note.
+   */
+  editingNoteId: number | null
+  /**
+   * Monotonic id used to reset the markdown editor when switching notes/drafts.
+   */
+  descriptionEditorSessionId: number
+  /**
+   * Labels that have been entered into the form but are still being created.
+   */
+  pendingTagLabels: string[]
+  /**
+   * Search/create value in the category picker input.
+   */
+  categoryInputValue: string
 }
 
 type Actions = {
@@ -34,6 +56,17 @@ type Actions = {
   setManuallyExpandedCategoryId: (categoryId: number | null) => void
   setSelectedTagId: (tagId: number | null) => void
   setSearchQuery: (query: string) => void
+  setNoteForm: (
+    form:
+      | NoteFormState
+      | ((current: NoteFormState) => NoteFormState),
+  ) => void
+  setEditingNoteId: (noteId: number | null) => void
+  bumpDescriptionEditorSessionId: () => void
+  setPendingTagLabels: (
+    labels: string[] | ((current: string[]) => string[]),
+  ) => void
+  setCategoryInputValue: (value: string) => void
 }
 
 export type NotesAppStore = State & Actions
@@ -44,6 +77,11 @@ const defaultState: State = {
   manuallyExpandedCategoryId: null,
   selectedTagId: null,
   searchQuery: "",
+  noteForm: createDefaultNoteForm(),
+  editingNoteId: null,
+  descriptionEditorSessionId: 0,
+  pendingTagLabels: [],
+  categoryInputValue: "",
 }
 
 export const useNotesAppStore = create<NotesAppStore>((set) => ({
@@ -68,5 +106,27 @@ export const useNotesAppStore = create<NotesAppStore>((set) => ({
   },
   setSearchQuery: (query) => {
     set({ searchQuery: query })
+  },
+  setNoteForm: (form) => {
+    set((current) => ({
+      noteForm: typeof form === "function" ? form(current.noteForm) : form,
+    }))
+  },
+  setEditingNoteId: (noteId) => {
+    set({ editingNoteId: noteId })
+  },
+  bumpDescriptionEditorSessionId: () => {
+    set((current) => ({
+      descriptionEditorSessionId: current.descriptionEditorSessionId + 1,
+    }))
+  },
+  setPendingTagLabels: (labels) => {
+    set((current) => ({
+      pendingTagLabels:
+        typeof labels === "function" ? labels(current.pendingTagLabels) : labels,
+    }))
+  },
+  setCategoryInputValue: (value) => {
+    set({ categoryInputValue: value })
   },
 }))

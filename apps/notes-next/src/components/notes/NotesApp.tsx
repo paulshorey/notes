@@ -66,8 +66,18 @@ const MOBILE_RESULTS_TRANSITION_MS = 400
 const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 const DEFAULT_MARKDOWN_EDITOR_MODE = "wysiwyg"
+const NOTE_URL_ID_PARAM = "id"
+const NOTE_URL_CATEGORY_PARAM = "category"
+const NOTE_URL_TAGS_PARAM = "tags"
 
 type MarkdownEditorModePreference = "wysiwyg" | "markup"
+
+interface NotesUrlSelection {
+  hasState: boolean
+  noteId: number | null
+  categoryId: number | null
+  tagIds: number[]
+}
 
 const isPreferencesObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -102,6 +112,79 @@ const isMobileResultsLayout = () =>
 
 const isMarkdownEditorModePreference = (value: unknown): value is MarkdownEditorModePreference =>
   value === "wysiwyg" || value === "markup"
+
+const parsePositiveInteger = (value: string | null) => {
+  if (value === null || value.trim() === "") return null
+
+  const parsed = Number.parseInt(value, 10)
+  return Number.isInteger(parsed) && parsed > 0 && String(parsed) === value.trim() ? parsed : null
+}
+
+const readNotesUrlSelection = (): NotesUrlSelection => {
+  if (typeof window === "undefined") {
+    return { hasState: false, noteId: null, categoryId: null, tagIds: [] }
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  const rawTags = params.get(NOTE_URL_TAGS_PARAM)
+  const tagIds =
+    rawTags === null
+      ? []
+      : Array.from(
+          new Set(
+            rawTags
+              .split(",")
+              .map((value) => parsePositiveInteger(value))
+              .filter((value): value is number => value !== null),
+          ),
+        )
+
+  return {
+    hasState:
+      params.has(NOTE_URL_ID_PARAM) ||
+      params.has(NOTE_URL_CATEGORY_PARAM) ||
+      params.has(NOTE_URL_TAGS_PARAM),
+    noteId: parsePositiveInteger(params.get(NOTE_URL_ID_PARAM)),
+    categoryId: parsePositiveInteger(params.get(NOTE_URL_CATEGORY_PARAM)),
+    tagIds,
+  }
+}
+
+const writeNotesUrlSelection = ({
+  noteId,
+  categoryId,
+  tagIds,
+}: Omit<NotesUrlSelection, "hasState">) => {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  const url = new URL(window.location.href)
+  if (noteId === null) {
+    url.searchParams.delete(NOTE_URL_ID_PARAM)
+  } else {
+    url.searchParams.set(NOTE_URL_ID_PARAM, String(noteId))
+  }
+
+  if (categoryId === null) {
+    url.searchParams.delete(NOTE_URL_CATEGORY_PARAM)
+  } else {
+    url.searchParams.set(NOTE_URL_CATEGORY_PARAM, String(categoryId))
+  }
+
+  const nextTagIds = Array.from(new Set(tagIds)).filter((id) => Number.isInteger(id) && id > 0)
+  if (nextTagIds.length === 0) {
+    url.searchParams.delete(NOTE_URL_TAGS_PARAM)
+  } else {
+    url.searchParams.set(NOTE_URL_TAGS_PARAM, nextTagIds.join(","))
+  }
+
+  const nextPath = `${url.pathname}${url.search}${url.hash}`
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (nextPath !== currentPath) {
+    window.history.replaceState(window.history.state, "", nextPath)
+  }
+}
 
 const getStoredMarkdownEditorMode = (preferences: UserPreferences) => {
   const notesAppPreferences = preferences.notesApp
@@ -255,13 +338,21 @@ export default function NotesApp() {
     setSelectedTagId,
     searchQuery,
     setSearchQuery,
+    noteForm,
+    setNoteForm,
+    editingNoteId,
+    setEditingNoteId,
+    descriptionEditorSessionId,
+    bumpDescriptionEditorSessionId,
+    pendingTagLabels,
+    setPendingTagLabels,
+    categoryInputValue,
+    setCategoryInputValue,
     resetDefaultState: resetNotesAppStore,
   } = useNotesAppStore()
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
-  const [noteForm, setNoteForm] = useState<NoteFormState>(() => createDefaultNoteForm())
-  const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
-  const [descriptionEditorSessionId, setDescriptionEditorSessionId] = useState(0)
   const [sessionLoading, setSessionLoading] = useState(true)
+  const [notesUrlSelectionReady, setNotesUrlSelectionReady] = useState(false)
   const [notesLoading, setNotesLoading] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [authPending, setAuthPending] = useState(false)
@@ -270,8 +361,6 @@ export default function NotesApp() {
     useState<EmbeddingMaintenanceMode | null>(null)
   const [createCategoryPending, setCreateCategoryPending] = useState(false)
   const [createTagPending, setCreateTagPending] = useState(false)
-  const [categoryInputValue, setCategoryInputValue] = useState("")
-  const [pendingTagLabels, setPendingTagLabels] = useState<string[]>([])
   const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -522,10 +611,83 @@ export default function NotesApp() {
       lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
       setNoteForm(nextForm)
       setEditingNoteId(null)
-      setDescriptionEditorSessionId((sessionId) => sessionId + 1)
+      bumpDescriptionEditorSessionId()
       setPendingTagLabels([])
     },
-    [categories, notes],
+    [bumpDescriptionEditorSessionId, categories, notes, setEditingNoteId, setNoteForm, setPendingTagLabels],
+  )
+
+  const applyNotesUrlSelection = useCallback(
+    ({
+      categoryList = categories,
+      noteList = notes,
+      tagList = tags,
+    }: {
+      categoryList?: CategoryRecord[]
+      noteList?: NoteRecord[]
+      tagList?: TagRecord[]
+    } = {}) => {
+      const selection = readNotesUrlSelection()
+      const validTagIds = selection.tagIds.filter((tagId) =>
+        tagList.some((tag) => tag.id === tagId),
+      )
+
+      if (selection.noteId !== null) {
+        const note = noteList.find((item) => item.id === selection.noteId)
+        if (note) {
+          const nextForm = noteToFormState(note)
+          const shouldResetDescriptionEditor = editingNoteIdRef.current !== note.id
+          editingNoteIdRef.current = note.id
+          noteFormRef.current = nextForm
+          lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
+          setEditingNoteId(note.id)
+          if (shouldResetDescriptionEditor) {
+            bumpDescriptionEditorSessionId()
+          }
+          setPendingTagLabels([])
+          setNoteForm(nextForm)
+          setCategoryInputValue(note.category.label)
+          setNotesUrlSelectionReady(true)
+          return
+        }
+      }
+
+      const categoryId =
+        selection.categoryId !== null &&
+        categoryList.some((category) => category.id === selection.categoryId)
+          ? selection.categoryId
+          : getTopCategorySectionId(categoryList, noteList)
+      const nextForm = {
+        ...createDefaultNoteForm(),
+        selectedCategoryId: categoryId,
+        selectedTagIds: validTagIds,
+      }
+      const categoryLabel =
+        categoryId === null
+          ? ""
+          : (categoryList.find((category) => category.id === categoryId)?.label ?? "")
+
+      noteFormRef.current = nextForm
+      editingNoteIdRef.current = null
+      lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
+      setEditingNoteId(null)
+      bumpDescriptionEditorSessionId()
+      setPendingTagLabels([])
+      setNoteForm(nextForm)
+      setCategoryInputValue(categoryLabel)
+      setNotesUrlSelectionReady(true)
+    },
+    [
+      bumpDescriptionEditorSessionId,
+      categories,
+      notes,
+      setCategoryInputValue,
+      setEditingNoteId,
+      setNoteForm,
+      setNotesUrlSelectionReady,
+      setPendingTagLabels,
+      tags,
+    ],
   )
 
   const handleCancelEdit = useCallback(() => {
@@ -593,15 +755,16 @@ export default function NotesApp() {
         if (!active) return
 
         applyLoadedUser(sessionData.user)
-        const [loadedNotes, loadedCategories] = await Promise.all([
+        const [loadedNotes, loadedCategories, loadedTags] = await Promise.all([
           loadNotes(sessionData.user.id),
           loadCategories(sessionData.user.id),
           loadTags(sessionData.user.id),
         ])
-        const defaultCategoryId = getTopCategorySectionId(loadedCategories ?? [], loadedNotes ?? [])
-        if (defaultCategoryId !== null) {
-          setNoteForm((prev) => ({ ...prev, selectedCategoryId: defaultCategoryId }))
-        }
+        applyNotesUrlSelection({
+          categoryList: loadedCategories,
+          noteList: loadedNotes,
+          tagList: loadedTags,
+        })
       } catch (error) {
         if (!active) return
         window.localStorage.removeItem(STORAGE_KEY)
@@ -632,6 +795,7 @@ export default function NotesApp() {
     loadCategories,
     loadTags,
     loadNotes,
+    applyNotesUrlSelection,
     resetNotesAppStore,
     setResultsListVisible,
   ])
@@ -678,6 +842,36 @@ export default function NotesApp() {
 
     return () => window.clearTimeout(timeoutId)
   }, [clampResultsColumnWidth, user, userPreferences])
+
+  useEffect(() => {
+    if (!user) return
+    if (!notesUrlSelectionReady) return
+
+    writeNotesUrlSelection({
+      noteId: editingNoteId,
+      categoryId: noteForm.selectedCategoryId,
+      tagIds: noteForm.selectedTagIds,
+    })
+  }, [
+    editingNoteId,
+    noteForm.selectedCategoryId,
+    noteForm.selectedTagIds,
+    notesUrlSelectionReady,
+    user,
+  ])
+
+  useEffect(() => {
+    if (!user) return
+
+    const handlePopState = () => {
+      applyNotesUrlSelection()
+    }
+
+    window.addEventListener("popstate", handlePopState)
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [applyNotesUrlSelection, user])
 
   useEffect(() => {
     if (!user) {
@@ -731,7 +925,7 @@ export default function NotesApp() {
 
   const refreshResults = useCallback(
     async (userId: number) => {
-      const [latestNotes, latestCategories] = await Promise.all([
+      const [latestNotes, latestCategories, latestTags] = await Promise.all([
         loadNotes(userId),
         loadCategories(userId),
         loadTags(userId),
@@ -752,7 +946,7 @@ export default function NotesApp() {
       if (trimmedSearchQuery) {
         await runSearch(userId, trimmedSearchQuery, NOTES_APP_SEARCH_MAX_RESULTS)
       }
-      return { latestNotes, latestCategories }
+      return { latestNotes, latestCategories, latestTags }
     },
     [loadCategories, loadTags, loadNotes, runSearch, trimmedSearchQuery],
   )
@@ -1065,13 +1259,17 @@ export default function NotesApp() {
       const data = await readJson<SessionResponse>(response)
       window.localStorage.setItem(STORAGE_KEY, String(data.user.id))
       applyLoadedUser(data.user)
-      const [loadedCategories, , loadedNotes] = await Promise.all([
+      const [loadedCategories, loadedTags, loadedNotes] = await Promise.all([
         loadCategories(data.user.id),
         loadTags(data.user.id),
         loadNotes(data.user.id),
       ])
       setIdentifier("")
-      resetNoteForm({ categoryList: loadedCategories, noteList: loadedNotes })
+      applyNotesUrlSelection({
+        categoryList: loadedCategories,
+        noteList: loadedNotes,
+        tagList: loadedTags,
+      })
       setSearchQuery("")
       setSearchResults([])
       setSearchErrorMessage(null)
@@ -1122,7 +1320,7 @@ export default function NotesApp() {
     lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
     setEditingNoteId(note.id)
     if (shouldResetDescriptionEditor) {
-      setDescriptionEditorSessionId((sessionId) => sessionId + 1)
+      bumpDescriptionEditorSessionId()
     }
     setPendingTagLabels([])
     setNoteForm(nextForm)
