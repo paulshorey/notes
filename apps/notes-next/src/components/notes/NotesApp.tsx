@@ -384,6 +384,9 @@ export default function NotesApp() {
   const [mobileResultsOverlayMounted, setMobileResultsOverlayMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const userRef = useRef<UserSummary | null>(null)
+  const notesRef = useRef<NoteRecord[]>(notes)
+  const categoriesRef = useRef<CategoryRecord[]>(categories)
+  const tagsRef = useRef<TagRecord[]>(tags)
   const noteFormRef = useRef<NoteFormState>(noteForm)
   const editingNoteIdRef = useRef<number | null>(editingNoteId)
   const noteSavePromiseRef = useRef<Promise<void> | null>(null)
@@ -544,6 +547,18 @@ export default function NotesApp() {
   }, [user])
 
   useEffect(() => {
+    notesRef.current = notes
+  }, [notes])
+
+  useEffect(() => {
+    categoriesRef.current = categories
+  }, [categories])
+
+  useEffect(() => {
+    tagsRef.current = tags
+  }, [tags])
+
+  useEffect(() => {
     noteFormRef.current = noteForm
   }, [noteForm])
 
@@ -619,9 +634,9 @@ export default function NotesApp() {
 
   const applyNotesUrlSelection = useCallback(
     ({
-      categoryList = categories,
-      noteList = notes,
-      tagList = tags,
+      categoryList = categoriesRef.current,
+      noteList = notesRef.current,
+      tagList = tagsRef.current,
     }: {
       categoryList?: CategoryRecord[]
       noteList?: NoteRecord[]
@@ -679,14 +694,11 @@ export default function NotesApp() {
     },
     [
       bumpDescriptionEditorSessionId,
-      categories,
-      notes,
       setCategoryInputValue,
       setEditingNoteId,
       setNoteForm,
       setNotesUrlSelectionReady,
       setPendingTagLabels,
-      tags,
     ],
   )
 
