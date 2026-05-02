@@ -77,6 +77,39 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 - After completing a feature request, create or update the PR and include the PR link in the final response.
 
+## Cursor Cloud specific instructions
+
+### Services
+
+| Service | Start command | Notes |
+|---------|--------------|-------|
+| PostgreSQL 17 | `sudo pg_ctlcluster 17 main start` | Must run before `notes-next` dev server or any `db:*` command |
+| notes-next dev | `pnpm --filter notes-next dev` | Serves at http://localhost:3000 |
+
+### Environment variables
+
+Set these before running `notes-next` or database commands:
+
+```bash
+export PATH="/usr/lib/postgresql/17/bin:$HOME/.local/share/pnpm:$PATH"
+export MARKETING_DB_URL="postgres://notesdev:notesdev@localhost:5432/notes_dev"  # pragma: allowlist secret
+```
+
+The `.env` file at `apps/notes-next/.env` provides `MARKETING_DB_URL` to the Next.js dev server automatically. For shell scripts (e.g. `pnpm run db:migrate`), export it in your shell.
+
+### Database setup (one-time, already done in VM snapshot)
+
+PostgreSQL 17 with pgvector is installed. Database `notes_dev` exists with user `notesdev:notesdev`. Migrations are applied. To re-run migrations: `pnpm run db:migrate`.
+
+### Gotchas
+
+- `pnpm install` will warn about ignored build scripts. The root `package.json` has `pnpm.onlyBuiltDependencies` configured to allow `@parcel/watcher`, `@tailwindcss/oxide`, `esbuild`, and `sharp`.
+- The session/login API (`POST /api/session`) only finds existing users — it does not create them. To seed a new user: `INSERT INTO user_v1 (username, email, phone) VALUES (...)` directly in Postgres.
+- Creating a note requires a `categoryId`. Create a category first via `POST /api/categories`.
+- Embedding features (semantic search, tag/category embedding on write) require `JINA_API_KEY`. Without it, note creation still works but embedding fields remain NULL and search returns empty.
+- `db:verify` is **not** read-only — it runs migrations first, then generates artifacts. Safe for dev but intentional.
+- The pre-push hook runs `pnpm run verify` which includes type-checking, tests, and a full build. This can be skipped in cloud agents with `HUSKY=0`.
+
 ## Maintenance
 
 Keep this file up to date after major workspace-level changes. Edit it when app boundaries, release workflows, script ownership, or shared contracts change.

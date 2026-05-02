@@ -39,5 +39,13 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.11"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@tailwindcss/oxide",
+      "esbuild",
+      "sharp"
+    ]
   }
 }
