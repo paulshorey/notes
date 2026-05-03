@@ -48,6 +48,24 @@ This codebase is developed by AI agents.
 - `notes-next`: run `release:notes:prepare`, run Notes DB migration steps when needed, then deploy on Railway.
 - `notes-android`: run `build:android:dist:dev` or `build:android:dist:prod`, then share the APK download link in the PR; no Railway deploy.
 
+## Preview deployments (PR environments)
+
+Railway PR Environments are enabled for this project. When a PR is opened with changes to `apps/notes-next/**` or `lib/db-marketing/**`:
+
+1. Railway creates an ephemeral environment with a fresh PostgreSQL instance and a `notes-next` deployment from the PR branch.
+2. The `preDeployCommand` in `railway.json` auto-runs all migrations against the empty PR database.
+3. A unique preview URL is generated and posted to the PR.
+4. When the PR is merged or closed, the environment and database are destroyed.
+
+Key points:
+- Production migrations remain operator-driven (no `preDeployCommand` in production).
+- PR databases always start empty and get the full migration history from the PR branch.
+- The `MARKETING_DB_URL` variable uses Railway template syntax (`${{Postgres.DATABASE_URL}}`) so it resolves to the PR-specific database automatically.
+- Focused PR Environments are enabled — only services whose watch paths match the changed files are deployed.
+- Bot PR Environments are enabled for AI agents (Claude, Copilot, Dependabot).
+
+See `docs/railway-preview-deployments.md` for full setup details and troubleshooting.
+
 ## Database rules
 
 After changing Notes schema or contracts in `lib/db-marketing`:
