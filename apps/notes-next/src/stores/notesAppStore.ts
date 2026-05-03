@@ -8,11 +8,6 @@ type State = {
    */
   resultsListVisible: boolean
   /**
-   * Category filter currently selected in the notes results footer.
-   * Null means all categories are visible.
-   */
-  selectedCategoryId: number | null
-  /**
    * Category the user explicitly opened in the notes results column, in
    * addition to the category currently selected in the note form.
    */
@@ -52,7 +47,6 @@ type State = {
 type Actions = {
   resetDefaultState: () => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
-  setSelectedCategoryId: (categoryId: number | null) => void
   setManuallyExpandedCategoryId: (categoryId: number | null) => void
   setSelectedTagId: (tagId: number | null) => void
   setSearchQuery: (query: string) => void
@@ -73,7 +67,6 @@ export type NotesAppStore = State & Actions
 
 const defaultState: State = {
   resultsListVisible: true,
-  selectedCategoryId: null,
   manuallyExpandedCategoryId: null,
   selectedTagId: null,
   searchQuery: "",
@@ -94,9 +87,6 @@ export const useNotesAppStore = create<NotesAppStore>((set) => ({
       resultsListVisible:
         typeof visible === "function" ? visible(current.resultsListVisible) : visible,
     }))
-  },
-  setSelectedCategoryId: (categoryId) => {
-    set({ selectedCategoryId: categoryId })
   },
   setManuallyExpandedCategoryId: (categoryId) => {
     set({ manuallyExpandedCategoryId: categoryId })
