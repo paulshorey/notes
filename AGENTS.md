@@ -77,6 +77,15 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 - After completing a feature request, create or update the PR and include the PR link in the final response.
 
+## Cursor Cloud specific instructions
+
+Before running `notes-next` or any `db:*` command, start Postgres and add pg17 tools to PATH:
+
+```bash
+sudo pg_ctlcluster 17 main start
+export PATH="/usr/lib/postgresql/17/bin:$PATH"
+```
+
 ## Maintenance
 
 Keep this file up to date after major workspace-level changes. Edit it when app boundaries, release workflows, script ownership, or shared contracts change.
