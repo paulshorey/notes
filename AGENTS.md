@@ -76,6 +76,13 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 ## Pull requests
 
 - After completing a feature request, create or update the PR and include the PR link in the final response.
+- The PR description serves as a handoff to the next AI agent or engineer. Always write a comprehensive PR description that includes the full details of what was done and why. Include:
+  - A summary of the change and its motivation.
+  - Every file added or modified, with a brief explanation of what each file does.
+  - Key technical decisions (e.g. which approach was chosen and why).
+  - Any testing that was performed and the results.
+  - Handoff notes: anything the next person needs to know to continue, deploy, or review the work.
+- Do not write a minimal or abbreviated PR description. The PR description should contain all the information from the conversation that explains the code changes, so someone reading only the PR can fully understand the work without needing the original conversation.
 
 ## Cursor Cloud specific instructions
 
