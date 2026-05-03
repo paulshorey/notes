@@ -261,6 +261,27 @@ const compareNoteGroups = <T extends { sortTime: number } & (
   )
 }
 
+const compareCategoryNoteGroups = (
+  left: CategoryNoteGroup,
+  right: CategoryNoteGroup,
+  uncategorizedCategoryId: number | null,
+) => {
+  const leftIsEmptyUncategorized =
+    uncategorizedCategoryId !== null &&
+    left.category.id === uncategorizedCategoryId &&
+    left.items.length === 0
+  const rightIsEmptyUncategorized =
+    uncategorizedCategoryId !== null &&
+    right.category.id === uncategorizedCategoryId &&
+    right.items.length === 0
+
+  if (leftIsEmptyUncategorized !== rightIsEmptyUncategorized) {
+    return leftIsEmptyUncategorized ? 1 : -1
+  }
+
+  return compareNoteGroups(left, right)
+}
+
 const getTopCategorySectionId = (categoryList: CategoryRecord[], noteList: NoteRecord[]) => {
   const sortTimesByCategory = new Map(categoryList.map((category) => [category.id, 0]))
 
@@ -1147,8 +1168,8 @@ export default function NotesApp() {
           sortTime: getGroupSortTime(items),
         }
       })
-      .sort(compareNoteGroups)
-  }, [categories, matchesSelectedTag, notes])
+      .sort((left, right) => compareCategoryNoteGroups(left, right, fallbackCategoryId))
+  }, [categories, fallbackCategoryId, matchesSelectedTag, notes])
 
   const tagNoteGroups = useMemo<TagNoteGroup[]>(() => {
     const notesByTag = new Map<number, DisplayNoteItem[]>()
