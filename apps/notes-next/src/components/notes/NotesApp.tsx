@@ -282,31 +282,8 @@ const compareCategoryNoteGroups = (
   return compareNoteGroups(left, right)
 }
 
-const getTopCategorySectionId = (categoryList: CategoryRecord[], noteList: NoteRecord[]) => {
-  const sortTimesByCategory = new Map(categoryList.map((category) => [category.id, 0]))
-
-  for (const note of noteList) {
-    const currentSortTime = sortTimesByCategory.get(note.category.id)
-    if (currentSortTime === undefined) {
-      continue
-    }
-
-    sortTimesByCategory.set(note.category.id, Math.max(currentSortTime, getNoteSortTime(note)))
-  }
-
-  return (
-    categoryList
-      .map((category) => ({
-        category,
-        sortTime: sortTimesByCategory.get(category.id) ?? 0,
-      }))
-      .sort(compareNoteGroups)[0]?.category.id ?? null
-  )
-}
-
 interface ResetNoteFormOptions {
   categoryList?: CategoryRecord[]
-  noteList?: NoteRecord[]
   selectedCategoryId?: number | null
   selectedTagIds?: number[]
 }
@@ -630,11 +607,10 @@ export default function NotesApp() {
   const resetNoteForm = useCallback(
     (options: ResetNoteFormOptions = {}) => {
       const categoryList = options.categoryList ?? categories
-      const noteList = options.noteList ?? notes
       const selectedCategoryId: number | null =
         "selectedCategoryId" in options
           ? (options.selectedCategoryId ?? null)
-          : getTopCategorySectionId(categoryList, noteList)
+          : getDefaultCategoryId(categoryList)
       const selectedTagIds = options.selectedTagIds ?? []
       const nextForm = {
         ...createDefaultNoteForm(),
@@ -650,7 +626,7 @@ export default function NotesApp() {
       bumpDescriptionEditorSessionId()
       setPendingTagLabels([])
     },
-    [bumpDescriptionEditorSessionId, categories, notes, setEditingNoteId, setNoteForm, setPendingTagLabels],
+    [bumpDescriptionEditorSessionId, categories, setEditingNoteId, setNoteForm, setPendingTagLabels],
   )
 
   const applyNotesUrlSelection = useCallback(
@@ -692,7 +668,7 @@ export default function NotesApp() {
         selection.categoryId !== null &&
         categoryList.some((category) => category.id === selection.categoryId)
           ? selection.categoryId
-          : getTopCategorySectionId(categoryList, noteList)
+          : getDefaultCategoryId(categoryList)
       const nextForm = {
         ...createDefaultNoteForm(),
         selectedCategoryId: categoryId,
@@ -973,7 +949,7 @@ export default function NotesApp() {
 
         return {
           ...prev,
-          selectedCategoryId: getTopCategorySectionId(latestCategories, latestNotes),
+          selectedCategoryId: getDefaultCategoryId(latestCategories),
         }
       })
       if (trimmedSearchQuery) {
@@ -1055,7 +1031,7 @@ export default function NotesApp() {
           return
         }
 
-        resetNoteForm({ categoryList: latestCategories, noteList: latestNotes })
+        resetNoteForm({ categoryList: latestCategories })
         setStatusMessage(noteId === null ? "Note created." : "Note updated.")
       })()
 
@@ -1331,7 +1307,7 @@ export default function NotesApp() {
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     setPreferredMarkdownEditorMode(DEFAULT_MARKDOWN_EDITOR_MODE)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-    resetNoteForm({ categoryList: [], noteList: [] })
+    resetNoteForm({ categoryList: [] })
     clearMessages()
   }
 
@@ -1383,7 +1359,7 @@ export default function NotesApp() {
     const selectedCategoryId =
       currentCategoryId !== null && categories.some((category) => category.id === currentCategoryId)
         ? currentCategoryId
-        : getTopCategorySectionId(categories, notes)
+        : getDefaultCategoryId(categories)
     resetNoteForm({ selectedCategoryId, selectedTagIds: [tag.id] })
     const categoryLabel =
       selectedCategoryId === null
@@ -1879,7 +1855,7 @@ export default function NotesApp() {
       await readJson<{ ok: true }>(response)
       const { latestNotes, latestCategories } = await refreshResults(user.id)
       if (editingNoteId === noteId) {
-        resetNoteForm({ categoryList: latestCategories, noteList: latestNotes })
+        resetNoteForm({ categoryList: latestCategories })
       }
       setStatusMessage("Note deleted.")
     } catch (error) {
