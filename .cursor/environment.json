@@ -1,7 +1,7 @@
 {
   "baseImage": "ghcr.io/cursor-images/node-20:latest",
-  "install": "pnpm run cloud:install",
-  "start": "pnpm run cloud:start",
+  "install": "bash scripts/cloud-agent-install.sh",
+  "start": "bash scripts/cloud-agent-start.sh",
   "persistedDirectories": [
     "/workspace/.jdk",
     "/workspace/.android-sdk",

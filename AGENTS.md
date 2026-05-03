@@ -79,16 +79,12 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 ## Cursor Cloud specific instructions
 
-Before running `notes-next` or any `db:*` command:
+Before running `notes-next` or any `db:*` command, start Postgres and add pg17 tools to PATH:
 
-1. `sudo pg_ctlcluster 17 main start`
-2. `export PATH="/usr/lib/postgresql/17/bin:$PATH"`
-
-`MARKETING_DB_URL` and `JINA_API_KEY` are injected as env vars. `apps/notes-next/.env` also provides them to the Next.js dev server.
-
-- `POST /api/session` only finds existing users. Seed with `INSERT INTO user_v1 (username, email, phone) VALUES (...)`.
-- Creating a note requires a `categoryId` — create a category first via `POST /api/categories`.
-- `db:verify` is not read-only — it runs migrations then generates artifacts.
+```bash
+sudo pg_ctlcluster 17 main start
+export PATH="/usr/lib/postgresql/17/bin:$PATH"
+```
 
 ## Maintenance
 
