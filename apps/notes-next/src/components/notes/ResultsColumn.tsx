@@ -129,10 +129,7 @@ export function ResultsColumn({
     setSearchQuery,
   } = useNotesAppStore()
   const trimmedSearchQuery = searchQuery.trim()
-  const visibleCategoryNoteGroups = categoryNoteGroups.filter(
-    ({ category }) =>
-      category.id === activeCategoryId || !(category.id === 1 && category.noteCount === 0),
-  )
+  const visibleCategoryNoteGroups = categoryNoteGroups
 
   useEffect(() => {
     if (manuallyExpandedCategoryId === null) {
