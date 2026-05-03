@@ -5,6 +5,17 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Ensure node/corepack are on PATH (NVM installs under /home/ubuntu on the
+# Cursor cloud image but the agent runs as root).
+if ! command -v node >/dev/null 2>&1; then
+  for candidate in /home/ubuntu/.nvm/versions/node/*/bin; do
+    if [[ -x "$candidate/node" ]]; then
+      export PATH="$candidate:$PATH"
+      break
+    fi
+  done
+fi
+
 export CI="${CI:-true}"
 export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 export HUSKY="${HUSKY:-0}"

@@ -4,6 +4,23 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Ensure node/pnpm are on PATH (NVM installs under /home/ubuntu on the
+# Cursor cloud image but the agent runs as root).
+if ! command -v node >/dev/null 2>&1; then
+  for candidate in /home/ubuntu/.nvm/versions/node/*/bin; do
+    if [[ -x "$candidate/node" ]]; then
+      export PATH="$candidate:$PATH"
+      break
+    fi
+  done
+fi
+
+export PNPM_HOME="${PNPM_HOME:-$HOME/.local/share/pnpm}"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+
 pg17_bindir="/usr/lib/postgresql/17/bin"
 if [[ -d "$pg17_bindir" ]]; then
   case ":$PATH:" in
