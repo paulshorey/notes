@@ -67,16 +67,12 @@ const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 const DEFAULT_MARKDOWN_EDITOR_MODE = "wysiwyg"
 const NOTE_URL_ID_PARAM = "id"
-const NOTE_URL_CATEGORY_PARAM = "category"
-const NOTE_URL_TAGS_PARAM = "tags"
 
 type MarkdownEditorModePreference = "wysiwyg" | "markup"
 
 interface NotesUrlSelection {
   hasState: boolean
   noteId: number | null
-  categoryId: number | null
-  tagIds: number[]
 }
 
 const isPreferencesObject = (value: unknown): value is Record<string, unknown> =>
@@ -122,38 +118,19 @@ const parsePositiveInteger = (value: string | null) => {
 
 const readNotesUrlSelection = (): NotesUrlSelection => {
   if (typeof window === "undefined") {
-    return { hasState: false, noteId: null, categoryId: null, tagIds: [] }
+    return { hasState: false, noteId: null }
   }
 
   const params = new URLSearchParams(window.location.search)
-  const rawTags = params.get(NOTE_URL_TAGS_PARAM)
-  const tagIds =
-    rawTags === null
-      ? []
-      : Array.from(
-          new Set(
-            rawTags
-              .split(",")
-              .map((value) => parsePositiveInteger(value))
-              .filter((value): value is number => value !== null),
-          ),
-        )
 
   return {
-    hasState:
-      params.has(NOTE_URL_ID_PARAM) ||
-      params.has(NOTE_URL_CATEGORY_PARAM) ||
-      params.has(NOTE_URL_TAGS_PARAM),
+    hasState: params.has(NOTE_URL_ID_PARAM),
     noteId: parsePositiveInteger(params.get(NOTE_URL_ID_PARAM)),
-    categoryId: parsePositiveInteger(params.get(NOTE_URL_CATEGORY_PARAM)),
-    tagIds,
   }
 }
 
 const writeNotesUrlSelection = ({
   noteId,
-  categoryId,
-  tagIds,
 }: Omit<NotesUrlSelection, "hasState">) => {
   if (typeof window === "undefined") {
     return
@@ -164,19 +141,6 @@ const writeNotesUrlSelection = ({
     url.searchParams.delete(NOTE_URL_ID_PARAM)
   } else {
     url.searchParams.set(NOTE_URL_ID_PARAM, String(noteId))
-  }
-
-  if (categoryId === null) {
-    url.searchParams.delete(NOTE_URL_CATEGORY_PARAM)
-  } else {
-    url.searchParams.set(NOTE_URL_CATEGORY_PARAM, String(categoryId))
-  }
-
-  const nextTagIds = Array.from(new Set(tagIds)).filter((id) => Number.isInteger(id) && id > 0)
-  if (nextTagIds.length === 0) {
-    url.searchParams.delete(NOTE_URL_TAGS_PARAM)
-  } else {
-    url.searchParams.set(NOTE_URL_TAGS_PARAM, nextTagIds.join(","))
   }
 
   const nextPath = `${url.pathname}${url.search}${url.hash}`
@@ -641,16 +605,11 @@ export default function NotesApp() {
     ({
       categoryList = categoriesRef.current,
       noteList = notesRef.current,
-      tagList = tagsRef.current,
     }: {
       categoryList?: CategoryRecord[]
       noteList?: NoteRecord[]
-      tagList?: TagRecord[]
     } = {}) => {
       const selection = readNotesUrlSelection()
-      const validTagIds = selection.tagIds.filter((tagId) =>
-        tagList.some((tag) => tag.id === tagId),
-      )
 
       if (selection.noteId !== null) {
         const note = noteList.find((item) => item.id === selection.noteId)
@@ -672,15 +631,10 @@ export default function NotesApp() {
         }
       }
 
-      const categoryId =
-        selection.categoryId !== null &&
-        categoryList.some((category) => category.id === selection.categoryId)
-          ? selection.categoryId
-          : getDefaultCategoryId(categoryList)
+      const categoryId = getDefaultCategoryId(categoryList)
       const nextForm = {
         ...createDefaultNoteForm(),
         selectedCategoryId: categoryId,
-        selectedTagIds: validTagIds,
       }
       const categoryLabel =
         categoryId === null
@@ -710,6 +664,17 @@ export default function NotesApp() {
   const handleCancelEdit = useCallback(() => {
     resetNoteForm({ selectedCategoryId: noteForm.selectedCategoryId })
   }, [noteForm.selectedCategoryId, resetNoteForm])
+
+  const handleNewNote = useCallback(() => {
+    clearMessages()
+    resetNoteForm()
+    const defaultCategoryId = getDefaultCategoryId(categories)
+    const categoryLabel =
+      defaultCategoryId === null
+        ? ""
+        : (categories.find((category) => category.id === defaultCategoryId)?.label ?? "")
+    setCategoryInputValue(categoryLabel)
+  }, [categories, clearMessages, resetNoteForm, setCategoryInputValue])
 
   const loadNotes = useCallback(async (userId: number) => {
     setNotesLoading(true)
@@ -772,7 +737,7 @@ export default function NotesApp() {
         if (!active) return
 
         applyLoadedUser(sessionData.user)
-        const [loadedNotes, loadedCategories, loadedTags] = await Promise.all([
+        const [loadedNotes, loadedCategories] = await Promise.all([
           loadNotes(sessionData.user.id),
           loadCategories(sessionData.user.id),
           loadTags(sessionData.user.id),
@@ -780,7 +745,6 @@ export default function NotesApp() {
         applyNotesUrlSelection({
           categoryList: loadedCategories,
           noteList: loadedNotes,
-          tagList: loadedTags,
         })
       } catch (error) {
         if (!active) return
@@ -866,13 +830,9 @@ export default function NotesApp() {
 
     writeNotesUrlSelection({
       noteId: editingNoteId,
-      categoryId: noteForm.selectedCategoryId,
-      tagIds: noteForm.selectedTagIds,
     })
   }, [
     editingNoteId,
-    noteForm.selectedCategoryId,
-    noteForm.selectedTagIds,
     notesUrlSelectionReady,
     user,
   ])
@@ -1276,7 +1236,7 @@ export default function NotesApp() {
       const data = await readJson<SessionResponse>(response)
       window.localStorage.setItem(STORAGE_KEY, String(data.user.id))
       applyLoadedUser(data.user)
-      const [loadedCategories, loadedTags, loadedNotes] = await Promise.all([
+      const [loadedCategories, , loadedNotes] = await Promise.all([
         loadCategories(data.user.id),
         loadTags(data.user.id),
         loadNotes(data.user.id),
@@ -1285,7 +1245,6 @@ export default function NotesApp() {
       applyNotesUrlSelection({
         categoryList: loadedCategories,
         noteList: loadedNotes,
-        tagList: loadedTags,
       })
       setSearchQuery("")
       setSearchResults([])
@@ -1939,6 +1898,7 @@ export default function NotesApp() {
                 user={user}
                 notesLoading={notesLoading}
                 resultsListVisible={resultsListVisible}
+                onNewNote={handleNewNote}
                 onRefresh={() => void handleRefreshNotes()}
                 onLogout={handleLogout}
                 embeddingMaintenancePending={embeddingMaintenancePending}
