@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { Button, Popup, Text } from "@gravity-ui/uikit"
-import { ArrowClockwise, SidebarSimple, User } from "@phosphor-icons/react"
+import { Plus, SidebarSimple, User } from "@phosphor-icons/react"
 import type { UserSummary } from "@lib/db-marketing"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import type { EmbeddingMaintenanceMode } from "@/types/notes"
@@ -12,6 +12,7 @@ interface NotesHeaderProps {
   user: UserSummary
   notesLoading: boolean
   resultsListVisible: boolean
+  onNewNote: () => void
   onRefresh: () => void
   onLogout: () => void
   embeddingMaintenancePending: EmbeddingMaintenanceMode | null
@@ -22,6 +23,7 @@ export function NotesHeader({
   user,
   notesLoading,
   resultsListVisible,
+  onNewNote,
   onRefresh,
   onLogout,
   embeddingMaintenancePending,
@@ -36,17 +38,19 @@ export function NotesHeader({
 
   return (
     <div className={styles.headerActions}>
-      {/* <Button
-        view="flat"
-        size="m"
-        onClick={onRefresh}
-        loading={notesLoading}
-        className={styles.headerButton}
-      >
-        <ArrowClockwise size={18} weight="regular" className={styles.headerIcon} />
-      </Button> */}
-      <span className={styles.headerLogo} onClick={onRefresh}>
-        jot.new
+      <span className={styles.headerStart}>
+        <Button
+          view="flat"
+          size="m"
+          onClick={onNewNote}
+          aria-label="New note"
+          className={styles.headerButton}
+        >
+          <Plus size={18} weight="regular" className={styles.headerIcon} />
+        </Button>
+        <span className={styles.headerLogo} onClick={onNewNote}>
+          jot.new
+        </span>
       </span>
       <span className={styles.headerButtons}>
         <Button

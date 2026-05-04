@@ -657,6 +657,17 @@ export default function NotesApp() {
     resetNoteForm({ selectedCategoryId: noteForm.selectedCategoryId })
   }, [noteForm.selectedCategoryId, resetNoteForm])
 
+  const handleNewNote = useCallback(() => {
+    clearMessages()
+    resetNoteForm()
+    const defaultCategoryId = getDefaultCategoryId(categories)
+    const categoryLabel =
+      defaultCategoryId === null
+        ? ""
+        : (categories.find((category) => category.id === defaultCategoryId)?.label ?? "")
+    setCategoryInputValue(categoryLabel)
+  }, [categories, clearMessages, resetNoteForm, setCategoryInputValue])
+
   const loadNotes = useCallback(async (userId: number) => {
     setNotesLoading(true)
     try {
@@ -1877,6 +1888,7 @@ export default function NotesApp() {
                 user={user}
                 notesLoading={notesLoading}
                 resultsListVisible={resultsListVisible}
+                onNewNote={handleNewNote}
                 onRefresh={() => void handleRefreshNotes()}
                 onLogout={handleLogout}
                 embeddingMaintenancePending={embeddingMaintenancePending}

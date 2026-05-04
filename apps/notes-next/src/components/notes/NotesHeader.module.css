@@ -8,11 +8,17 @@
   justify-content: space-between;
 }
 
+.headerStart {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
 .headerLogo {
   color: var(--g-color-text-link, #4da2ff);
   font-size: 1.0625rem;
-  margin-left: 0.825rem;
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
 }
 
 /* .headerLogo::before {
