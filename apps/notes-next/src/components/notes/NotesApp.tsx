@@ -244,10 +244,12 @@ const getGroupSortTime = (items: DisplayNoteItem[]) =>
 
 type NoteGroupSortRecord = CategoryRecord | TagRecord
 
-const compareNoteGroups = <T extends { sortTime: number } & (
-  | { category: NoteGroupSortRecord }
-  | { tag: NoteGroupSortRecord }
-)>(
+const compareNoteGroups = <
+  T extends { sortTime: number } & (
+    | { category: NoteGroupSortRecord }
+    | { tag: NoteGroupSortRecord }
+  ),
+>(
   left: T,
   right: T,
 ) => {
@@ -626,7 +628,13 @@ export default function NotesApp() {
       bumpDescriptionEditorSessionId()
       setPendingTagLabels([])
     },
-    [bumpDescriptionEditorSessionId, categories, setEditingNoteId, setNoteForm, setPendingTagLabels],
+    [
+      bumpDescriptionEditorSessionId,
+      categories,
+      setEditingNoteId,
+      setNoteForm,
+      setPendingTagLabels,
+    ],
   )
 
   const applyNotesUrlSelection = useCallback(
@@ -1311,14 +1319,14 @@ export default function NotesApp() {
     clearMessages()
   }
 
-  const handleMarkdownEditorModeChange = useCallback((mode: MarkdownEditorModePreference) => {
-    setPreferredMarkdownEditorMode(mode)
-    setUserPreferences((current) =>
-      getStoredMarkdownEditorMode(current) === mode
-        ? current
-        : withMarkdownEditorModePreference(current, mode),
-    )
-  }, [])
+  // const handleMarkdownEditorModeChange = useCallback((mode: MarkdownEditorModePreference) => {
+  //   setPreferredMarkdownEditorMode(mode)
+  //   setUserPreferences((current) =>
+  //     getStoredMarkdownEditorMode(current) === mode
+  //       ? current
+  //       : withMarkdownEditorModePreference(current, mode),
+  //   )
+  // }, [])
 
   const handleStartEdit = (note: NoteRecord) => {
     clearMessages()
@@ -1503,7 +1511,9 @@ export default function NotesApp() {
     void saveCurrentNote("manual")
   }
 
-  const resolveCategoryForSidebarMove = async (rawLabel: string): Promise<CategoryRecord | null> => {
+  const resolveCategoryForSidebarMove = async (
+    rawLabel: string,
+  ): Promise<CategoryRecord | null> => {
     if (!user) {
       setErrorMessage("Sign in before moving notes.")
       return null
@@ -1922,7 +1932,7 @@ export default function NotesApp() {
           onSubmit={handleSaveNote}
           onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           onCancelEdit={handleCancelEdit}
-          onMarkdownEditorModeChange={handleMarkdownEditorModeChange}
+          // onMarkdownEditorModeChange={handleMarkdownEditorModeChange}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader

@@ -50,8 +50,8 @@ interface NoteFormProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onDeleteNote: (noteId: number) => void
   onCancelEdit: () => void
-  onMarkdownEditorModeChange: NonNullable<MarkdownEditorProps["onModeChange"]>
-  header: JSX.Element
+  // onMarkdownEditorModeChange: NonNullable<MarkdownEditorProps["onModeChange"]>
+  header?: JSX.Element
 }
 
 export function NoteForm({
@@ -76,7 +76,7 @@ export function NoteForm({
   onSubmit,
   onDeleteNote,
   onCancelEdit,
-  onMarkdownEditorModeChange,
+  // onMarkdownEditorModeChange,
   header,
 }: NoteFormProps) {
   const categoryTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -368,11 +368,11 @@ export function NoteForm({
         <MarkdownEditor
           autofocus
           key={descriptionEditorSessionId}
-          placeholder="Write now, sync later..."
+          placeholder="Write now, organize later..."
           value={form.description}
           mode={markdownEditorMode}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
-          onModeChange={onMarkdownEditorModeChange}
+          // onModeChange={onMarkdownEditorModeChange}
           className={styles.formDescription}
         />
 

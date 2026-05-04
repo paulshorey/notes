@@ -177,7 +177,7 @@ export function MarkdownEditor({
 
   return (
     <div ref={editorContainerRef} className={`${styles.editor} ${className ?? ""}`}>
-      <ActionTooltip title={modeToggleLabel}>
+      {/* <ActionTooltip title={modeToggleLabel}>
         <Button
           aria-label={modeToggleLabel}
           className={styles.modeToggle}
@@ -189,7 +189,7 @@ export function MarkdownEditor({
         >
           <Icon data={ModeToggleIcon} size={16} />
         </Button>
-      </ActionTooltip>
+      </ActionTooltip> */}
       <MarkdownEditorView
         autofocus={autofocus}
         className={styles.editor}
