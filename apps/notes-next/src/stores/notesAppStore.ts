@@ -22,8 +22,7 @@ type State = {
    */
   searchQuery: string
   /**
-   * Current note editor draft. Description/due fields stay in memory only; the
-   * category/tag selections are mirrored into the URL by the page container.
+   * Current note editor draft. Description/due fields stay in memory only.
    */
   noteForm: NoteFormState
   /**
