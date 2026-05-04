@@ -11,5 +11,15 @@
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5
+  },
+  "environments": {
+    "pr": {
+      "deploy": {
+        "preDeployCommand": [
+          "/bin/sh -c \"cd lib/db-marketing && node scripts/migrate.mjs\""
+        ],
+        "restartPolicyMaxRetries": 3
+      }
+    }
   }
 }
