@@ -2000,6 +2000,7 @@ export default function NotesApp() {
           tagNoteGroups={tagNoteGroups}
           activeNoteId={editingNoteId}
           activeCategoryId={noteForm.selectedCategoryId}
+          activeTagIds={noteForm.selectedTagIds}
           onEditNote={handleOpenNoteFromResults}
           onAddNoteForCategory={handleAddNoteForCategory}
           onAddNoteForTag={handleAddNoteForTag}
