@@ -74,6 +74,7 @@ interface ResultsColumnProps {
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
   activeCategoryId: number | null
+  activeTagIds: number[]
   onEditNote: (note: NoteRecord) => void
   onAddNoteForCategory: (category: CategoryRecord) => void
   onAddNoteForTag: (tag: TagRecord) => void
@@ -105,6 +106,7 @@ export function ResultsColumn({
   tagNoteGroups,
   activeNoteId,
   activeCategoryId,
+  activeTagIds,
   onEditNote,
   onAddNoteForCategory,
   onAddNoteForTag,
@@ -130,6 +132,7 @@ export function ResultsColumn({
   } = useNotesAppStore()
   const trimmedSearchQuery = searchQuery.trim()
   const visibleCategoryNoteGroups = categoryNoteGroups
+  const activeTagIdSet = useMemo(() => new Set(activeTagIds), [activeTagIds])
 
   useEffect(() => {
     if (manuallyExpandedCategoryId === null) {
@@ -364,6 +367,7 @@ export function ResultsColumn({
                 {visibleCategoryNoteGroups.map(({ category, items }) => {
                   const expanded =
                     activeCategoryId === category.id || manuallyExpandedCategoryId === category.id
+                  const active = activeCategoryId === category.id
                   const panelId = `category-notes-${category.id}`
                   const deleteDisabled = category.id === fallbackCategoryId
                   return (
@@ -372,14 +376,14 @@ export function ResultsColumn({
                         <SectionTitle
                           count={getFilteredNoteCount(category, items)}
                           label={category.label}
-                          active={expanded}
+                          active={active}
                           expanded={expanded}
                           panelId={panelId}
                           onToggle={() => toggleCategory(category.id)}
                         >
                           <SectionAddNoteButton
                             label={`Add note in ${category.label}`}
-                            active={expanded}
+                            active={active}
                             onClick={() => onAddNoteForCategory(category)}
                           />
                           <SectionActionMenu
@@ -459,6 +463,7 @@ export function ResultsColumn({
 
               {tagNoteGroups.map(({ tag, items }) => {
                 const expanded = expandedTagId === tag.id
+                const active = activeTagIdSet.has(tag.id)
                 const panelId = `tag-notes-${tag.id}`
 
                 return (
@@ -467,12 +472,14 @@ export function ResultsColumn({
                       <SectionTitle
                         count={tag.noteCount}
                         label={tag.label}
+                        active={active}
                         expanded={expanded}
                         panelId={panelId}
                         onToggle={() => toggleTag(tag.id)}
                       >
                         <SectionAddNoteButton
                           label={`Add note tagged ${tag.label}`}
+                          active={active}
                           onClick={() => onAddNoteForTag(tag)}
                         />
                         <SectionActionMenu
