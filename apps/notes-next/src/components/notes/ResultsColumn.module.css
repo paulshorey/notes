@@ -372,7 +372,7 @@
 .noteMovePicker {
   display: flex;
   width: min(220px, calc(100vw - 32px));
-  max-height: min(260px, calc(100vh - 32px));
+  max-height: min(260px, calc(100dvh - 32px));
   flex-direction: column;
   gap: 4px;
   overflow: hidden;
