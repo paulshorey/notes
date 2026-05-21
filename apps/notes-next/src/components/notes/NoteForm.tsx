@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { Button, Popup, Text } from "@gravity-ui/uikit"
-import { CalendarBlank, CaretDown, DotsThree, Plus, Trash, X } from "@phosphor-icons/react"
+import { CalendarBlank, CaretDown, DotsThree, Plus, X } from "@phosphor-icons/react"
 import {
   type Dispatch,
   type FormEvent,
@@ -33,7 +33,6 @@ interface NoteFormProps {
   setForm: Dispatch<SetStateAction<NoteFormState>>
   editingNoteId: number | null
   notePending: boolean
-  deletingNoteId: number | null
   userPresent: boolean
   categories: CategoryRecord[]
   tags: TagRecord[]
@@ -48,7 +47,6 @@ interface NoteFormProps {
   onCreateCategory: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
-  onDeleteNote: (noteId: number) => void
   onCancelEdit: () => void
   // onMarkdownEditorModeChange: NonNullable<MarkdownEditorProps["onModeChange"]>
   header?: JSX.Element
@@ -59,7 +57,6 @@ export function NoteForm({
   setForm,
   editingNoteId,
   notePending,
-  deletingNoteId,
   userPresent,
   categories,
   tags,
@@ -74,7 +71,6 @@ export function NoteForm({
   onCreateCategory,
   onTagValuesChange,
   onSubmit,
-  onDeleteNote,
   onCancelEdit,
   // onMarkdownEditorModeChange,
   header,
@@ -334,27 +330,11 @@ export function NoteForm({
       {header}
       <form className={styles.form} onSubmit={onSubmit}>
         <div className={styles.formActions}>
-          {editingNoteId !== null && (
-            <Button
-              view="flat"
-              size="s"
-              pin="round-brick"
-              type="button"
-              loading={deletingNoteId === editingNoteId}
-              disabled={notePending}
-              onClick={() => onDeleteNote(editingNoteId)}
-              aria-label="Delete note"
-              className={`${styles.formSideButton} ${styles.formDeleteButton}`}
-            >
-              <Trash size={14} weight="regular" />
-            </Button>
-          )}
-
           {showCancelButton && (
             <Button
               view="flat"
               size="s"
-              pin="brick-round"
+              pin="round-round"
               type="button"
               onClick={onCancelEdit}
               aria-label={editingNoteId !== null ? "Cancel editing" : "Cancel changes"}

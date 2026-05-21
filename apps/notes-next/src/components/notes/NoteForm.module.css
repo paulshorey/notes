@@ -38,10 +38,6 @@
   position: relative;
 }
 
-.formDeleteButton {
-  color: rgba(239, 68, 68, 0.72);
-}
-
 .formPrimaryAction {
   flex: 1 1 auto;
   width: 100%;

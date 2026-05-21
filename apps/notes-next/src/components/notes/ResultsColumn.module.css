@@ -348,24 +348,9 @@
   flex: 0 0 auto;
 }
 
-.noteMoveActionWrap {
-  position: relative;
-  display: flex;
-  flex: 0 0 auto;
-}
-
-.noteMoveActionButton {
-  min-width: 24px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0.68;
-}
-
-.noteMoveActionWrap:hover .noteMoveActionButton,
-.noteMoveActionButton:focus-visible,
-.noteMoveActionButton[aria-expanded="true"] {
+.noteItem:hover .categoryActionButton,
+.noteItem:focus-within .categoryActionButton,
+.categoryActionButton[aria-expanded="true"] {
   opacity: 1;
 }
 
