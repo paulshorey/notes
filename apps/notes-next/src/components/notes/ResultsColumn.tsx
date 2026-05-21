@@ -74,6 +74,7 @@ interface ResultsColumnProps {
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
   activeCategoryId: number | null
+  activeTagIds: number[]
   onEditNote: (note: NoteRecord) => void
   onAddNoteForCategory: (category: CategoryRecord) => void
   onAddNoteForTag: (tag: TagRecord) => void
@@ -107,6 +108,7 @@ export function ResultsColumn({
   tagNoteGroups,
   activeNoteId,
   activeCategoryId,
+  activeTagIds,
   onEditNote,
   onAddNoteForCategory,
   onAddNoteForTag,
@@ -397,6 +399,7 @@ export function ResultsColumn({
                           count={getFilteredNoteCount(category, items)}
                           label={category.label}
                           active={expanded}
+                          selected={activeCategoryId === category.id}
                           expanded={expanded}
                           panelId={panelId}
                           onToggle={() => toggleCategory(category.id)}
@@ -404,6 +407,7 @@ export function ResultsColumn({
                           <SectionAddNoteButton
                             label={`Add note in ${category.label}`}
                             active={expanded}
+                            selected={activeCategoryId === category.id}
                             onClick={() => onAddNoteForCategory(category)}
                           />
                           <SectionActionMenu
@@ -486,12 +490,14 @@ export function ResultsColumn({
                       <SectionTitle
                         count={tag.noteCount}
                         label={tag.label}
+                        selected={activeTagIds.includes(tag.id)}
                         expanded={expanded}
                         panelId={panelId}
                         onToggle={() => toggleTag(tag.id)}
                       >
                         <SectionAddNoteButton
                           label={`Add note tagged ${tag.label}`}
+                          selected={activeTagIds.includes(tag.id)}
                           onClick={() => onAddNoteForTag(tag)}
                         />
                         <SectionActionMenu
@@ -546,14 +552,15 @@ export function ResultsColumn({
 interface SectionAddNoteButtonProps {
   label: string
   active?: boolean
+  selected?: boolean
   onClick: () => void
 }
 
-function SectionAddNoteButton({ label, active = false, onClick }: SectionAddNoteButtonProps) {
+function SectionAddNoteButton({ label, active = false, selected = false, onClick }: SectionAddNoteButtonProps) {
   return (
     <button
       type="button"
-      className={`${styles.sectionAddNoteButton} ${active ? styles.sectionAddNoteButtonActive : ""}`}
+      className={`${styles.sectionAddNoteButton} ${active ? styles.sectionAddNoteButtonActive : ""} ${selected ? styles.sectionAddNoteButtonSelected : ""}`}
       onClick={(event) => {
         event.stopPropagation()
         onClick()
@@ -571,6 +578,7 @@ interface SectionTitleProps {
   count: number
   label: string
   active?: boolean
+  selected?: boolean
   expanded: boolean
   panelId: string
   onToggle: () => void
@@ -581,6 +589,7 @@ function SectionTitle({
   count,
   label,
   active = false,
+  selected = false,
   expanded,
   panelId,
   onToggle,
@@ -599,7 +608,7 @@ function SectionTitle({
           {/* <span className={styles.categoryCountText}>{count}</span>
           <sub className={styles.categoryPreposition}>in</sub> */}
           <span
-            className={`${styles.categoryNameText} ${active ? styles.categoryNameTextActive : ""}`}
+            className={`${styles.categoryNameText} ${active ? styles.categoryNameTextActive : ""} ${selected ? styles.categoryNameTextSelected : ""}`}
           >
             {label} <sup className={styles.categoryCountTextSup}>{count}</sup>
           </span>

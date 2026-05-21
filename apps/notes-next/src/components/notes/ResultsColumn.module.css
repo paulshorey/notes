@@ -340,7 +340,21 @@
 .sectionAddNoteButtonActive,
 .sectionAddNoteButtonActive:hover,
 .sectionAddNoteButtonActive:focus-visible {
-  color: var(--g-color-base-brand);
+  /* color: var(--g-color-base-brand); */
+}
+
+.sectionAddNoteButtonSelected,
+.sectionAddNoteButtonSelected:hover,
+.sectionAddNoteButtonSelected:focus-visible {
+  color: var(--g-color-text-brand);
+}
+
+.categoryNameTextActive {
+  color: var(--g-color-text-secondary);
+}
+
+.categoryNameTextSelected {
+  color: var(--g-color-text-brand);
 }
 
 .sectionAddNoteButton > svg,
