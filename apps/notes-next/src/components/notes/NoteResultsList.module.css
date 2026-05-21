@@ -14,7 +14,7 @@
 
 .noteItem {
   position: relative;
-  padding: 3px 0 3px 6px;
+  padding: 3px 0 3px 12px;
   cursor: pointer;
   border-radius: 0;
   user-select: none;
