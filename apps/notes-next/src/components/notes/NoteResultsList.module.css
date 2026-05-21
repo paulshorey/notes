@@ -14,7 +14,7 @@
 
 .noteItem {
   position: relative;
-  padding: 3px 4px 3px 6px;
+  padding: 3px 0 3px 6px;
   cursor: pointer;
   border-radius: 0;
   user-select: none;
@@ -35,7 +35,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding-right: 4px;
+  padding-right: 1px;
 }
 
 .noteTitleCollapsed {

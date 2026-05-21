@@ -11,7 +11,7 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
-import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
+import { firstLineLabel, normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -725,7 +725,7 @@ function NoteActionMenu({
         view="flat"
         size="xs"
         onClick={handleMenuButtonClick}
-        aria-label={`More options for ${noteLabel}`}
+        aria-label={`More options for ${firstLineLabel(noteLabel)}`}
         aria-haspopup="menu"
         aria-expanded={open}
         className={styles.categoryActionButton}

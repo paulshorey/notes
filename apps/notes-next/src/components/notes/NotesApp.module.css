@@ -25,7 +25,7 @@
   height: 44px;
   gap: 0;
   overflow: hidden;
-  background: var(--g-color-line-generic, #ffffff1f);
+  background: var(--g-color-line-generic);
 }
 
 .headerLeft {
@@ -41,7 +41,7 @@
   background: transparent;
   cursor: col-resize;
   touch-action: none;
-  background: var(--g-color-line-generic, #ffffff1f);
+  background: var(--g-color-line-generic);
 }
 
 .resizeHandle:hover,

@@ -21,14 +21,14 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
+  width: 18px;
+  height: 18px;
+  color: var(--g-color-line-generic);
   padding: 0;
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  color: var(--g-color-text-light-primary, #fff);
-  background: var(--g-color-text-link, #4da2ff);
+  background: var(--g-color-text-link);
 }
 
 .addNoteButton:hover {
@@ -40,7 +40,7 @@
 }
 
 .headerLogo {
-  color: var(--g-color-text-link, #4da2ff);
+  color: var(--g-color-text-link);
   font-size: 1.0625rem;
   cursor: pointer;
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
@@ -88,7 +88,7 @@
   display: inline-flex;
   margin-left: auto;
   transform: scaleX(-1);
-  color: var(--g-color-text-link, #4da2ff);
+  color: var(--g-color-text-link);
 }
 
 @media (min-width: 721px) {

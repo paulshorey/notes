@@ -132,7 +132,7 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: visible;
-  padding: 8px 0 12px 6px;
+  padding: 8px 0 12px 0;
 }
 
 .tagAccordion {
@@ -146,7 +146,7 @@
 }
 
 .accordionHeading {
-  padding: 6px 6px 2px;
+  padding: 6px 6px 2px 12px;
   color: var(--g-color-text-hint, #8a8a8a);
   font-size: 90%;
   font-weight: 900;
@@ -181,7 +181,7 @@
   flex: 1 1 auto;
   align-items: center;
   min-height: 34px;
-  padding: 3px 4px 3px 6px;
+  padding: 3px 4px 3px 12px;
   border: 0;
   background: none;
   color: inherit;

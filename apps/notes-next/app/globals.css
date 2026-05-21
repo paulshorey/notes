@@ -12,11 +12,20 @@ body {
 body {
   font-family: var(--g-font-family-sans, Inter, system-ui, sans-serif);
 }
+body.g-root_theme_light {
+  --g-color-line-generic: #494649;
+}
+body.g-root_theme_dark {
+  --g-color-line-generic: #494649;
+}
 
 a {
   text-decoration: none;
 }
 
+.g-md-editor-component__settings-wrapper {
+  display: none !important;
+}
 .g-md-markup-preview__outer {
   padding: 0.25rem 0.25rem 0 0 !important;
 }
