@@ -79,6 +79,8 @@ interface ResultsColumnProps {
   onAddNoteForTag: (tag: TagRecord) => void
   onMoveNoteCategory: (note: NoteRecord, categoryLabel: string) => void | Promise<void>
   onMoveNoteTag: (note: NoteRecord, fromTagId: number, tagLabel: string) => void | Promise<void>
+  onDeleteNote: (noteId: number) => void
+  deletingNoteId: number | null
   onEditCategory: (category: CategoryRecord) => void
   onDeleteCategory: (category: CategoryRecord) => void
   onEditTag: (tag: TagRecord) => void
@@ -110,6 +112,8 @@ export function ResultsColumn({
   onAddNoteForTag,
   onMoveNoteCategory,
   onMoveNoteTag,
+  onDeleteNote,
+  deletingNoteId,
   onEditCategory,
   onDeleteCategory,
   onEditTag,
@@ -256,6 +260,26 @@ export function ResultsColumn({
       id: `tag-${tagId}-note-${note.id}`,
     })
   }
+
+  const renderNoteRowAction = (
+    note: NoteRecord,
+    menuId: string,
+    pickerId: string,
+    onOpenMovePicker: () => void,
+  ) => (
+    <NoteActionMenu
+      id={menuId}
+      noteLabel={note.description?.trim() || "Untitled"}
+      openActionMenuId={openActionMenuId}
+      onOpenActionMenuChange={setOpenActionMenuId}
+      onMove={onOpenMovePicker}
+      onDelete={() => onDeleteNote(note.id)}
+      deletePending={deletingNoteId === note.id}
+      movePickerActive={activeMovePicker?.id === pickerId}
+      movePickerContent={renderMovePicker(note, pickerId)}
+      onCloseMovePicker={closeMovePicker}
+    />
+  )
 
   const renderMovePicker = (note: NoteRecord, pickerId: string) => {
     if (activeMovePicker?.note.id !== note.id || activeMovePicker.id !== pickerId) {
@@ -405,19 +429,14 @@ export function ResultsColumn({
                               loading={false}
                               emptyMessage=""
                               onEdit={handleResultEdit}
-                              renderAction={(note) => {
-                                const pickerId = `category-${category.id}-note-${note.id}`
-                                return (
-                                  <NoteMoveAction
-                                    active={activeMovePicker?.id === pickerId}
-                                    label={`Move note from ${category.label} to another category`}
-                                    onClose={closeMovePicker}
-                                    onClick={() => openCategoryMovePicker(note, category.id)}
-                                  >
-                                    {renderMovePicker(note, pickerId)}
-                                  </NoteMoveAction>
+                              renderAction={(note) =>
+                                renderNoteRowAction(
+                                  note,
+                                  `category-${category.id}-note-${note.id}`,
+                                  `category-${category.id}-note-${note.id}`,
+                                  () => openCategoryMovePicker(note, category.id),
                                 )
-                              }}
+                              }
                             />
                           )}
                         </div>
@@ -494,19 +513,14 @@ export function ResultsColumn({
                             loading={false}
                             emptyMessage=""
                             onEdit={handleResultEdit}
-                            renderAction={(note) => {
-                              const pickerId = `tag-${tag.id}-note-${note.id}`
-                              return (
-                                <NoteMoveAction
-                                  active={activeMovePicker?.id === pickerId}
-                                  label={`Move note from ${tag.label} to another tag`}
-                                  onClose={closeMovePicker}
-                                  onClick={() => openTagMovePicker(note, tag.id)}
-                                >
-                                  {renderMovePicker(note, pickerId)}
-                                </NoteMoveAction>
+                            renderAction={(note) =>
+                              renderNoteRowAction(
+                                note,
+                                `tag-${tag.id}-note-${note.id}`,
+                                `tag-${tag.id}-note-${note.id}`,
+                                () => openTagMovePicker(note, tag.id),
                               )
-                            }}
+                            }
                           />
                         )}
                       </div>
@@ -671,39 +685,90 @@ function SectionActionMenu({
   )
 }
 
-interface NoteMoveActionProps {
-  active: boolean
-  label: string
-  onClick: () => void
-  onClose: () => void
-  children: ReactNode
+interface NoteActionMenuProps {
+  id: string
+  noteLabel: string
+  openActionMenuId: string | null
+  onOpenActionMenuChange: (id: string | null) => void
+  onMove: () => void
+  onDelete: () => void
+  deletePending?: boolean
+  movePickerActive: boolean
+  movePickerContent: ReactNode
+  onCloseMovePicker: () => void
 }
 
-function NoteMoveAction({ active, label, onClick, onClose, children }: NoteMoveActionProps) {
+function NoteActionMenu({
+  id,
+  noteLabel,
+  openActionMenuId,
+  onOpenActionMenuChange,
+  onMove,
+  onDelete,
+  deletePending = false,
+  movePickerActive,
+  movePickerContent,
+  onCloseMovePicker,
+}: NoteActionMenuProps) {
+  const open = openActionMenuId === id
   const buttonRef = useRef<HTMLButtonElement>(null)
 
+  const handleMenuButtonClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    onOpenActionMenuChange(open ? null : id)
+  }
+
   return (
-    <div className={styles.noteMoveActionWrap} onClick={(event) => event.stopPropagation()}>
-      <button
+    <div className={styles.categoryActionWrap} onClick={(event) => event.stopPropagation()}>
+      <Button
         ref={buttonRef}
-        type="button"
-        className={styles.noteMoveActionButton}
-        onClick={onClick}
-        aria-label={label}
-        aria-haspopup="dialog"
-        aria-expanded={active}
-        title={label}
+        view="flat"
+        size="xs"
+        onClick={handleMenuButtonClick}
+        aria-label={`More options for ${noteLabel}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={styles.categoryActionButton}
       >
-        <ArrowsLeftRight size={14} weight="regular" />
-      </button>
+        <DotsThreeVertical size={16} weight="bold" />
+      </Button>
+      {open && (
+        <div className={styles.categoryActionMenu} role="menu">
+          <button
+            type="button"
+            className={styles.categoryActionMenuItem}
+            role="menuitem"
+            onClick={() => {
+              onOpenActionMenuChange(null)
+              onMove()
+            }}
+          >
+            <ArrowsLeftRight size={14} weight="regular" />
+            <span>Move</span>
+          </button>
+          <button
+            type="button"
+            className={`${styles.categoryActionMenuItem} ${styles.categoryActionMenuItemDanger}`}
+            role="menuitem"
+            disabled={deletePending}
+            onClick={() => {
+              onOpenActionMenuChange(null)
+              onDelete()
+            }}
+          >
+            <Trash size={14} weight="regular" />
+            <span>Delete</span>
+          </button>
+        </div>
+      )}
       <Popup
         anchorRef={buttonRef}
-        open={active}
-        onClose={onClose}
+        open={movePickerActive}
+        onClose={onCloseMovePicker}
         placement={["bottom-end", "top-end", "bottom-start", "top-start"]}
         offset={6}
       >
-        {children}
+        {movePickerContent}
       </Popup>
     </div>
   )

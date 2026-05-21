@@ -1904,7 +1904,6 @@ export default function NotesApp() {
           setForm={setNoteForm}
           editingNoteId={editingNoteId}
           notePending={notePending}
-          deletingNoteId={deletingNoteId}
           userPresent={Boolean(user)}
           categories={categories}
           tags={tags}
@@ -1919,7 +1918,6 @@ export default function NotesApp() {
           onCreateCategory={handleCreateCategory}
           onTagValuesChange={handleTagValuesChange}
           onSubmit={handleSaveNote}
-          onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           onCancelEdit={handleCancelEdit}
           // onMarkdownEditorModeChange={handleMarkdownEditorModeChange}
           header={
@@ -1993,6 +1991,8 @@ export default function NotesApp() {
           onAddNoteForTag={handleAddNoteForTag}
           onMoveNoteCategory={handleMoveNoteCategory}
           onMoveNoteTag={handleMoveNoteTag}
+          onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
+          deletingNoteId={deletingNoteId}
           onEditCategory={openEditCategory}
           onDeleteCategory={openDeleteCategory}
           onEditTag={openEditTag}
