@@ -42,6 +42,13 @@ import {
   type NoteFormState,
 } from "@/types/notes"
 import { useAutoDismissStatus } from "@/hooks/useAutoDismissStatus"
+import {
+  clearNotesCache,
+  readNotesCache,
+  updateNotesCacheList,
+  updateNotesCacheUser,
+  writeNotesCache,
+} from "@/lib/notesCache"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
 import { LoginForm } from "./LoginForm"
@@ -596,12 +603,14 @@ export default function NotesApp() {
       const nextPreferredMarkdownEditorMode =
         getStoredMarkdownEditorMode(nextPreferences) ?? DEFAULT_MARKDOWN_EDITOR_MODE
 
+      const normalizedUser: UserSummary = { ...nextUser, preferences: nextPreferences }
       lastSavedPreferencesRef.current = serializeUserPreferences(nextPreferences)
-      setUser({ ...nextUser, preferences: nextPreferences })
+      setUser(normalizedUser)
       setUserPreferences(nextPreferences)
       setPreferredResultsColumnWidth(nextPreferredResultsColumnWidth)
       setPreferredMarkdownEditorMode(nextPreferredMarkdownEditorMode)
       setResultsColumnWidth(clampResultsColumnWidth(nextPreferredResultsColumnWidth))
+      updateNotesCacheUser(normalizedUser.id, normalizedUser)
     },
     [clampResultsColumnWidth],
   )
@@ -712,14 +721,19 @@ export default function NotesApp() {
   }, [noteForm.selectedCategoryId, resetNoteForm])
 
   const loadNotes = useCallback(async (userId: number) => {
-    setNotesLoading(true)
+    // Only show the blocking "Loading…" indicator on the cold path, when we
+    // have nothing to display yet. Background refreshes (post-CRUD and the
+    // stale-while-revalidate startup) should keep showing the existing data.
+    const showLoadingIndicator = notesRef.current.length === 0
+    if (showLoadingIndicator) setNotesLoading(true)
     try {
       const response = await fetch(`/api/notes?userId=${userId}`, { cache: "no-store" })
       const data = await readJson<NotesResponse>(response)
       setNotes(data.notes)
+      updateNotesCacheList(userId, "notes", data.notes)
       return data.notes
     } finally {
-      setNotesLoading(false)
+      if (showLoadingIndicator) setNotesLoading(false)
     }
   }, [])
 
@@ -727,6 +741,7 @@ export default function NotesApp() {
     const response = await fetch(`/api/categories?userId=${userId}`, { cache: "no-store" })
     const data = await readJson<CategoriesResponse>(response)
     setCategories(data.categories)
+    updateNotesCacheList(userId, "categories", data.categories)
     return data.categories
   }, [])
 
@@ -734,6 +749,7 @@ export default function NotesApp() {
     const response = await fetch(`/api/tags?userId=${userId}`, { cache: "no-store" })
     const data = await readJson<TagsResponse>(response)
     setTags(data.tags)
+    updateNotesCacheList(userId, "tags", data.tags)
     return data.tags
   }, [])
 
@@ -755,6 +771,43 @@ export default function NotesApp() {
   useEffect(() => {
     let active = true
 
+    const fetchFreshSession = async (
+      userId: string | number,
+      { applyUser }: { applyUser: boolean },
+    ) => {
+      const sessionResponse = await fetch(`/api/session?userId=${userId}`, {
+        cache: "no-store",
+      })
+      const sessionData = await readJson<SessionResponse>(sessionResponse)
+
+      if (applyUser) {
+        applyLoadedUser(sessionData.user)
+      } else if (userRef.current?.id === sessionData.user.id) {
+        // Background refresh path: keep the in-memory user/preferences so we
+        // don't clobber any change the user just made before the debounce
+        // saves it. We still refresh the cached snapshot below so the next
+        // launch sees the latest server-side preferences (if no local edits
+        // happen first).
+        updateNotesCacheUser(sessionData.user.id, sessionData.user)
+      }
+
+      const [loadedNotes, loadedCategories, loadedTags] = await Promise.all([
+        loadNotes(sessionData.user.id),
+        loadCategories(sessionData.user.id),
+        loadTags(sessionData.user.id),
+      ])
+
+      writeNotesCache({
+        userId: sessionData.user.id,
+        user: sessionData.user,
+        notes: loadedNotes,
+        categories: loadedCategories,
+        tags: loadedTags,
+      })
+
+      return { sessionData, loadedNotes, loadedCategories, loadedTags }
+    }
+
     const restoreSession = async () => {
       const storedUserId = window.localStorage.getItem(STORAGE_KEY)
 
@@ -763,28 +816,51 @@ export default function NotesApp() {
         return
       }
 
-      try {
-        const sessionResponse = await fetch(`/api/session?userId=${storedUserId}`, {
-          cache: "no-store",
-        })
-        const sessionData = await readJson<SessionResponse>(sessionResponse)
+      const numericUserId = Number.parseInt(storedUserId, 10)
+      const cachedSnapshot = Number.isInteger(numericUserId)
+        ? readNotesCache(numericUserId)
+        : null
 
+      // Stale-while-revalidate. If we have a recent local snapshot for this
+      // user, render the app immediately from cache and refresh in the
+      // background. This is what removes the "Restoring session…" wait on the
+      // PWA homescreen launch when the user has opened the app before.
+      if (cachedSnapshot) {
+        applyLoadedUser(cachedSnapshot.user)
+        setNotes(cachedSnapshot.notes)
+        setCategories(cachedSnapshot.categories)
+        setTags(cachedSnapshot.tags)
+        applyNotesUrlSelection({
+          categoryList: cachedSnapshot.categories,
+          noteList: cachedSnapshot.notes,
+          tagList: cachedSnapshot.tags,
+        })
+        setSessionLoading(false)
+
+        try {
+          await fetchFreshSession(cachedSnapshot.userId, { applyUser: false })
+        } catch {
+          // Background refresh failure - user keeps the cached view. We do
+          // NOT sign them out here, because the cause is most often a flaky
+          // mobile connection rather than an invalid session. Subsequent
+          // mutations will surface a real error if the session truly expired.
+        }
+        return
+      }
+
+      try {
+        const result = await fetchFreshSession(storedUserId, { applyUser: true })
         if (!active) return
 
-        applyLoadedUser(sessionData.user)
-        const [loadedNotes, loadedCategories, loadedTags] = await Promise.all([
-          loadNotes(sessionData.user.id),
-          loadCategories(sessionData.user.id),
-          loadTags(sessionData.user.id),
-        ])
         applyNotesUrlSelection({
-          categoryList: loadedCategories,
-          noteList: loadedNotes,
-          tagList: loadedTags,
+          categoryList: result.loadedCategories,
+          noteList: result.loadedNotes,
+          tagList: result.loadedTags,
         })
       } catch (error) {
         if (!active) return
         window.localStorage.removeItem(STORAGE_KEY)
+        clearNotesCache()
         preferenceSaveRequestIdRef.current += 1
         lastSavedPreferencesRef.current = serializeUserPreferences({})
         setUser(null)
@@ -1270,6 +1346,13 @@ export default function NotesApp() {
         loadTags(data.user.id),
         loadNotes(data.user.id),
       ])
+      writeNotesCache({
+        userId: data.user.id,
+        user: data.user,
+        notes: loadedNotes,
+        categories: loadedCategories,
+        tags: loadedTags,
+      })
       setIdentifier("")
       applyNotesUrlSelection({
         categoryList: loadedCategories,
@@ -1289,6 +1372,7 @@ export default function NotesApp() {
 
   const handleLogout = () => {
     window.localStorage.removeItem(STORAGE_KEY)
+    clearNotesCache()
     preferenceSaveRequestIdRef.current += 1
     lastSavedPreferencesRef.current = serializeUserPreferences({})
     setUser(null)
