@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react"
 import { Button, Popup, Text } from "@gravity-ui/uikit"
-import { ArrowClockwise, SidebarSimple, User } from "@phosphor-icons/react"
+import { Plus, SidebarSimple, User } from "@phosphor-icons/react"
 import type { UserSummary } from "@lib/db-marketing"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import type { EmbeddingMaintenanceMode } from "@/types/notes"
@@ -10,9 +10,8 @@ import styles from "./NotesHeader.module.css"
 
 interface NotesHeaderProps {
   user: UserSummary
-  notesLoading: boolean
   resultsListVisible: boolean
-  onRefresh: () => void
+  onAddNote: () => void
   onLogout: () => void
   embeddingMaintenancePending: EmbeddingMaintenanceMode | null
   onRunEmbeddingMaintenance: (mode: EmbeddingMaintenanceMode) => void
@@ -20,9 +19,8 @@ interface NotesHeaderProps {
 
 export function NotesHeader({
   user,
-  notesLoading,
   resultsListVisible,
-  onRefresh,
+  onAddNote,
   onLogout,
   embeddingMaintenancePending,
   onRunEmbeddingMaintenance,
@@ -36,18 +34,30 @@ export function NotesHeader({
 
   return (
     <div className={styles.headerActions}>
-      {/* <Button
-        view="flat"
-        size="m"
-        onClick={onRefresh}
-        loading={notesLoading}
-        className={styles.headerButton}
-      >
-        <ArrowClockwise size={18} weight="regular" className={styles.headerIcon} />
-      </Button> */}
-      <span className={styles.headerLogo} onClick={onRefresh}>
-        jot.new
-      </span>
+      <div className={styles.headerBrand}>
+        <button
+          type="button"
+          className={styles.addNoteButton}
+          onClick={onAddNote}
+          aria-label="Add new note"
+        >
+          <Plus size={18} weight="bold" aria-hidden />
+        </button>
+        <span
+          className={styles.headerLogo}
+          onClick={onAddNote}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              onAddNote()
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          jot.new
+        </span>
+      </div>
       <span className={styles.headerButtons}>
         <Button
           ref={userBtnRef}

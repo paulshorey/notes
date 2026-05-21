@@ -8,10 +8,41 @@
   justify-content: space-between;
 }
 
+.headerBrand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-left: 0.5rem;
+}
+
+.addNoteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--g-color-text-light-primary, #fff);
+  background: var(--g-color-text-link, #4da2ff);
+}
+
+.addNoteButton:hover {
+  filter: brightness(1.08);
+}
+
+.addNoteButton:active {
+  filter: brightness(0.95);
+}
+
 .headerLogo {
   color: var(--g-color-text-link, #4da2ff);
   font-size: 1.0625rem;
-  margin-left: 0.825rem;
+  cursor: pointer;
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
 }
 

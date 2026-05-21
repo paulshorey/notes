@@ -1217,17 +1217,6 @@ export default function NotesApp() {
     })
   }
 
-  const handleRefreshNotes = async () => {
-    if (!user) return
-    clearMessages()
-    try {
-      await refreshResults(user.id)
-      setStatusMessage("Notes refreshed.")
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
-    }
-  }
-
   const handleRunEmbeddingMaintenance = async (mode: EmbeddingMaintenanceMode) => {
     if (!user) return
     clearMessages()
@@ -1937,9 +1926,8 @@ export default function NotesApp() {
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader
                 user={user}
-                notesLoading={notesLoading}
                 resultsListVisible={resultsListVisible}
-                onRefresh={() => void handleRefreshNotes()}
+                onAddNote={handleCancelEdit}
                 onLogout={handleLogout}
                 embeddingMaintenancePending={embeddingMaintenancePending}
                 onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
