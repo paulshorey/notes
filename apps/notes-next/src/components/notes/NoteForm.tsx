@@ -49,6 +49,7 @@ interface NoteFormProps {
   onTagValuesChange: (values: string[]) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onCancelEdit: () => void
+  onDeleteEditingNote: () => void
   // onMarkdownEditorModeChange: NonNullable<MarkdownEditorProps["onModeChange"]>
   header?: JSX.Element
 }
@@ -74,6 +75,7 @@ export function NoteForm({
   onTagValuesChange,
   onSubmit,
   onCancelEdit,
+  onDeleteEditingNote,
   // onMarkdownEditorModeChange,
   header,
 }: NoteFormProps) {
@@ -461,6 +463,19 @@ export function NoteForm({
               role="menu"
             >
               <div className={styles.morePanel} aria-label="More note settings">
+                <button
+                  type="button"
+                  className={`${styles.moreMenuItem} ${styles.moreMenuDeleteItem}`}
+                  onClick={() => {
+                    closeMoreDropdown()
+                    onDeleteEditingNote()
+                  }}
+                  disabled={!userPresent || editingNoteId === null}
+                  role="menuitem"
+                >
+                  <span>Delete</span>
+                </button>
+                <div className={styles.moreMenuDivider} aria-hidden="true" />
                 {!form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
                 {!form.remindExpanded &&
                   renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
