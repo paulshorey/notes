@@ -355,6 +355,8 @@ export default function NotesApp() {
     setPendingTagLabels,
     categoryInputValue,
     setCategoryInputValue,
+    editorAutofocus,
+    setEditorAutofocus,
     resetDefaultState: resetNotesAppStore,
   } = useNotesAppStore()
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
@@ -634,12 +636,14 @@ export default function NotesApp() {
       lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
       setNoteForm(nextForm)
       setEditingNoteId(null)
+      setEditorAutofocus(true)
       bumpDescriptionEditorSessionId()
       setPendingTagLabels([])
     },
     [
       bumpDescriptionEditorSessionId,
       categories,
+      setEditorAutofocus,
       setEditingNoteId,
       setNoteForm,
       setPendingTagLabels,
@@ -671,6 +675,7 @@ export default function NotesApp() {
           lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
           setEditingNoteId(note.id)
           if (shouldResetDescriptionEditor) {
+            setEditorAutofocus(true)
             bumpDescriptionEditorSessionId()
           }
           setPendingTagLabels([])
@@ -700,6 +705,7 @@ export default function NotesApp() {
       editingNoteIdRef.current = null
       lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
       setEditingNoteId(null)
+      setEditorAutofocus(true)
       bumpDescriptionEditorSessionId()
       setPendingTagLabels([])
       setNoteForm(nextForm)
@@ -709,6 +715,7 @@ export default function NotesApp() {
     [
       bumpDescriptionEditorSessionId,
       setCategoryInputValue,
+      setEditorAutofocus,
       setEditingNoteId,
       setNoteForm,
       setNotesUrlSelectionReady,
@@ -1423,6 +1430,7 @@ export default function NotesApp() {
   }
 
   const handleOpenNoteFromResults = (note: NoteRecord) => {
+    setEditorAutofocus(!isMobileResultsLayout())
     handleStartEdit(note)
     closeResultsListOnMobile()
   }
@@ -1993,6 +2001,7 @@ export default function NotesApp() {
           tags={tags}
           pendingTagLabels={pendingTagLabels}
           descriptionEditorSessionId={descriptionEditorSessionId}
+          editorAutofocus={editorAutofocus}
           markdownEditorMode={preferredMarkdownEditorMode}
           categoryInputValue={categoryInputValue}
           onCategoryInputValueChange={setCategoryInputValue}
