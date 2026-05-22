@@ -38,6 +38,7 @@ interface NoteFormProps {
   tags: TagRecord[]
   pendingTagLabels: string[]
   descriptionEditorSessionId: number
+  editorAutofocus: boolean
   markdownEditorMode: MarkdownEditorProps["mode"]
   categoryInputValue: string
   onCategoryInputValueChange: (value: string) => void
@@ -62,6 +63,7 @@ export function NoteForm({
   tags,
   pendingTagLabels,
   descriptionEditorSessionId,
+  editorAutofocus,
   markdownEditorMode,
   categoryInputValue,
   onCategoryInputValueChange,
@@ -346,7 +348,7 @@ export function NoteForm({
         </div>
 
         <MarkdownEditor
-          autofocus
+          autofocus={editorAutofocus}
           key={descriptionEditorSessionId}
           placeholder="Write now, organize later..."
           value={form.description}

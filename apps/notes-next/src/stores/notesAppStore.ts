@@ -42,6 +42,13 @@ type State = {
    * Search/create value in the category picker input.
    */
   categoryInputValue: string
+  /**
+   * Whether the markdown editor should auto-focus on the next mount.
+   * Set to false on mobile when opening a note from the results list so the
+   * keyboard does not appear immediately — the user opens the note to read it
+   * first and taps the editor to start typing.
+   */
+  editorAutofocus: boolean
 }
 
 type Actions = {
@@ -61,6 +68,7 @@ type Actions = {
     labels: string[] | ((current: string[]) => string[]),
   ) => void
   setCategoryInputValue: (value: string) => void
+  setEditorAutofocus: (autofocus: boolean) => void
 }
 
 export type NotesAppStore = State & Actions
@@ -75,6 +83,7 @@ const defaultState: State = {
   descriptionEditorSessionId: 0,
   pendingTagLabels: [],
   categoryInputValue: "",
+  editorAutofocus: true,
 }
 
 export const useNotesAppStore = create<NotesAppStore>((set) => ({
@@ -118,5 +127,8 @@ export const useNotesAppStore = create<NotesAppStore>((set) => ({
   },
   setCategoryInputValue: (value) => {
     set({ categoryInputValue: value })
+  },
+  setEditorAutofocus: (autofocus) => {
+    set({ editorAutofocus: autofocus })
   },
 }))
