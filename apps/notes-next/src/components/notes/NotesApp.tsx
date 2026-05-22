@@ -1946,7 +1946,10 @@ export default function NotesApp() {
       await readJson<{ ok: true }>(response)
       const { latestNotes, latestCategories } = await refreshResults(user.id)
       if (editingNoteId === noteId) {
-        resetNoteForm({ categoryList: latestCategories })
+        resetNoteForm({
+          categoryList: latestCategories,
+          selectedCategoryId: noteFormRef.current.selectedCategoryId,
+        })
       }
       setStatusMessage("Note deleted.")
     } catch (error) {
@@ -2012,6 +2015,11 @@ export default function NotesApp() {
           onTagValuesChange={handleTagValuesChange}
           onSubmit={handleSaveNote}
           onCancelEdit={handleCancelEdit}
+          onDeleteEditingNote={() => {
+            if (editingNoteId !== null) {
+              void handleDeleteNote(editingNoteId)
+            }
+          }}
           // onMarkdownEditorModeChange={handleMarkdownEditorModeChange}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>

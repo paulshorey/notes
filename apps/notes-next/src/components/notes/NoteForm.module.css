@@ -331,6 +331,19 @@
   opacity: 0.6;
 }
 
+.moreMenuDeleteItem {
+  color: var(--g-color-text-danger, #ff6363);
+}
+
+.moreMenuDeleteItem:hover,
+.moreMenuDeleteItem:focus-visible {
+  background: var(--g-color-base-danger-light, rgba(255, 99, 99, 0.16));
+}
+
+.moreMenuDivider {
+  height: 8px;
+}
+
 .dateInput {
   min-width: 0;
   flex: 1 1 auto;
