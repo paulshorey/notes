@@ -191,7 +191,6 @@ export function MarkdownEditor({
         </Button>
       </ActionTooltip> */}
       <MarkdownEditorView
-        autofocus={autofocus}
         className={styles.editor}
         editor={editor}
         settingsVisible={effectiveSettingsVisible}
