@@ -246,3 +246,25 @@ For a phone-side sideload, copy the APK to the device, then open the file and ac
 - Notes production app: `apps/notes-next` (Railway)
 - Android release artifact: `apps/notes-android/dist/notes-android.apk` (built via `build:android:dist:{dev,prod}`)
 - Repo-wide pre-push gate: `pnpm run verify`
+
+## Codex cloud Git push troubleshooting
+
+If Codex can create local branches/commits but `git push` fails with `CONNECT tunnel failed, response 403`, this is usually an environment egress/proxy block rather than a Git command problem.
+
+Recommended checks:
+
+1. **Confirm repository access scope** in ChatGPT settings: **Settings → Apps → GitHub → Configure repositories** and include `paulshorey/notes`.
+2. **Confirm write permissions** for the GitHub app/token (contents write + pull requests write for private repos).
+3. **If this is an org repo**, verify org-level app installation grants this repo explicitly.
+4. **Re-authenticate GitHub connector** after scope changes (disconnect/reconnect) so new permissions are picked up.
+5. **Retry from a fresh cloud session** after reconnecting GitHub.
+6. **If 403 CONNECT persists**, treat it as a cloud network/proxy issue and contact OpenAI support with the exact error and timestamp.
+
+Quick validation sequence once access is fixed:
+
+```bash
+git remote -v
+git checkout -b codex/push-test-2
+git add -A && git commit -m "test: codex push validation"
+git push -u origin codex/push-test-2
+```
