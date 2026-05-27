@@ -70,8 +70,10 @@ import {
   updateTagLabelForUser,
 } from "../sql/tag";
 import {
+  createAnonymousUser,
   findUserByIdentifier,
   getUserById,
+  mergeAnonymousUserInto,
   updateUserPreferencesById,
 } from "../sql/user";
 import {
@@ -772,6 +774,25 @@ export const maintainNoteEmbeddingsForNotesApp = async (
   };
 };
 
+export const createAnonymousNotesAppSession = async (): Promise<SessionResponse> => {
+  const user = await createAnonymousUser();
+  return { user };
+};
+
+export const mergeAnonymousNotesAppSession = async (request: {
+  anonUserId: number;
+  realUserId: number;
+}): Promise<SessionResponse> => {
+  await mergeAnonymousUserInto(request.anonUserId, request.realUserId);
+
+  const user = await getUserById(request.realUserId);
+  if (!user) {
+    throw new Error("Real user not found after merge.");
+  }
+
+  return { user };
+};
+
 export const notesAppService = {
   getNotesAppErrorStatus,
   getNotesAppSession,
@@ -791,6 +812,8 @@ export const notesAppService = {
   deleteNoteForNotesApp,
   searchNotesForNotesApp,
   maintainNoteEmbeddingsForNotesApp,
+  createAnonymousNotesAppSession,
+  mergeAnonymousNotesAppSession,
 };
 
 export type NotesAppService = typeof notesAppService;

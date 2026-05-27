@@ -170,6 +170,7 @@ CREATE TABLE public.user_v1 (
     time_modified timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     preferences jsonb DEFAULT '{}'::jsonb NOT NULL,
     password text,
+    is_anonymous boolean DEFAULT false NOT NULL,
     CONSTRAINT user_v1_preferences_object_check CHECK ((jsonb_typeof(preferences) = 'object'::text))
 );
 
@@ -306,6 +307,13 @@ CREATE INDEX user_note_v1_description_embedding_hnsw_idx ON public.user_note_v1 
 --
 
 CREATE INDEX user_note_v1_user_id_idx ON public.user_note_v1 USING btree (user_id);
+
+
+--
+-- Name: user_v1_is_anonymous_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_v1_is_anonymous_idx ON public.user_v1 USING btree (is_anonymous) WHERE (is_anonymous = true);
 
 
 --

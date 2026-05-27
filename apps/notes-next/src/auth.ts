@@ -4,7 +4,7 @@ import Facebook from "next-auth/providers/facebook"
 import GitHub from "next-auth/providers/github"
 import Google from "next-auth/providers/google"
 import LinkedIn from "next-auth/providers/linkedin"
-import { findUserByIdentifier, verifyUserCredentials } from "@lib/db-marketing/sql/user"
+import { createAnonymousUser, findUserByIdentifier, verifyUserCredentials } from "@lib/db-marketing/sql/user"
 import { authConfig } from "./auth.config"
 
 const socialProviders = [
@@ -29,6 +29,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   providers: [
     ...socialProviders,
     Credentials({
+      id: "credentials",
       credentials: {
         identifier: { label: "Username, email, or phone", type: "text" },
         password: { label: "Password", type: "password" },
@@ -52,6 +53,21 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           name: user.username,
           email: user.email,
           notesUserId: user.id,
+          isAnonymous: false,
+        }
+      },
+    }),
+    Credentials({
+      id: "anonymous",
+      name: "Anonymous",
+      credentials: {},
+      authorize: async () => {
+        const user = await createAnonymousUser()
+        return {
+          id: String(user.id),
+          name: user.username,
+          notesUserId: user.id,
+          isAnonymous: true,
         }
       },
     }),
@@ -59,7 +75,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   callbacks: {
     ...authConfig.callbacks,
     async signIn({ account, profile }) {
-      if (account?.provider === "credentials") {
+      if (account?.provider === "credentials" || account?.provider === "anonymous") {
         return true
       }
 
@@ -76,15 +92,23 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     async jwt({ token, user, account, profile }) {
       if (user?.notesUserId) {
         token.notesUserId = user.notesUserId
+        token.isAnonymous = user.isAnonymous ?? false
+        return token
+      }
+
+      if (account?.provider === "anonymous" && user?.id) {
+        token.notesUserId = Number.parseInt(user.id, 10)
+        token.isAnonymous = true
         return token
       }
 
       if (account?.provider === "credentials" && user?.id) {
         token.notesUserId = Number.parseInt(user.id, 10)
+        token.isAnonymous = false
         return token
       }
 
-      if (account && account.provider !== "credentials" && !token.notesUserId) {
+      if (account && account.provider !== "credentials" && account.provider !== "anonymous" && !token.notesUserId) {
         const email =
           typeof profile?.email === "string"
             ? profile.email
@@ -95,14 +119,18 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
         if (notesUserId) {
           token.notesUserId = notesUserId
+          token.isAnonymous = false
         }
       }
 
       return token
     },
     async session({ session, token }) {
-      if (session.user && typeof token.notesUserId === "number") {
-        session.user.notesUserId = token.notesUserId
+      if (session.user) {
+        if (typeof token.notesUserId === "number") {
+          session.user.notesUserId = token.notesUserId
+        }
+        session.user.isAnonymous = (token.isAnonymous as boolean | undefined) ?? false
       }
 
       return session

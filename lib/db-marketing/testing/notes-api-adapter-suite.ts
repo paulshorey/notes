@@ -102,6 +102,8 @@ export const createFakeNotesAppService = (
   deleteNoteForNotesApp: async () => ({ ok: true }),
   searchNotesForNotesApp: async () => ({ results: [sampleSearchResult] }),
   maintainNoteEmbeddingsForNotesApp: async () => sampleEmbeddingMaintenanceResponse,
+  createAnonymousNotesAppSession: async () => ({ user: sampleUser }),
+  mergeAnonymousNotesAppSession: async () => ({ user: sampleUser }),
   ...overrides,
 })
 

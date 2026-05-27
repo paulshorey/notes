@@ -44,9 +44,10 @@ export const verifyUserCredentials = async (identifier: string, password: string
   const phoneDigits = trimmed.replace(/\D/g, "");
   const query = `
     ${userSelectWithPassword}
-    WHERE lower(username) = lower($1)
+    WHERE (lower(username) = lower($1)
       OR lower(email) = lower($1)
-      OR regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2
+      OR regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2)
+      AND is_anonymous = false
     ORDER BY id ASC
     LIMIT 1
   `;
@@ -70,9 +71,10 @@ export const findUserByIdentifier = async (identifier: string) => {
   const phoneDigits = trimmed.replace(/\D/g, "");
   const query = `
     ${userSelect}
-    WHERE lower(username) = lower($1)
+    WHERE (lower(username) = lower($1)
       OR lower(email) = lower($1)
-      OR regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2
+      OR regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2)
+      AND is_anonymous = false
     ORDER BY id ASC
     LIMIT 1
   `;
