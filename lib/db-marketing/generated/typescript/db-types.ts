@@ -50,6 +50,7 @@ export interface UserV1Row {
   "time_created": Date;
   "time_modified": Date;
   "preferences": unknown;
+  "password": string | null;
 }
 
 export interface PostgresDbSchema {

@@ -7,6 +7,11 @@ const userSelect = `
   FROM public.user_v1
 `;
 
+const userSelectWithPassword = `
+  SELECT id, username, email, phone, preferences, password
+  FROM public.user_v1
+`;
+
 const toUserPreferences = (value: unknown): UserPreferences => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {};
@@ -22,6 +27,38 @@ const mapUser = (row: UserV1Row): UserSummary => ({
   phone: row.phone,
   preferences: toUserPreferences(row.preferences),
 });
+
+type UserV1RowWithPassword = UserV1Row & { password: string | null };
+
+export const verifyUserCredentials = async (identifier: string, password: string) => {
+  const trimmed = identifier.trim();
+
+  if (trimmed === "") {
+    throw new Error("Username, email, or phone is required.");
+  }
+
+  if (password === "") {
+    throw new Error("Password is required.");
+  }
+
+  const phoneDigits = trimmed.replace(/\D/g, "");
+  const query = `
+    ${userSelectWithPassword}
+    WHERE lower(username) = lower($1)
+      OR lower(email) = lower($1)
+      OR regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2
+    ORDER BY id ASC
+    LIMIT 1
+  `;
+  const { rows } = await getDb().query<UserV1RowWithPassword>(query, [trimmed, phoneDigits]);
+  const row = rows[0];
+
+  if (!row || row.password !== password) {
+    return null;
+  }
+
+  return mapUser(row);
+};
 
 export const findUserByIdentifier = async (identifier: string) => {
   const trimmed = identifier.trim();
