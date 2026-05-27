@@ -2,25 +2,25 @@
 set -euo pipefail
 
 # Drop the specified public tables (default: marketing Notes subset), then
-# recreate them from a schema-only SQL file produced by notes-backup.sh.
+# recreate them from a schema-only SQL file produced by notes-backup-schema.sh.
 # Uses MARKETING_DB_URL. Only named tables are dropped; other tables are untouched.
 # CASCADE also removes dependent objects on those tables (e.g. views referencing them).
 # Shared trigger function apply_row_timestamps_v1 is replaced via CREATE OR REPLACE when present in the dump.
 #
 # Usage:
 #   export MARKETING_DB_URL='postgresql://...'
-#   ./scripts/db/notes-restore.sh ./scripts/db/backups/notes-schema-....sql
-#   ./scripts/db/notes-restore.sh -y BACKUP.sql    # skip confirmation
+#   ./scripts/db/notes-restore-schema.sh ./scripts/db/backups/notes-schema-....sql
+#   ./scripts/db/notes-restore-schema.sh -y BACKUP.sql    # skip confirmation
 #
-# Tables to drop must match the backup; use the same -t list as for notes-backup.sh.
+# Tables to drop must match the backup; use the same -t list as for notes-backup-schema.sh.
 
 usage() {
   cat >&2 <<'EOF'
 Drop named public tables, then recreate them from a schema-only backup. Requires MARKETING_DB_URL.
 
-Usage: notes-restore.sh [-y] [-t TABLE]... BACKUP.sql
+Usage: notes-restore-schema.sh [-y] [-t TABLE]... BACKUP.sql
   -t, --table TABLE   Public tables to drop before restore (repeatable). Default: same
-                      tables as notes-backup.sh (MARKETING_DB_DEFAULT_TABLES in common.sh)
+                      tables as notes-backup-schema.sh (MARKETING_DB_DEFAULT_TABLES in common.sh)
   -y, --yes           Do not prompt for confirmation
   -h, --help          Show this help
 EOF

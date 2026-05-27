@@ -16,3 +16,10 @@
 .feedbackNotification {
   width: 100%;
 }
+
+.socialButtons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}

@@ -1,2 +1,7 @@
-export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./gets";
+export {
+  findUserByIdentifier,
+  getUserById,
+  updateUserPreferencesById,
+  verifyUserCredentials,
+} from "./gets";
 export type { UserPreferences, UserSummary } from "./types";

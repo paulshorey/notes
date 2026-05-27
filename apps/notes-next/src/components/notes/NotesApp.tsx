@@ -32,6 +32,7 @@ import {
   useState,
 } from "react"
 import { Text } from "@gravity-ui/uikit"
+import { signIn, signOut, useSession } from "next-auth/react"
 import { STORAGE_KEY } from "@/constants/notes"
 import { getErrorMessage, readJson } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
@@ -51,7 +52,7 @@ import {
 } from "@/lib/notesCache"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
-import { LoginForm } from "./LoginForm"
+import { LoginForm, type SocialProviderId } from "./LoginForm"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader } from "./NotesHeader"
@@ -331,7 +332,9 @@ const notePatchBody = (note: NoteRecord) => ({
 })
 
 export default function NotesApp() {
+  const { data: authSession, status: authStatus } = useSession()
   const [identifier, setIdentifier] = useState("")
+  const [password, setPassword] = useState("")
   const [user, setUser] = useState<UserSummary | null>(null)
   const [userPreferences, setUserPreferences] = useState<UserPreferences>({})
   const [notes, setNotes] = useState<NoteRecord[]>([])
@@ -816,13 +819,18 @@ export default function NotesApp() {
     }
 
     const restoreSession = async () => {
-      const storedUserId = window.localStorage.getItem(STORAGE_KEY)
+      if (authStatus === "loading") {
+        return
+      }
 
-      if (!storedUserId) {
+      if (authStatus !== "authenticated" || !authSession?.user?.notesUserId) {
+        window.localStorage.removeItem(STORAGE_KEY)
         setSessionLoading(false)
         return
       }
 
+      const storedUserId = String(authSession.user.notesUserId)
+      window.localStorage.setItem(STORAGE_KEY, storedUserId)
       const numericUserId = Number.parseInt(storedUserId, 10)
       const cachedSnapshot = Number.isInteger(numericUserId)
         ? readNotesCache(numericUserId)
@@ -891,6 +899,8 @@ export default function NotesApp() {
       active = false
     }
   }, [
+    authSession?.user?.notesUserId,
+    authStatus,
     applyLoadedUser,
     loadCategories,
     loadTags,
@@ -1340,35 +1350,19 @@ export default function NotesApp() {
     clearMessages()
     setAuthPending(true)
     try {
-      const response = await fetch("/api/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier }),
+      const result = await signIn("credentials", {
+        identifier,
+        password,
+        redirect: false,
       })
-      const data = await readJson<SessionResponse>(response)
-      window.localStorage.setItem(STORAGE_KEY, String(data.user.id))
-      applyLoadedUser(data.user)
-      const [loadedCategories, loadedTags, loadedNotes] = await Promise.all([
-        loadCategories(data.user.id),
-        loadTags(data.user.id),
-        loadNotes(data.user.id),
-      ])
-      writeNotesCache({
-        userId: data.user.id,
-        user: data.user,
-        notes: loadedNotes,
-        categories: loadedCategories,
-        tags: loadedTags,
-      })
+
+      if (result?.error) {
+        setErrorMessage("Unable to sign in. Check your identifier and password.")
+        return
+      }
+
       setIdentifier("")
-      applyNotesUrlSelection({
-        categoryList: loadedCategories,
-        noteList: loadedNotes,
-        tagList: loadedTags,
-      })
-      setSearchQuery("")
-      setSearchResults([])
-      setSearchErrorMessage(null)
+      setPassword("")
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -1377,7 +1371,19 @@ export default function NotesApp() {
     }
   }
 
-  const handleLogout = () => {
+  const handleSocialSignIn = async (provider: SocialProviderId) => {
+    clearMessages()
+    setAuthPending(true)
+    try {
+      await signIn(provider, { callbackUrl: "/" })
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+      setAuthPending(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await signOut({ redirect: false })
     window.localStorage.removeItem(STORAGE_KEY)
     clearNotesCache()
     preferenceSaveRequestIdRef.current += 1
@@ -1959,7 +1965,7 @@ export default function NotesApp() {
     }
   }
 
-  if (sessionLoading) {
+  if (authStatus === "loading" || sessionLoading || (authStatus === "authenticated" && !user)) {
     return (
       <div className={styles.page}>
         <Text variant="body-1" color="secondary">
@@ -1973,8 +1979,11 @@ export default function NotesApp() {
     return (
       <LoginForm
         identifier={identifier}
+        password={password}
         onIdentifierChange={setIdentifier}
+        onPasswordChange={setPassword}
         onSubmit={handleLogin}
+        onSocialSignIn={handleSocialSignIn}
         pending={authPending}
         errorMessage={errorMessage}
         onDismissError={() => setErrorMessage(null)}

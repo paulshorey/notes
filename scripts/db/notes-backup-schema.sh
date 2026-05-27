@@ -7,8 +7,8 @@ set -euo pipefail
 #
 # Usage:
 #   export MARKETING_DB_URL='postgresql://...'
-#   ./scripts/db/notes-backup.sh [OUTFILE.sql]
-#   ./scripts/db/notes-backup.sh -t other_table [OUTFILE.sql]
+#   ./scripts/db/notes-backup-schema.sh [OUTFILE.sql]
+#   ./scripts/db/notes-backup-schema.sh -t other_table [OUTFILE.sql]
 #
 # With no OUTFILE, writes to scripts/db/backups/notes-schema-YYYYMMDD-HHMMSS.sql
 
@@ -16,7 +16,7 @@ usage() {
   cat >&2 <<'EOF'
 Dump DDL only (no data) for selected public tables. Requires MARKETING_DB_URL.
 
-Usage: notes-backup.sh [-t TABLE]... [OUTFILE.sql]
+Usage: notes-backup-schema.sh [-t TABLE]... [OUTFILE.sql]
   -t, --table TABLE   Public table name (repeatable). Default: MARKETING_DB_DEFAULT_TABLES
                       in common.sh (user_v1, user_note_v1, user_note_category_v1,
                       user_note_tag_v1, user_note_tag_link_v1, schema_migrations_cursor)

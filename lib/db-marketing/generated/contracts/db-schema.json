@@ -187,6 +187,11 @@
       "column": "preferences",
       "nullable": false,
       "type": "unknown"
+    },
+    {
+      "column": "password",
+      "nullable": true,
+      "type": "string"
     }
   ]
 }
