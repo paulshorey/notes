@@ -259,10 +259,6 @@
 }
 
 .categoryActionMenu {
-  position: absolute;
-  z-index: 40;
-  top: calc(100% + 2px);
-  right: 0;
   display: flex;
   min-width: 132px;
   flex-direction: column;
