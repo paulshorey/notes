@@ -7,6 +7,13 @@ import LinkedIn from "next-auth/providers/linkedin"
 import { findUserByIdentifier, verifyUserCredentials } from "@lib/db-marketing/sql/user"
 import { authConfig } from "./auth.config"
 
+const socialProviders = [
+  ...(process.env.AUTH_GOOGLE_ID ? [Google] : []),
+  ...(process.env.AUTH_GITHUB_ID ? [GitHub] : []),
+  ...(process.env.AUTH_LINKEDIN_ID ? [LinkedIn] : []),
+  ...(process.env.AUTH_FACEBOOK_ID ? [Facebook] : []),
+]
+
 const resolveNotesUserId = async (email: string | null | undefined) => {
   if (!email) {
     return null
@@ -20,10 +27,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   ...authConfig,
   session: { strategy: "jwt" },
   providers: [
-    Google,
-    GitHub,
-    LinkedIn,
-    Facebook,
+    ...socialProviders,
     Credentials({
       credentials: {
         identifier: { label: "Username, email, or phone", type: "text" },
