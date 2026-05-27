@@ -20,7 +20,7 @@ Drop named public tables, then recreate them from a schema-only backup. Requires
 
 Usage: notes-restore.sh [-y] [-t TABLE]... BACKUP.sql
   -t, --table TABLE   Public tables to drop before restore (repeatable). Default: same
-                      four tables as notes-backup.sh
+                      tables as notes-backup.sh (MARKETING_DB_DEFAULT_TABLES in common.sh)
   -y, --yes           Do not prompt for confirmation
   -h, --help          Show this help
 EOF

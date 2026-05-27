@@ -28,11 +28,14 @@ marketing_db_resolve_clients() {
   )"
 }
 
-# Default subset of public tables for local backup/reset (does not touch other tables).
+# Default Notes app tables for local schema backup/reset (does not touch other tables).
+# Keep in sync with lib/db-marketing/scripts/verify-contract.mjs expected tables.
 readonly MARKETING_DB_DEFAULT_TABLES=(
   user_v1
   user_note_v1
   user_note_category_v1
+  user_note_tag_v1
+  user_note_tag_link_v1
   schema_migrations_cursor
 )
 

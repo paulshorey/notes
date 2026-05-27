@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Dump DDL only (no data) for selected public tables into a local SQL file.
 # Uses MARKETING_DB_URL. Does not dump the whole database — only named tables
-# (default: user_v1, user_note_v1, user_note_category_v1, schema_migrations_cursor).
+# (default: all Notes app tables in MARKETING_DB_DEFAULT_TABLES — see common.sh).
 #
 # Usage:
 #   export MARKETING_DB_URL='postgresql://...'
@@ -17,8 +17,9 @@ usage() {
 Dump DDL only (no data) for selected public tables. Requires MARKETING_DB_URL.
 
 Usage: notes-backup.sh [-t TABLE]... [OUTFILE.sql]
-  -t, --table TABLE   Public table name (repeatable). Default: user_v1, user_note_v1,
-                      user_note_category_v1, schema_migrations_cursor
+  -t, --table TABLE   Public table name (repeatable). Default: MARKETING_DB_DEFAULT_TABLES
+                      in common.sh (user_v1, user_note_v1, user_note_category_v1,
+                      user_note_tag_v1, user_note_tag_link_v1, schema_migrations_cursor)
   -h, --help          Show this help.
 
 If OUTFILE is omitted, writes under scripts/db/backups/notes-schema-YYYYMMDD-HHMMSS.sql
