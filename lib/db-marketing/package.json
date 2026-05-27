@@ -28,7 +28,8 @@
     "db:migrate:baseline": "node scripts/baseline.mjs",
     "db:migration:new": "node scripts/new-migration.mjs",
     "db:sync": "pnpm db:migrate && pnpm db:schema:snapshot && pnpm db:types:generate && pnpm app:contract:generate",
-    "db:embeddings:regenerate": "node scripts/regenerate-embeddings.mjs"
+    "db:embeddings:regenerate": "node scripts/regenerate-embeddings.mjs",
+    "db:anon:cleanup": "node scripts/cleanup-anonymous-users.mjs"
   },
   "dependencies": {
     "pg": "^8.16.3"

@@ -12,6 +12,7 @@
     "db:migrate:baseline": "pnpm --filter @lib/db-marketing db:migrate:baseline",
     "db:verify": "pnpm --filter @lib/db-marketing db:verify",
     "db:embeddings:regenerate": "pnpm --filter @lib/db-marketing db:embeddings:regenerate",
+    "db:anon:cleanup": "pnpm --filter @lib/db-marketing db:anon:cleanup",
     "test": "turbo run test",
     "verify:db-contracts": "pnpm --filter @lib/db-marketing check-types",
     "verify:notes-web": "pnpm --filter notes-next verify",

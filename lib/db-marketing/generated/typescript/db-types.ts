@@ -51,6 +51,7 @@ export interface UserV1Row {
   "time_modified": Date;
   "preferences": unknown;
   "password": string | null;
+  "is_anonymous": boolean;
 }
 
 export interface PostgresDbSchema {

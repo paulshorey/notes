@@ -192,6 +192,11 @@
       "column": "password",
       "nullable": true,
       "type": "string"
+    },
+    {
+      "column": "is_anonymous",
+      "nullable": false,
+      "type": "boolean"
     }
   ]
 }

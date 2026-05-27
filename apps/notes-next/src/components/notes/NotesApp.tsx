@@ -52,7 +52,6 @@ import {
 } from "@/lib/notesCache"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
-import { LoginForm, type SocialProviderId } from "./LoginForm"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader } from "./NotesHeader"
@@ -1350,6 +1349,22 @@ export default function NotesApp() {
     clearMessages()
     setAuthPending(true)
     try {
+      // Get merge token before signing in if currently anonymous
+      let mergeToken: string | null = null
+      if (authSession?.user?.isAnonymous && authSession.user.notesUserId) {
+        try {
+          const tokenResponse = await fetch("/api/anon-session/merge-token", {
+            method: "POST",
+          })
+          if (tokenResponse.ok) {
+            const tokenData = await tokenResponse.json() as { mergeToken: string }
+            mergeToken = tokenData.mergeToken
+          }
+        } catch {
+          // Continue with sign-in even if merge-token fails
+        }
+      }
+
       const result = await signIn("credentials", {
         identifier,
         password,
@@ -1359,6 +1374,36 @@ export default function NotesApp() {
       if (result?.error) {
         setErrorMessage("Unable to sign in. Check your identifier and password.")
         return
+      }
+
+      // Merge anonymous data after successful sign-in, then reload
+      if (mergeToken) {
+        try {
+          const mergeResponse = await fetch("/api/anon-session/merge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mergeToken }),
+          })
+          if (mergeResponse.ok) {
+            const mergeData = await mergeResponse.json() as SessionResponse
+            const realUserId = mergeData.user.id
+            applyLoadedUser(mergeData.user)
+            const [mergedCategories, mergedTags, mergedNotes] = await Promise.all([
+              loadCategories(realUserId),
+              loadTags(realUserId),
+              loadNotes(realUserId),
+            ])
+            writeNotesCache({
+              userId: realUserId,
+              user: mergeData.user,
+              notes: mergedNotes,
+              categories: mergedCategories,
+              tags: mergedTags,
+            })
+          }
+        } catch {
+          // Merge failure is non-fatal — anonymous data stays for cleanup
+        }
       }
 
       setIdentifier("")
@@ -1371,10 +1416,24 @@ export default function NotesApp() {
     }
   }
 
-  const handleSocialSignIn = async (provider: SocialProviderId) => {
+  const handleSocialSignIn = async (provider: string) => {
     clearMessages()
     setAuthPending(true)
     try {
+      // Get merge token before OAuth redirect if currently anonymous
+      if (authSession?.user?.isAnonymous && authSession.user.notesUserId) {
+        try {
+          const tokenResponse = await fetch("/api/anon-session/merge-token", {
+            method: "POST",
+          })
+          if (tokenResponse.ok) {
+            const tokenData = await tokenResponse.json() as { mergeToken: string }
+            sessionStorage.setItem("notes-merge-token", tokenData.mergeToken)
+          }
+        } catch {
+          // Continue with sign-in even if merge-token fails
+        }
+      }
       await signIn(provider, { callbackUrl: "/" })
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -1965,29 +2024,38 @@ export default function NotesApp() {
     }
   }
 
-  if (authStatus === "loading" || sessionLoading || (authStatus === "authenticated" && !user)) {
+  // Auto-create anonymous session if unauthenticated
+  useEffect(() => {
+    if (authStatus === "unauthenticated") {
+      void signIn("anonymous", { redirect: false })
+    }
+  }, [authStatus])
+
+  // After OAuth redirect, check for pending merge token in sessionStorage
+  useEffect(() => {
+    if (authStatus !== "authenticated" || !authSession?.user?.notesUserId) return
+    if (authSession.user.isAnonymous) return
+
+    const pendingMergeToken = sessionStorage.getItem("notes-merge-token")
+    if (!pendingMergeToken) return
+
+    sessionStorage.removeItem("notes-merge-token")
+    void fetch("/api/anon-session/merge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mergeToken: pendingMergeToken }),
+    }).catch(() => {
+      // Merge failure is non-fatal
+    })
+  }, [authStatus, authSession?.user?.notesUserId, authSession?.user?.isAnonymous])
+
+  if (authStatus === "loading" || sessionLoading || !user) {
     return (
       <div className={styles.page}>
         <Text variant="body-1" color="secondary">
-          Restoring session…
+          Loading…
         </Text>
       </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <LoginForm
-        identifier={identifier}
-        password={password}
-        onIdentifierChange={setIdentifier}
-        onPasswordChange={setPassword}
-        onSubmit={handleLogin}
-        onSocialSignIn={handleSocialSignIn}
-        pending={authPending}
-        errorMessage={errorMessage}
-        onDismissError={() => setErrorMessage(null)}
-      />
     )
   }
 
@@ -2034,11 +2102,21 @@ export default function NotesApp() {
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader
                 user={user}
+                isAnonymous={authSession?.user?.isAnonymous ?? false}
                 resultsListVisible={resultsListVisible}
                 onAddNote={handleCancelEdit}
                 onLogout={handleLogout}
                 embeddingMaintenancePending={embeddingMaintenancePending}
                 onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
+                identifier={identifier}
+                password={password}
+                onIdentifierChange={setIdentifier}
+                onPasswordChange={setPassword}
+                onLoginSubmit={handleLogin}
+                onSocialSignIn={handleSocialSignIn}
+                authPending={authPending}
+                loginErrorMessage={authPending ? null : errorMessage}
+                onDismissLoginError={() => setErrorMessage(null)}
               />
             </div>
           }
