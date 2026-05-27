@@ -125,7 +125,6 @@ export function ResultsColumn({
   const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
   const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
-  const actionMenuRootRef = useRef<HTMLDivElement>(null)
   const {
     manuallyExpandedCategoryId,
     setManuallyExpandedCategoryId,
@@ -189,21 +188,14 @@ export function ResultsColumn({
       return
     }
 
-    const handlePointerDown = (event: globalThis.MouseEvent) => {
-      if (!actionMenuRootRef.current?.contains(event.target as Node)) {
-        setOpenActionMenuId(null)
-      }
-    }
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpenActionMenuId(null)
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown)
     document.addEventListener("keydown", handleKeyDown)
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown)
       document.removeEventListener("keydown", handleKeyDown)
     }
   }, [openActionMenuId])
@@ -354,7 +346,7 @@ export function ResultsColumn({
             <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
           </Button>
         </div>
-        <div className={styles.noteResults} ref={actionMenuRootRef}>
+        <div className={styles.noteResults}>
           {searchMode && (
             <div className={styles.searchResultsSection}>
               <div className={styles.accordionHeading}>Search Results</div>
@@ -641,6 +633,7 @@ function SectionActionMenu({
   deleteTitle,
 }: SectionActionMenuProps) {
   const open = openActionMenuId === id
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   const handleMenuButtonClick = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
@@ -650,6 +643,7 @@ function SectionActionMenu({
   return (
     <div className={styles.categoryActionWrap} onClick={(event) => event.stopPropagation()}>
       <Button
+        ref={buttonRef}
         view="flat"
         size="xs"
         onClick={handleMenuButtonClick}
@@ -660,8 +654,15 @@ function SectionActionMenu({
       >
         <DotsThreeVertical size={16} weight="bold" />
       </Button>
-      {open && (
-        <div className={styles.categoryActionMenu} role="menu">
+      <Popup
+        anchorRef={buttonRef}
+        open={open}
+        onClose={() => onOpenActionMenuChange(null)}
+        placement={["bottom-end", "top-end", "bottom-start", "top-start"]}
+        offset={2}
+        role="menu"
+      >
+        <div className={styles.categoryActionMenu} onClick={(event) => event.stopPropagation()}>
           <button
             type="button"
             className={styles.categoryActionMenuItem}
@@ -689,7 +690,7 @@ function SectionActionMenu({
             <span>Delete</span>
           </button>
         </div>
-      )}
+      </Popup>
     </div>
   )
 }
@@ -741,8 +742,15 @@ function NoteActionMenu({
       >
         <DotsThreeVertical size={16} weight="bold" />
       </Button>
-      {open && (
-        <div className={styles.categoryActionMenu} role="menu">
+      <Popup
+        anchorRef={buttonRef}
+        open={open}
+        onClose={() => onOpenActionMenuChange(null)}
+        placement={["bottom-end", "top-end", "bottom-start", "top-start"]}
+        offset={2}
+        role="menu"
+      >
+        <div className={styles.categoryActionMenu} onClick={(event) => event.stopPropagation()}>
           <button
             type="button"
             className={styles.categoryActionMenuItem}
@@ -769,7 +777,7 @@ function NoteActionMenu({
             <span>Delete</span>
           </button>
         </div>
-      )}
+      </Popup>
       <Popup
         anchorRef={buttonRef}
         open={movePickerActive}
