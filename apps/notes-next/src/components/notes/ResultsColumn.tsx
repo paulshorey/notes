@@ -382,7 +382,7 @@ export function ResultsColumn({
             ) : categories.length === 0 ? (
               <div className={styles.categoryAccordionStatus}>
                 <Text variant="body-1" color="secondary">
-                  No categories yet.
+                  &ensp;No categories yet
                 </Text>
               </div>
             ) : (
@@ -537,7 +537,7 @@ export function ResultsColumn({
               {tags.length === 0 && (
                 <div className={styles.categoryAccordionStatus}>
                   <Text variant="body-1" color="secondary">
-                    No tags yet. Create one from the note form.
+                    &ensp;No tags yet
                   </Text>
                 </div>
               )}
@@ -556,7 +556,12 @@ interface SectionAddNoteButtonProps {
   onClick: () => void
 }
 
-function SectionAddNoteButton({ label, active = false, selected = false, onClick }: SectionAddNoteButtonProps) {
+function SectionAddNoteButton({
+  label,
+  active = false,
+  selected = false,
+  onClick,
+}: SectionAddNoteButtonProps) {
   return (
     <button
       type="button"

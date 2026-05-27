@@ -373,7 +373,7 @@ export function NoteForm({
             >
               <span className={styles.categoryTriggerLabel}>
                 <span className={styles.categoryTriggerValue}>
-                  {selectedCategoryLabel || "none"}
+                  {selectedCategoryLabel || "uncategorized"}
                 </span>
               </span>
               <CaretDown size={14} weight="regular" />
@@ -413,7 +413,7 @@ export function NoteForm({
                     ))
                   )}
                   {filteredCategoryOptions.length === 0 && categoryInputValue.trim() === "" && (
-                    <div className={styles.categoryEmpty}>No categories yet.</div>
+                    <div className={styles.categoryEmpty}>No categories yet</div>
                   )}
                 </div>
                 <input

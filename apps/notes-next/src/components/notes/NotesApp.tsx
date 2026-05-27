@@ -1376,14 +1376,31 @@ export default function NotesApp() {
         return
       }
 
-      // Merge anonymous data after successful sign-in
+      // Merge anonymous data after successful sign-in, then reload
       if (mergeToken) {
         try {
-          await fetch("/api/anon-session/merge", {
+          const mergeResponse = await fetch("/api/anon-session/merge", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ mergeToken }),
           })
+          if (mergeResponse.ok) {
+            const mergeData = await mergeResponse.json() as SessionResponse
+            const realUserId = mergeData.user.id
+            applyLoadedUser(mergeData.user)
+            const [mergedCategories, mergedTags, mergedNotes] = await Promise.all([
+              loadCategories(realUserId),
+              loadTags(realUserId),
+              loadNotes(realUserId),
+            ])
+            writeNotesCache({
+              userId: realUserId,
+              user: mergeData.user,
+              notes: mergedNotes,
+              categories: mergedCategories,
+              tags: mergedTags,
+            })
+          }
         } catch {
           // Merge failure is non-fatal — anonymous data stays for cleanup
         }
