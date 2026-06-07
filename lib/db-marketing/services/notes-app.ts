@@ -8,6 +8,8 @@ import type {
   CreateTagResponse,
   DeleteCategoryRequest,
   DeleteCategoryResponse,
+  DeleteCategoryWithNotesRequest,
+  DeleteCategoryWithNotesResponse,
   DeleteNoteRequest,
   DeleteResponse,
   DeleteTagRequest,
@@ -52,6 +54,7 @@ import {
 } from "../sql/note/shared";
 import {
   deleteCategoryForUser,
+  deleteCategoryWithNotesForUser,
   getCategoryByIdForUser,
   getFirstCategoryForUser,
   listCategoriesByUser,
@@ -626,6 +629,34 @@ export const deleteCategoryForNotesApp = async (
   return { ok: true };
 };
 
+export const parseDeleteCategoryWithNotesRequest = (
+  value: unknown
+): DeleteCategoryWithNotesRequest => {
+  const body = toRequestObject(value);
+
+  return {
+    userId: parsePositiveInteger(body.userId, "userId"),
+    categoryId: parsePositiveInteger(body.categoryId, "categoryId"),
+  };
+};
+
+export const deleteCategoryWithNotesForNotesApp = async (
+  request: DeleteCategoryWithNotesRequest
+): Promise<DeleteCategoryWithNotesResponse | null> => {
+  const fallbackCategoryId = await ensureFallbackCategoryId(request.userId);
+  const result = await deleteCategoryWithNotesForUser(
+    request.userId,
+    request.categoryId,
+    fallbackCategoryId
+  );
+
+  if (!result.deleted) {
+    return null;
+  }
+
+  return { ok: true, deletedNotes: result.deletedNotes };
+};
+
 export const deleteTagForNotesApp = async (
   request: DeleteTagRequest
 ): Promise<DeleteTagResponse | null> => {
@@ -806,6 +837,7 @@ export const notesAppService = {
   updateCategoryForNotesApp,
   updateTagForNotesApp,
   deleteCategoryForNotesApp,
+  deleteCategoryWithNotesForNotesApp,
   deleteTagForNotesApp,
   createNoteForNotesApp,
   updateNoteForNotesApp,

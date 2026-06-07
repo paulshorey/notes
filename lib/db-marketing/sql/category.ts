@@ -275,3 +275,69 @@ export const deleteCategoryForUser = async (
     client.release();
   }
 };
+
+export const deleteCategoryWithNotesForUser = async (
+  userId: number,
+  categoryId: number,
+  fallbackCategoryId: number
+) => {
+  const client = await getDb().connect();
+
+  try {
+    await client.query("BEGIN");
+
+    if (categoryId === fallbackCategoryId) {
+      throw new Error("Cannot delete the fallback category.");
+    }
+
+    const categoryResult = await client.query<{ count: number | string }>(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM public.user_note_category_v1
+        WHERE user_id = $1
+          AND id = $2
+      `,
+      [userId, categoryId]
+    );
+
+    if (Number(categoryResult.rows[0]?.count ?? 0) !== 1) {
+      await client.query("COMMIT");
+      return {
+        deleted: false,
+        deletedNotes: 0,
+      };
+    }
+
+    const deleteNotesResult = await client.query(
+      `
+        DELETE FROM public.user_note_v1
+        WHERE user_id = $1
+          AND category_id = $2
+      `,
+      [userId, categoryId]
+    );
+
+    const deletedNotes = deleteNotesResult.rowCount ?? 0;
+
+    const deleteResult = await client.query(
+      `
+        DELETE FROM public.user_note_category_v1
+        WHERE id = $1
+          AND user_id = $2
+      `,
+      [categoryId, userId]
+    );
+
+    await client.query("COMMIT");
+
+    return {
+      deleted: (deleteResult.rowCount ?? 0) > 0,
+      deletedNotes,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};

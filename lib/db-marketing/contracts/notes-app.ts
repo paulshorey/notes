@@ -181,6 +181,16 @@ export interface DeleteCategoryResponse {
   ok: true;
 }
 
+export interface DeleteCategoryWithNotesRequest {
+  userId: number;
+  categoryId: number;
+}
+
+export interface DeleteCategoryWithNotesResponse {
+  ok: true;
+  deletedNotes: number;
+}
+
 export interface CreateTagResponse {
   tag: TagRecord;
 }

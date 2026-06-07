@@ -93,6 +93,7 @@ export const createFakeNotesAppService = (
   createCategoryForNotesApp: async () => ({ category: sampleCategory }),
   updateCategoryForNotesApp: async () => ({ category: sampleCategory }),
   deleteCategoryForNotesApp: async () => ({ ok: true }),
+  deleteCategoryWithNotesForNotesApp: async () => ({ ok: true, deletedNotes: 1 }),
   listTagsForNotesApp: async () => ({ tags: [sampleTag] }),
   createTagForNotesApp: async () => ({ tag: sampleTag }),
   updateTagForNotesApp: async () => ({ tag: sampleTag }),
@@ -372,6 +373,32 @@ export const registerNotesApiAdapterSuite = (
     assert.equal(updateResponse.status, 200)
     assert.deepEqual(createRequests, [{ userId: 7, label: "work" }])
     assert.deepEqual(updateRequests, [{ userId: 7, categoryId: 5, label: "work" }])
+  })
+
+  test(`${adapterName} deletes a category and its notes`, async (t) => {
+    const requests: Array<{ userId: number; categoryId: number }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        deleteCategoryWithNotesForNotesApp: async (request) => {
+          requests.push(request)
+          return { ok: true, deletedNotes: 2 }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "DELETE",
+      path: "/api/categories/with-notes",
+      body: { userId: 7, categoryId: 5 },
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { ok: true, deletedNotes: 2 })
+    assert.deepEqual(requests, [{ userId: 7, categoryId: 5 }])
   })
 
   test(`${adapterName} lowercases tag labels before create and update`, async (t) => {
