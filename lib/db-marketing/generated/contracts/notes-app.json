@@ -718,6 +718,42 @@
         }
       ]
     },
+    "DeleteCategoryWithNotesRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteCategoryWithNotesResponse": {
+      "fields": [
+        {
+          "name": "ok",
+          "optional": false,
+          "kind": "scalar",
+          "type": "true",
+          "nullable": false
+        },
+        {
+          "name": "deletedNotes",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
     "CreateTagResponse": {
       "fields": [
         {

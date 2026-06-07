@@ -6,6 +6,7 @@ import {
 } from "@lib/db-marketing/testing/notes-api-adapter-suite"
 import {
   createCategoriesRouteHandlers,
+  createDeleteCategoryWithNotesRouteHandlers,
   createTagsRouteHandlers,
   createEmbeddingMaintenanceRouteHandlers,
   createNotesRouteHandlers,
@@ -22,6 +23,8 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
   const sessionHandlers = createSessionRouteHandlers(service)
   const notesHandlers = createNotesRouteHandlers(service)
   const categoriesHandlers = createCategoriesRouteHandlers(service)
+  const deleteCategoryWithNotesHandlers =
+    createDeleteCategoryWithNotesRouteHandlers(service)
   const tagsHandlers = createTagsRouteHandlers(service)
   const searchHandlers = createSearchRouteHandlers(service)
   const embeddingMaintenanceHandlers = createEmbeddingMaintenanceRouteHandlers(service)
@@ -81,6 +84,10 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
         } else {
           throw new Error(`Unhandled test route: ${method} ${url.pathname}`)
         }
+      } else if (url.pathname === "/api/categories/with-notes" && method === "DELETE") {
+        response = await deleteCategoryWithNotesHandlers.DELETE(
+          new Request(url, requestInit),
+        )
       } else if (url.pathname === "/api/notes/search" && method === "POST") {
         response = await searchHandlers.POST(new Request(url, requestInit))
       } else if (url.pathname === "/api/notes/maintenance/embeddings" && method === "POST") {

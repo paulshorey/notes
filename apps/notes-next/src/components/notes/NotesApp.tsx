@@ -5,6 +5,7 @@ import type {
   CategoryRecord,
   CreateCategoryResponse,
   DeleteCategoryResponse,
+  DeleteCategoryWithNotesResponse,
   TagsResponse,
   TagRecord,
   CreateTagResponse,
@@ -56,7 +57,10 @@ import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader } from "./NotesHeader"
 import { ResultsColumn, type CategoryNoteGroup, type TagNoteGroup } from "./ResultsColumn"
-import { DeleteCategoryModal } from "./modals/DeleteCategoryModal"
+import {
+  DeleteCategoryModal,
+  type DeleteCategoryAction,
+} from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
 import { EditTagModal } from "./modals/EditTagModal"
@@ -380,7 +384,8 @@ export default function NotesApp() {
   const [editCategoryLabel, setEditCategoryLabel] = useState("")
   const [editCategoryPending, setEditCategoryPending] = useState(false)
   const [deletingCategory, setDeletingCategory] = useState<CategoryRecord | null>(null)
-  const [deleteCategoryPending, setDeleteCategoryPending] = useState(false)
+  const [deleteCategoryPendingAction, setDeleteCategoryPendingAction] =
+    useState<DeleteCategoryAction | null>(null)
   const [editingTag, setEditingTag] = useState<TagRecord | null>(null)
   const [editTagLabel, setEditTagLabel] = useState("")
   const [editTagPending, setEditTagPending] = useState(false)
@@ -1850,10 +1855,12 @@ export default function NotesApp() {
     }
   }
 
-  const performDeleteCategory = async (category: CategoryRecord) => {
+  const performDeleteCategoryKeepUncategorized = async (
+    category: CategoryRecord,
+  ) => {
     if (!user) return
     clearMessages()
-    setDeleteCategoryPending(true)
+    setDeleteCategoryPendingAction("keep-uncategorized")
     try {
       const response = await fetch("/api/categories", {
         method: "DELETE",
@@ -1870,7 +1877,36 @@ export default function NotesApp() {
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
-      setDeleteCategoryPending(false)
+      setDeleteCategoryPendingAction(null)
+    }
+  }
+
+  const performDeleteCategoryWithNotes = async (category: CategoryRecord) => {
+    if (!user) return
+    clearMessages()
+    setDeleteCategoryPendingAction("delete-notes")
+    try {
+      const response = await fetch("/api/categories/with-notes", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          categoryId: category.id,
+        }),
+      })
+      const result = await readJson<DeleteCategoryWithNotesResponse>(response)
+      await refreshResults(user.id)
+      const deletedNotes = result.deletedNotes
+      setStatusMessage(
+        deletedNotes > 0
+          ? `Category “${category.label}” and ${deletedNotes} ${deletedNotes === 1 ? "note" : "notes"} deleted.`
+          : `Category “${category.label}” deleted.`,
+      )
+      setDeletingCategory(null)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setDeleteCategoryPendingAction(null)
     }
   }
 
@@ -1884,20 +1920,22 @@ export default function NotesApp() {
       setErrorMessage("The default category cannot be deleted.")
       return
     }
-    if (category.noteCount === 0) {
-      void performDeleteCategory(category)
-      return
-    }
     setDeletingCategory(category)
   }
 
   const closeDeleteCategory = () => {
+    if (deleteCategoryPendingAction !== null) return
     setDeletingCategory(null)
   }
 
-  const handleConfirmDeleteCategory = async () => {
+  const handleDeleteCategoryWithNotes = async () => {
     if (!deletingCategory) return
-    await performDeleteCategory(deletingCategory)
+    await performDeleteCategoryWithNotes(deletingCategory)
+  }
+
+  const handleDeleteCategoryKeepUncategorized = async () => {
+    if (!deletingCategory) return
+    await performDeleteCategoryKeepUncategorized(deletingCategory)
   }
 
   const openEditTag = (tag: TagRecord) => {
@@ -2202,8 +2240,9 @@ export default function NotesApp() {
       <DeleteCategoryModal
         category={deletingCategory}
         onClose={closeDeleteCategory}
-        onConfirm={() => void handleConfirmDeleteCategory()}
-        pending={deleteCategoryPending}
+        onDeleteWithNotes={() => void handleDeleteCategoryWithNotes()}
+        onKeepUncategorized={() => void handleDeleteCategoryKeepUncategorized()}
+        pendingAction={deleteCategoryPendingAction}
       />
 
       <EditTagModal

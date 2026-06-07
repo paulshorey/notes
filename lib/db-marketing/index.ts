@@ -37,6 +37,8 @@ export type {
   CreateNoteRequest,
   DeleteCategoryRequest,
   DeleteCategoryResponse,
+  DeleteCategoryWithNotesRequest,
+  DeleteCategoryWithNotesResponse,
   DeleteTagRequest,
   DeleteTagResponse,
   EmbeddingMaintenanceRequest,

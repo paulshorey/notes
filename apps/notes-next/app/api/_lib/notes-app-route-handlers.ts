@@ -9,6 +9,7 @@ import {
   parseCreateCategoryRequest,
   notesAppService,
   parseDeleteCategoryRequest,
+  parseDeleteCategoryWithNotesRequest,
   parseTagsRequest,
   parseCreateTagRequest,
   parseDeleteTagRequest,
@@ -258,6 +259,29 @@ export const createCategoriesRouteHandlers = (service: NotesAppService = notesAp
     try {
       const result = await service.deleteCategoryForNotesApp(
         parseDeleteCategoryRequest(await readJsonObject(request)),
+      )
+
+      if (!result) {
+        return NextResponse.json(
+          { error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR },
+          { status: 404 },
+        )
+      }
+
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+})
+
+export const createDeleteCategoryWithNotesRouteHandlers = (
+  service: NotesAppService = notesAppService
+) => ({
+  DELETE: async (request: Request) => {
+    try {
+      const result = await service.deleteCategoryWithNotesForNotesApp(
+        parseDeleteCategoryWithNotesRequest(await readJsonObject(request)),
       )
 
       if (!result) {
