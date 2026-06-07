@@ -128,6 +128,7 @@ private fun WidgetContent(snapshot: AppSnapshot) {
             } else {
                 WidgetToolbar(
                     context = context,
+                    categoryFilterId = categoryFilterId,
                     activeCategoryLabel = activeCategoryLabel,
                     activeTagLabel = activeTagLabel,
                 )
@@ -149,6 +150,7 @@ private fun WidgetContent(snapshot: AppSnapshot) {
 @androidx.compose.runtime.Composable
 private fun WidgetToolbar(
     context: Context,
+    categoryFilterId: Int?,
     activeCategoryLabel: String?,
     activeTagLabel: String?,
 ) {
@@ -166,6 +168,7 @@ private fun WidgetToolbar(
                             MainActivity.createLaunchIntent(
                                 context = context,
                                 action = MainActivity.launchActionAdd,
+                                categoryId = categoryFilterId,
                             ),
                     ),
             )
