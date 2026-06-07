@@ -70,6 +70,25 @@
   }
 }
 
+.saveIndicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--g-color-text-secondary);
+  transition: color 0.15s ease;
+}
+
+.saveIndicator[data-status="saved"] {
+  color: var(--g-color-text-positive);
+}
+
+.saveIndicator[data-status="error"] {
+  color: var(--g-color-text-danger);
+}
+
 .headerButtons {
   display: flex;
 }

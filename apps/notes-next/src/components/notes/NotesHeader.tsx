@@ -2,13 +2,47 @@
 
 import type { FormEvent } from "react"
 import { useRef, useState } from "react"
-import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
+import { Button, Popup, Spin, Text, TextInput } from "@gravity-ui/uikit"
 import { Notification } from "@mantine/core"
-import { Plus, SidebarSimple, User } from "@phosphor-icons/react"
+import { Check, Cloud, Plus, SidebarSimple, User, WarningCircle } from "@phosphor-icons/react"
 import type { UserSummary } from "@lib/db-marketing"
 import { useNotesAppStore } from "@/stores/notesAppStore"
-import type { EmbeddingMaintenanceMode } from "@/types/notes"
+import type { EmbeddingMaintenanceMode, NoteSaveStatus } from "@/types/notes"
 import styles from "./NotesHeader.module.css"
+
+const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
+  idle: "",
+  unsaved: "Unsaved changes",
+  saving: "Saving…",
+  saved: "All changes saved",
+  error: "Could not save — retrying",
+}
+
+function SaveStatusIndicator() {
+  const saveStatus = useNotesAppStore((state) => state.noteSaveStatus)
+
+  if (saveStatus === "idle") {
+    return null
+  }
+
+  const label = SAVE_STATUS_LABELS[saveStatus]
+
+  return (
+    <span
+      className={styles.saveIndicator}
+      data-status={saveStatus}
+      role="status"
+      aria-live="polite"
+      title={label}
+      aria-label={label}
+    >
+      {saveStatus === "saving" && <Spin size="xs" />}
+      {saveStatus === "saved" && <Check size={14} weight="bold" aria-hidden />}
+      {saveStatus === "unsaved" && <Cloud size={15} weight="regular" aria-hidden />}
+      {saveStatus === "error" && <WarningCircle size={15} weight="bold" aria-hidden />}
+    </span>
+  )
+}
 
 const SOCIAL_PROVIDERS = [
   { id: "google", label: "Google" },
@@ -86,6 +120,7 @@ export function NotesHeader({
         >
           jot.new
         </span>
+        <SaveStatusIndicator />
       </div>
       <span className={styles.headerButtons}>
         <Button
