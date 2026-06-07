@@ -47,7 +47,9 @@ import com.eighthbrain.notesandroid.app.data.NotesRepository
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.TagRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
+import com.eighthbrain.notesandroid.app.model.headline
 import com.eighthbrain.notesandroid.app.model.toDraft
+import com.eighthbrain.notesandroid.app.widget.clearWidgetExpandedStateForNote
 import com.eighthbrain.notesandroid.app.widget.NotesHomeWidget
 import com.eighthbrain.notesandroid.app.widget.readCategoryFilterId
 import com.eighthbrain.notesandroid.app.widget.readTagFilterId
@@ -115,6 +117,32 @@ class WidgetTagPickerActivity : ComponentActivity() {
     }
 }
 
+class WidgetDeleteNoteActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val noteId = intent.getIntExtra(extraNoteId, -1).takeIf { it > 0 }
+        if (noteId == null) {
+            finish()
+            return
+        }
+
+        setContent {
+            OverlayTheme {
+                val repository = (application as NotesApplication).repository
+                WidgetDeleteNoteScreen(
+                    repository = repository,
+                    noteId = noteId,
+                    finishOverlay = { finish() },
+                )
+            }
+        }
+    }
+
+    companion object {
+        const val extraNoteId = "note_id"
+    }
+}
+
 class WidgetNoteEditorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -134,6 +162,65 @@ class WidgetNoteEditorActivity : ComponentActivity() {
 
     companion object {
         const val extraNoteId = "note_id"
+    }
+}
+
+@Composable
+private fun WidgetDeleteNoteScreen(
+    repository: NotesRepository,
+    noteId: Int,
+    finishOverlay: () -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var headline by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(repository, noteId) {
+        headline = repository.noteById(noteId)?.headline()
+    }
+
+    OverlayCard(
+        title = "Delete note?",
+        subtitle = headline?.let { "\"$it\" will be removed permanently." }
+            ?: "This note will be removed permanently.",
+        busy = busy,
+        error = error,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(
+                onClick = finishOverlay,
+                modifier = Modifier.weight(1f),
+                enabled = !busy,
+            ) {
+                Text("Cancel")
+            }
+            Button(
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        error = null
+                        try {
+                            repository.deleteNote(noteId)
+                            clearWidgetExpandedStateForNote(context.applicationContext, noteId)
+                            finishOverlay()
+                        } catch (exception: Exception) {
+                            error = exception.message ?: "Unable to delete note."
+                        } finally {
+                            busy = false
+                        }
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                enabled = !busy,
+            ) {
+                Text("Delete")
+            }
+        }
     }
 }
 

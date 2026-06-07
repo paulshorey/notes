@@ -56,6 +56,7 @@ import com.eighthbrain.notesandroid.app.model.headline
 import com.eighthbrain.notesandroid.app.model.sortedByLastUpdated
 import com.eighthbrain.notesandroid.app.ui.MainActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetCategoryPickerActivity
+import com.eighthbrain.notesandroid.app.ui.WidgetDeleteNoteActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetLoginActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetTagPickerActivity
 
@@ -321,8 +322,11 @@ private fun NoteRow(
                         contentDescription = "Delete note",
                         bordered = false,
                         action =
-                            actionRunCallback<DeleteNoteAction>(
-                                actionParametersOf(NoteActionKeys.noteId to note.id.toString()),
+                            actionStartActivity(
+                                intent =
+                                    Intent(context, WidgetDeleteNoteActivity::class.java).apply {
+                                        putExtra(WidgetDeleteNoteActivity.extraNoteId, note.id)
+                                    },
                             ),
                     )
                 }
@@ -487,23 +491,6 @@ class ToggleExpandedAction : ActionCallback {
             prefs[key] = !(prefs[key] ?: false)
         }
         NotesHomeWidget().update(context, glanceId)
-    }
-}
-
-class DeleteNoteAction : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: androidx.glance.GlanceId,
-        parameters: ActionParameters,
-    ) {
-        val noteId = parameters[NoteActionKeys.noteId]?.toIntOrNull() ?: return
-        val repository = (context.applicationContext as NotesApplication).repository
-        try {
-            repository.deleteNote(noteId)
-            clearWidgetExpandedStateForNote(context, noteId)
-        } catch (_: Exception) {
-            NotesHomeWidget().update(context, glanceId)
-        }
     }
 }
 
