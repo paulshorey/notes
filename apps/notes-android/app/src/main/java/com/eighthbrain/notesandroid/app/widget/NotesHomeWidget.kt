@@ -321,13 +321,8 @@ private fun NoteRow(
                         contentDescription = "Delete note",
                         bordered = false,
                         action =
-                            actionStartActivity(
-                                intent =
-                                    MainActivity.createLaunchIntent(
-                                        context = context,
-                                        action = MainActivity.launchActionDelete,
-                                        noteId = note.id,
-                                    ),
+                            actionRunCallback<DeleteNoteAction>(
+                                actionParametersOf(NoteActionKeys.noteId to note.id.toString()),
                             ),
                     )
                 }
@@ -495,9 +490,25 @@ class ToggleExpandedAction : ActionCallback {
     }
 }
 
+class DeleteNoteAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: androidx.glance.GlanceId,
+        parameters: ActionParameters,
+    ) {
+        val noteId = parameters[NoteActionKeys.noteId]?.toIntOrNull() ?: return
+        val repository = (context.applicationContext as NotesApplication).repository
+        try {
+            repository.deleteNote(noteId)
+            clearWidgetExpandedStateForNote(context, noteId)
+        } catch (_: Exception) {
+            NotesHomeWidget().update(context, glanceId)
+        }
+    }
+}
+
 /**
  * Clears widget-local expanded state for [noteId] on every placed Notes home widget instance.
- * Used when delete is handled from [MainActivity] so list rows do not stay "expanded" for a removed id.
  */
 suspend fun clearWidgetExpandedStateForNote(
     context: Context,
