@@ -17,7 +17,7 @@ Glance home-screen widget implementation for Notes. This folder owns widget rend
 
 - The widget is intentionally read-only for text input; add/search/edit flows route into `MainActivity` or small overlay activities.
 - `RefreshNotesAction` re-syncs through `repository.restoreSession(...)`; the widget never talks to the API directly.
-- Delete is routed through `MainActivity.launchActionDelete` because nested `actionRunCallback` inside `LazyColumn` is less reliable across launchers.
+- Delete launches `WidgetDeleteNoteActivity` (dialog overlay). Do not use `actionRunCallback` for API delete inside `LazyColumn` rows — it silently fails on many launchers. See `.cursor/skills/android-widget-actions/SKILL.md`.
 - `clearWidgetExpandedStateForNote(...)` must be kept in sync with delete flows so removed notes do not leave stale expanded state behind.
 - `SignInOnly` and `LogoutAction` are currently unused; confirm they are truly dead before removing them.
 - Widget icons must stay as Android drawable resources; do not replace them with Compose-only vectors.

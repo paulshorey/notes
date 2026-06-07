@@ -18,9 +18,13 @@ Native Android Notes client built with Kotlin, Jetpack Compose, WorkManager, and
 - `README.md` - human setup instructions for building the Android app.
 - `.gitignore` - ignores local Android/Gradle outputs plus `local.properties`, while allowing the canonical `dist/notes-android.apk` artifact.
 
+## Agent skills
+
+- **`.cursor/skills/android-widget-actions/SKILL.md`** — read before adding or changing Glance widget buttons, taps, deletes, forms, pickers, or any flow that may not work inside the widget. Covers `actionStartActivity` vs `actionRunCallback`, dialog overlay activities, `MainActivity` launch intents, and widget refresh via `NotesRepository.persist()`.
+
 ## Non-obvious rules
 
-- Widget text-entry flows must use overlay activities because home-screen widgets cannot host editable text fields.
+- Widget text-entry flows must use overlay activities because home-screen widgets cannot host editable text fields. See the **android-widget-actions** skill for the full what-works / what-doesn't guide.
 - `local.properties` is machine-local and intentionally ignored; it can carry `sdk.dir` and `NOTES_ANDROID_API_BASE_URL`.
 - `app/build.gradle.kts` injects `BuildConfig.DEFAULT_API_BASE_URL` from `local.properties`, a Gradle property, or `NOTES_ANDROID_API_BASE_URL`.
 - The committed debug keystore is intentional so locally built and CI-built debug APKs share a certificate and can upgrade each other.

@@ -5,7 +5,8 @@ description: Development guide for `apps/notes-android`. Use when editing Androi
 
 ## Relationship to other skills
 
-- **android-build**: Use that skill (not this one) when you need to produce a distributable APK in a cloud workspace.
+- **android-build-apk**: Use that skill (not this one) when you need to produce a distributable APK in a cloud workspace.
+- **android-widget-actions**: Read when adding or changing Glance widget taps, deletes, forms, or overlay flows.
 - **Root AGENTS.md**: Working-directory and monorepo conventions are defined there; this skill does not repeat them.
 
 ## Cloud agents
