@@ -61,6 +61,18 @@ src/                        — non-route code (import with "@/..." alias)
 
 - All database access and embedding logic is in `@lib/db-marketing`. API routes call `notesAppService` from `@lib/db-marketing/services/notes-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
+
+## Note saving lifecycle
+
+The note editor persists through `saveCurrentNote(mode)` in `NotesApp.tsx`, with three modes:
+
+- `manual` — explicit submit; shows pending UI and resets to a fresh draft.
+- `autosave` — trailing debounce (`NOTE_AUTOSAVE_DEBOUNCE_MS`, 3s) while the note stays open. The debounce and `saveCurrentNote` both compare a draft signature against `lastSavedNoteDraftRef`, so an unchanged note never hits the network.
+- `flush` — forced save of the *outgoing* note right before the editor is replaced. `saveCurrentNote` snapshots the editor synchronously before any `await`, so a flush captures the note being left, not the one being opened.
+
+Anything that replaces the editor awaits `flushPendingNoteSave()` first: opening another note, starting a new note (header `+`/`jot.new`, cancel button, sidebar `+`), browser back/forward (`popstate`), and sign-out. `pagehide`/`visibilitychange` fire a best-effort `keepalive` request to cover abrupt tab closes inside the debounce window.
+
+`noteSaveStatus` in `notesAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `NotesHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
 - Routes are wired through `app/api/_lib/notes-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
 - This package validates Notes contracts, but it does not own Notes migration scripts.

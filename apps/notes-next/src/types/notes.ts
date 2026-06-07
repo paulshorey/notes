@@ -13,6 +13,18 @@ export interface NoteFormState {
 
 export type EmbeddingMaintenanceMode = "missing" | "stale"
 
+/**
+ * Lifecycle of the note editor's persistence, surfaced to the UI (e.g. the
+ * header save indicator).
+ *
+ * - `idle`    — empty new draft with nothing worth saving.
+ * - `unsaved` — the draft has changes that have not been persisted yet.
+ * - `saving`  — a save request for the current note is in flight.
+ * - `saved`   — the current note matches what is stored on the server.
+ * - `error`   — the last save attempt for the current note failed.
+ */
+export type NoteSaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error"
+
 export const createDefaultDueValue = () => {
   const now = new Date()
   const dueAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)

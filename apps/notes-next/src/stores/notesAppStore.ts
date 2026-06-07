@@ -1,5 +1,9 @@
 import { create } from "zustand"
-import { createDefaultNoteForm, type NoteFormState } from "@/types/notes"
+import {
+  createDefaultNoteForm,
+  type NoteFormState,
+  type NoteSaveStatus,
+} from "@/types/notes"
 
 type State = {
   /**
@@ -30,6 +34,12 @@ type State = {
    * Note currently open for editing. Null means the editor is preparing a new note.
    */
   editingNoteId: number | null
+  /**
+   * Persistence status of the note currently open in the editor. Drives the
+   * header save indicator and lets navigation know whether the in-memory draft
+   * still needs to be flushed to the server.
+   */
+  noteSaveStatus: NoteSaveStatus
   /**
    * Monotonic id used to reset the markdown editor when switching notes/drafts.
    */
@@ -63,6 +73,7 @@ type Actions = {
       | ((current: NoteFormState) => NoteFormState),
   ) => void
   setEditingNoteId: (noteId: number | null) => void
+  setNoteSaveStatus: (status: NoteSaveStatus) => void
   bumpDescriptionEditorSessionId: () => void
   setPendingTagLabels: (
     labels: string[] | ((current: string[]) => string[]),
@@ -80,6 +91,7 @@ const defaultState: State = {
   searchQuery: "",
   noteForm: createDefaultNoteForm(),
   editingNoteId: null,
+  noteSaveStatus: "idle",
   descriptionEditorSessionId: 0,
   pendingTagLabels: [],
   categoryInputValue: "",
@@ -113,6 +125,11 @@ export const useNotesAppStore = create<NotesAppStore>((set) => ({
   },
   setEditingNoteId: (noteId) => {
     set({ editingNoteId: noteId })
+  },
+  setNoteSaveStatus: (status) => {
+    set((current) =>
+      current.noteSaveStatus === status ? current : { noteSaveStatus: status },
+    )
   },
   bumpDescriptionEditorSessionId: () => {
     set((current) => ({
