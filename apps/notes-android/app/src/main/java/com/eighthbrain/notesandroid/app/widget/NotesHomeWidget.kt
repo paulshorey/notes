@@ -95,6 +95,7 @@ private val widgetText = ColorProvider(Color(0xFFF5F7FB))
 private val widgetTextDim = ColorProvider(Color(0x99F5F7FB))
 private val noteTitleFontSize: TextUnit = 16.sp
 private val noteBodyFontSize: TextUnit = 14.sp
+private val noteRowButtonPadding = 4.dp
 
 @androidx.compose.runtime.Composable
 private fun WidgetContent(snapshot: AppSnapshot) {
@@ -243,12 +244,12 @@ private fun NoteRowActions(
     context: Context,
     expanded: Boolean,
 ) {
-    Column {
+    Column(modifier = GlanceModifier.padding(top = noteRowButtonPadding)) {
         WidgetIconOnlyButton(
             iconRes = R.drawable.ic_widget_clock,
             contentDescription = "Dates",
             bordered = false,
-            verticalPadding = 4.dp,
+            verticalPadding = noteRowButtonPadding,
             iconAlpha = note.datesIconAlpha(),
             action = actionRunCallback<NoOpAction>(),
         )
@@ -257,7 +258,7 @@ private fun NoteRowActions(
                 iconRes = R.drawable.ic_widget_edit,
                 contentDescription = "Edit note",
                 bordered = false,
-                verticalPadding = 4.dp,
+                verticalPadding = noteRowButtonPadding,
                 action =
                     actionStartActivity(
                         intent =
@@ -272,7 +273,7 @@ private fun NoteRowActions(
                 iconRes = R.drawable.ic_widget_delete,
                 contentDescription = "Delete note",
                 bordered = false,
-                verticalPadding = 4.dp,
+                verticalPadding = noteRowButtonPadding,
                 action =
                     actionStartActivity(
                         intent =
@@ -292,7 +293,7 @@ private fun NoteRowContent(
 ) {
     Text(
         text = if (expanded) note.titleLine() else note.headline(),
-        style = TextStyle(color = widgetText, fontWeight = FontWeight.Bold, fontSize = noteTitleFontSize),
+        style = TextStyle(color = widgetText, fontWeight = FontWeight.Normal, fontSize = noteTitleFontSize),
         maxLines = if (expanded) 3 else 1,
     )
 
