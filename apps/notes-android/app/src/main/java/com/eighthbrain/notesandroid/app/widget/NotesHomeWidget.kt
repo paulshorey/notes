@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
@@ -219,6 +220,61 @@ private fun WidgetToolbar(
     }
 }
 
+private fun NoteRecord.datesIconAlpha(): Float {
+    val hasDue = timeDue != null
+    val hasRemind = timeRemind != null
+    return when {
+        hasDue && hasRemind -> 1f
+        hasDue || hasRemind -> 0.5f
+        else -> 0f
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun NoteRowActions(
+    note: NoteRecord,
+    context: Context,
+    expanded: Boolean,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        WidgetIconOnlyButton(
+            iconRes = R.drawable.ic_widget_clock,
+            contentDescription = "Dates",
+            bordered = false,
+            iconAlpha = note.datesIconAlpha(),
+            action = actionRunCallback<NoOpAction>(),
+        )
+        if (expanded) {
+            WidgetIconOnlyButton(
+                iconRes = R.drawable.ic_widget_edit,
+                contentDescription = "Edit note",
+                bordered = false,
+                action =
+                    actionStartActivity(
+                        intent =
+                            MainActivity.createLaunchIntent(
+                                context = context,
+                                action = MainActivity.launchActionEdit,
+                                noteId = note.id,
+                            ),
+                    ),
+            )
+            WidgetIconOnlyButton(
+                iconRes = R.drawable.ic_widget_delete,
+                contentDescription = "Delete note",
+                bordered = false,
+                action =
+                    actionStartActivity(
+                        intent =
+                            Intent(context, WidgetDeleteNoteActivity::class.java).apply {
+                                putExtra(WidgetDeleteNoteActivity.extraNoteId, note.id)
+                            },
+                    ),
+            )
+        }
+    }
+}
+
 @androidx.compose.runtime.Composable
 private fun NoteRow(
     note: NoteRecord,
@@ -239,34 +295,24 @@ private fun NoteRow(
                     .background(ColorProvider(Color(0x33F5F7FB))),
         ) {}
         Row(
-            modifier =
-                GlanceModifier
-                    .fillMaxWidth()
-                    .clickable(actionRunCallback<ToggleExpandedAction>(actionParametersOf(NoteActionKeys.noteId to note.id.toString()))),
+            modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            NoteRowActions(note = note, context = context, expanded = expanded)
             Text(
                 text = note.headline(),
-                modifier = GlanceModifier.defaultWeight().padding(vertical = 4.dp),
+                modifier =
+                    GlanceModifier
+                        .defaultWeight()
+                        .clickable(
+                            actionRunCallback<ToggleExpandedAction>(
+                                actionParametersOf(NoteActionKeys.noteId to note.id.toString()),
+                            ),
+                        )
+                        .padding(vertical = 4.dp),
                 style = TextStyle(color = widgetText, fontWeight = FontWeight.Bold, fontSize = noteTitleFontSize),
                 maxLines = if (expanded) 3 else 1,
             )
-            if (expanded) {
-                WidgetIconOnlyButton(
-                    iconRes = R.drawable.ic_widget_edit,
-                    contentDescription = "Edit note",
-                    bordered = false,
-                    action =
-                        actionStartActivity(
-                            intent =
-                            MainActivity.createLaunchIntent(
-                                context = context,
-                                action = MainActivity.launchActionEdit,
-                                noteId = note.id,
-                            ),
-                        ),
-                )
-            }
         }
 
         if (expanded) {
@@ -305,29 +351,12 @@ private fun NoteRow(
                         maxLines = 1,
                     )
                 }
-                Row(
-                    modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    note.timeRemind?.let { remind ->
-                        Text(
-                            text = "Remind ${formatConciseDate(remind)}",
-                            modifier = GlanceModifier.defaultWeight().padding(end = 4.dp),
-                            style = TextStyle(color = widgetTextDim),
-                            maxLines = 1,
-                        )
-                    } ?: Spacer(modifier = GlanceModifier.defaultWeight())
-                    WidgetIconOnlyButton(
-                        iconRes = R.drawable.ic_widget_delete,
-                        contentDescription = "Delete note",
-                        bordered = false,
-                        action =
-                            actionStartActivity(
-                                intent =
-                                    Intent(context, WidgetDeleteNoteActivity::class.java).apply {
-                                        putExtra(WidgetDeleteNoteActivity.extraNoteId, note.id)
-                                    },
-                            ),
+                note.timeRemind?.let { remind ->
+                    Text(
+                        text = "Remind ${formatConciseDate(remind)}",
+                        modifier = GlanceModifier.padding(top = 2.dp),
+                        style = TextStyle(color = widgetTextDim),
+                        maxLines = 1,
                     )
                 }
             }
@@ -434,6 +463,7 @@ private fun WidgetIconOnlyButton(
     contentDescription: String,
     bordered: Boolean = true,
     action: Action,
+    iconAlpha: Float = 1f,
 ) {
     Box(
         modifier =
@@ -453,6 +483,10 @@ private fun WidgetIconOnlyButton(
             provider = ImageProvider(iconRes),
             contentDescription = contentDescription,
             modifier = GlanceModifier.size(18.dp),
+            colorFilter =
+                ColorFilter.tint(
+                    ColorProvider(Color(0xFFF5F7FB).copy(alpha = iconAlpha.coerceIn(0f, 1f))),
+                ),
         )
     }
 }
@@ -476,6 +510,15 @@ class RefreshNotesAction : ActionCallback {
         if (snapshot.user != null) {
             repository.restoreSession(refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
+    }
+}
+
+class NoOpAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: androidx.glance.GlanceId,
+        parameters: ActionParameters,
+    ) {
     }
 }
 
