@@ -94,6 +94,7 @@ private val widgetBackground = ColorProvider(Color(0xFF10131A))
 private val widgetText = ColorProvider(Color(0xFFF5F7FB))
 private val widgetTextDim = ColorProvider(Color(0x99F5F7FB))
 private val noteTitleFontSize: TextUnit = 16.sp
+private val noteBodyFontSize: TextUnit = 14.sp
 
 @androidx.compose.runtime.Composable
 private fun WidgetContent(snapshot: AppSnapshot) {
@@ -220,6 +221,12 @@ private fun WidgetToolbar(
     }
 }
 
+private fun NoteRecord.titleLine(): String {
+    val raw = description?.trim() ?: ""
+    if (raw.isEmpty()) return "Untitled"
+    return raw.split("\n", "\r\n").first()
+}
+
 private fun NoteRecord.datesIconAlpha(): Float {
     val hasDue = timeDue != null
     val hasRemind = timeRemind != null
@@ -241,6 +248,7 @@ private fun NoteRowActions(
             iconRes = R.drawable.ic_widget_clock,
             contentDescription = "Dates",
             bordered = false,
+            verticalPadding = 4.dp,
             iconAlpha = note.datesIconAlpha(),
             action = actionRunCallback<NoOpAction>(),
         )
@@ -249,6 +257,7 @@ private fun NoteRowActions(
                 iconRes = R.drawable.ic_widget_edit,
                 contentDescription = "Edit note",
                 bordered = false,
+                verticalPadding = 4.dp,
                 action =
                     actionStartActivity(
                         intent =
@@ -263,6 +272,7 @@ private fun NoteRowActions(
                 iconRes = R.drawable.ic_widget_delete,
                 contentDescription = "Delete note",
                 bordered = false,
+                verticalPadding = 4.dp,
                 action =
                     actionStartActivity(
                         intent =
@@ -280,19 +290,21 @@ private fun NoteRowContent(
     note: NoteRecord,
     expanded: Boolean,
 ) {
+    Text(
+        text = if (expanded) note.titleLine() else note.headline(),
+        style = TextStyle(color = widgetText, fontWeight = FontWeight.Bold, fontSize = noteTitleFontSize),
+        maxLines = if (expanded) 3 else 1,
+    )
+
     if (!expanded) {
-        Text(
-            text = note.headline(),
-            style = TextStyle(color = widgetText, fontWeight = FontWeight.Bold, fontSize = noteTitleFontSize),
-            maxLines = 1,
-        )
         return
     }
 
     note.descriptionBody().takeIf { it.isNotBlank() }?.let {
         Text(
             text = it,
-            style = TextStyle(color = widgetText),
+            modifier = GlanceModifier.padding(top = 2.dp),
+            style = TextStyle(color = widgetTextDim, fontSize = noteBodyFontSize),
             maxLines = 4,
         )
     }
@@ -471,7 +483,14 @@ private fun WidgetIconOnlyButton(
     bordered: Boolean = true,
     action: Action,
     iconAlpha: Float = 1f,
+    verticalPadding: androidx.compose.ui.unit.Dp? = null,
 ) {
+    val padding =
+        if (bordered) {
+            6.dp
+        } else {
+            verticalPadding ?: 2.dp
+        }
     Box(
         modifier =
             GlanceModifier
@@ -483,7 +502,7 @@ private fun WidgetIconOnlyButton(
                     }
                 }
                 .clickable(action)
-                .padding(if (bordered) 6.dp else 2.dp),
+                .padding(horizontal = if (bordered) 6.dp else 2.dp, vertical = padding),
         contentAlignment = Alignment.Center,
     ) {
         Image(
