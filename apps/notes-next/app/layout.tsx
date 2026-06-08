@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next"
+import "@/components/editor/TipTapStylesheet.css"
 import "@mantine/core/styles.css"
 import "@gravity-ui/uikit/styles/fonts.css"
 import "@gravity-ui/uikit/styles/styles.css"

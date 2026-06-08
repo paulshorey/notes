@@ -11,7 +11,6 @@ import type {
   CreateTagResponse,
   DeleteTagResponse,
   EmbeddingMaintenanceResponse,
-  NoteResponse,
   NotesResponse,
   NoteRecord,
   SearchResponse,
@@ -57,10 +56,7 @@ import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader } from "./NotesHeader"
 import { ResultsColumn, type CategoryNoteGroup, type TagNoteGroup } from "./ResultsColumn"
-import {
-  DeleteCategoryModal,
-  type DeleteCategoryAction,
-} from "./modals/DeleteCategoryModal"
+import { DeleteCategoryModal, type DeleteCategoryAction } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
 import { EditTagModal } from "./modals/EditTagModal"
@@ -335,14 +331,6 @@ const noteRequestBody = (form: NoteFormState) => ({
   description: form.description,
   timeDue: form.dueExpanded ? form.timeDue : null,
   timeRemind: form.remindExpanded ? form.timeRemind : null,
-})
-
-const notePatchBody = (note: NoteRecord) => ({
-  categoryId: note.category.id,
-  tagIds: note.tags.map((tag) => tag.id),
-  description: note.description ?? "",
-  timeDue: note.timeDue,
-  timeRemind: note.timeRemind,
 })
 
 export default function NotesApp() {
@@ -856,9 +844,7 @@ export default function NotesApp() {
       const storedUserId = String(authSession.user.notesUserId)
       window.localStorage.setItem(STORAGE_KEY, storedUserId)
       const numericUserId = Number.parseInt(storedUserId, 10)
-      const cachedSnapshot = Number.isInteger(numericUserId)
-        ? readNotesCache(numericUserId)
-        : null
+      const cachedSnapshot = Number.isInteger(numericUserId) ? readNotesCache(numericUserId) : null
 
       // Stale-while-revalidate. If we have a recent local snapshot for this
       // user, render the app immediately from cache and refresh in the
@@ -1200,13 +1186,8 @@ export default function NotesApp() {
         if (userRef.current?.id === currentUser.id) {
           // Reflect whatever the editor holds now: typing during the request may
           // have made it dirty again (a queued autosave will follow).
-          const liveSignature = serializeNoteDraft(
-            editingNoteIdRef.current,
-            noteFormRef.current,
-          )
-          setNoteSaveStatus(
-            liveSignature === lastSavedNoteDraftRef.current ? "saved" : "unsaved",
-          )
+          const liveSignature = serializeNoteDraft(editingNoteIdRef.current, noteFormRef.current)
+          setNoteSaveStatus(liveSignature === lastSavedNoteDraftRef.current ? "saved" : "unsaved")
         }
       } catch (error) {
         if (userRef.current?.id === currentUser.id) {
@@ -1277,9 +1258,7 @@ export default function NotesApp() {
     }
 
     const draftSignature = serializeNoteDraft(editingNoteId, noteForm)
-    setNoteSaveStatus(
-      draftSignature === lastSavedNoteDraftRef.current ? "saved" : "unsaved",
-    )
+    setNoteSaveStatus(draftSignature === lastSavedNoteDraftRef.current ? "saved" : "unsaved")
   }, [editingNoteId, noteForm, setNoteSaveStatus, user])
 
   // Best-effort save when the tab is being hidden or torn down. The awaited
@@ -1510,7 +1489,7 @@ export default function NotesApp() {
             method: "POST",
           })
           if (tokenResponse.ok) {
-            const tokenData = await tokenResponse.json() as { mergeToken: string }
+            const tokenData = (await tokenResponse.json()) as { mergeToken: string }
             mergeToken = tokenData.mergeToken
           }
         } catch {
@@ -1538,7 +1517,7 @@ export default function NotesApp() {
             body: JSON.stringify({ mergeToken }),
           })
           if (mergeResponse.ok) {
-            const mergeData = await mergeResponse.json() as SessionResponse
+            const mergeData = (await mergeResponse.json()) as SessionResponse
             const realUserId = mergeData.user.id
             applyLoadedUser(mergeData.user)
             const [mergedCategories, mergedTags, mergedNotes] = await Promise.all([
@@ -1580,7 +1559,7 @@ export default function NotesApp() {
             method: "POST",
           })
           if (tokenResponse.ok) {
-            const tokenData = await tokenResponse.json() as { mergeToken: string }
+            const tokenData = (await tokenResponse.json()) as { mergeToken: string }
             sessionStorage.setItem("notes-merge-token", tokenData.mergeToken)
           }
         } catch {
@@ -1620,14 +1599,14 @@ export default function NotesApp() {
     clearMessages()
   }
 
-  // const handleMarkdownEditorModeChange = useCallback((mode: MarkdownEditorModePreference) => {
-  //   setPreferredMarkdownEditorMode(mode)
-  //   setUserPreferences((current) =>
-  //     getStoredMarkdownEditorMode(current) === mode
-  //       ? current
-  //       : withMarkdownEditorModePreference(current, mode),
-  //   )
-  // }, [])
+  const handleMarkdownEditorModeChange = useCallback((mode: MarkdownEditorModePreference) => {
+    setPreferredMarkdownEditorMode(mode)
+    setUserPreferences((current) =>
+      getStoredMarkdownEditorMode(current) === mode
+        ? current
+        : withMarkdownEditorModePreference(current, mode),
+    )
+  }, [])
 
   const handleStartEdit = async (note: NoteRecord) => {
     // Opening a different note replaces the editor, so persist the outgoing
@@ -2013,9 +1992,7 @@ export default function NotesApp() {
     }
   }
 
-  const performDeleteCategoryKeepUncategorized = async (
-    category: CategoryRecord,
-  ) => {
+  const performDeleteCategoryKeepUncategorized = async (category: CategoryRecord) => {
     if (!user) return
     clearMessages()
     setDeleteCategoryPendingAction("keep-uncategorized")
@@ -2293,7 +2270,7 @@ export default function NotesApp() {
               void handleDeleteNote(editingNoteId)
             }
           }}
-          // onMarkdownEditorModeChange={handleMarkdownEditorModeChange}
+          onMarkdownEditorModeChange={handleMarkdownEditorModeChange}
           header={
             <div className={`${styles.header} ${styles.headerLeft}`}>
               <NotesHeader

@@ -104,7 +104,7 @@ export function NotesHeader({
           onClick={onAddNote}
           aria-label="Add new note"
         >
-          <Plus size={18} weight="bold" aria-hidden />
+          <Plus size={16} weight="bold" aria-hidden />
         </button>
         <span
           className={styles.headerLogo}

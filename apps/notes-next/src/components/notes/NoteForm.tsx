@@ -40,6 +40,7 @@ interface NoteFormProps {
   descriptionEditorSessionId: number
   editorAutofocus: boolean
   markdownEditorMode: MarkdownEditorProps["mode"]
+  onMarkdownEditorModeChange: MarkdownEditorProps["onModeChange"]
   categoryInputValue: string
   onCategoryInputValueChange: (value: string) => void
   createCategoryPending: boolean
@@ -50,7 +51,6 @@ interface NoteFormProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
-  // onMarkdownEditorModeChange: NonNullable<MarkdownEditorProps["onModeChange"]>
   header?: JSX.Element
 }
 
@@ -58,7 +58,6 @@ export function NoteForm({
   form,
   setForm,
   editingNoteId,
-  notePending,
   userPresent,
   categories,
   tags,
@@ -66,6 +65,7 @@ export function NoteForm({
   descriptionEditorSessionId,
   editorAutofocus,
   markdownEditorMode,
+  onMarkdownEditorModeChange,
   categoryInputValue,
   onCategoryInputValueChange,
   createCategoryPending,
@@ -76,7 +76,6 @@ export function NoteForm({
   onSubmit,
   onCancelEdit,
   onDeleteEditingNote,
-  // onMarkdownEditorModeChange,
   header,
 }: NoteFormProps) {
   const categoryTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -356,8 +355,7 @@ export function NoteForm({
           value={form.description}
           mode={markdownEditorMode}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
-          // onModeChange={onMarkdownEditorModeChange}
-          className={styles.formDescription}
+          onModeChange={onMarkdownEditorModeChange}
         />
 
         <div className={styles.dateFields}>
