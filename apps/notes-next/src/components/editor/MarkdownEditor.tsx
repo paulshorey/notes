@@ -179,7 +179,6 @@ export function MarkdownEditor({
     <div ref={editorContainerRef} className={`${styles.editor} ${className ?? ""}`}>
       <ActionTooltip title={modeToggleLabel}>
         <Button
-          aria-label={modeToggleLabel}
           className={styles.modeToggle}
           onClick={toggleMode}
           pin="round-round"
