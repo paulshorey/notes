@@ -236,7 +236,7 @@ private fun NoteRowActions(
     context: Context,
     expanded: Boolean,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Column {
         WidgetIconOnlyButton(
             iconRes = R.drawable.ic_widget_clock,
             contentDescription = "Dates",
@@ -276,6 +276,61 @@ private fun NoteRowActions(
 }
 
 @androidx.compose.runtime.Composable
+private fun NoteRowContent(
+    note: NoteRecord,
+    expanded: Boolean,
+) {
+    if (!expanded) {
+        Text(
+            text = note.headline(),
+            style = TextStyle(color = widgetText, fontWeight = FontWeight.Bold, fontSize = noteTitleFontSize),
+            maxLines = 1,
+        )
+        return
+    }
+
+    note.descriptionBody().takeIf { it.isNotBlank() }?.let {
+        Text(
+            text = it,
+            style = TextStyle(color = widgetText),
+            maxLines = 4,
+        )
+    }
+    if (note.tags.isNotEmpty()) {
+        Text(
+            text = note.category.label,
+            modifier = GlanceModifier.padding(top = 2.dp),
+            style = TextStyle(color = widgetText),
+            maxLines = 1,
+        )
+        note.tags.forEach { cat ->
+            Text(
+                text = "• ${cat.label}",
+                modifier = GlanceModifier.padding(top = 2.dp),
+                style = TextStyle(color = widgetText),
+                maxLines = 1,
+            )
+        }
+    }
+    note.timeDue?.let { due ->
+        Text(
+            text = "Due ${formatConciseDate(due)}",
+            modifier = GlanceModifier.padding(top = 4.dp),
+            style = TextStyle(color = widgetTextDim),
+            maxLines = 1,
+        )
+    }
+    note.timeRemind?.let { remind ->
+        Text(
+            text = "Remind ${formatConciseDate(remind)}",
+            modifier = GlanceModifier.padding(top = 2.dp),
+            style = TextStyle(color = widgetTextDim),
+            maxLines = 1,
+        )
+    }
+}
+
+@androidx.compose.runtime.Composable
 private fun NoteRow(
     note: NoteRecord,
     context: Context,
@@ -295,12 +350,11 @@ private fun NoteRow(
                     .background(ColorProvider(Color(0x33F5F7FB))),
         ) {}
         Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp),
+            verticalAlignment = Alignment.Top,
         ) {
             NoteRowActions(note = note, context = context, expanded = expanded)
-            Text(
-                text = note.headline(),
+            Column(
                 modifier =
                     GlanceModifier
                         .defaultWeight()
@@ -309,56 +363,9 @@ private fun NoteRow(
                                 actionParametersOf(NoteActionKeys.noteId to note.id.toString()),
                             ),
                         )
-                        .padding(vertical = 4.dp),
-                style = TextStyle(color = widgetText, fontWeight = FontWeight.Bold, fontSize = noteTitleFontSize),
-                maxLines = if (expanded) 3 else 1,
-            )
-        }
-
-        if (expanded) {
-            Column(
-                modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp),
+                        .padding(start = 4.dp, top = 4.dp, end = 2.dp),
             ) {
-                note.descriptionBody().takeIf { it.isNotBlank() }?.let {
-                    Text(
-                        text = it,
-                        modifier = GlanceModifier.padding(top = 2.dp),
-                        style = TextStyle(color = widgetText),
-                        maxLines = 4,
-                    )
-                }
-                if (note.tags.isNotEmpty()) {
-                    Text(
-                        text = note.category.label,
-                        modifier = GlanceModifier.padding(top = 2.dp),
-                        style = TextStyle(color = widgetText),
-                        maxLines = 1,
-                    )
-                    note.tags.forEach { cat ->
-                        Text(
-                            text = "• ${cat.label}",
-                            modifier = GlanceModifier.padding(top = 2.dp),
-                            style = TextStyle(color = widgetText),
-                            maxLines = 1,
-                        )
-                    }
-                }
-                note.timeDue?.let { due ->
-                    Text(
-                        text = "Due ${formatConciseDate(due)}",
-                        modifier = GlanceModifier.padding(top = 4.dp),
-                        style = TextStyle(color = widgetTextDim),
-                        maxLines = 1,
-                    )
-                }
-                note.timeRemind?.let { remind ->
-                    Text(
-                        text = "Remind ${formatConciseDate(remind)}",
-                        modifier = GlanceModifier.padding(top = 2.dp),
-                        style = TextStyle(color = widgetTextDim),
-                        maxLines = 1,
-                    )
-                }
+                NoteRowContent(note = note, expanded = expanded)
             }
         }
     }
