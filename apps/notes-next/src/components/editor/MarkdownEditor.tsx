@@ -12,7 +12,7 @@ import {
   type MarkupString,
   type RenderPreview,
 } from "@gravity-ui/markdown-editor"
-import { ActionTooltip, Button, Icon } from "@gravity-ui/uikit"
+import { Button, Icon } from "@gravity-ui/uikit"
 import styles from "./MarkdownEditor.module.css"
 import { SplitModePreview } from "./SplitModePreview"
 
@@ -92,8 +92,6 @@ export function MarkdownEditor({
     toolbarVisible,
   ])
   const nextMode = activeMode === "wysiwyg" ? "markup" : "wysiwyg"
-  const modeToggleLabel =
-    activeMode === "wysiwyg" ? "Switch to Markdown markup" : "Switch to visual editor"
   const ModeToggleIcon = activeMode === "wysiwyg" ? Code : TextAlignLeft
 
   React.useEffect(() => {
@@ -177,18 +175,16 @@ export function MarkdownEditor({
 
   return (
     <div ref={editorContainerRef} className={`${styles.editor} ${className ?? ""}`}>
-      <ActionTooltip title={modeToggleLabel}>
-        <Button
-          className={styles.modeToggle}
-          onClick={toggleMode}
-          pin="round-round"
-          size="m"
-          type="button"
-          view="flat"
-        >
-          <Icon data={ModeToggleIcon} size={16} />
-        </Button>
-      </ActionTooltip>
+      <Button
+        className={styles.modeToggle}
+        onClick={toggleMode}
+        pin="round-round"
+        size="m"
+        type="button"
+        view="flat"
+      >
+        <Icon data={ModeToggleIcon} size={16} />
+      </Button>
       <MarkdownEditorView
         className={styles.editor}
         editor={editor}
