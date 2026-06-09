@@ -9,7 +9,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.glance.ColorFilter
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
@@ -96,6 +95,7 @@ private val widgetTextDim = ColorProvider(Color(0x99F5F7FB))
 private val noteTitleFontSize: TextUnit = 16.sp
 private val noteBodyFontSize: TextUnit = 14.sp
 private val noteRowButtonPadding = 4.dp
+private val noteRowTitleTopPadding = 2.dp
 
 @androidx.compose.runtime.Composable
 private fun WidgetContent(snapshot: AppSnapshot) {
@@ -228,13 +228,13 @@ private fun NoteRecord.titleLine(): String {
     return raw.split("\n", "\r\n").first()
 }
 
-private fun NoteRecord.datesIconAlpha(): Float {
+private fun NoteRecord.datesIconRes(): Int {
     val hasDue = timeDue != null
     val hasRemind = timeRemind != null
     return when {
-        hasDue && hasRemind -> 1f
-        hasDue || hasRemind -> 0.5f
-        else -> 0f
+        hasDue && hasRemind -> R.drawable.ic_widget_clock_full
+        hasDue || hasRemind -> R.drawable.ic_widget_clock_half
+        else -> R.drawable.ic_widget_clock_none
     }
 }
 
@@ -246,12 +246,14 @@ private fun NoteRowActions(
 ) {
     Column(modifier = GlanceModifier.padding(top = noteRowButtonPadding)) {
         WidgetIconOnlyButton(
-            iconRes = R.drawable.ic_widget_clock,
+            iconRes = note.datesIconRes(),
             contentDescription = "Dates",
             bordered = false,
             verticalPadding = noteRowButtonPadding,
-            iconAlpha = note.datesIconAlpha(),
-            action = actionRunCallback<NoOpAction>(),
+            action =
+                actionRunCallback<ToggleExpandedAction>(
+                    actionParametersOf(NoteActionKeys.noteId to note.id.toString()),
+                ),
         )
         if (expanded) {
             WidgetIconOnlyButton(
@@ -293,6 +295,7 @@ private fun NoteRowContent(
 ) {
     Text(
         text = if (expanded) note.titleLine() else note.headline(),
+        modifier = GlanceModifier.padding(top = noteRowTitleTopPadding),
         style = TextStyle(color = widgetText, fontWeight = FontWeight.Normal, fontSize = noteTitleFontSize),
         maxLines = if (expanded) 3 else 1,
     )
@@ -483,7 +486,6 @@ private fun WidgetIconOnlyButton(
     contentDescription: String,
     bordered: Boolean = true,
     action: Action,
-    iconAlpha: Float = 1f,
     verticalPadding: androidx.compose.ui.unit.Dp? = null,
 ) {
     val padding =
@@ -510,10 +512,6 @@ private fun WidgetIconOnlyButton(
             provider = ImageProvider(iconRes),
             contentDescription = contentDescription,
             modifier = GlanceModifier.size(18.dp),
-            colorFilter =
-                ColorFilter.tint(
-                    ColorProvider(Color(0xFFF5F7FB).copy(alpha = iconAlpha.coerceIn(0f, 1f))),
-                ),
         )
     }
 }
@@ -537,15 +535,6 @@ class RefreshNotesAction : ActionCallback {
         if (snapshot.user != null) {
             repository.restoreSession(refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
-    }
-}
-
-class NoOpAction : ActionCallback {
-    override suspend fun onAction(
-        context: Context,
-        glanceId: androidx.glance.GlanceId,
-        parameters: ActionParameters,
-    ) {
     }
 }
 
