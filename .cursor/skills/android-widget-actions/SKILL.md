@@ -150,12 +150,14 @@ Overlay / MainActivity / ActionCallback
         ↓
 NotesRepository.deleteNote / saveNote / login / ...
         ↓
-persist(snapshot)
+persist(snapshot) → SessionStore + refreshWidgetsAfterSnapshotChange()
         ↓
-NotesHomeWidget().updateAll(appContext)
+widgetSnapshotRevisionKey bumped + NotesHomeWidget().updateAll()
 ```
 
-Widget reads data from `repository.readSnapshot()` inside `provideGlance`.
+**Important Glance behavior:** when a widget session is already running on the home screen, `update` / `updateAll` **recompose** using Glance state but **do not re-run** `provideGlance`. Do not load snapshot once in `provideGlance` and pass it into `provideContent` — that value goes stale after overlay deletes/edits.
+
+This app observes `repository.snapshots.collectAsState(...)` inside `provideContent`, and `persist()` bumps `widgetSnapshotRevisionKey` so active sessions pick up new note lists immediately.
 
 For widget-only UI state (expanded rows, category/tag filters), use Glance preferences (`PreferencesGlanceStateDefinition`), not `SessionStore`.
 

@@ -12,7 +12,7 @@ Networking and persistence layer for the Android Notes app.
 ## Core concepts
 
 - `AppSnapshot` in `SessionStore` is the canonical persisted app state for the client.
-- `NotesRepository.persist(...)` always calls `NotesHomeWidget().updateAll(...)`, so repository writes immediately refresh placed widgets.
+- `NotesRepository.persist(...)` calls `refreshWidgetsAfterSnapshotChange(...)`, which bumps `widgetSnapshotRevisionKey` in Glance state and runs `updateAll` so placed widgets refresh even when a Glance session is already active.
 - Widget-only UI state is **not** stored here; expand/collapse plus widget category/tag filtering live in Glance preferences inside `widget/`.
 - `BuildConfig.DEFAULT_API_BASE_URL` is the only base URL the repository uses; it comes from Gradle config, not runtime user input.
 

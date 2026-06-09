@@ -2,8 +2,11 @@ package com.eighthbrain.notesandroid.app.widget
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
@@ -14,6 +17,7 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.updateAll
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.action.Action
 import androidx.glance.action.ActionParameters
@@ -80,11 +84,14 @@ class NotesHomeWidget : GlanceAppWidget() {
         context: Context,
         id: androidx.glance.GlanceId,
     ) {
-        val repository = (context.applicationContext as NotesApplication).repository
-        val snapshot = repository.readSnapshot()
-
         provideContent {
-            WidgetContent(snapshot = snapshot)
+            val repository = (context.applicationContext as NotesApplication).repository
+            val glanceState = currentState<androidx.datastore.preferences.core.Preferences>()
+            val snapshotRevision = glanceState[widgetSnapshotRevisionKey] ?: 0L
+            val snapshot by repository.snapshots.collectAsState(initial = AppSnapshot())
+            androidx.compose.runtime.key(snapshotRevision, snapshot.lastSyncEpochMillis) {
+                WidgetContent(snapshot = snapshot)
+            }
         }
     }
 }
@@ -96,6 +103,30 @@ private val noteTitleFontSize: TextUnit = 16.sp
 private val noteBodyFontSize: TextUnit = 14.sp
 private val noteRowButtonPadding = 4.dp
 private val noteRowTitleTopPadding = 2.dp
+private val noteRowTitleBottomPadding = 2.dp
+
+/** Bumped on every repository persist so active Glance sessions recompose with fresh data. */
+val widgetSnapshotRevisionKey = longPreferencesKey("widget_snapshot_revision")
+
+/**
+ * When a Glance session is already running, [GlanceAppWidget.update] / [updateAll] recompose from
+ * Glance state but do not re-run [provideGlance]. Bump [widgetSnapshotRevisionKey] and call
+ * [updateAll] after snapshot writes so note lists refresh (e.g. after overlay delete).
+ */
+suspend fun refreshWidgetsAfterSnapshotChange(
+    context: Context,
+    revision: Long,
+) {
+    val appContext = context.applicationContext
+    val manager = GlanceAppWidgetManager(appContext)
+    val widget = NotesHomeWidget()
+    manager.getGlanceIds(NotesHomeWidget::class.java).forEach { glanceId ->
+        updateAppWidgetState(appContext, glanceId) { prefs ->
+            prefs[widgetSnapshotRevisionKey] = revision
+        }
+    }
+    widget.updateAll(appContext)
+}
 
 @androidx.compose.runtime.Composable
 private fun WidgetContent(snapshot: AppSnapshot) {
@@ -295,7 +326,11 @@ private fun NoteRowContent(
 ) {
     Text(
         text = if (expanded) note.titleLine() else note.headline(),
-        modifier = GlanceModifier.padding(top = noteRowTitleTopPadding),
+        modifier =
+            GlanceModifier.padding(
+                top = noteRowTitleTopPadding,
+                bottom = if (expanded) 0.dp else noteRowTitleBottomPadding,
+            ),
         style = TextStyle(color = widgetText, fontWeight = FontWeight.Normal, fontSize = noteTitleFontSize),
         maxLines = if (expanded) 3 else 1,
     )

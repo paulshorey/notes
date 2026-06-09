@@ -8,7 +8,8 @@ Glance home-screen widget implementation for Notes. This folder owns widget rend
 
 ## Core concepts
 
-- The widget renders from the persisted `AppSnapshot` loaded by `NotesRepository.readSnapshot()`.
+- The widget renders from `AppSnapshot` via `repository.snapshots.collectAsState` inside `provideContent` (not a one-shot read in `provideGlance`).
+- `widgetSnapshotRevisionKey` is bumped on every `NotesRepository.persist()` so active Glance sessions recompose after overlay/API writes.
 - Widget-only UI state is stored in Glance preferences, not in `SessionStore`.
 - `widgetCategoryFilterKey` and `widgetTagFilterKey` store the widget's category and tag filters.
 - `expanded_<noteId>` preference keys store per-note expand/collapse state.
