@@ -137,6 +137,7 @@ private data class LaunchRequest(
     val action: String,
     val noteId: Int? = null,
     val focusSearch: Boolean = false,
+    val categoryId: Int? = null,
 ) {
     companion object {
         fun fromIntent(intent: Intent?): LaunchRequest? {
@@ -157,7 +158,13 @@ private data class LaunchRequest(
             val action = intent.getStringExtra(MainActivity.extraLaunchAction) ?: return null
             val noteId = intent.getIntExtra(MainActivity.extraLaunchNoteId, -1).takeIf { it > 0 }
             val focusSearch = intent.getBooleanExtra(MainActivity.extraLaunchFocusSearch, false)
-            return LaunchRequest(action = action, noteId = noteId, focusSearch = focusSearch)
+            val categoryId = intent.getIntExtra(MainActivity.extraLaunchCategoryId, -1).takeIf { it > 0 }
+            return LaunchRequest(
+                action = action,
+                noteId = noteId,
+                focusSearch = focusSearch,
+                categoryId = categoryId,
+            )
         }
     }
 }
@@ -420,15 +427,18 @@ class NotesViewModel(
         }
     }
 
-    fun showNoteEditor() {
-        val defaultCategory = _uiState.value.snapshot.categories.minByOrNull { it.id }
+    fun showNoteEditor(categoryId: Int? = null) {
+        val categories = _uiState.value.snapshot.categories
+        val resolvedCategory =
+            categoryId?.let { id -> categories.firstOrNull { it.id == id } }
+                ?: categories.minByOrNull { it.id }
         _uiState.update {
             it.copy(
                 showNoteEditor = true,
                 noteDraft =
                     NoteDraft(
-                        selectedCategoryId = defaultCategory?.id,
-                        newCategoryLabel = defaultCategory?.label.orEmpty(),
+                        selectedCategoryId = resolvedCategory?.id,
+                        newCategoryLabel = resolvedCategory?.label.orEmpty(),
                     ),
             )
         }
@@ -766,6 +776,7 @@ class MainActivity : ComponentActivity() {
         const val extraLaunchAction = "launch_action"
         const val extraLaunchNoteId = "launch_note_id"
         const val extraLaunchFocusSearch = "launch_focus_search"
+        const val extraLaunchCategoryId = "launch_category_id"
         const val launchActionAdd = "add"
         const val launchActionEdit = "edit"
         const val launchActionDelete = "delete"
@@ -781,6 +792,7 @@ class MainActivity : ComponentActivity() {
             action: String? = null,
             noteId: Int? = null,
             focusSearch: Boolean = false,
+            categoryId: Int? = null,
         ): Intent =
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -789,6 +801,7 @@ class MainActivity : ComponentActivity() {
                 if (focusSearch) {
                     putExtra(extraLaunchFocusSearch, true)
                 }
+                categoryId?.let { putExtra(extraLaunchCategoryId, it) }
             }
     }
 }
@@ -810,7 +823,7 @@ private fun NotesAppScreen(
 
         when (launchRequest.action) {
             MainActivity.launchActionAdd -> {
-                viewModel.showNoteEditor()
+                viewModel.showNoteEditor(categoryId = launchRequest.categoryId)
                 onLaunchHandled()
             }
 

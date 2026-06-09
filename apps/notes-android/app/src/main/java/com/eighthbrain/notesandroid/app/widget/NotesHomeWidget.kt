@@ -2,8 +2,11 @@ package com.eighthbrain.notesandroid.app.widget
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
@@ -14,6 +17,7 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.appwidget.GlanceAppWidgetManager
+import androidx.glance.appwidget.updateAll
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.action.Action
 import androidx.glance.action.ActionParameters
@@ -56,6 +60,7 @@ import com.eighthbrain.notesandroid.app.model.headline
 import com.eighthbrain.notesandroid.app.model.sortedByLastUpdated
 import com.eighthbrain.notesandroid.app.ui.MainActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetCategoryPickerActivity
+import com.eighthbrain.notesandroid.app.ui.WidgetDeleteNoteActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetLoginActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetTagPickerActivity
 
@@ -79,11 +84,14 @@ class NotesHomeWidget : GlanceAppWidget() {
         context: Context,
         id: androidx.glance.GlanceId,
     ) {
-        val repository = (context.applicationContext as NotesApplication).repository
-        val snapshot = repository.readSnapshot()
-
         provideContent {
-            WidgetContent(snapshot = snapshot)
+            val repository = (context.applicationContext as NotesApplication).repository
+            val glanceState = currentState<androidx.datastore.preferences.core.Preferences>()
+            val snapshotRevision = glanceState[widgetSnapshotRevisionKey] ?: 0L
+            val snapshot by repository.snapshots.collectAsState(initial = AppSnapshot())
+            androidx.compose.runtime.key(snapshotRevision, snapshot.lastSyncEpochMillis) {
+                WidgetContent(snapshot = snapshot)
+            }
         }
     }
 }
@@ -92,6 +100,33 @@ private val widgetBackground = ColorProvider(Color(0xFF10131A))
 private val widgetText = ColorProvider(Color(0xFFF5F7FB))
 private val widgetTextDim = ColorProvider(Color(0x99F5F7FB))
 private val noteTitleFontSize: TextUnit = 16.sp
+private val noteBodyFontSize: TextUnit = 14.sp
+private val noteRowButtonPadding = 4.dp
+private val noteRowTitleTopPadding = 2.dp
+private val noteRowTitleBottomPadding = 2.dp
+
+/** Bumped on every repository persist so active Glance sessions recompose with fresh data. */
+val widgetSnapshotRevisionKey = longPreferencesKey("widget_snapshot_revision")
+
+/**
+ * When a Glance session is already running, [GlanceAppWidget.update] / [updateAll] recompose from
+ * Glance state but do not re-run [provideGlance]. Bump [widgetSnapshotRevisionKey] and call
+ * [updateAll] after snapshot writes so note lists refresh (e.g. after overlay delete).
+ */
+suspend fun refreshWidgetsAfterSnapshotChange(
+    context: Context,
+    revision: Long,
+) {
+    val appContext = context.applicationContext
+    val manager = GlanceAppWidgetManager(appContext)
+    val widget = NotesHomeWidget()
+    manager.getGlanceIds(NotesHomeWidget::class.java).forEach { glanceId ->
+        updateAppWidgetState(appContext, glanceId) { prefs ->
+            prefs[widgetSnapshotRevisionKey] = revision
+        }
+    }
+    widget.updateAll(appContext)
+}
 
 @androidx.compose.runtime.Composable
 private fun WidgetContent(snapshot: AppSnapshot) {
@@ -128,6 +163,7 @@ private fun WidgetContent(snapshot: AppSnapshot) {
             } else {
                 WidgetToolbar(
                     context = context,
+                    categoryFilterId = categoryFilterId,
                     activeCategoryLabel = activeCategoryLabel,
                     activeTagLabel = activeTagLabel,
                 )
@@ -149,6 +185,7 @@ private fun WidgetContent(snapshot: AppSnapshot) {
 @androidx.compose.runtime.Composable
 private fun WidgetToolbar(
     context: Context,
+    categoryFilterId: Int?,
     activeCategoryLabel: String?,
     activeTagLabel: String?,
 ) {
@@ -166,6 +203,7 @@ private fun WidgetToolbar(
                             MainActivity.createLaunchIntent(
                                 context = context,
                                 action = MainActivity.launchActionAdd,
+                                categoryId = categoryFilterId,
                             ),
                     ),
             )
@@ -215,6 +253,134 @@ private fun WidgetToolbar(
     }
 }
 
+private fun NoteRecord.titleLine(): String {
+    val raw = description?.trim() ?: ""
+    if (raw.isEmpty()) return "Untitled"
+    return raw.split("\n", "\r\n").first()
+}
+
+private fun NoteRecord.datesIconRes(): Int {
+    val hasDue = timeDue != null
+    val hasRemind = timeRemind != null
+    return when {
+        hasDue && hasRemind -> R.drawable.ic_widget_clock_full
+        hasDue || hasRemind -> R.drawable.ic_widget_clock_half
+        else -> R.drawable.ic_widget_clock_none
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun NoteRowActions(
+    note: NoteRecord,
+    context: Context,
+    expanded: Boolean,
+) {
+    Column(modifier = GlanceModifier.padding(top = noteRowButtonPadding)) {
+        WidgetIconOnlyButton(
+            iconRes = note.datesIconRes(),
+            contentDescription = "Dates",
+            bordered = false,
+            verticalPadding = noteRowButtonPadding,
+            action =
+                actionRunCallback<ToggleExpandedAction>(
+                    actionParametersOf(NoteActionKeys.noteId to note.id.toString()),
+                ),
+        )
+        if (expanded) {
+            WidgetIconOnlyButton(
+                iconRes = R.drawable.ic_widget_edit,
+                contentDescription = "Edit note",
+                bordered = false,
+                verticalPadding = noteRowButtonPadding,
+                action =
+                    actionStartActivity(
+                        intent =
+                            MainActivity.createLaunchIntent(
+                                context = context,
+                                action = MainActivity.launchActionEdit,
+                                noteId = note.id,
+                            ),
+                    ),
+            )
+            WidgetIconOnlyButton(
+                iconRes = R.drawable.ic_widget_delete,
+                contentDescription = "Delete note",
+                bordered = false,
+                verticalPadding = noteRowButtonPadding,
+                action =
+                    actionStartActivity(
+                        intent =
+                            Intent(context, WidgetDeleteNoteActivity::class.java).apply {
+                                putExtra(WidgetDeleteNoteActivity.extraNoteId, note.id)
+                            },
+                    ),
+            )
+        }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun NoteRowContent(
+    note: NoteRecord,
+    expanded: Boolean,
+) {
+    Text(
+        text = if (expanded) note.titleLine() else note.headline(),
+        modifier =
+            GlanceModifier.padding(
+                top = noteRowTitleTopPadding,
+                bottom = if (expanded) 0.dp else noteRowTitleBottomPadding,
+            ),
+        style = TextStyle(color = widgetText, fontWeight = FontWeight.Normal, fontSize = noteTitleFontSize),
+        maxLines = if (expanded) 3 else 1,
+    )
+
+    if (!expanded) {
+        return
+    }
+
+    note.descriptionBody().takeIf { it.isNotBlank() }?.let {
+        Text(
+            text = it,
+            modifier = GlanceModifier.padding(top = 2.dp),
+            style = TextStyle(color = widgetTextDim, fontSize = noteBodyFontSize),
+            maxLines = 4,
+        )
+    }
+    if (note.tags.isNotEmpty()) {
+        Text(
+            text = note.category.label,
+            modifier = GlanceModifier.padding(top = 2.dp),
+            style = TextStyle(color = widgetText),
+            maxLines = 1,
+        )
+        note.tags.forEach { cat ->
+            Text(
+                text = "• ${cat.label}",
+                modifier = GlanceModifier.padding(top = 2.dp),
+                style = TextStyle(color = widgetText),
+                maxLines = 1,
+            )
+        }
+    }
+    note.timeDue?.let { due ->
+        Text(
+            text = "Due ${formatConciseDate(due)}",
+            modifier = GlanceModifier.padding(top = 4.dp),
+            style = TextStyle(color = widgetTextDim),
+            maxLines = 1,
+        )
+    }
+    note.timeRemind?.let { remind ->
+        Text(
+            text = "Remind ${formatConciseDate(remind)}",
+            modifier = GlanceModifier.padding(top = 2.dp),
+            style = TextStyle(color = widgetTextDim),
+            maxLines = 1,
+        )
+    }
+}
+
 @androidx.compose.runtime.Composable
 private fun NoteRow(
     note: NoteRecord,
@@ -235,99 +401,22 @@ private fun NoteRow(
                     .background(ColorProvider(Color(0x33F5F7FB))),
         ) {}
         Row(
-            modifier =
-                GlanceModifier
-                    .fillMaxWidth()
-                    .clickable(actionRunCallback<ToggleExpandedAction>(actionParametersOf(NoteActionKeys.noteId to note.id.toString()))),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            Text(
-                text = note.headline(),
-                modifier = GlanceModifier.defaultWeight().padding(vertical = 4.dp),
-                style = TextStyle(color = widgetText, fontWeight = FontWeight.Bold, fontSize = noteTitleFontSize),
-                maxLines = if (expanded) 3 else 1,
-            )
-            if (expanded) {
-                WidgetIconOnlyButton(
-                    iconRes = R.drawable.ic_widget_edit,
-                    contentDescription = "Edit note",
-                    bordered = false,
-                    action =
-                        actionStartActivity(
-                            intent =
-                            MainActivity.createLaunchIntent(
-                                context = context,
-                                action = MainActivity.launchActionEdit,
-                                noteId = note.id,
-                            ),
-                        ),
-                )
-            }
-        }
-
-        if (expanded) {
+            NoteRowActions(note = note, context = context, expanded = expanded)
             Column(
-                modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp),
-            ) {
-                note.descriptionBody().takeIf { it.isNotBlank() }?.let {
-                    Text(
-                        text = it,
-                        modifier = GlanceModifier.padding(top = 2.dp),
-                        style = TextStyle(color = widgetText),
-                        maxLines = 4,
-                    )
-                }
-                if (note.tags.isNotEmpty()) {
-                    Text(
-                        text = note.category.label,
-                        modifier = GlanceModifier.padding(top = 2.dp),
-                        style = TextStyle(color = widgetText),
-                        maxLines = 1,
-                    )
-                    note.tags.forEach { cat ->
-                        Text(
-                            text = "• ${cat.label}",
-                            modifier = GlanceModifier.padding(top = 2.dp),
-                            style = TextStyle(color = widgetText),
-                            maxLines = 1,
-                        )
-                    }
-                }
-                note.timeDue?.let { due ->
-                    Text(
-                        text = "Due ${formatConciseDate(due)}",
-                        modifier = GlanceModifier.padding(top = 4.dp),
-                        style = TextStyle(color = widgetTextDim),
-                        maxLines = 1,
-                    )
-                }
-                Row(
-                    modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    note.timeRemind?.let { remind ->
-                        Text(
-                            text = "Remind ${formatConciseDate(remind)}",
-                            modifier = GlanceModifier.defaultWeight().padding(end = 4.dp),
-                            style = TextStyle(color = widgetTextDim),
-                            maxLines = 1,
-                        )
-                    } ?: Spacer(modifier = GlanceModifier.defaultWeight())
-                    WidgetIconOnlyButton(
-                        iconRes = R.drawable.ic_widget_delete,
-                        contentDescription = "Delete note",
-                        bordered = false,
-                        action =
-                            actionStartActivity(
-                                intent =
-                                    MainActivity.createLaunchIntent(
-                                        context = context,
-                                        action = MainActivity.launchActionDelete,
-                                        noteId = note.id,
-                                    ),
+                modifier =
+                    GlanceModifier
+                        .defaultWeight()
+                        .clickable(
+                            actionRunCallback<ToggleExpandedAction>(
+                                actionParametersOf(NoteActionKeys.noteId to note.id.toString()),
                             ),
-                    )
-                }
+                        )
+                        .padding(start = 4.dp, top = 4.dp, end = 2.dp),
+            ) {
+                NoteRowContent(note = note, expanded = expanded)
             }
         }
     }
@@ -432,7 +521,14 @@ private fun WidgetIconOnlyButton(
     contentDescription: String,
     bordered: Boolean = true,
     action: Action,
+    verticalPadding: androidx.compose.ui.unit.Dp? = null,
 ) {
+    val padding =
+        if (bordered) {
+            6.dp
+        } else {
+            verticalPadding ?: 2.dp
+        }
     Box(
         modifier =
             GlanceModifier
@@ -444,7 +540,7 @@ private fun WidgetIconOnlyButton(
                     }
                 }
                 .clickable(action)
-                .padding(if (bordered) 6.dp else 2.dp),
+                .padding(horizontal = if (bordered) 6.dp else 2.dp, vertical = padding),
         contentAlignment = Alignment.Center,
     ) {
         Image(
@@ -494,7 +590,6 @@ class ToggleExpandedAction : ActionCallback {
 
 /**
  * Clears widget-local expanded state for [noteId] on every placed Notes home widget instance.
- * Used when delete is handled from [MainActivity] so list rows do not stay "expanded" for a removed id.
  */
 suspend fun clearWidgetExpandedStateForNote(
     context: Context,

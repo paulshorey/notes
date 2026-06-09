@@ -96,6 +96,19 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Repo-local SDK provisioning (~400MB) is slow and flaky on cold download.
+      # Cache it between runs; key rotates when SDK package list or compileSdk changes.
+      - name: Cache Android SDK and Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            .android-sdk
+            .android-user-home
+            .gradle
+          key: android-sdk-${{ runner.os }}-api36-${{ hashFiles('apps/notes-android/tools/install-android-sdk.sh', 'apps/notes-android/app/build.gradle.kts') }}
+          restore-keys: |
+            android-sdk-${{ runner.os }}-api36-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

@@ -1,7 +1,6 @@
 package com.eighthbrain.notesandroid.app.data
 
 import android.content.Context
-import androidx.glance.appwidget.updateAll
 import com.eighthbrain.notesandroid.app.BuildConfig
 import com.eighthbrain.notesandroid.app.model.AppSnapshot
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
@@ -10,7 +9,7 @@ import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.UserSummary
 import com.eighthbrain.notesandroid.app.model.WidgetMode
-import com.eighthbrain.notesandroid.app.widget.NotesHomeWidget
+import com.eighthbrain.notesandroid.app.widget.refreshWidgetsAfterSnapshotChange
 import com.eighthbrain.notesandroid.app.work.WidgetRefreshScheduler
 import kotlinx.coroutines.flow.Flow
 
@@ -322,7 +321,8 @@ class NotesRepository(
 
     private suspend fun persist(snapshot: AppSnapshot) {
         sessionStore.saveSnapshot(snapshot)
-        NotesHomeWidget().updateAll(appContext)
+        val revision = snapshot.lastSyncEpochMillis ?: System.currentTimeMillis()
+        refreshWidgetsAfterSnapshotChange(appContext, revision)
     }
 }
 

@@ -5,7 +5,7 @@ Compose UI for the main app plus the small overlay activities used by widget-tri
 ## Files
 
 - `MainActivity.kt` - main activity, `NotesViewModel`, launch-intent parsing, login flow, search flow, category/tag dialogs, note list, and note editor modal.
-- `WidgetOverlayActivities.kt` - `WidgetLoginActivity`, `WidgetSearchActivity`, `WidgetCategoryPickerActivity`, `WidgetTagPickerActivity`, and `WidgetNoteEditorActivity` for widget-safe input and editing flows.
+- `WidgetOverlayActivities.kt` - `WidgetLoginActivity`, `WidgetSearchActivity`, `WidgetCategoryPickerActivity`, `WidgetTagPickerActivity`, `WidgetDeleteNoteActivity`, and `WidgetNoteEditorActivity` for widget-safe input, confirmation, and editing flows.
 - `CategoriesPopup.kt` - shared category picker/edit/delete list used by both the main app and widget overlay.
 - `TagsPopup.kt` - shared tag picker/edit/delete list used by both the main app and widget overlay.
 
@@ -14,7 +14,7 @@ Compose UI for the main app plus the small overlay activities used by widget-tri
 - `MainActivity.kt` is intentionally large: most primary-app UI state lives in `NotesUiState` and is driven from `NotesViewModel`.
 - Search is semantic, debounced, and server-backed; when the query is blank the UI falls back to notes sorted by last update.
 - `LaunchRequest` normalizes both explicit widget extras and the `notes-android://search` deep link into one handling path.
-- Widget delete is routed through `MainActivity.launchActionDelete` so delete and edit use the same reliable activity-start path.
+- Widget delete launches `WidgetDeleteNoteActivity` (confirmation overlay), not `MainActivity`. Edit still uses `MainActivity.createLaunchIntent`. See `.cursor/skills/android-widget-actions/SKILL.md`.
 - Tag editing and deletion are inline flows driven by hoisted state rather than separate screens.
 
 ## Non-obvious rules

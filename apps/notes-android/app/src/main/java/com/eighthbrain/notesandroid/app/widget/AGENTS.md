@@ -8,7 +8,8 @@ Glance home-screen widget implementation for Notes. This folder owns widget rend
 
 ## Core concepts
 
-- The widget renders from the persisted `AppSnapshot` loaded by `NotesRepository.readSnapshot()`.
+- The widget renders from `AppSnapshot` via `repository.snapshots.collectAsState` inside `provideContent` (not a one-shot read in `provideGlance`).
+- `widgetSnapshotRevisionKey` is bumped on every `NotesRepository.persist()` so active Glance sessions recompose after overlay/API writes.
 - Widget-only UI state is stored in Glance preferences, not in `SessionStore`.
 - `widgetCategoryFilterKey` and `widgetTagFilterKey` store the widget's category and tag filters.
 - `expanded_<noteId>` preference keys store per-note expand/collapse state.
@@ -17,7 +18,7 @@ Glance home-screen widget implementation for Notes. This folder owns widget rend
 
 - The widget is intentionally read-only for text input; add/search/edit flows route into `MainActivity` or small overlay activities.
 - `RefreshNotesAction` re-syncs through `repository.restoreSession(...)`; the widget never talks to the API directly.
-- Delete is routed through `MainActivity.launchActionDelete` because nested `actionRunCallback` inside `LazyColumn` is less reliable across launchers.
+- Delete launches `WidgetDeleteNoteActivity` (dialog overlay). Do not use `actionRunCallback` for API delete inside `LazyColumn` rows — it silently fails on many launchers. See `.cursor/skills/android-widget-actions/SKILL.md`.
 - `clearWidgetExpandedStateForNote(...)` must be kept in sync with delete flows so removed notes do not leave stale expanded state behind.
 - `SignInOnly` and `LogoutAction` are currently unused; confirm they are truly dead before removing them.
 - Widget icons must stay as Android drawable resources; do not replace them with Compose-only vectors.

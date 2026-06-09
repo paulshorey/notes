@@ -151,11 +151,29 @@ install_android_packages() {
   mkdir -p "$SDK_ROOT" "$ANDROID_USER_HOME_DIR"
   touch "$ANDROID_USER_HOME_DIR/repositories.cfg"
 
-  accept_android_licenses
-  "$SDKMANAGER_BIN" --sdk_root="$SDK_ROOT" \
-    "platform-tools" \
-    "platforms;android-36" \
-    "build-tools;36.0.0"
+  local max_attempts=3
+  local attempt=1
+
+  while [[ "$attempt" -le "$max_attempts" ]]; do
+    if accept_android_licenses && \
+      "$SDKMANAGER_BIN" --sdk_root="$SDK_ROOT" \
+        "platform-tools" \
+        "platforms;android-36" \
+        "build-tools;36.0.0"; then
+      if has_required_packages; then
+        return 0
+      fi
+    fi
+
+    if [[ "$attempt" -lt "$max_attempts" ]]; then
+      echo "Android SDK package install incomplete (attempt $attempt/$max_attempts); retrying..." >&2
+      sleep "$((attempt * 5))"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  echo "Android SDK package install failed after $max_attempts attempts" >&2
+  return 1
 }
 
 ensure_cmdline_tools
