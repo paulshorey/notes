@@ -1,0 +1,60 @@
+:global(.cm-content) {
+  max-width: 100% !important;
+}
+
+.editor {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+
+  --atomic-editor-font: var(--g-font-family-sans, Inter, system-ui, sans-serif);
+  --atomic-editor-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --atomic-editor-fg: var(--g-color-text-primary, #dcddde);
+  --atomic-editor-fg-muted: var(--g-color-text-secondary, #888);
+  --atomic-editor-fg-faint: var(--g-color-text-hint, #666);
+  --atomic-editor-bg: var(--g-color-base-background, #1e1e1e);
+  --atomic-editor-bg-panel: var(--g-color-base-generic, #252525);
+  --atomic-editor-bg-surface: var(--g-color-base-simple-hover, #2d2d2d);
+  --atomic-editor-border: var(--g-color-line-generic, #3d3d3d);
+  --atomic-editor-accent: var(--g-color-text-brand, #7c3aed);
+  --atomic-editor-accent-bright: var(--g-color-text-brand-heavy, #a78bfa);
+  --atomic-editor-link: var(--g-color-text-link, #818cf8);
+  --atomic-editor-link-hover: var(--g-color-text-link-hover, #a5b4fc);
+  --atomic-editor-selection-bg: color-mix(
+    in srgb,
+    var(--g-color-text-brand, #7c3aed) 28%,
+    transparent
+  );
+  --atomic-editor-search-bg: color-mix(
+    in srgb,
+    var(--g-color-text-brand, #7c3aed) 28%,
+    transparent
+  );
+  --atomic-editor-search-bg-active: color-mix(
+    in srgb,
+    var(--g-color-text-brand, #7c3aed) 60%,
+    transparent
+  );
+}
+
+.editor :global(.atomic-cm-editor) {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.editor :global(.cm-editor) {
+  height: 100%;
+}
+
+.editor :global(.cm-scroller) {
+  overflow: auto;
+}
+
+.editor :global(.cm-placeholder) {
+  color: var(--g-color-text-hint, #666);
+}

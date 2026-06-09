@@ -21,8 +21,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   color: var(--g-color-text-link);
   /* color: var(--g-color-line-generic); */
   padding: 0;
@@ -31,6 +31,7 @@
   cursor: pointer;
   background-color: transparent;
   /* background: var(--g-color-text-link); */
+  margin: 0 0.2rem 0 0.4rem;
 }
 
 .addNoteButton:hover {
@@ -93,6 +94,7 @@
 
 .headerButtons {
   display: flex;
+  margin-right: 0.125rem;
 }
 
 .headerButton {

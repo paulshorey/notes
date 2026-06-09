@@ -18,11 +18,11 @@ import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
-import type { MarkdownEditorProps } from "@/components/editor/MarkdownEditor"
+import type { AtomicEditorProps } from "@/components/editor/AtomicEditor"
 import styles from "./NoteForm.module.css"
 
-const MarkdownEditor = dynamic<MarkdownEditorProps>(
-  () => import("@/components/editor/MarkdownEditor").then((mod) => mod.MarkdownEditor),
+const AtomicEditor = dynamic<AtomicEditorProps>(
+  () => import("@/components/editor/AtomicEditor").then((mod) => mod.AtomicEditor),
   {
     ssr: false,
   },
@@ -39,8 +39,7 @@ interface NoteFormProps {
   pendingTagLabels: string[]
   descriptionEditorSessionId: number
   editorAutofocus: boolean
-  markdownEditorMode: MarkdownEditorProps["mode"]
-  onMarkdownEditorModeChange: MarkdownEditorProps["onModeChange"]
+  editorRevealText?: string | null
   categoryInputValue: string
   onCategoryInputValueChange: (value: string) => void
   createCategoryPending: boolean
@@ -64,8 +63,7 @@ export function NoteForm({
   pendingTagLabels,
   descriptionEditorSessionId,
   editorAutofocus,
-  markdownEditorMode,
-  onMarkdownEditorModeChange,
+  editorRevealText = null,
   categoryInputValue,
   onCategoryInputValueChange,
   createCategoryPending,
@@ -348,14 +346,13 @@ export function NoteForm({
           )}
         </div>
 
-        <MarkdownEditor
+        <AtomicEditor
           autofocus={editorAutofocus}
-          key={descriptionEditorSessionId}
+          documentId={descriptionEditorSessionId}
+          initialRevealText={editorRevealText}
           placeholder="Write now, organize later..."
           value={form.description}
-          mode={markdownEditorMode}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
-          onModeChange={onMarkdownEditorModeChange}
         />
 
         <div className={styles.dateFields}>
