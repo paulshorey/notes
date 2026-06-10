@@ -1,4 +1,5 @@
 import { createSearchRouteHandlers } from "../../_lib/notes-app-route-handlers"
+import { resolveSessionUserId } from "../../_lib/authenticated-user"
 
 export const runtime = "nodejs"
-export const { POST } = createSearchRouteHandlers()
+export const { POST } = createSearchRouteHandlers(undefined, resolveSessionUserId)

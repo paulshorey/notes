@@ -5,6 +5,7 @@ import {
   type NotesApiAdapter,
 } from "@lib/db-marketing/testing/notes-api-adapter-suite"
 import {
+  createAuthTokenRouteHandlers,
   createCategoriesRouteHandlers,
   createDeleteCategoryWithNotesRouteHandlers,
   createTagsRouteHandlers,
@@ -20,6 +21,7 @@ const readResponseBody = async (response: Response) => {
 }
 
 const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
+  const authTokenHandlers = createAuthTokenRouteHandlers(service)
   const sessionHandlers = createSessionRouteHandlers(service)
   const notesHandlers = createNotesRouteHandlers(service)
   const categoriesHandlers = createCategoriesRouteHandlers(service)
@@ -41,18 +43,23 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
         method,
       }
 
+      const getRequestInit = { method, headers: requestInit.headers }
+
       let response: Response
 
-      if (url.pathname === "/api/session") {
+      if (url.pathname === "/api/auth/token") {
+        response =
+          method === "POST"
+            ? await authTokenHandlers.POST(new Request(url, requestInit))
+            : await authTokenHandlers.DELETE(new Request(url, requestInit))
+      } else if (url.pathname === "/api/session") {
         response =
           method === "GET"
-            ? await sessionHandlers.GET(new NextRequest(url, { method }))
-            : method === "POST"
-              ? await sessionHandlers.POST(new Request(url, requestInit))
-              : await sessionHandlers.PATCH(new Request(url, requestInit))
+            ? await sessionHandlers.GET(new NextRequest(url, getRequestInit))
+            : await sessionHandlers.PATCH(new Request(url, requestInit))
       } else if (url.pathname === "/api/notes") {
         if (method === "GET") {
-          response = await notesHandlers.GET(new NextRequest(url, { method }))
+          response = await notesHandlers.GET(new NextRequest(url, getRequestInit))
         } else if (method === "POST") {
           response = await notesHandlers.POST(new Request(url, requestInit))
         } else if (method === "PATCH") {
@@ -62,7 +69,7 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
         }
       } else if (url.pathname === "/api/tags") {
         if (method === "GET") {
-          response = await tagsHandlers.GET(new NextRequest(url, { method }))
+          response = await tagsHandlers.GET(new NextRequest(url, getRequestInit))
         } else if (method === "POST") {
           response = await tagsHandlers.POST(new Request(url, requestInit))
         } else if (method === "PATCH") {
@@ -74,7 +81,7 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
         }
       } else if (url.pathname === "/api/categories") {
         if (method === "GET") {
-          response = await categoriesHandlers.GET(new NextRequest(url, { method }))
+          response = await categoriesHandlers.GET(new NextRequest(url, getRequestInit))
         } else if (method === "POST") {
           response = await categoriesHandlers.POST(new Request(url, requestInit))
         } else if (method === "PATCH") {
