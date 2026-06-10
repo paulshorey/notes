@@ -2141,7 +2141,9 @@ export default function NotesApp() {
       })
       await readJson<{ ok: true }>(response)
       const { latestNotes, latestCategories } = await refreshResults(user.id)
-      if (editingNoteId === noteId) {
+      // Use the ref so we read the live editor note after the async delete, not the
+      // stale closure value from when delete started (user may have switched notes).
+      if (editingNoteIdRef.current === noteId) {
         resetNoteForm({
           categoryList: latestCategories,
           selectedCategoryId: noteFormRef.current.selectedCategoryId,
