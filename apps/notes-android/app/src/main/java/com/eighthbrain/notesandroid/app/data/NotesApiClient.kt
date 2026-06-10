@@ -1,6 +1,7 @@
 package com.eighthbrain.notesandroid.app.data
 
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.LoginSession
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.SemanticSearchResult
@@ -24,36 +25,55 @@ class NotesApiClient(
     suspend fun login(
         baseUrl: String,
         identifier: String,
-    ): UserSummary =
+        password: String,
+    ): LoginSession =
         withContext(Dispatchers.IO) {
             val requestBody =
                 JSONObject()
                     .put("identifier", identifier.trim())
+                    .put("password", password)
                     .toString()
                     .toRequestBody(jsonMediaType)
 
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
-                    pathSegments = listOf("api", "session"),
+                    pathSegments = listOf("api", "auth", "token"),
                     method = "POST",
                     requestBody = requestBody,
                 )
 
             applyUserSummaryDefaults(response.getJSONObject("user"))
-            userFromJson(response.getJSONObject("user"))
+            LoginSession(
+                token = response.getString("token"),
+                user = userFromJson(response.getJSONObject("user")),
+            )
         }
+
+    suspend fun logout(
+        baseUrl: String,
+        token: String,
+    ) {
+        withContext(Dispatchers.IO) {
+            execute(
+                baseUrl = normalizeBaseUrl(baseUrl),
+                pathSegments = listOf("api", "auth", "token"),
+                method = "DELETE",
+                token = token,
+            )
+        }
+    }
 
     suspend fun getUser(
         baseUrl: String,
-        userId: Int,
+        token: String,
     ): UserSummary =
         withContext(Dispatchers.IO) {
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
                     pathSegments = listOf("api", "session"),
-                    queryParameters = listOf("userId" to userId.toString()),
+                    token = token,
                 )
 
             applyUserSummaryDefaults(response.getJSONObject("user"))
@@ -62,14 +82,14 @@ class NotesApiClient(
 
     suspend fun listNotes(
         baseUrl: String,
-        userId: Int,
+        token: String,
     ): List<NoteRecord> =
         withContext(Dispatchers.IO) {
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
                     pathSegments = listOf("api", "notes"),
-                    queryParameters = listOf("userId" to userId.toString()),
+                    token = token,
                 )
 
             val notesArray = response.getJSONArray("notes")
@@ -82,14 +102,14 @@ class NotesApiClient(
 
     suspend fun listTags(
         baseUrl: String,
-        userId: Int,
+        token: String,
     ): List<TagRecord> =
         withContext(Dispatchers.IO) {
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
                     pathSegments = listOf("api", "tags"),
-                    queryParameters = listOf("userId" to userId.toString()),
+                    token = token,
                 )
 
             val tagsArray = response.getJSONArray("tags")
@@ -102,14 +122,14 @@ class NotesApiClient(
 
     suspend fun listCategories(
         baseUrl: String,
-        userId: Int,
+        token: String,
     ): List<CategoryRecord> =
         withContext(Dispatchers.IO) {
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
                     pathSegments = listOf("api", "categories"),
-                    queryParameters = listOf("userId" to userId.toString()),
+                    token = token,
                 )
 
             val categoriesArray = response.getJSONArray("categories")
@@ -122,6 +142,7 @@ class NotesApiClient(
 
     suspend fun saveNote(
         baseUrl: String,
+        token: String,
         userId: Int,
         noteId: Int?,
         noteDraft: NoteDraft,
@@ -153,6 +174,7 @@ class NotesApiClient(
                     pathSegments = listOf("api", "notes"),
                     method = if (noteId == null) "POST" else "PATCH",
                     requestBody = payload.toString().toRequestBody(jsonMediaType),
+                    token = token,
                 )
 
             noteFromJson(response.getJSONObject("note"))
@@ -160,6 +182,7 @@ class NotesApiClient(
 
     suspend fun createCategory(
         baseUrl: String,
+        token: String,
         userId: Int,
         label: String,
     ): CategoryRecord =
@@ -177,6 +200,7 @@ class NotesApiClient(
                     pathSegments = listOf("api", "categories"),
                     method = "POST",
                     requestBody = payload,
+                    token = token,
                 )
 
             categoryFromJson(response.getJSONObject("category"))
@@ -184,6 +208,7 @@ class NotesApiClient(
 
     suspend fun updateCategory(
         baseUrl: String,
+        token: String,
         userId: Int,
         categoryId: Int,
         label: String,
@@ -203,6 +228,7 @@ class NotesApiClient(
                     pathSegments = listOf("api", "categories"),
                     method = "PATCH",
                     requestBody = payload,
+                    token = token,
                 )
 
             categoryFromJson(response.getJSONObject("category"))
@@ -210,6 +236,7 @@ class NotesApiClient(
 
     suspend fun deleteCategory(
         baseUrl: String,
+        token: String,
         userId: Int,
         categoryId: Int,
     ) {
@@ -226,12 +253,14 @@ class NotesApiClient(
                 pathSegments = listOf("api", "categories"),
                 method = "DELETE",
                 requestBody = payload,
+                token = token,
             )
         }
     }
 
     suspend fun createTag(
         baseUrl: String,
+        token: String,
         userId: Int,
         label: String,
     ): TagRecord =
@@ -249,6 +278,7 @@ class NotesApiClient(
                     pathSegments = listOf("api", "tags"),
                     method = "POST",
                     requestBody = payload,
+                    token = token,
                 )
 
             tagFromJson(response.getJSONObject("tag"))
@@ -256,6 +286,7 @@ class NotesApiClient(
 
     suspend fun updateTag(
         baseUrl: String,
+        token: String,
         userId: Int,
         tagId: Int,
         label: String,
@@ -275,6 +306,7 @@ class NotesApiClient(
                     pathSegments = listOf("api", "tags"),
                     method = "PATCH",
                     requestBody = payload,
+                    token = token,
                 )
 
             tagFromJson(response.getJSONObject("tag"))
@@ -282,6 +314,7 @@ class NotesApiClient(
 
     suspend fun deleteTag(
         baseUrl: String,
+        token: String,
         userId: Int,
         tagId: Int,
     ): Int =
@@ -299,6 +332,7 @@ class NotesApiClient(
                     pathSegments = listOf("api", "tags"),
                     method = "DELETE",
                     requestBody = payload,
+                    token = token,
                 )
 
             response.optInt("deletedLinks", 0)
@@ -306,6 +340,7 @@ class NotesApiClient(
 
     suspend fun deleteNote(
         baseUrl: String,
+        token: String,
         userId: Int,
         noteId: Int,
     ) {
@@ -322,12 +357,14 @@ class NotesApiClient(
                 pathSegments = listOf("api", "notes"),
                 method = "DELETE",
                 requestBody = payload,
+                token = token,
             )
         }
     }
 
     suspend fun semanticSearch(
         baseUrl: String,
+        token: String,
         userId: Int,
         query: String,
         limit: Int = 12,
@@ -347,6 +384,7 @@ class NotesApiClient(
                     pathSegments = listOf("api", "notes", "search"),
                     method = "POST",
                     requestBody = payload,
+                    token = token,
                 )
 
             val resultsArray = response.getJSONArray("results")
@@ -376,6 +414,7 @@ class NotesApiClient(
         method: String = "GET",
         requestBody: okhttp3.RequestBody? = null,
         queryParameters: List<Pair<String, String>> = emptyList(),
+        token: String? = null,
     ): JSONObject {
         val baseHttpUrl =
             baseUrl.toHttpUrlOrNull() ?: throw IllegalArgumentException("Server URL is not valid.")
@@ -394,11 +433,17 @@ class NotesApiClient(
                 .url(urlBuilder.build())
                 .header("Accept", "application/json")
 
+        if (token != null) {
+            requestBuilder.header("Authorization", "Bearer $token")
+        }
+
         if (method == "GET") {
             requestBuilder.get()
         } else {
             requestBuilder.method(method, requestBody)
-            requestBuilder.header("Content-Type", "application/json")
+            if (requestBody != null) {
+                requestBuilder.header("Content-Type", "application/json")
+            }
         }
 
         httpClient.newCall(requestBuilder.build()).execute().use { response ->

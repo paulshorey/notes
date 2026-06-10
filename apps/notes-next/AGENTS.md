@@ -14,8 +14,12 @@ app/                        — Next.js App Router: pages, layouts, API routes o
   search/                   — legacy redirect -> /
   api/
     _lib/
-      notes-app-route-handlers.ts   — shared route handler factories
-    session/                — GET (lookup by userId), POST (login by identifier)
+      notes-app-route-handlers.ts   — shared route handler factories (auth-bound)
+      authenticated-user.ts         — maps the NextAuth session cookie to a Notes user id
+    auth/
+      [...nextauth]/        — Auth.js (NextAuth) sign-in routes for the web UI
+      token/                — POST (credentials -> bearer token, used by Android), DELETE (revoke)
+    session/                — GET (authenticated user), PATCH (preferences)
     notes/                  — GET (list), POST (create), PATCH (update), DELETE
     tags/                   — GET (list), POST (create)
     categories/             — GET (list), POST (create), PATCH, DELETE
@@ -75,6 +79,7 @@ Anything that replaces the editor awaits `flushPendingNoteSave()` first: opening
 `noteSaveStatus` in `notesAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `NotesHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
 - Routes are wired through `app/api/_lib/notes-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
+- **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (Android, tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
 - This package validates Notes contracts, but it does not own Notes migration scripts.
 
 ## Embedding debug page

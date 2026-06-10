@@ -24,16 +24,21 @@ class NotesRepository(
 
     suspend fun readSnapshot(): AppSnapshot = sessionStore.readSnapshot()
 
-    suspend fun login(identifier: String): AppSnapshot =
+    suspend fun login(
+        identifier: String,
+        password: String,
+    ): AppSnapshot =
         runWithErrorPersistence(readSnapshot()) { snapshot ->
             val baseUrl = BuildConfig.DEFAULT_API_BASE_URL
-            val user = apiClient.login(baseUrl, identifier)
-            val categories = apiClient.listCategories(baseUrl, user.id)
-            val tags = apiClient.listTags(baseUrl, user.id)
-            val notes = apiClient.listNotes(baseUrl, user.id)
+            val session = apiClient.login(baseUrl, identifier, password)
+            val token = session.token
+            val categories = apiClient.listCategories(baseUrl, token)
+            val tags = apiClient.listTags(baseUrl, token)
+            val notes = apiClient.listNotes(baseUrl, token)
             val next =
                 snapshot.copy(
-                    user = user,
+                    user = session.user,
+                    apiToken = token,
                     categories = categories,
                     tags = tags,
                     notes = notes,
@@ -50,24 +55,30 @@ class NotesRepository(
 
     suspend fun restoreSession(refreshSearch: Boolean = false): AppSnapshot {
         val snapshot = readSnapshot()
-        val user = snapshot.user ?: return snapshot
-        return syncSnapshot(snapshot, user, refreshSearch)
+        if (snapshot.user == null) return snapshot
+        if (snapshot.apiToken.isNullOrBlank()) {
+            // Sessions persisted before token auth cannot call the API anymore;
+            // drop them so the user signs in again and receives a token.
+            return logout()
+        }
+        return syncSnapshot(snapshot, refreshSearch)
     }
 
     suspend fun refreshNotes(): AppSnapshot {
         val snapshot = readSnapshot()
-        val user = requireUser(snapshot)
-        return syncSnapshot(snapshot, user, refreshSearch = false)
+        requireUser(snapshot)
+        return syncSnapshot(snapshot, refreshSearch = false)
     }
 
     suspend fun createTag(label: String): TagRecord {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return try {
-            val tag = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, user.id, trimmed)
-            syncSnapshot(snapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            val tag = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmed)
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
             tag
         } catch (error: Throwable) {
             persist(
@@ -88,11 +99,12 @@ class NotesRepository(
     suspend fun createCategory(label: String): CategoryRecord {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return try {
-            val category = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, user.id, trimmed)
-            syncSnapshot(snapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            val category = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmed)
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
             category
         } catch (error: Throwable) {
             persist(
@@ -116,20 +128,22 @@ class NotesRepository(
     ): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return runWithErrorPersistence(snapshot) {
-            apiClient.updateCategory(BuildConfig.DEFAULT_API_BASE_URL, user.id, categoryId, trimmed)
-            syncSnapshot(snapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            apiClient.updateCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryId, trimmed)
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
 
     suspend fun deleteCategory(categoryId: Int): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         return runWithErrorPersistence(snapshot) {
-            apiClient.deleteCategory(BuildConfig.DEFAULT_API_BASE_URL, user.id, categoryId)
-            syncSnapshot(snapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            apiClient.deleteCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryId)
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
 
@@ -139,20 +153,22 @@ class NotesRepository(
     ): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return runWithErrorPersistence(snapshot) {
-            apiClient.updateTag(BuildConfig.DEFAULT_API_BASE_URL, user.id, tagId, trimmed)
-            syncSnapshot(snapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            apiClient.updateTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, tagId, trimmed)
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
 
     suspend fun deleteTag(tagId: Int): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         return runWithErrorPersistence(snapshot) {
-            apiClient.deleteTag(BuildConfig.DEFAULT_API_BASE_URL, user.id, tagId)
-            syncSnapshot(snapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            apiClient.deleteTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, tagId)
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
 
@@ -162,6 +178,7 @@ class NotesRepository(
     ): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         return runWithErrorPersistence(snapshot) {
             var resolvedSnapshot = snapshot
             var resolvedDraft = noteDraft
@@ -169,8 +186,8 @@ class NotesRepository(
             val categoryLabel = noteDraft.newCategoryLabel.trim()
             if (categoryLabel.isNotEmpty()) {
                 val category = snapshot.categories.findLabelMatch(categoryLabel) ?: run {
-                    val created = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, user.id, categoryLabel)
-                    resolvedSnapshot = syncSnapshot(snapshot, user, refreshSearch = false)
+                    val created = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryLabel)
+                    resolvedSnapshot = syncSnapshot(snapshot, refreshSearch = false)
                     created
                 }
                 resolvedDraft =
@@ -183,8 +200,8 @@ class NotesRepository(
             val extraTagLabel = noteDraft.newTagLabel.trim()
             if (extraTagLabel.isNotEmpty()) {
                 val tag = resolvedSnapshot.tags.findLabelMatch(extraTagLabel) ?: run {
-                    val created = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, user.id, extraTagLabel)
-                    resolvedSnapshot = syncSnapshot(resolvedSnapshot, user, refreshSearch = false)
+                    val created = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, extraTagLabel)
+                    resolvedSnapshot = syncSnapshot(resolvedSnapshot, refreshSearch = false)
                     created
                 }
                 resolvedDraft =
@@ -201,28 +218,30 @@ class NotesRepository(
 
             require(resolvedDraft.selectedCategoryId != null) { "Choose or type a category before saving." }
 
-            apiClient.saveNote(BuildConfig.DEFAULT_API_BASE_URL, user.id, noteId, resolvedDraft)
-            syncSnapshot(resolvedSnapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            apiClient.saveNote(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, noteId, resolvedDraft)
+            syncSnapshot(resolvedSnapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
 
     suspend fun deleteNote(noteId: Int): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         return runWithErrorPersistence(snapshot) {
-            apiClient.deleteNote(BuildConfig.DEFAULT_API_BASE_URL, user.id, noteId)
-            syncSnapshot(snapshot, user, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            apiClient.deleteNote(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, noteId)
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
 
     suspend fun search(query: String): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
         return runWithErrorPersistence(snapshot) {
             val trimmedQuery = query.trim()
             require(trimmedQuery.isNotEmpty()) { "Search query is required." }
 
-            val results = apiClient.semanticSearch(BuildConfig.DEFAULT_API_BASE_URL, user.id, trimmedQuery)
+            val results = apiClient.semanticSearch(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmedQuery)
             val next =
                 snapshot.copy(
                     searchResults = results,
@@ -257,6 +276,12 @@ class NotesRepository(
     }
 
     suspend fun logout(): AppSnapshot {
+        val snapshot = readSnapshot()
+        val token = snapshot.apiToken
+        if (!token.isNullOrBlank()) {
+            // Best-effort server-side revocation; local sign-out proceeds regardless.
+            runCatching { apiClient.logout(BuildConfig.DEFAULT_API_BASE_URL, token) }
+        }
         val next = AppSnapshot()
         persist(next)
         WidgetRefreshScheduler.cancel(appContext)
@@ -271,18 +296,18 @@ class NotesRepository(
 
     private suspend fun syncSnapshot(
         snapshot: AppSnapshot,
-        user: UserSummary,
         refreshSearch: Boolean,
     ): AppSnapshot =
         runWithErrorPersistence(snapshot) {
             val baseUrl = BuildConfig.DEFAULT_API_BASE_URL
-            val verifiedUser = apiClient.getUser(baseUrl, user.id)
-            val categories = apiClient.listCategories(baseUrl, user.id)
-            val tags = apiClient.listTags(baseUrl, user.id)
-            val notes = apiClient.listNotes(baseUrl, user.id)
+            val token = requireToken(snapshot)
+            val verifiedUser = apiClient.getUser(baseUrl, token)
+            val categories = apiClient.listCategories(baseUrl, token)
+            val tags = apiClient.listTags(baseUrl, token)
+            val notes = apiClient.listNotes(baseUrl, token)
             val results =
                 if (refreshSearch && snapshot.lastSearchQuery.isNotBlank()) {
-                    apiClient.semanticSearch(baseUrl, user.id, snapshot.lastSearchQuery)
+                    apiClient.semanticSearch(baseUrl, token, verifiedUser.id, snapshot.lastSearchQuery)
                 } else {
                     snapshot.searchResults
                 }
@@ -303,6 +328,10 @@ class NotesRepository(
 
     private suspend fun requireUser(snapshot: AppSnapshot): UserSummary =
         snapshot.user ?: throw IllegalStateException("Sign in before editing notes.")
+
+    private fun requireToken(snapshot: AppSnapshot): String =
+        snapshot.apiToken?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("Session expired. Sign in again.")
 
     private suspend fun runWithErrorPersistence(
         snapshot: AppSnapshot,

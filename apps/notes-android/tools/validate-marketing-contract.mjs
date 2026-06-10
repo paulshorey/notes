@@ -285,6 +285,9 @@ for (const binding of jsonCodecBindings) {
 
 const requiredApiSnippets = [
   '.put("identifier", identifier.trim())',
+  '.put("password", password)',
+  'token = response.getString("token")',
+  'requestBuilder.header("Authorization", "Bearer $token")',
   'val tagsArray = response.getJSONArray("tags")',
   'add(tagFromJson(tagsArray.getJSONObject(index)))',
   '.put("tagIds", tagIdsJson)',
