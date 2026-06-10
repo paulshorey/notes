@@ -65,6 +65,8 @@ import {
 } from "../sql/category";
 import {
   deleteTagForUser,
+  ensureDefaultTagForUser,
+  getFirstTagForUser,
   getTagByIdForUser,
   listTagsByUser,
   listTagsMissingEmbeddingsByUser,
@@ -361,9 +363,19 @@ export const listCategoriesForNotesApp = async (
 
 export const listTagsForNotesApp = async (
   request: TagsRequest
-): Promise<TagsResponse> => ({
-  tags: await listTagsByUser(request.userId),
-});
+): Promise<TagsResponse> => {
+  const client = await getDb().connect();
+
+  try {
+    await ensureDefaultTagForUser(client, request.userId);
+  } finally {
+    client.release();
+  }
+
+  return {
+    tags: await listTagsByUser(request.userId),
+  };
+};
 
 const createLabeledEntityForNotesApp = async ({
   userId,
@@ -536,6 +548,23 @@ const updateLabeledEntityForNotesApp = async <T>({
   return getById(userId, entityId);
 };
 
+const ensureFallbackTagId = async (userId: number) => {
+  const client = await getDb().connect();
+
+  try {
+    await ensureDefaultTagForUser(client, userId);
+    const fallbackTag = await getFirstTagForUser(client, userId);
+
+    if (!fallbackTag) {
+      throw new Error("Failed to resolve fallback tag.");
+    }
+
+    return fallbackTag.id;
+  } finally {
+    client.release();
+  }
+};
+
 const ensureFallbackCategoryId = async (userId: number) => {
   const client = await getDb().connect();
 
@@ -660,7 +689,12 @@ export const deleteCategoryWithNotesForNotesApp = async (
 export const deleteTagForNotesApp = async (
   request: DeleteTagRequest
 ): Promise<DeleteTagResponse | null> => {
-  const result = await deleteTagForUser(request.userId, request.tagId);
+  const protectedTagId = await ensureFallbackTagId(request.userId);
+  const result = await deleteTagForUser(
+    request.userId,
+    request.tagId,
+    protectedTagId
+  );
 
   if (!result.deleted) {
     return null;

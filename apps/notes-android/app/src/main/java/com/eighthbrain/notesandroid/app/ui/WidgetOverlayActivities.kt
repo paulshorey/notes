@@ -622,6 +622,11 @@ private fun WidgetTagPickerScreen(
         editingId = null
         editingDraft = ""
         error = null
+        val fallbackId = tags.minByOrNull { it.id }?.id
+        if (tag.id == fallbackId) {
+            error = "The default tag cannot be deleted."
+            return
+        }
         if (tag.noteCount == 0) {
             deletingId = null
             scope.launch {
@@ -688,6 +693,7 @@ private fun WidgetTagPickerScreen(
             editingTagId = editingId,
             editingDraft = editingDraft,
             deletingTagId = deletingId,
+            protectedTagId = tags.minByOrNull { it.id }?.id,
             busy = busy,
             onSelect = { id -> select(id) },
             onStartEdit = { tag -> startEdit(tag) },

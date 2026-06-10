@@ -213,6 +213,9 @@ const withResultsColumnWidthPreference = (
 const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
   categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
 
+const getDefaultTagId = (tagList: TagRecord[]) =>
+  tagList.length > 0 ? tagList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
+
 const getTimeValue = (value: string | null | undefined) => {
   if (!value) return 0
   const time = new Date(value).getTime()
@@ -318,6 +321,7 @@ export default function NotesApp() {
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [tags, setTags] = useState<TagRecord[]>([])
   const fallbackCategoryId = getDefaultCategoryId(categories)
+  const fallbackTagId = getDefaultTagId(tags)
   const {
     resultsListVisible,
     setResultsListVisible,
@@ -2113,6 +2117,10 @@ export default function NotesApp() {
 
   const openDeleteTag = (tag: TagRecord) => {
     clearMessages()
+    if (tag.id === fallbackTagId) {
+      setErrorMessage("The default tag cannot be deleted.")
+      return
+    }
     if (tag.noteCount === 0) {
       void performDeleteTag(tag)
     } else {
@@ -2295,6 +2303,7 @@ export default function NotesApp() {
           notesLoading={notesLoading}
           categories={categories}
           fallbackCategoryId={fallbackCategoryId}
+          fallbackTagId={fallbackTagId}
           selectedTag={selectedTag}
           searchMode={searchMode}
           searchItems={searchItems}
