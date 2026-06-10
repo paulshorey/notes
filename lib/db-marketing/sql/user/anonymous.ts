@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { UserV1Row } from "../../generated/typescript/db-types";
 import { getDb } from "../../lib/db/postgres";
+import { ensureDefaultTagForUser } from "../tag";
 import type { UserSummary } from "./types";
 
 const mapUser = (row: UserV1Row): UserSummary => ({
@@ -18,18 +19,32 @@ const mapUser = (row: UserV1Row): UserSummary => ({
 
 export const createAnonymousUser = async (): Promise<UserSummary> => {
   const username = `anon-${randomUUID()}`;
-  const { rows } = await getDb().query<UserV1Row>(
-    `INSERT INTO public.user_v1 (username, is_anonymous)
-     VALUES ($1, true)
-     RETURNING id, username, email, phone, preferences`,
-    [username]
-  );
+  const client = await getDb().connect();
 
-  if (!rows[0]) {
-    throw new Error("Failed to create anonymous user.");
+  try {
+    await client.query("BEGIN");
+
+    const { rows } = await client.query<UserV1Row>(
+      `INSERT INTO public.user_v1 (username, is_anonymous)
+       VALUES ($1, true)
+       RETURNING id, username, email, phone, preferences`,
+      [username]
+    );
+
+    if (!rows[0]) {
+      throw new Error("Failed to create anonymous user.");
+    }
+
+    await ensureDefaultTagForUser(client, rows[0].id);
+    await client.query("COMMIT");
+
+    return mapUser(rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
   }
-
-  return mapUser(rows[0]);
 };
 
 export const mergeAnonymousUserInto = async (

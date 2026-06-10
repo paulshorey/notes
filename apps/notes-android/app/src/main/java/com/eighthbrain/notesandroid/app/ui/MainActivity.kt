@@ -604,6 +604,11 @@ class NotesViewModel(
     fun startDeletingTag(tagId: Int) {
         val current = _uiState.value
         val tag = current.snapshot.tags.firstOrNull { it.id == tagId } ?: return
+        val fallbackId = current.snapshot.tags.minByOrNull { it.id }?.id
+        if (tagId == fallbackId) {
+            _uiState.update { it.copy(error = "The default tag cannot be deleted.") }
+            return
+        }
         if (tag.noteCount == 0) {
             runAction {
                 repository.deleteTag(tagId)
@@ -1308,6 +1313,7 @@ private fun TagsPickerDialog(
                     editingTagId = uiState.editingTagId,
                     editingDraft = uiState.editingTagLabel,
                     deletingTagId = uiState.deletingTagId,
+                    protectedTagId = uiState.snapshot.tags.minByOrNull { it.id }?.id,
                     busy = uiState.isBusy,
                     onSelect = { id ->
                         viewModel.selectTagFilter(id)
