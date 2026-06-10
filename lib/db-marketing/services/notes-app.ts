@@ -21,9 +21,10 @@ import type {
   NoteResponse,
   SearchRequest,
   SearchResponse,
-  SessionLookupRequest,
   SessionRequest,
   SessionResponse,
+  TokenLoginRequest,
+  TokenLoginResponse,
   TagsRequest,
   TagsResponse,
   UpdateUserPreferencesRequest,
@@ -76,10 +77,13 @@ import {
 } from "../sql/tag";
 import {
   createAnonymousUser,
-  findUserByIdentifier,
+  createApiTokenForUser,
+  deleteApiToken,
+  findUserIdByApiToken,
   getUserById,
   mergeAnonymousUserInto,
   updateUserPreferencesById,
+  verifyUserCredentials,
 } from "../sql/user";
 import {
   createBackfillEmbeddingInputs,
@@ -95,8 +99,9 @@ export const NOTES_APP_NOTE_NOT_FOUND_ERROR = "Note not found.";
 export const NOTES_APP_CATEGORY_NOT_FOUND_ERROR = "Category not found.";
 export const NOTES_APP_TAG_NOT_FOUND_ERROR = "Tag not found.";
 export const NOTES_APP_USER_NOT_FOUND_ERROR = "User not found.";
-export const NOTES_APP_LOGIN_NOT_FOUND_ERROR =
-  "No matching user was found. Enter an existing username, email, or phone number.";
+export const NOTES_APP_INVALID_CREDENTIALS_ERROR =
+  "Invalid username, email, phone, or password.";
+export const NOTES_APP_AUTH_REQUIRED_ERROR = "Authentication required.";
 export const NOTES_APP_EMBEDDING_MAINTENANCE_MISSING_MODE = "missing";
 export const NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE = "stale";
 
@@ -245,11 +250,12 @@ export const parseDeleteTagRequest = (value: unknown): DeleteTagRequest => {
   };
 };
 
-export const parseSessionLookupRequest = (value: unknown): SessionLookupRequest => {
+export const parseTokenLoginRequest = (value: unknown): TokenLoginRequest => {
   const body = toRequestObject(value);
 
   return {
     identifier: typeof body.identifier === "string" ? body.identifier.trim() : "",
+    password: typeof body.password === "string" ? body.password : "",
   };
 };
 
@@ -333,12 +339,37 @@ export const getNotesAppSession = async (
   return user ? { user } : null;
 };
 
-export const findNotesAppSession = async (
-  request: SessionLookupRequest
-): Promise<SessionResponse | null> => {
-  const user = await findUserByIdentifier(request.identifier);
+export const loginNotesAppUser = async (
+  request: TokenLoginRequest
+): Promise<TokenLoginResponse | null> => {
+  const user = await verifyUserCredentials(request.identifier, request.password);
 
-  return user ? { user } : null;
+  if (!user) {
+    return null;
+  }
+
+  const token = await createApiTokenForUser(user.id);
+  return { token, user };
+};
+
+export const getNotesAppUserIdForToken = async (request: {
+  token: string;
+}): Promise<number | null> => {
+  if (request.token === "") {
+    return null;
+  }
+
+  return findUserIdByApiToken(request.token);
+};
+
+export const revokeNotesAppToken = async (request: {
+  token: string;
+}): Promise<boolean> => {
+  if (request.token === "") {
+    return false;
+  }
+
+  return deleteApiToken(request.token);
 };
 
 export const updateNotesAppUserPreferences = async (
@@ -861,7 +892,9 @@ export const mergeAnonymousNotesAppSession = async (request: {
 export const notesAppService = {
   getNotesAppErrorStatus,
   getNotesAppSession,
-  findNotesAppSession,
+  loginNotesAppUser,
+  getNotesAppUserIdForToken,
+  revokeNotesAppToken,
   updateNotesAppUserPreferences,
   listNotesForNotesApp,
   listCategoriesForNotesApp,

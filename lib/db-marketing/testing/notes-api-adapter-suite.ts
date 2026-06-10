@@ -81,12 +81,19 @@ const sampleEmbeddingMaintenanceResponse = {
   hasMore: false,
 }
 
+export const sampleApiToken = "nta_test_token"
+
+const authHeaders = { Authorization: `Bearer ${sampleApiToken}` }
+
 export const createFakeNotesAppService = (
   overrides: Partial<NotesAppService> = {},
 ): NotesAppService => ({
   getNotesAppErrorStatus: () => 400,
   getNotesAppSession: async () => ({ user: sampleUser }),
-  findNotesAppSession: async () => ({ user: sampleUser }),
+  loginNotesAppUser: async () => ({ token: sampleApiToken, user: sampleUser }),
+  getNotesAppUserIdForToken: async ({ token }) =>
+    token === sampleApiToken ? sampleUser.id : null,
+  revokeNotesAppToken: async ({ token }) => token === sampleApiToken,
   updateNotesAppUserPreferences: async () => ({ user: sampleUser }),
   listNotesForNotesApp: async () => ({ notes: [sampleNote] }),
   listCategoriesForNotesApp: async () => ({ categories: [sampleCategory] }),
@@ -123,11 +130,154 @@ export const registerNotesApiAdapterSuite = (
     )
   })
 
-  test(`${adapterName} login trims identifiers`, async (t) => {
-    const requests: Array<{ identifier: string }> = []
+  test(`${adapterName} token login trims identifiers and returns a token`, async (t) => {
+    const requests: Array<{ identifier: string; password: string }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
-        findNotesAppSession: async (request) => {
+        loginNotesAppUser: async (request) => {
+          requests.push(request)
+          return { token: sampleApiToken, user: sampleUser }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "POST",
+      path: "/api/auth/token",
+      body: { identifier: "  admin  ", password: "correct horse" },
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { token: sampleApiToken, user: sampleUser })
+    assert.deepEqual(requests, [{ identifier: "admin", password: "correct horse" }])
+  })
+
+  test(`${adapterName} returns 401 for failed token login`, async (t) => {
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        loginNotesAppUser: async () => null,
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "POST",
+      path: "/api/auth/token",
+      body: { identifier: "missing-user", password: "wrong" },
+    })
+
+    assert.equal(response.status, 401)
+    assert.equal(
+      readError(response.body),
+      "Invalid username, email, phone, or password.",
+    )
+  })
+
+  test(`${adapterName} revokes the presented token`, async (t) => {
+    const revoked: string[] = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        revokeNotesAppToken: async ({ token }) => {
+          revoked.push(token)
+          return true
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "DELETE",
+      path: "/api/auth/token",
+      headers: authHeaders,
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { ok: true })
+    assert.deepEqual(revoked, [sampleApiToken])
+  })
+
+  test(`${adapterName} rejects unauthenticated requests with 401`, async (t) => {
+    const adapter = await createAdapter(createFakeNotesAppService())
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    for (const request of [
+      { method: "GET" as const, path: "/api/session" },
+      { method: "GET" as const, path: "/api/notes" },
+      { method: "GET" as const, path: "/api/tags" },
+      { method: "GET" as const, path: "/api/categories" },
+      {
+        method: "POST" as const,
+        path: "/api/notes/search",
+        body: { query: "anything", limit: 5 },
+      },
+    ]) {
+      const response = await adapter.request(request)
+      assert.equal(response.status, 401, `${request.method} ${request.path}`)
+      assert.equal(readError(response.body), "Authentication required.")
+    }
+  })
+
+  test(`${adapterName} rejects invalid bearer tokens with 401`, async (t) => {
+    const adapter = await createAdapter(createFakeNotesAppService())
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "GET",
+      path: "/api/notes",
+      headers: { Authorization: "Bearer not-a-real-token" },
+    })
+
+    assert.equal(response.status, 401)
+    assert.equal(readError(response.body), "Authentication required.")
+  })
+
+  test(`${adapterName} ignores client-supplied userId and uses the authenticated user`, async (t) => {
+    const requests: Array<{ userId: number }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        deleteNoteForNotesApp: async (request) => {
+          requests.push({ userId: request.userId })
+          return { ok: true }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "DELETE",
+      path: "/api/notes",
+      headers: authHeaders,
+      body: { userId: 999999, noteId: 41 },
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(requests, [{ userId: sampleUser.id }])
+  })
+
+  test(`${adapterName} returns the authenticated session user`, async (t) => {
+    const requests: Array<{ userId: number }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        getNotesAppSession: async (request) => {
           requests.push(request)
           return { user: sampleUser }
         },
@@ -139,54 +289,14 @@ export const registerNotesApiAdapterSuite = (
     })
 
     const response = await adapter.request({
-      method: "POST",
+      method: "GET",
       path: "/api/session",
-      body: { identifier: "  admin  " },
+      headers: authHeaders,
     })
 
     assert.equal(response.status, 200)
     assert.deepEqual(response.body, { user: sampleUser })
-    assert.deepEqual(requests, [{ identifier: "admin" }])
-  })
-
-  test(`${adapterName} returns 404 for missing session login`, async (t) => {
-    const adapter = await createAdapter(
-      createFakeNotesAppService({
-        findNotesAppSession: async () => null,
-      }),
-    )
-
-    t.after(async () => {
-      await adapter.close?.()
-    })
-
-    const response = await adapter.request({
-      method: "POST",
-      path: "/api/session",
-      body: { identifier: "missing-user" },
-    })
-
-    assert.equal(response.status, 404)
-    assert.equal(
-      readError(response.body),
-      "No matching user was found. Enter an existing username, email, or phone number.",
-    )
-  })
-
-  test(`${adapterName} validates session lookup query params`, async (t) => {
-    const adapter = await createAdapter(createFakeNotesAppService())
-
-    t.after(async () => {
-      await adapter.close?.()
-    })
-
-    const response = await adapter.request({
-      method: "GET",
-      path: "/api/session?userId=0",
-    })
-
-    assert.equal(response.status, 400)
-    assert.equal(readError(response.body), "userId must be an integer of at least 1.")
+    assert.deepEqual(requests, [{ userId: sampleUser.id }])
   })
 
   test(`${adapterName} returns 404 when a stored session user is missing`, async (t) => {
@@ -202,7 +312,8 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "GET",
-      path: "/api/session?userId=7",
+      path: "/api/session",
+      headers: authHeaders,
     })
 
     assert.equal(response.status, 404)
@@ -230,6 +341,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "PATCH",
       path: "/api/session",
+      headers: authHeaders,
       body: {
         userId: 7,
         preferences: {
@@ -280,7 +392,8 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "GET",
-      path: "/api/notes?userId=7",
+      path: "/api/notes",
+      headers: authHeaders,
     })
 
     assert.equal(response.status, 200)
@@ -305,7 +418,8 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "GET",
-      path: "/api/tags?userId=7",
+      path: "/api/tags",
+      headers: authHeaders,
     })
 
     assert.equal(response.status, 200)
@@ -330,7 +444,8 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "GET",
-      path: "/api/categories?userId=7",
+      path: "/api/categories",
+      headers: authHeaders,
     })
 
     assert.equal(response.status, 200)
@@ -361,11 +476,13 @@ export const registerNotesApiAdapterSuite = (
     const createResponse = await adapter.request({
       method: "POST",
       path: "/api/categories",
+      headers: authHeaders,
       body: { userId: 7, label: "  Work  " },
     })
     const updateResponse = await adapter.request({
       method: "PATCH",
       path: "/api/categories",
+      headers: authHeaders,
       body: { userId: 7, categoryId: 5, label: "  WORK  " },
     })
 
@@ -393,6 +510,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "DELETE",
       path: "/api/categories/with-notes",
+      headers: authHeaders,
       body: { userId: 7, categoryId: 5 },
     })
 
@@ -424,11 +542,13 @@ export const registerNotesApiAdapterSuite = (
     const createResponse = await adapter.request({
       method: "POST",
       path: "/api/tags",
+      headers: authHeaders,
       body: { userId: 7, label: "  Verify Both HTTP Adapters  " },
     })
     const updateResponse = await adapter.request({
       method: "PATCH",
       path: "/api/tags",
+      headers: authHeaders,
       body: { userId: 7, tagId: 12, label: "  VERIFY BOTH HTTP ADAPTERS  " },
     })
 
@@ -458,6 +578,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "POST",
       path: "/api/notes",
+      headers: authHeaders,
       body: {
         userId: 7,
         note: {
@@ -509,6 +630,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "POST",
       path: "/api/notes",
+      headers: authHeaders,
       body: {
         userId: 7,
         note: {
@@ -549,6 +671,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "PATCH",
       path: "/api/notes",
+      headers: authHeaders,
       body: {
         userId: 7,
         noteId: 999,
@@ -580,6 +703,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "DELETE",
       path: "/api/notes",
+      headers: authHeaders,
       body: {
         userId: 7,
         noteId: 999,
@@ -607,6 +731,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "POST",
       path: "/api/notes/search",
+      headers: authHeaders,
       body: {
         userId: 7,
         query: "adapter parity",
@@ -636,6 +761,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "POST",
       path: "/api/notes/search",
+      headers: authHeaders,
       body: {
         userId: 7,
         query: "  Adapter Parity  ",
@@ -666,6 +792,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "POST",
       path: "/api/notes/maintenance/embeddings",
+      headers: authHeaders,
       body: {
         userId: 7,
         mode: "missing",
@@ -688,6 +815,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "POST",
       path: "/api/notes/maintenance/embeddings",
+      headers: authHeaders,
       body: {
         userId: 7,
         mode: "invalid",
@@ -723,6 +851,7 @@ export const registerNotesApiAdapterSuite = (
     const response = await adapter.request({
       method: "POST",
       path: "/api/notes/maintenance/embeddings",
+      headers: authHeaders,
       body: {
         userId: 7,
         mode: "stale",

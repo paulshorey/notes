@@ -1,9 +1,16 @@
 {
   "models": {
-    "SessionLookupRequest": {
+    "TokenLoginRequest": {
       "fields": [
         {
           "name": "identifier",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "password",
           "optional": false,
           "kind": "scalar",
           "type": "string",
@@ -639,6 +646,35 @@
           "optional": false,
           "kind": "model",
           "type": "UserSummary",
+          "nullable": false
+        }
+      ]
+    },
+    "TokenLoginResponse": {
+      "fields": [
+        {
+          "name": "token",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "user",
+          "optional": false,
+          "kind": "model",
+          "type": "UserSummary",
+          "nullable": false
+        }
+      ]
+    },
+    "TokenRevokeResponse": {
+      "fields": [
+        {
+          "name": "ok",
+          "optional": false,
+          "kind": "scalar",
+          "type": "true",
           "nullable": false
         }
       ]

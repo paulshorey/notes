@@ -53,6 +53,33 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
+-- Name: user_api_token_v1; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_api_token_v1 (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    token_hash text NOT NULL,
+    time_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    time_last_used timestamp with time zone
+);
+
+
+--
+-- Name: user_api_token_v1_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.user_api_token_v1 ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.user_api_token_v1_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: user_note_category_v1; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -190,6 +217,22 @@ ALTER TABLE public.user_v1 ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
 
 
 --
+-- Name: user_api_token_v1 user_api_token_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_api_token_v1
+    ADD CONSTRAINT user_api_token_v1_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_api_token_v1 user_api_token_v1_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_api_token_v1
+    ADD CONSTRAINT user_api_token_v1_token_hash_key UNIQUE (token_hash);
+
+
+--
 -- Name: user_note_category_v1 user_note_category_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -251,6 +294,13 @@ ALTER TABLE ONLY public.user_v1
 
 ALTER TABLE ONLY public.user_v1
     ADD CONSTRAINT user_v1_username_key UNIQUE (username);
+
+
+--
+-- Name: user_api_token_v1_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_api_token_v1_user_id_idx ON public.user_api_token_v1 USING btree (user_id);
 
 
 --
@@ -342,6 +392,14 @@ CREATE TRIGGER user_note_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDATE ON p
 --
 
 CREATE TRIGGER user_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDATE ON public.user_v1 FOR EACH ROW EXECUTE FUNCTION public.apply_row_timestamps_v1();
+
+
+--
+-- Name: user_api_token_v1 user_api_token_v1_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_api_token_v1
+    ADD CONSTRAINT user_api_token_v1_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE;
 
 
 --
