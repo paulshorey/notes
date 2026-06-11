@@ -20,6 +20,7 @@ private val Context.notesAndroidDataStore: DataStore<Preferences> by preferences
 
 private object PreferenceKeys {
     val userJson = stringPreferencesKey("user_json")
+    val apiToken = stringPreferencesKey("api_token")
     val categoriesJson = stringPreferencesKey("categories_json")
     val tagsJson = stringPreferencesKey("tags_json")
     val notesJson = stringPreferencesKey("notes_json")
@@ -46,6 +47,12 @@ class SessionStore(
                 preferences.remove(PreferenceKeys.userJson)
             } else {
                 preferences[PreferenceKeys.userJson] = userToJson(snapshot.user).toString()
+            }
+
+            if (snapshot.apiToken.isNullOrBlank()) {
+                preferences.remove(PreferenceKeys.apiToken)
+            } else {
+                preferences[PreferenceKeys.apiToken] = snapshot.apiToken
             }
 
             preferences[PreferenceKeys.categoriesJson] = categoriesToJson(snapshot.categories)
@@ -83,6 +90,7 @@ class SessionStore(
                 userJson?.let { raw ->
                     runCatching { userFromJson(applyUserSummaryDefaults(JSONObject(raw))) }.getOrNull()
                 },
+            apiToken = this[PreferenceKeys.apiToken],
             categories =
                 runCatching { categoriesFromJson(this[PreferenceKeys.categoriesJson]) }
                     .getOrDefault(emptyList()),

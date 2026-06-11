@@ -28,6 +28,12 @@ data class UserSummary(
     val preferences: UserPreferences,
 )
 
+/** Result of POST /api/auth/token: the bearer token plus the signed-in user. */
+data class LoginSession(
+    val token: String,
+    val user: UserSummary,
+)
+
 data class CategoryRecord(
     val id: Int,
     val userId: Int,
@@ -90,6 +96,7 @@ data class NoteDraft(
 
 data class AppSnapshot(
     val user: UserSummary? = null,
+    val apiToken: String? = null,
     val categories: List<CategoryRecord> = emptyList(),
     val tags: List<TagRecord> = emptyList(),
     val notes: List<NoteRecord> = emptyList(),

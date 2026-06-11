@@ -1,6 +1,14 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Run: pnpm --filter @lib/db-marketing db:types:generate
 
+export interface UserApiTokenV1Row {
+  "id": number;
+  "user_id": number;
+  "token_hash": string;
+  "time_created": Date;
+  "time_last_used": Date | null;
+}
+
 export interface UserNoteCategoryV1Row {
   "id": number;
   "user_id": number;
@@ -55,6 +63,7 @@ export interface UserV1Row {
 }
 
 export interface PostgresDbSchema {
+  "user_api_token_v1": UserApiTokenV1Row;
   "user_note_category_v1": UserNoteCategoryV1Row;
   "user_note_tag_link_v1": UserNoteTagLinkV1Row;
   "user_note_tag_v1": UserNoteTagV1Row;

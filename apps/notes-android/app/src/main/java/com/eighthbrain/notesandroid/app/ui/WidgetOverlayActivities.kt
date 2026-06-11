@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
@@ -36,6 +37,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.glance.appwidget.GlanceAppWidgetManager
@@ -230,13 +233,14 @@ private fun WidgetLoginScreen(
     finishOverlay: () -> Unit,
 ) {
     var identifier by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     OverlayCard(
         title = "Widget sign-in",
-        subtitle = "Widgets cannot host text input, so this short overlay collects your username.",
+        subtitle = "Widgets cannot host text input, so this short overlay collects your credentials.",
         busy = busy,
         error = error,
     ) {
@@ -250,6 +254,19 @@ private fun WidgetLoginScreen(
             label = { Text("Username, email, or phone") },
             singleLine = true,
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = {
+                password = it
+                error = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Password") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        )
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = {
@@ -257,7 +274,7 @@ private fun WidgetLoginScreen(
                     busy = true
                     error = null
                     try {
-                        repository.login(identifier)
+                        repository.login(identifier, password)
                         finishOverlay()
                     } catch (exception: Exception) {
                         error = exception.message ?: "Unable to sign in."

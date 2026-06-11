@@ -13,25 +13,84 @@ This document describes the app-facing Notes HTTP API served by
 
 ## Auth Model
 
-This API is still prototype-only:
+Every data endpoint requires an authenticated identity. There are two ways to
+authenticate, and the server derives the acting user id from them — any
+`userId` field still present in request bodies or query strings is **ignored**
+and overridden server-side:
 
-- `POST /api/session` looks up an existing user by username, email, or phone
-- there is no password, token, or server-side session yet
-- follow-up requests send `userId`
+- **Web UI**: the NextAuth (Auth.js) session cookie, set by signing in on the
+  web app (credentials, social provider, or anonymous session).
+- **Android / API clients**: a per-user bearer token issued by
+  `POST /api/auth/token` and sent as `Authorization: Bearer <token>` on every
+  request.
 
-Do not treat this as production-grade authentication.
+Requests with no valid cookie or token receive:
+
+```json
+{
+  "error": "Authentication required."
+}
+```
+
+with status `401`.
+
+Tokens are stored hashed (SHA-256) in `user_api_token_v1`; the plaintext token
+is returned exactly once at login. The old passwordless
+`POST /api/session { identifier }` login has been removed.
 
 ## Endpoints
 
-### `POST /api/session`
+### `POST /api/auth/token`
+
+Logs in with credentials and issues a bearer token.
 
 Request body:
 
 ```json
 {
-  "identifier": "admin"
+  "identifier": "admin",
+  "password": "hunter2"
 }
 ```
+
+Success `200`:
+
+```json
+{
+  "token": "nta_...",
+  "user": {
+    "id": 7,
+    "username": "admin",
+    "email": "admin@example.com",
+    "phone": "5550100"
+  }
+}
+```
+
+Invalid credentials `401`:
+
+```json
+{
+  "error": "Invalid username, email, phone, or password."
+}
+```
+
+### `DELETE /api/auth/token`
+
+Revokes the bearer token presented in the `Authorization` header (sign out).
+
+Success `200`:
+
+```json
+{
+  "ok": true
+}
+```
+
+### `GET /api/session`
+
+Returns the authenticated user. Identity comes from the session cookie or
+bearer token; a `userId` query parameter is ignored.
 
 Success `200`:
 
@@ -50,23 +109,11 @@ Not found `404`:
 
 ```json
 {
-  "error": "No matching user was found. Enter an existing username, email, or phone number."
-}
-```
-
-### `GET /api/session?userId=<id>`
-
-Success `200`: same body as `POST /api/session`.
-
-Not found `404`:
-
-```json
-{
   "error": "User not found."
 }
 ```
 
-### `GET /api/notes?userId=<id>`
+### `GET /api/notes`
 
 Success `200`:
 
@@ -90,7 +137,8 @@ Success `200`:
 
 ### `POST /api/notes`
 
-Request body:
+Request body (`userId` is accepted for wire compatibility but ignored; the
+server uses the authenticated user):
 
 ```json
 {
