@@ -304,7 +304,7 @@
   color: var(--g-color-text-danger, #ff6b6b);
 }
 
-.categoryPanel {
+.categoryResults {
   min-width: 0;
   padding-left: 10px;
 }
@@ -454,9 +454,5 @@
 
   .resultsColumnShellOpen .resultsColumn {
     left: max(-336px, calc(-100vw + 18px));
-  }
-
-  .categoryPanel {
-    padding-left: 10px;
   }
 }

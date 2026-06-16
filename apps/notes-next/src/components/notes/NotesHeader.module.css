@@ -82,6 +82,7 @@
   flex-shrink: 0;
   color: var(--g-color-text-secondary);
   transition: color 0.15s ease;
+  margin-left: 0.125rem;
 }
 
 .saveIndicator[data-status="saved"] {

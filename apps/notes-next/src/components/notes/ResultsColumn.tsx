@@ -417,7 +417,7 @@ export function ResultsColumn({
                         </SectionTitle>
                       </div>
                       {expanded && (
-                        <div id={panelId} className={styles.categoryPanel}>
+                        <div id={panelId} className={styles.categoryResults}>
                           {items.length > 0 && (
                             <NoteResultsList
                               items={items}
@@ -446,31 +446,6 @@ export function ResultsColumn({
           {!notesLoading && (
             <div className={styles.tagAccordion} role="list" aria-label="Notes by tag">
               <div className={styles.accordionHeading}>Tags</div>
-
-              {/* <div className={styles.categoryGroup} role="listitem">
-                <div className={styles.categoryRow}>
-                  <button
-                    type="button"
-                    className={styles.categoryToggle}
-                    aria-expanded={expandedTagId === ALL_TAGS_EXPANDED_ID}
-                    aria-controls="tag-notes-all"
-                    onClick={() => toggleTag(ALL_TAGS_EXPANDED_ID)}
-                  >
-                    <SectionTitle count={notesCount} label="all tags" />
-                  </button>
-                </div>
-                {expandedTagId === ALL_TAGS_EXPANDED_ID && (
-                  <div id="tag-notes-all" className={styles.categoryPanel}>
-                    <NoteResultsList
-                      items={allTagItems}
-                      activeNoteId={activeNoteId}
-                      loading={false}
-                      emptyMessage="No notes yet."
-                      onEdit={onEditNote}
-                    />
-                  </div>
-                )}
-              </div> */}
 
               {tagNoteGroups.map(({ tag, items }) => {
                 const expanded = expandedTagId === tag.id
@@ -503,7 +478,7 @@ export function ResultsColumn({
                       </SectionTitle>
                     </div>
                     {expanded && (
-                      <div id={panelId} className={styles.categoryPanel}>
+                      <div id={panelId} className={styles.categoryResults}>
                         {items.length > 0 && (
                           <NoteResultsList
                             items={items}
