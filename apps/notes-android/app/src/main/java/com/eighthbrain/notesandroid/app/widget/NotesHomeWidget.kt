@@ -63,6 +63,7 @@ import com.eighthbrain.notesandroid.app.ui.WidgetCategoryPickerActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetDeleteNoteActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetLoginActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetTagPickerActivity
+import com.eighthbrain.notesandroid.app.work.WidgetRefreshScheduler
 
 class NotesHomeWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = NotesHomeWidget()
@@ -84,8 +85,14 @@ class NotesHomeWidget : GlanceAppWidget() {
         context: Context,
         id: androidx.glance.GlanceId,
     ) {
+        val repository = (context.applicationContext as NotesApplication).repository
+        if (repository.readSnapshot().user != null) {
+            // Refresh content whenever the widget is (re)rendered so the user sees fresh
+            // notes "when they look at the widget". The work runs off the render path; an
+            // auth failure there clears the session and flips the widget to "Sign in".
+            WidgetRefreshScheduler.refreshNow(context.applicationContext)
+        }
         provideContent {
-            val repository = (context.applicationContext as NotesApplication).repository
             val glanceState = currentState<androidx.datastore.preferences.core.Preferences>()
             val snapshotRevision = glanceState[widgetSnapshotRevisionKey] ?: 0L
             val snapshot by repository.snapshots.collectAsState(initial = AppSnapshot())
@@ -568,7 +575,11 @@ class RefreshNotesAction : ActionCallback {
         val repository = (context.applicationContext as NotesApplication).repository
         val snapshot = repository.readSnapshot()
         if (snapshot.user != null) {
-            repository.restoreSession(refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            // Swallow failures: an auth error already cleared the session (widget shows
+            // "Sign in"); other errors should not crash the widget host process.
+            runCatching {
+                repository.restoreSession(refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+            }
         }
     }
 }

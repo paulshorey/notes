@@ -28,7 +28,7 @@ class NotesRepository(
         identifier: String,
         password: String,
     ): AppSnapshot =
-        runWithErrorPersistence(readSnapshot()) { snapshot ->
+        runWithErrorPersistence(readSnapshot(), clearSessionOnAuthFailure = false) { snapshot ->
             val baseUrl = BuildConfig.DEFAULT_API_BASE_URL
             val session = apiClient.login(baseUrl, identifier, password)
             val token = session.token
@@ -76,17 +76,10 @@ class NotesRepository(
         val token = requireToken(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
-        return try {
+        return withAuthHandling(snapshot) {
             val tag = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
             tag
-        } catch (error: Throwable) {
-            persist(
-                snapshot.copy(
-                    lastError = error.message ?: "Unexpected request error.",
-                ),
-            )
-            throw error
         }
     }
 
@@ -102,17 +95,10 @@ class NotesRepository(
         val token = requireToken(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
-        return try {
+        return withAuthHandling(snapshot) {
             val category = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
             category
-        } catch (error: Throwable) {
-            persist(
-                snapshot.copy(
-                    lastError = error.message ?: "Unexpected request error.",
-                ),
-            )
-            throw error
         }
     }
 
@@ -335,10 +321,38 @@ class NotesRepository(
 
     private suspend fun runWithErrorPersistence(
         snapshot: AppSnapshot,
+        clearSessionOnAuthFailure: Boolean = true,
         block: suspend (AppSnapshot) -> AppSnapshot,
     ): AppSnapshot =
+        withAuthHandling(snapshot, clearSessionOnAuthFailure) { block(snapshot) }
+
+    /**
+     * Runs an API-backed [block], persisting any failure into [AppSnapshot.lastError].
+     *
+     * On an [AuthenticationException] (HTTP 401), the saved session is cleared when
+     * [clearSessionOnAuthFailure] is true so the app screen and the home-screen widget
+     * both fall back to the sign-in UI. We intentionally do **not** clear the session
+     * for other failures (e.g. offline/network errors) so the user does not get signed
+     * out — and lose unsynced edits — just because the device briefly lost connectivity.
+     */
+    private suspend fun <T> withAuthHandling(
+        snapshot: AppSnapshot,
+        clearSessionOnAuthFailure: Boolean = true,
+        block: suspend () -> T,
+    ): T =
         try {
-            block(snapshot)
+            block()
+        } catch (error: AuthenticationException) {
+            if (clearSessionOnAuthFailure) {
+                clearSessionForReauth(SESSION_EXPIRED_MESSAGE)
+            } else {
+                persist(
+                    snapshot.copy(
+                        lastError = error.message ?: "Unexpected request error.",
+                    ),
+                )
+            }
+            throw error
         } catch (error: Throwable) {
             persist(
                 snapshot.copy(
@@ -348,12 +362,24 @@ class NotesRepository(
             throw error
         }
 
+    /**
+     * Drops the persisted user/token and stops background refresh so the next render of
+     * the app and the widget shows the sign-in entry point. Keeps a short explanation in
+     * [AppSnapshot.lastError] to display on the sign-in screen.
+     */
+    private suspend fun clearSessionForReauth(message: String?) {
+        persist(AppSnapshot(lastError = message))
+        WidgetRefreshScheduler.cancel(appContext)
+    }
+
     private suspend fun persist(snapshot: AppSnapshot) {
         sessionStore.saveSnapshot(snapshot)
         val revision = snapshot.lastSyncEpochMillis ?: System.currentTimeMillis()
         refreshWidgetsAfterSnapshotChange(appContext, revision)
     }
 }
+
+private const val SESSION_EXPIRED_MESSAGE = "Your session expired. Please sign in again."
 
 private fun String.normalizedTaxonomyLabel(): String = trim().lowercase()
 

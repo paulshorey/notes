@@ -4,7 +4,8 @@ Networking and persistence layer for the Android Notes app.
 
 ## Files
 
-- `NotesApiClient.kt` - OkHttp client for the deployed `notes-next` REST API (`/api/auth/token`, `/api/session`, `/api/notes`, `/api/tags`, `/api/notes/search`).
+- `NotesApiClient.kt` - OkHttp client for the deployed `notes-next` REST API (`/api/auth/token`, `/api/session`, `/api/notes`, `/api/tags`, `/api/notes/search`). Throws `AuthenticationException` on any HTTP 401 response.
+- `AuthenticationException.kt` - marker exception for HTTP 401 (expired/invalid token or bad credentials); lets the repository react to auth failures distinctly from generic/network errors.
 - `NotesRepository.kt` - orchestration layer that reads/writes `AppSnapshot`, calls the API client, persists errors, updates the widget, and schedules/cancels background refresh.
 - `SessionStore.kt` - DataStore-backed persistence for the durable app snapshot.
 - `JsonCodec.kt` - JSON serialization helpers for snapshot storage and API payload decoding.
@@ -12,6 +13,7 @@ Networking and persistence layer for the Android Notes app.
 ## Core concepts
 
 - **Auth**: `NotesApiClient.login(baseUrl, identifier, password)` calls `POST /api/auth/token` and returns a `LoginSession(token, user)`. The bearer token is persisted in `AppSnapshot.apiToken` and sent as `Authorization: Bearer <token>` on every API call. `logout()` revokes it server-side (best effort) before clearing the snapshot. Sessions persisted before token auth (no `apiToken`) are dropped on `restoreSession()` so the user signs in again.
+- **Re-auth on 401**: when an authenticated call throws `AuthenticationException`, `withAuthHandling(...)`/`runWithErrorPersistence(...)` calls `clearSessionForReauth(...)`, which resets the snapshot to signed-out (with a "session expired" message) and cancels the periodic widget refresh. The signed-out snapshot makes both the app (`MainActivity` → `LoginScreen`) and the widget (`Sign in` chip) surface the sign-in UI. Auth failures during `login()` itself pass `clearSessionOnAuthFailure = false` so the invalid-credentials message is shown without a confusing reset. Non-auth failures (e.g. offline) only persist `lastError`; the session is intentionally **not** cleared so a brief network blip never signs the user out.
 - `AppSnapshot` in `SessionStore` is the canonical persisted app state for the client.
 - `NotesRepository.persist(...)` calls `refreshWidgetsAfterSnapshotChange(...)`, which bumps `widgetSnapshotRevisionKey` in Glance state and runs `updateAll` so placed widgets refresh even when a Glance session is already active.
 - Widget-only UI state is **not** stored here; expand/collapse plus widget category/tag filtering live in Glance preferences inside `widget/`.

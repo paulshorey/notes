@@ -452,6 +452,9 @@ class NotesApiClient(
 
             if (!response.isSuccessful) {
                 val errorMessage = payload.optString("error").ifBlank { "Request failed." }
+                if (response.code == 401) {
+                    throw AuthenticationException(errorMessage)
+                }
                 throw IllegalStateException(errorMessage)
             }
 

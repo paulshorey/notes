@@ -12,6 +12,7 @@ Compose UI for the main app plus the small overlay activities used by widget-tri
 ## Key concepts
 
 - `MainActivity.kt` is intentionally large: most primary-app UI state lives in `NotesUiState` and is driven from `NotesViewModel`.
+- `NotesViewModel.refreshOnForeground()` runs on every `Lifecycle.Event.ON_START` (wired via a `DisposableEffect` in `NotesAppScreen`) so content is pulled fresh when the app opens or returns to the foreground — before the user edits. An `AuthenticationException` clears the session in the repository, flipping the screen to `LoginScreen`; `runAction` treats that exception specially (no error banner) and `LoginScreen` shows `snapshot.lastError` (session-expired or invalid-credentials message).
 - Search is semantic, debounced, and server-backed; when the query is blank the UI falls back to notes sorted by last update.
 - `LaunchRequest` normalizes both explicit widget extras and the `notes-android://search` deep link into one handling path.
 - Widget delete launches `WidgetDeleteNoteActivity` (confirmation overlay), not `MainActivity`. Edit still uses `MainActivity.createLaunchIntent`. See `.cursor/skills/android-widget-actions/SKILL.md`.

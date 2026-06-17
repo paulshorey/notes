@@ -57,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -79,11 +80,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.eighthbrain.notesandroid.app.NotesApplication
+import com.eighthbrain.notesandroid.app.data.AuthenticationException
 import com.eighthbrain.notesandroid.app.model.AppSnapshot
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
@@ -193,17 +198,27 @@ class NotesViewModel(
                 }
             }
         }
+    }
 
+    /**
+     * Pulls fresh content whenever the app comes to the foreground (initial open or
+     * returning to it). Doing this before the user starts editing means an expired
+     * session is detected early: [NotesRepository] clears the session on an auth
+     * failure, which flips the UI to the sign-in screen before edits can be lost.
+     */
+    fun refreshOnForeground() {
         viewModelScope.launch {
-            if (repository.readSnapshot().user != null) {
-                runAction(errorPrefix = "Unable to refresh saved session.") {
-                    val snapshot = repository.restoreSession(refreshSearch = false)
-                    _uiState.update {
-                        it.copy(
-                            message = notesSortMessage(snapshot.lastSearchQuery),
-                            error = null,
-                        )
-                    }
+            if (repository.readSnapshot().user == null) {
+                return@launch
+            }
+            runAction(errorPrefix = "Unable to refresh saved session.") {
+                val hasActiveSearch = _uiState.value.searchQuery.trim().isNotEmpty()
+                val snapshot = repository.restoreSession(refreshSearch = hasActiveSearch)
+                _uiState.update {
+                    it.copy(
+                        message = notesSortMessage(snapshot.lastSearchQuery),
+                        error = null,
+                    )
                 }
             }
         }
@@ -724,6 +739,11 @@ class NotesViewModel(
                 action()
             } catch (e: CancellationException) {
                 throw e
+            } catch (error: AuthenticationException) {
+                // The repository already cleared the session, so the snapshot is now
+                // signed out and the sign-in screen will show with snapshot.lastError.
+                // Avoid stacking a transient error on top of that screen.
+                _uiState.update { it.copy(error = null, message = null) }
             } catch (error: Exception) {
                 val message = error.message ?: "Unexpected request error."
                 _uiState.update {
@@ -830,6 +850,18 @@ private fun NotesAppScreen(
     onRequestSearchFieldFocus: () -> Unit,
     appContext: Context,
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_START) {
+                    viewModel.refreshOnForeground()
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     LaunchedEffect(launchRequest, uiState.snapshot.user, uiState.snapshot.notes) {
         if (launchRequest == null || uiState.snapshot.user == null) {
             return@LaunchedEffect
@@ -932,7 +964,7 @@ private fun LoginScreen(
             Spacer(Modifier.height(8.dp))
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth(0.85f))
         }
-        uiState.error?.let {
+        (uiState.error ?: uiState.snapshot.lastError)?.let {
             Spacer(Modifier.height(8.dp))
             Text(
                 it,

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.eighthbrain.notesandroid.app.NotesApplication
+import com.eighthbrain.notesandroid.app.data.AuthenticationException
 
 class WidgetRefreshWorker(
     appContext: Context,
@@ -19,6 +20,10 @@ class WidgetRefreshWorker(
 
         return try {
             repository.restoreSession(refreshSearch = false)
+            Result.success()
+        } catch (_: AuthenticationException) {
+            // The repository already cleared the session, so the widget now shows
+            // "Sign in". Retrying would not help, so treat this as handled.
             Result.success()
         } catch (_: Exception) {
             Result.retry()
