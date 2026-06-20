@@ -9,6 +9,7 @@ import {
   createCategoriesRouteHandlers,
   createDeleteCategoryWithNotesRouteHandlers,
   createTagsRouteHandlers,
+  createWorkflowStatusesRouteHandlers,
   createEmbeddingMaintenanceRouteHandlers,
   createNotesRouteHandlers,
   createSearchRouteHandlers,
@@ -25,6 +26,7 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
   const sessionHandlers = createSessionRouteHandlers(service)
   const notesHandlers = createNotesRouteHandlers(service)
   const categoriesHandlers = createCategoriesRouteHandlers(service)
+  const workflowStatusesHandlers = createWorkflowStatusesRouteHandlers(service)
   const deleteCategoryWithNotesHandlers =
     createDeleteCategoryWithNotesRouteHandlers(service)
   const tagsHandlers = createTagsRouteHandlers(service)
@@ -88,6 +90,18 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
           response = await categoriesHandlers.PATCH(new Request(url, requestInit))
         } else if (method === "DELETE") {
           response = await categoriesHandlers.DELETE(new Request(url, requestInit))
+        } else {
+          throw new Error(`Unhandled test route: ${method} ${url.pathname}`)
+        }
+      } else if (url.pathname === "/api/workflow-statuses") {
+        if (method === "GET") {
+          response = await workflowStatusesHandlers.GET(new NextRequest(url, getRequestInit))
+        } else if (method === "POST") {
+          response = await workflowStatusesHandlers.POST(new Request(url, requestInit))
+        } else if (method === "PATCH") {
+          response = await workflowStatusesHandlers.PATCH(new Request(url, requestInit))
+        } else if (method === "DELETE") {
+          response = await workflowStatusesHandlers.DELETE(new Request(url, requestInit))
         } else {
           throw new Error(`Unhandled test route: ${method} ${url.pathname}`)
         }

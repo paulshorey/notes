@@ -123,17 +123,22 @@ Success `200`:
     {
       "id": 41,
       "userId": 7,
-      "title": "Ship Notes API tests",
-      "summary": "Verify both HTTP adapters",
+      "category": { "id": 5, "label": "work" },
+      "workflowStatus": null,
+      "tags": [{ "id": 12, "label": "verify both http adapters" }],
       "description": "The Next and Express routes should stay behaviorally aligned.",
       "timeDue": "2026-03-18T16:00:00.000Z",
       "timeRemind": "2026-03-18T15:30:00.000Z",
+      "timeCompleted": null,
       "timeCreated": "2026-03-17T10:00:00.000Z",
       "timeModified": "2026-03-17T10:05:00.000Z"
     }
   ]
 }
 ```
+
+`workflowStatus: null` means the note is off the board (notes library). A non-null
+`workflowStatus` means the note is on the user's Kanban board in that column.
 
 ### `POST /api/notes`
 
@@ -144,14 +149,18 @@ server uses the authenticated user):
 {
   "userId": 7,
   "note": {
-    "title": "Ship Notes API tests",
-    "summary": "Verify both HTTP adapters",
+    "categoryId": 5,
+    "tagIds": [12],
     "description": "The Next and Express routes should stay behaviorally aligned.",
     "timeDue": "2026-03-18T16:00:00.000Z",
-    "timeRemind": "2026-03-18T15:30:00.000Z"
+    "timeRemind": "2026-03-18T15:30:00.000Z",
+    "workflowStatusId": null
   }
 }
 ```
+
+Set `workflowStatusId` to a column id to create the note directly on the board.
+Omit it or pass `null` to keep the note off board.
 
 Success `201`:
 
@@ -160,11 +169,13 @@ Success `201`:
   "note": {
     "id": 41,
     "userId": 7,
-    "title": "Ship Notes API tests",
-    "summary": "Verify both HTTP adapters",
+    "category": { "id": 5, "label": "work" },
+    "workflowStatus": null,
+    "tags": [{ "id": 12, "label": "verify both http adapters" }],
     "description": "The Next and Express routes should stay behaviorally aligned.",
     "timeDue": "2026-03-18T16:00:00.000Z",
     "timeRemind": "2026-03-18T15:30:00.000Z",
+    "timeCompleted": null,
     "timeCreated": "2026-03-17T10:00:00.000Z",
     "timeModified": "2026-03-17T10:05:00.000Z"
   }
@@ -173,7 +184,13 @@ Success `201`:
 
 ### `PATCH /api/notes`
 
-Request body adds `noteId`.
+Request body adds `noteId`. The `note` object uses the same shape as
+`POST /api/notes`, including optional `workflowStatusId`.
+
+- Set `workflowStatusId` to add or move a note on the board.
+- Set `workflowStatusId` to `null` to remove a note from the board (back to the
+  notes library) without deleting its text.
+- Moving to a terminal column (for example `done`) sets `timeCompleted`.
 
 Success `200`: same response shape as `POST /api/notes`.
 
@@ -209,6 +226,137 @@ Not found `404`:
 ```json
 {
   "error": "Note not found."
+}
+```
+
+### `GET /api/workflow-statuses`
+
+Lists the authenticated user's Kanban columns. Seeds default columns on first
+access: backlog, todo, in progress, testing, done.
+
+Success `200`:
+
+```json
+{
+  "workflowStatuses": [
+    {
+      "id": 9,
+      "userId": 7,
+      "label": "todo",
+      "sortOrder": 1,
+      "isTerminal": false,
+      "itemCount": 2,
+      "lastUsedAt": "2026-03-17T10:05:00.000Z"
+    }
+  ]
+}
+```
+
+### `POST /api/workflow-statuses`
+
+Request body:
+
+```json
+{
+  "userId": 7,
+  "label": "review"
+}
+```
+
+Success `201`:
+
+```json
+{
+  "workflowStatus": {
+    "id": 14,
+    "userId": 7,
+    "label": "review",
+    "sortOrder": 5,
+    "isTerminal": false,
+    "itemCount": 0,
+    "lastUsedAt": null
+  }
+}
+```
+
+### `PATCH /api/workflow-statuses`
+
+Rename a column:
+
+```json
+{
+  "userId": 7,
+  "workflowStatusId": 14,
+  "label": "code review"
+}
+```
+
+Reorder a column:
+
+```json
+{
+  "userId": 7,
+  "workflowStatusId": 14,
+  "sortOrder": 3
+}
+```
+
+At least one of `label` or `sortOrder` is required.
+
+Success `200`:
+
+```json
+{
+  "workflowStatus": {
+    "id": 14,
+    "userId": 7,
+    "label": "code review",
+    "sortOrder": 3,
+    "isTerminal": false,
+    "itemCount": 0,
+    "lastUsedAt": null
+  }
+}
+```
+
+Not found `404`:
+
+```json
+{
+  "error": "Workflow status not found."
+}
+```
+
+### `DELETE /api/workflow-statuses`
+
+Deletes a non-terminal column and reassigns any notes on it.
+
+Request body:
+
+```json
+{
+  "userId": 7,
+  "workflowStatusId": 14,
+  "reassignToId": 9
+}
+```
+
+Terminal columns (for example `done`) cannot be deleted.
+
+Success `200`:
+
+```json
+{
+  "ok": true,
+  "reassignedItems": 2
+}
+```
+
+Not found `404`:
+
+```json
+{
+  "error": "Workflow status not found."
 }
 ```
 

@@ -243,6 +243,7 @@ export const registerNotesApiAdapterSuite = (
       { method: "GET" as const, path: "/api/notes" },
       { method: "GET" as const, path: "/api/tags" },
       { method: "GET" as const, path: "/api/categories" },
+      { method: "GET" as const, path: "/api/workflow-statuses" },
       {
         method: "POST" as const,
         path: "/api/notes/search",
@@ -515,6 +516,164 @@ export const registerNotesApiAdapterSuite = (
     assert.equal(updateResponse.status, 200)
     assert.deepEqual(createRequests, [{ userId: 7, label: "work" }])
     assert.deepEqual(updateRequests, [{ userId: 7, categoryId: 5, label: "work" }])
+  })
+
+  test(`${adapterName} lists workflow statuses for the requested user`, async (t) => {
+    const requests: Array<{ userId: number }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        listWorkflowStatusesForNotesApp: async (request) => {
+          requests.push(request)
+          return { workflowStatuses: [sampleWorkflowStatus] }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "GET",
+      path: "/api/workflow-statuses",
+      headers: authHeaders,
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { workflowStatuses: [sampleWorkflowStatus] })
+    assert.deepEqual(requests, [{ userId: 7 }])
+  })
+
+  test(`${adapterName} lowercases workflow status labels before create and update`, async (t) => {
+    const createRequests: Array<{ userId: number; label: string }> = []
+    const updateRequests: Array<{
+      userId: number
+      workflowStatusId: number
+      label?: string
+      sortOrder?: number
+    }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        createWorkflowStatusForNotesApp: async (request) => {
+          createRequests.push(request)
+          return { workflowStatus: sampleWorkflowStatus }
+        },
+        updateWorkflowStatusForNotesApp: async (request) => {
+          updateRequests.push(request)
+          return { workflowStatus: sampleWorkflowStatus }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const createResponse = await adapter.request({
+      method: "POST",
+      path: "/api/workflow-statuses",
+      headers: authHeaders,
+      body: { userId: 7, label: "  Review  " },
+    })
+    const updateResponse = await adapter.request({
+      method: "PATCH",
+      path: "/api/workflow-statuses",
+      headers: authHeaders,
+      body: { userId: 7, workflowStatusId: 9, label: "  REVIEW  " },
+    })
+
+    assert.equal(createResponse.status, 201)
+    assert.equal(updateResponse.status, 200)
+    assert.deepEqual(createRequests, [{ userId: 7, label: "review" }])
+    assert.deepEqual(updateRequests, [
+      { userId: 7, workflowStatusId: 9, label: "review" },
+    ])
+  })
+
+  test(`${adapterName} updates workflow status sort order`, async (t) => {
+    const requests: Array<{
+      userId: number
+      workflowStatusId: number
+      label?: string
+      sortOrder?: number
+    }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        updateWorkflowStatusForNotesApp: async (request) => {
+          requests.push(request)
+          return { workflowStatus: { ...sampleWorkflowStatus, sortOrder: 3 } }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "PATCH",
+      path: "/api/workflow-statuses",
+      headers: authHeaders,
+      body: { userId: 7, workflowStatusId: 9, sortOrder: 3 },
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(requests, [{ userId: 7, workflowStatusId: 9, sortOrder: 3 }])
+  })
+
+  test(`${adapterName} deletes a workflow status and reassigns items`, async (t) => {
+    const requests: Array<{
+      userId: number
+      workflowStatusId: number
+      reassignToId: number
+    }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        deleteWorkflowStatusForNotesApp: async (request) => {
+          requests.push(request)
+          return { ok: true, reassignedItems: 2 }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "DELETE",
+      path: "/api/workflow-statuses",
+      headers: authHeaders,
+      body: { userId: 7, workflowStatusId: 9, reassignToId: 10 },
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { ok: true, reassignedItems: 2 })
+    assert.deepEqual(requests, [
+      { userId: 7, workflowStatusId: 9, reassignToId: 10 },
+    ])
+  })
+
+  test(`${adapterName} returns 404 when a workflow status update target is missing`, async (t) => {
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        updateWorkflowStatusForNotesApp: async () => null,
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "PATCH",
+      path: "/api/workflow-statuses",
+      headers: authHeaders,
+      body: { userId: 7, workflowStatusId: 999, label: "review" },
+    })
+
+    assert.equal(response.status, 404)
+    assert.equal(readError(response.body), "Workflow status not found.")
   })
 
   test(`${adapterName} deletes a category and its notes`, async (t) => {

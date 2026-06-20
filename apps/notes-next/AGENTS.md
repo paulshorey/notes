@@ -23,6 +23,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     notes/                  — GET (list), POST (create), PATCH (update), DELETE
     tags/                   — GET (list), POST (create)
     categories/             — GET (list), POST (create), PATCH, DELETE
+    workflow-statuses/      — GET (list), POST (create), PATCH, DELETE
     notes/search/           — POST (semantic search)
     notes/maintenance/
       embeddings/           — POST (backfill/repair missing or stale embeddings)

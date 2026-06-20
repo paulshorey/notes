@@ -6,6 +6,7 @@ import {
   NOTES_APP_TAG_NOT_FOUND_ERROR,
   NOTES_APP_NOTE_NOT_FOUND_ERROR,
   NOTES_APP_USER_NOT_FOUND_ERROR,
+  NOTES_APP_WORKFLOW_STATUS_NOT_FOUND_ERROR,
   parseCategoriesRequest,
   parseCreateCategoryRequest,
   notesAppService,
@@ -14,6 +15,8 @@ import {
   parseTagsRequest,
   parseCreateTagRequest,
   parseDeleteTagRequest,
+  parseCreateWorkflowStatusRequest,
+  parseDeleteWorkflowStatusRequest,
   parseEmbeddingMaintenanceRequest,
   parseCreateNoteRequest,
   parseDeleteNoteRequest,
@@ -24,7 +27,9 @@ import {
   parseUpdateUserPreferencesRequest,
   parseUpdateCategoryRequest,
   parseUpdateTagRequest,
+  parseUpdateWorkflowStatusRequest,
   parseUpdateNoteRequest,
+  parseWorkflowStatusesRequest,
   type NotesAppService,
 } from "@lib/db-marketing/services/notes-app"
 
@@ -417,6 +422,92 @@ export const createCategoriesRouteHandlers = (
       if (!result) {
         return NextResponse.json(
           { error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR },
+          { status: 404 },
+        )
+      }
+
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+})
+
+export const createWorkflowStatusesRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
+  GET: async (request: NextRequest) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.listWorkflowStatusesForNotesApp(
+        parseWorkflowStatusesRequest(userId),
+      )
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+  POST: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.createWorkflowStatusForNotesApp(
+        parseCreateWorkflowStatusRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      return NextResponse.json(result, { status: 201 })
+    } catch (error) {
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
+    }
+  },
+  PATCH: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.updateWorkflowStatusForNotesApp(
+        parseUpdateWorkflowStatusRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+
+      if (!result) {
+        return NextResponse.json(
+          { error: NOTES_APP_WORKFLOW_STATUS_NOT_FOUND_ERROR },
+          { status: 404 },
+        )
+      }
+
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
+    }
+  },
+  DELETE: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.deleteWorkflowStatusForNotesApp(
+        parseDeleteWorkflowStatusRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+
+      if (!result) {
+        return NextResponse.json(
+          { error: NOTES_APP_WORKFLOW_STATUS_NOT_FOUND_ERROR },
           { status: 404 },
         )
       }
