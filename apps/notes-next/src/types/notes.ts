@@ -1,4 +1,4 @@
-import type { NoteRecord } from "@lib/db-marketing"
+import type { NoteInput, NoteRecord, WorkflowStatusRecord } from "@lib/db-marketing"
 import { toDateTimeLocalValue } from "@/lib/dates"
 
 export interface NoteFormState {
@@ -9,6 +9,7 @@ export interface NoteFormState {
   timeRemind: string | null
   dueExpanded: boolean
   remindExpanded: boolean
+  workflowStatusId: number | null
 }
 
 export type EmbeddingMaintenanceMode = "missing" | "stale"
@@ -46,6 +47,7 @@ export const createDefaultNoteForm = (): NoteFormState => {
     timeRemind: null,
     dueExpanded: false,
     remindExpanded: false,
+    workflowStatusId: null,
   }
 }
 
@@ -57,4 +59,30 @@ export const noteToFormState = (note: NoteRecord): NoteFormState => ({
   timeRemind: note.timeRemind === null ? null : toDateTimeLocalValue(note.timeRemind),
   dueExpanded: note.timeDue !== null,
   remindExpanded: note.timeRemind !== null,
+  workflowStatusId: note.workflowStatus?.id ?? null,
+})
+
+export const getDefaultWorkflowStatusId = (
+  workflowStatuses: WorkflowStatusRecord[],
+): number | null => {
+  const todoStatus = workflowStatuses.find((status) => status.label === "todo")
+  if (todoStatus) {
+    return todoStatus.id
+  }
+
+  const firstActiveStatus = workflowStatuses.find((status) => !status.isTerminal)
+  return firstActiveStatus?.id ?? workflowStatuses[0]?.id ?? null
+}
+
+export const noteRecordToInput = (
+  note: NoteRecord,
+  overrides: Partial<NoteInput> = {},
+): NoteInput => ({
+  categoryId: note.category.id,
+  tagIds: note.tags.map((tag) => tag.id),
+  description: note.description ?? "",
+  timeDue: note.timeDue,
+  timeRemind: note.timeRemind,
+  workflowStatusId: note.workflowStatus?.id ?? null,
+  ...overrides,
 })

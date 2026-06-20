@@ -14,7 +14,7 @@ import {
   useRef,
   useState,
 } from "react"
-import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
+import type { CategoryRecord, TagRecord, WorkflowStatusRecord } from "@lib/db-marketing"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
@@ -36,6 +36,7 @@ interface NoteFormProps {
   userPresent: boolean
   categories: CategoryRecord[]
   tags: TagRecord[]
+  workflowStatuses: WorkflowStatusRecord[]
   pendingTagLabels: string[]
   descriptionEditorSessionId: number
   editorAutofocus: boolean
@@ -47,6 +48,9 @@ interface NoteFormProps {
   onSelectCategoryId: (rawId: string) => void
   onCreateCategory: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
+  onAddToBoard: () => void
+  onRemoveFromBoard: () => void
+  onSelectWorkflowStatusId: (workflowStatusId: number) => void
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
@@ -60,6 +64,7 @@ export function NoteForm({
   userPresent,
   categories,
   tags,
+  workflowStatuses,
   pendingTagLabels,
   descriptionEditorSessionId,
   editorAutofocus,
@@ -71,6 +76,9 @@ export function NoteForm({
   onSelectCategoryId,
   onCreateCategory,
   onTagValuesChange,
+  onAddToBoard,
+  onRemoveFromBoard,
+  onSelectWorkflowStatusId,
   onSubmit,
   onCancelEdit,
   onDeleteEditingNote,
@@ -84,7 +92,14 @@ export function NoteForm({
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [morePickerOpen, setMorePickerOpen] = useState(false)
+  const [workflowPickerOpen, setWorkflowPickerOpen] = useState(false)
+  const workflowTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [tagInputValue, setTagInputValue] = useState("")
+
+  const selectedWorkflowStatus =
+    form.workflowStatusId === null
+      ? null
+      : (workflowStatuses.find((status) => status.id === form.workflowStatusId) ?? null)
 
   const selectedCategoryLabel =
     form.selectedCategoryId === null
@@ -470,6 +485,83 @@ export function NoteForm({
                 >
                   <span>Delete</span>
                 </button>
+                <div className={styles.moreMenuDivider} aria-hidden="true" />
+                {form.workflowStatusId === null ? (
+                  <button
+                    type="button"
+                    className={styles.moreMenuItem}
+                    onClick={() => {
+                      closeMoreDropdown()
+                      onAddToBoard()
+                    }}
+                    disabled={!userPresent || workflowStatuses.length === 0}
+                    role="menuitem"
+                  >
+                    <span>Add to board</span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      ref={workflowTriggerRef}
+                      type="button"
+                      className={styles.moreMenuItem}
+                      onClick={() => setWorkflowPickerOpen((open) => !open)}
+                      disabled={!userPresent}
+                      aria-expanded={workflowPickerOpen}
+                      aria-haspopup="dialog"
+                      role="menuitem"
+                    >
+                      <span>Board: {selectedWorkflowStatus?.label ?? "column"}</span>
+                      <CaretDown size={12} weight="regular" />
+                    </button>
+                    <Popup
+                      anchorRef={workflowTriggerRef}
+                      open={workflowPickerOpen}
+                      onClose={() => setWorkflowPickerOpen(false)}
+                      placement={["left-start", "right-start", "top-start", "bottom-start"]}
+                      offset={6}
+                      role="dialog"
+                    >
+                      <div className={styles.categoryPanel}>
+                        <div
+                          className={styles.categoryOptions}
+                          role="listbox"
+                          aria-label="Board column options"
+                        >
+                          {workflowStatuses.map((status) => (
+                            <button
+                              key={status.id}
+                              type="button"
+                              className={styles.categoryOption}
+                              data-active={form.workflowStatusId === status.id || undefined}
+                              onClick={() => {
+                                onSelectWorkflowStatusId(status.id)
+                                setWorkflowPickerOpen(false)
+                                closeMoreDropdown()
+                              }}
+                              role="option"
+                              aria-selected={form.workflowStatusId === status.id}
+                            >
+                              {status.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </Popup>
+                    <button
+                      type="button"
+                      className={styles.moreMenuItem}
+                      onClick={() => {
+                        closeMoreDropdown()
+                        onRemoveFromBoard()
+                      }}
+                      disabled={!userPresent}
+                      role="menuitem"
+                    >
+                      <span>Remove from board</span>
+                    </button>
+                  </>
+                )}
                 <div className={styles.moreMenuDivider} aria-hidden="true" />
                 {!form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
                 {!form.remindExpanded &&

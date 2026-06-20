@@ -5,6 +5,8 @@ import {
   type NoteSaveStatus,
 } from "@/types/notes"
 
+export type NotesAppView = "notes" | "board"
+
 type State = {
   /**
    * Whether the notes results column is visible. On mobile this controls the
@@ -59,6 +61,10 @@ type State = {
    * first and taps the editor to start typing.
    */
   editorAutofocus: boolean
+  /**
+   * Right-hand panel mode: browse saved notes or the Kanban board.
+   */
+  appView: NotesAppView
 }
 
 type Actions = {
@@ -80,6 +86,7 @@ type Actions = {
   ) => void
   setCategoryInputValue: (value: string) => void
   setEditorAutofocus: (autofocus: boolean) => void
+  setAppView: (view: NotesAppView) => void
 }
 
 export type NotesAppStore = State & Actions
@@ -96,6 +103,7 @@ const defaultState: State = {
   pendingTagLabels: [],
   categoryInputValue: "",
   editorAutofocus: true,
+  appView: "notes",
 }
 
 export const useNotesAppStore = create<NotesAppStore>((set) => ({
@@ -147,5 +155,8 @@ export const useNotesAppStore = create<NotesAppStore>((set) => ({
   },
   setEditorAutofocus: (autofocus) => {
     set({ editorAutofocus: autofocus })
+  },
+  setAppView: (view) => {
+    set({ appView: view })
   },
 }))

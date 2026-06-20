@@ -1,0 +1,200 @@
+.boardShell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.boardShellCollapsed {
+  display: none;
+}
+
+.boardColumn {
+  position: relative;
+  margin: 0;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 auto;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  transition:
+    max-width 0.18s ease,
+    min-width 0.18s ease,
+    flex-basis 0.18s ease;
+}
+
+.header {
+  display: flex;
+  flex: 0 0 44px;
+  align-items: center;
+  justify-content: flex-end;
+  height: 44px;
+  overflow: hidden;
+  background: var(--g-color-line-generic, #ffffff1f);
+}
+
+.closeButton {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  transform: scaleX(-1);
+}
+
+.boardBody {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 8px;
+  padding: 8px;
+}
+
+.statusColumn {
+  display: flex;
+  width: 220px;
+  min-width: 220px;
+  min-height: 0;
+  flex: 0 0 220px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.statusHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.statusTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusCount {
+  color: var(--g-color-text-secondary);
+}
+
+.statusActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.statusCards {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.noteCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: var(--g-color-base-background, transparent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.noteCard:hover {
+  border-color: var(--g-color-line-brand, rgba(96, 165, 250, 0.45));
+}
+
+.noteCardActive {
+  border-color: var(--g-color-line-brand, #60a5fa);
+}
+
+.noteCardTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.35;
+}
+
+.noteCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.noteCardBadge {
+  font-size: 11px;
+  color: var(--g-color-text-secondary);
+}
+
+.cardActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.moveMenu {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+}
+
+.moveMenuItem {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.moveMenuItem:hover {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06));
+}
+
+.emptyColumn {
+  padding: 8px 4px;
+  color: var(--g-color-text-secondary);
+}
+
+.listStatus {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+@media (max-width: 720px) {
+  .boardShell {
+    position: absolute;
+    z-index: 30;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: var(--g-color-base-background, #111);
+    transform: translateX(0);
+    transition: transform 0.4s ease;
+  }
+
+  .boardShellCollapsed {
+    display: flex;
+    pointer-events: none;
+    transform: translateX(100%);
+  }
+}

@@ -6,7 +6,7 @@ import { Button, Popup, Spin, Text, TextInput } from "@gravity-ui/uikit"
 import { Notification } from "@mantine/core"
 import { Check, Cloud, Plus, SidebarSimple, User, WarningCircle } from "@phosphor-icons/react"
 import type { UserSummary } from "@lib/db-marketing"
-import { useNotesAppStore } from "@/stores/notesAppStore"
+import { useNotesAppStore, type NotesAppView } from "@/stores/notesAppStore"
 import type { EmbeddingMaintenanceMode, NoteSaveStatus } from "@/types/notes"
 import styles from "./NotesHeader.module.css"
 
@@ -54,6 +54,8 @@ const SOCIAL_PROVIDERS = [
 interface NotesHeaderProps {
   user: UserSummary
   isAnonymous: boolean
+  appView: NotesAppView
+  onAppViewChange: (view: NotesAppView) => void
   resultsListVisible: boolean
   onAddNote: () => void
   onLogout: () => void
@@ -73,6 +75,8 @@ interface NotesHeaderProps {
 export function NotesHeader({
   user,
   isAnonymous,
+  appView,
+  onAppViewChange,
   resultsListVisible,
   onAddNote,
   onLogout,
@@ -120,6 +124,28 @@ export function NotesHeader({
         >
           jot.new
         </span>
+        <div className={styles.viewTabs} role="tablist" aria-label="Notes app views">
+          <button
+            type="button"
+            className={styles.viewTab}
+            data-active={appView === "notes" || undefined}
+            role="tab"
+            aria-selected={appView === "notes"}
+            onClick={() => onAppViewChange("notes")}
+          >
+            Notes
+          </button>
+          <button
+            type="button"
+            className={styles.viewTab}
+            data-active={appView === "board" || undefined}
+            role="tab"
+            aria-selected={appView === "board"}
+            onClick={() => onAppViewChange("board")}
+          >
+            Board
+          </button>
+        </div>
         <SaveStatusIndicator />
       </div>
       <span className={styles.headerButtons}>
@@ -137,7 +163,7 @@ export function NotesHeader({
           view="flat"
           size="m"
           onClick={() => setResultsListVisible(true)}
-          aria-label="Show notes list"
+          aria-label={appView === "board" ? "Show board" : "Show notes list"}
           className={resultsButtonClassName}
         >
           <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />

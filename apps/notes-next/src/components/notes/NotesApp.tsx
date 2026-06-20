@@ -17,8 +17,11 @@ import type {
   SessionResponse,
   UpdateCategoryResponse,
   UpdateTagResponse,
+  UpdateWorkflowStatusResponse,
   UserPreferences,
   UserSummary,
+  WorkflowStatusRecord,
+  WorkflowStatusesResponse,
 } from "@lib/db-marketing"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-marketing/notes-search-constants"
 import {
@@ -38,6 +41,8 @@ import { getErrorMessage, readJson } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import {
   createDefaultNoteForm,
+  getDefaultWorkflowStatusId,
+  noteRecordToInput,
   noteToFormState,
   type EmbeddingMaintenanceMode,
   type NoteFormState,
@@ -51,6 +56,7 @@ import {
   writeNotesCache,
 } from "@/lib/notesCache"
 import { useNotesAppStore } from "@/stores/notesAppStore"
+import { BoardView, type BoardStatusGroup } from "./BoardView"
 import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
@@ -60,6 +66,7 @@ import { DeleteCategoryModal, type DeleteCategoryAction } from "./modals/DeleteC
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
 import { EditTagModal } from "./modals/EditTagModal"
+import { EditWorkflowStatusModal } from "./modals/EditWorkflowStatusModal"
 import styles from "./NotesApp.module.css"
 
 const RESULTS_COLUMN_MIN_WIDTH = 222
@@ -301,6 +308,7 @@ const serializeNoteDraft = (noteId: number | null, form: NoteFormState) =>
     description: form.description,
     timeDue: form.dueExpanded ? form.timeDue : null,
     timeRemind: form.remindExpanded ? form.timeRemind : null,
+    workflowStatusId: form.workflowStatusId,
   })
 
 const noteRequestBody = (form: NoteFormState) => ({
@@ -309,7 +317,10 @@ const noteRequestBody = (form: NoteFormState) => ({
   description: form.description,
   timeDue: form.dueExpanded ? form.timeDue : null,
   timeRemind: form.remindExpanded ? form.timeRemind : null,
+  workflowStatusId: form.workflowStatusId,
 })
+
+const isLibraryNote = (note: NoteRecord) => note.workflowStatus === null
 
 export default function NotesApp() {
   const { data: authSession, status: authStatus } = useSession()
@@ -320,6 +331,7 @@ export default function NotesApp() {
   const [notes, setNotes] = useState<NoteRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [tags, setTags] = useState<TagRecord[]>([])
+  const [workflowStatuses, setWorkflowStatuses] = useState<WorkflowStatusRecord[]>([])
   const fallbackCategoryId = getDefaultCategoryId(categories)
   const fallbackTagId = getDefaultTagId(tags)
   const {
@@ -342,12 +354,15 @@ export default function NotesApp() {
     setCategoryInputValue,
     editorAutofocus,
     setEditorAutofocus,
+    appView,
+    setAppView,
     resetDefaultState: resetNotesAppStore,
   } = useNotesAppStore()
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [sessionLoading, setSessionLoading] = useState(true)
   const [notesUrlSelectionReady, setNotesUrlSelectionReady] = useState(false)
   const [notesLoading, setNotesLoading] = useState(false)
+  const [workflowStatusesLoading, setWorkflowStatusesLoading] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [authPending, setAuthPending] = useState(false)
   const [notePending, setNotePending] = useState(false)
@@ -370,6 +385,11 @@ export default function NotesApp() {
   const [editTagPending, setEditTagPending] = useState(false)
   const [deletingTag, setDeletingTag] = useState<TagRecord | null>(null)
   const [deleteTagPending, setDeleteTagPending] = useState(false)
+  const [editingWorkflowStatus, setEditingWorkflowStatus] = useState<WorkflowStatusRecord | null>(
+    null,
+  )
+  const [editWorkflowStatusLabel, setEditWorkflowStatusLabel] = useState("")
+  const [editWorkflowStatusPending, setEditWorkflowStatusPending] = useState(false)
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
@@ -381,6 +401,7 @@ export default function NotesApp() {
   const notesRef = useRef<NoteRecord[]>(notes)
   const categoriesRef = useRef<CategoryRecord[]>(categories)
   const tagsRef = useRef<TagRecord[]>(tags)
+  const workflowStatusesRef = useRef<WorkflowStatusRecord[]>(workflowStatuses)
   const noteFormRef = useRef<NoteFormState>(noteForm)
   const editingNoteIdRef = useRef<number | null>(editingNoteId)
   const noteSavePromiseRef = useRef<Promise<void> | null>(null)
@@ -556,6 +577,10 @@ export default function NotesApp() {
   useEffect(() => {
     tagsRef.current = tags
   }, [tags])
+
+  useEffect(() => {
+    workflowStatusesRef.current = workflowStatuses
+  }, [workflowStatuses])
 
   useEffect(() => {
     noteFormRef.current = noteForm
@@ -749,6 +774,21 @@ export default function NotesApp() {
     return data.tags
   }, [])
 
+  const loadWorkflowStatuses = useCallback(async (userId: number) => {
+    const showLoadingIndicator = workflowStatusesRef.current.length === 0
+    if (showLoadingIndicator) setWorkflowStatusesLoading(true)
+    try {
+      const response = await fetch(`/api/workflow-statuses?userId=${userId}`, {
+        cache: "no-store",
+      })
+      const data = await readJson<WorkflowStatusesResponse>(response)
+      setWorkflowStatuses(data.workflowStatuses)
+      return data.workflowStatuses
+    } finally {
+      if (showLoadingIndicator) setWorkflowStatusesLoading(false)
+    }
+  }, [])
+
   const runSearch = useCallback(async (userId: number, query: string, limit: number) => {
     const response = await fetch("/api/notes/search", {
       method: "POST",
@@ -787,10 +827,11 @@ export default function NotesApp() {
         updateNotesCacheUser(sessionData.user.id, sessionData.user)
       }
 
-      const [loadedNotes, loadedCategories, loadedTags] = await Promise.all([
+      const [loadedNotes, loadedCategories, loadedTags, loadedWorkflowStatuses] = await Promise.all([
         loadNotes(sessionData.user.id),
         loadCategories(sessionData.user.id),
         loadTags(sessionData.user.id),
+        loadWorkflowStatuses(sessionData.user.id),
       ])
 
       writeNotesCache({
@@ -801,7 +842,13 @@ export default function NotesApp() {
         tags: loadedTags,
       })
 
-      return { sessionData, loadedNotes, loadedCategories, loadedTags }
+      return {
+        sessionData,
+        loadedNotes,
+        loadedCategories,
+        loadedTags,
+        loadedWorkflowStatuses,
+      }
     }
 
     const restoreSession = async () => {
@@ -829,6 +876,7 @@ export default function NotesApp() {
         setNotes(cachedSnapshot.notes)
         setCategories(cachedSnapshot.categories)
         setTags(cachedSnapshot.tags)
+        void loadWorkflowStatuses(cachedSnapshot.userId)
         applyNotesUrlSelection({
           categoryList: cachedSnapshot.categories,
           noteList: cachedSnapshot.notes,
@@ -866,6 +914,7 @@ export default function NotesApp() {
         setUserPreferences({})
         setCategories([])
         setTags([])
+        setWorkflowStatuses([])
         setNotes([])
         resetNotesAppStore()
         setResultsListVisible(!isMobileResultsLayout())
@@ -888,6 +937,7 @@ export default function NotesApp() {
     loadCategories,
     loadTags,
     loadNotes,
+    loadWorkflowStatuses,
     applyNotesUrlSelection,
     resetNotesAppStore,
     setResultsListVisible,
@@ -1019,10 +1069,11 @@ export default function NotesApp() {
 
   const refreshResults = useCallback(
     async (userId: number) => {
-      const [latestNotes, latestCategories, latestTags] = await Promise.all([
+      const [latestNotes, latestCategories, latestTags, latestWorkflowStatuses] = await Promise.all([
         loadNotes(userId),
         loadCategories(userId),
         loadTags(userId),
+        loadWorkflowStatuses(userId),
       ])
       setNoteForm((prev) => {
         if (
@@ -1040,9 +1091,9 @@ export default function NotesApp() {
       if (trimmedSearchQuery) {
         await runSearch(userId, trimmedSearchQuery, NOTES_APP_SEARCH_MAX_RESULTS)
       }
-      return { latestNotes, latestCategories, latestTags }
+      return { latestNotes, latestCategories, latestTags, latestWorkflowStatuses }
     },
-    [loadCategories, loadTags, loadNotes, runSearch, trimmedSearchQuery],
+    [loadCategories, loadTags, loadNotes, loadWorkflowStatuses, runSearch, trimmedSearchQuery],
   )
 
   const saveCurrentNote = useCallback(
@@ -1307,17 +1358,20 @@ export default function NotesApp() {
   const allNoteItems = useMemo<DisplayNoteItem[]>(
     () =>
       [...notes]
+        .filter(isLibraryNote)
         .sort((left, right) => getNoteSortTime(right) - getNoteSortTime(left))
         .map((note) => ({ note })),
     [notes],
   )
+
+  const libraryNotesCount = useMemo(() => notes.filter(isLibraryNote).length, [notes])
 
   const allCategoryItems = useMemo<DisplayNoteItem[]>(
     () => allNoteItems.filter(({ note }) => matchesSelectedTag(note)),
     [allNoteItems, matchesSelectedTag],
   )
 
-  const allCategoriesNoteCount = selectedTagId === null ? notes.length : allCategoryItems.length
+  const allCategoriesNoteCount = selectedTagId === null ? libraryNotesCount : allCategoryItems.length
 
   const categoryNoteGroups = useMemo<CategoryNoteGroup[]>(() => {
     const notesByCategory = new Map<number, NoteRecord[]>()
@@ -1326,6 +1380,7 @@ export default function NotesApp() {
     }
 
     for (const note of notes) {
+      if (!isLibraryNote(note)) continue
       const categoryNotes = notesByCategory.get(note.category.id)
       if (categoryNotes) {
         categoryNotes.push(note)
@@ -1377,6 +1432,38 @@ export default function NotesApp() {
   const selectedTag = useMemo(
     () => (selectedTagId === null ? null : (tags.find((c) => c.id === selectedTagId) ?? null)),
     [tags, selectedTagId],
+  )
+
+  const boardStatusGroups = useMemo<BoardStatusGroup[]>(() => {
+    const notesByStatus = new Map<number, NoteRecord[]>()
+    for (const status of workflowStatuses) {
+      notesByStatus.set(status.id, [])
+    }
+
+    for (const note of notes) {
+      const statusId = note.workflowStatus?.id
+      if (statusId === undefined) continue
+      notesByStatus.get(statusId)?.push(note)
+    }
+
+    return [...workflowStatuses]
+      .sort((left, right) => left.sortOrder - right.sortOrder)
+      .map((status) => ({
+        status,
+        notes: (notesByStatus.get(status.id) ?? []).sort(
+          (left, right) => getNoteSortTime(right) - getNoteSortTime(left),
+        ),
+      }))
+  }, [notes, workflowStatuses])
+
+  const handleAppViewChange = useCallback(
+    (view: "notes" | "board") => {
+      setAppView(view)
+      if (isMobileResultsLayout()) {
+        setResultsListVisible(true)
+      }
+    },
+    [setAppView, setResultsListVisible],
   )
 
   const handleTagValuesChange = (nextValues: string[]) => {
@@ -1494,6 +1581,7 @@ export default function NotesApp() {
               loadCategories(realUserId),
               loadTags(realUserId),
               loadNotes(realUserId),
+              loadWorkflowStatuses(realUserId),
             ])
             writeNotesCache({
               userId: realUserId,
@@ -1556,6 +1644,7 @@ export default function NotesApp() {
     setUserPreferences({})
     setCategories([])
     setTags([])
+    setWorkflowStatuses([])
     setNotes([])
     setSearchQuery("")
     setSearchResults([])
@@ -1836,18 +1925,209 @@ export default function NotesApp() {
       body: JSON.stringify({
         userId: user.id,
         noteId: note.id,
-        note: {
+        note: noteRecordToInput(note, {
           categoryId: nextCategoryId,
           tagIds: nextTagIds,
-          description: note.description ?? "",
-          timeDue: note.timeDue,
-          timeRemind: note.timeRemind,
-        },
+        }),
       }),
     })
     const data = await readJson<{ note: NoteRecord }>(response)
     await refreshResults(user.id)
     return data.note
+  }
+
+  const patchNoteWorkflow = async (note: NoteRecord, workflowStatusId: number | null) => {
+    if (!user) return null
+
+    const response = await fetch("/api/notes", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        noteId: note.id,
+        note: noteRecordToInput(note, { workflowStatusId }),
+      }),
+    })
+    const data = await readJson<{ note: NoteRecord }>(response)
+    await refreshResults(user.id)
+
+    if (editingNoteIdRef.current === note.id) {
+      const nextForm = noteToFormState(data.note)
+      noteFormRef.current = nextForm
+      lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
+      setPendingTagLabels([])
+      setNoteForm(nextForm)
+    }
+
+    return data.note
+  }
+
+  const handleAddToBoard = () => {
+    const defaultStatusId = getDefaultWorkflowStatusId(workflowStatusesRef.current)
+    if (defaultStatusId === null) return
+
+    setNoteForm((prev) => {
+      const next = { ...prev, workflowStatusId: defaultStatusId }
+      noteFormRef.current = next
+      return next
+    })
+
+    const noteId = editingNoteIdRef.current
+    if (noteId === null) return
+
+    const note = notesRef.current.find((item) => item.id === noteId)
+    if (!note || note.workflowStatus?.id === defaultStatusId) return
+
+    clearMessages()
+    setNotePending(true)
+    void patchNoteWorkflow(note, defaultStatusId)
+      .then((updatedNote) => {
+        if (updatedNote) {
+          setStatusMessage("Added to board.")
+        }
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(getErrorMessage(error))
+      })
+      .finally(() => {
+        setNotePending(false)
+      })
+  }
+
+  const handleRemoveFromBoard = () => {
+    setNoteForm((prev) => {
+      const next = { ...prev, workflowStatusId: null }
+      noteFormRef.current = next
+      return next
+    })
+
+    const noteId = editingNoteIdRef.current
+    if (noteId === null) return
+
+    const note = notesRef.current.find((item) => item.id === noteId)
+    if (!note || note.workflowStatus === null) return
+
+    clearMessages()
+    setNotePending(true)
+    void patchNoteWorkflow(note, null)
+      .then((updatedNote) => {
+        if (updatedNote) {
+          setStatusMessage("Removed from board.")
+        }
+      })
+      .catch((error: unknown) => {
+        setErrorMessage(getErrorMessage(error))
+      })
+      .finally(() => {
+        setNotePending(false)
+      })
+  }
+
+  const handleSelectWorkflowStatusId = (workflowStatusId: number) => {
+    setNoteForm((prev) => {
+      const next = { ...prev, workflowStatusId }
+      noteFormRef.current = next
+      return next
+    })
+
+    const noteId = editingNoteIdRef.current
+    if (noteId === null) return
+
+    const note = notesRef.current.find((item) => item.id === noteId)
+    if (!note || note.workflowStatus?.id === workflowStatusId) return
+
+    clearMessages()
+    setNotePending(true)
+    void patchNoteWorkflow(note, workflowStatusId)
+      .catch((error: unknown) => {
+        setErrorMessage(getErrorMessage(error))
+      })
+      .finally(() => {
+        setNotePending(false)
+      })
+  }
+
+  const handleMoveNoteWorkflow = async (note: NoteRecord, workflowStatusId: number) => {
+    if (!user) return
+    if (note.workflowStatus?.id === workflowStatusId) return
+
+    clearMessages()
+    setNotePending(true)
+    try {
+      const updatedNote = await patchNoteWorkflow(note, workflowStatusId)
+      if (updatedNote?.workflowStatus) {
+        setStatusMessage(`Moved to “${updatedNote.workflowStatus.label}”.`)
+      }
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setNotePending(false)
+    }
+  }
+
+  const handleRemoveNoteFromBoard = async (note: NoteRecord) => {
+    if (!user) return
+    if (note.workflowStatus === null) return
+
+    clearMessages()
+    setNotePending(true)
+    try {
+      const updatedNote = await patchNoteWorkflow(note, null)
+      if (updatedNote) {
+        setStatusMessage("Removed from board.")
+      }
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setNotePending(false)
+    }
+  }
+
+  const openEditWorkflowStatus = (status: WorkflowStatusRecord) => {
+    clearMessages()
+    setEditingWorkflowStatus(status)
+    setEditWorkflowStatusLabel(status.label)
+  }
+
+  const closeEditWorkflowStatus = () => {
+    setEditingWorkflowStatus(null)
+    setEditWorkflowStatusLabel("")
+  }
+
+  const handleSaveWorkflowStatus = async () => {
+    if (!user || !editingWorkflowStatus) return
+    const label = editWorkflowStatusLabel.trim()
+    if (label === "" || label === editingWorkflowStatus.label) {
+      closeEditWorkflowStatus()
+      return
+    }
+
+    clearMessages()
+    setEditWorkflowStatusPending(true)
+    try {
+      const response = await fetch("/api/workflow-statuses", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          workflowStatusId: editingWorkflowStatus.id,
+          label,
+        }),
+      })
+      const data = await readJson<UpdateWorkflowStatusResponse>(response)
+      setWorkflowStatuses((prev) =>
+        prev
+          .map((status) => (status.id === data.workflowStatus.id ? data.workflowStatus : status))
+          .sort((left, right) => left.sortOrder - right.sortOrder),
+      )
+      await loadNotes(user.id)
+      setStatusMessage(`Column renamed to “${data.workflowStatus.label}”.`)
+      closeEditWorkflowStatus()
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setEditWorkflowStatusPending(false)
+    }
   }
 
   const handleMoveNoteCategory = async (note: NoteRecord, categoryLabel: string) => {
@@ -2220,6 +2500,7 @@ export default function NotesApp() {
           userPresent={Boolean(user)}
           categories={categories}
           tags={tags}
+          workflowStatuses={workflowStatuses}
           pendingTagLabels={pendingTagLabels}
           descriptionEditorSessionId={descriptionEditorSessionId}
           editorAutofocus={editorAutofocus}
@@ -2231,6 +2512,9 @@ export default function NotesApp() {
           onSelectCategoryId={handleSelectCategory}
           onCreateCategory={handleCreateCategory}
           onTagValuesChange={handleTagValuesChange}
+          onAddToBoard={handleAddToBoard}
+          onRemoveFromBoard={handleRemoveFromBoard}
+          onSelectWorkflowStatusId={handleSelectWorkflowStatusId}
           onSubmit={handleSaveNote}
           onCancelEdit={handleCancelEdit}
           onDeleteEditingNote={() => {
@@ -2243,6 +2527,8 @@ export default function NotesApp() {
               <NotesHeader
                 user={user}
                 isAnonymous={authSession?.user?.isAnonymous ?? false}
+                appView={appView}
+                onAppViewChange={handleAppViewChange}
                 resultsListVisible={resultsListVisible}
                 onAddNote={handleCancelEdit}
                 onLogout={handleLogout}
@@ -2268,7 +2554,7 @@ export default function NotesApp() {
             className={`${styles.mobileResultsOverlay} ${
               resultsListVisible ? "" : styles.mobileResultsOverlayClosing
             }`}
-            aria-label="Hide notes list"
+            aria-label={appView === "board" ? "Hide board" : "Hide notes list"}
             onClick={handleMobileResultsOverlayClick}
           />
         )}
@@ -2278,10 +2564,24 @@ export default function NotesApp() {
           className={`${styles.resizeHandle} ${
             resultsListVisible ? "" : styles.resizeHandleCollapsed
           }`}
-          aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
+          aria-label={
+            resultsListVisible
+              ? appView === "board"
+                ? "Hide board"
+                : "Hide notes list"
+              : appView === "board"
+                ? "Show board"
+                : "Show notes list"
+          }
           aria-pressed={!resultsListVisible}
           title={
-            resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"
+            resultsListVisible
+              ? appView === "board"
+                ? "Drag to resize board; click to hide"
+                : "Drag to resize notes list; click to hide"
+              : appView === "board"
+                ? "Show board"
+                : "Show notes list"
           }
           onPointerDown={handleResizePointerDown}
           onPointerMove={handleResizePointerMove}
@@ -2295,40 +2595,56 @@ export default function NotesApp() {
           }}
         />
 
-        <ResultsColumn
-          visible={resultsListVisible}
-          columnStyle={resultsColumnStyle}
-          tags={tags}
-          notesCount={notes.length}
-          notesLoading={notesLoading}
-          categories={categories}
-          fallbackCategoryId={fallbackCategoryId}
-          fallbackTagId={fallbackTagId}
-          selectedTag={selectedTag}
-          searchMode={searchMode}
-          searchItems={searchItems}
-          searchLoading={searchLoading}
-          allCategoryItems={allCategoryItems}
-          allCategoriesNoteCount={allCategoriesNoteCount}
-          categoryNoteGroups={categoryNoteGroups}
-          allTagItems={allNoteItems}
-          tagNoteGroups={tagNoteGroups}
-          activeNoteId={editingNoteId}
-          activeCategoryId={noteForm.selectedCategoryId}
-          activeTagIds={noteForm.selectedTagIds}
-          onEditNote={handleOpenNoteFromResults}
-          onAddNoteForCategory={handleAddNoteForCategory}
-          onAddNoteForTag={handleAddNoteForTag}
-          onMoveNoteCategory={handleMoveNoteCategory}
-          onMoveNoteTag={handleMoveNoteTag}
-          onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
-          deletingNoteId={deletingNoteId}
-          onEditCategory={openEditCategory}
-          onDeleteCategory={openDeleteCategory}
-          onEditTag={openEditTag}
-          onDeleteTag={openDeleteTag}
-          onClose={handleMobileResultsOverlayClick}
-        />
+        {appView === "notes" ? (
+          <ResultsColumn
+            visible={resultsListVisible}
+            columnStyle={resultsColumnStyle}
+            tags={tags}
+            notesCount={libraryNotesCount}
+            notesLoading={notesLoading}
+            categories={categories}
+            fallbackCategoryId={fallbackCategoryId}
+            fallbackTagId={fallbackTagId}
+            selectedTag={selectedTag}
+            searchMode={searchMode}
+            searchItems={searchItems}
+            searchLoading={searchLoading}
+            allCategoryItems={allCategoryItems}
+            allCategoriesNoteCount={allCategoriesNoteCount}
+            categoryNoteGroups={categoryNoteGroups}
+            allTagItems={allNoteItems}
+            tagNoteGroups={tagNoteGroups}
+            activeNoteId={editingNoteId}
+            activeCategoryId={noteForm.selectedCategoryId}
+            activeTagIds={noteForm.selectedTagIds}
+            onEditNote={handleOpenNoteFromResults}
+            onAddNoteForCategory={handleAddNoteForCategory}
+            onAddNoteForTag={handleAddNoteForTag}
+            onMoveNoteCategory={handleMoveNoteCategory}
+            onMoveNoteTag={handleMoveNoteTag}
+            onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
+            deletingNoteId={deletingNoteId}
+            onEditCategory={openEditCategory}
+            onDeleteCategory={openDeleteCategory}
+            onEditTag={openEditTag}
+            onDeleteTag={openDeleteTag}
+            onClose={handleMobileResultsOverlayClick}
+          />
+        ) : (
+          <BoardView
+            visible={resultsListVisible}
+            columnStyle={resultsColumnStyle}
+            loading={workflowStatusesLoading || notesLoading}
+            workflowStatuses={workflowStatuses}
+            statusGroups={boardStatusGroups}
+            activeNoteId={editingNoteId}
+            onEditNote={handleOpenNoteFromResults}
+            onMoveNoteToStatus={handleMoveNoteWorkflow}
+            onRemoveNoteFromBoard={handleRemoveNoteFromBoard}
+            onEditWorkflowStatus={openEditWorkflowStatus}
+            onClose={handleMobileResultsOverlayClick}
+          />
+        )}
       </div>
 
       <EditCategoryModal
@@ -2362,6 +2678,15 @@ export default function NotesApp() {
         onClose={closeDeleteTag}
         onConfirm={() => void handleConfirmDeleteTag()}
         pending={deleteTagPending}
+      />
+
+      <EditWorkflowStatusModal
+        workflowStatus={editingWorkflowStatus}
+        label={editWorkflowStatusLabel}
+        onLabelChange={setEditWorkflowStatusLabel}
+        onClose={closeEditWorkflowStatus}
+        onSave={() => void handleSaveWorkflowStatus()}
+        pending={editWorkflowStatusPending}
       />
     </div>
   )

@@ -73,6 +73,35 @@
   }
 }
 
+.viewTabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 0.25rem;
+  flex-shrink: 0;
+}
+
+.viewTab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--g-color-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.viewTab:hover {
+  color: var(--g-color-text-primary);
+}
+
+.viewTab[data-active] {
+  color: var(--g-color-text-link);
+  background: color-mix(in srgb, var(--g-color-text-link) 12%, transparent);
+}
+
 .saveIndicator {
   display: inline-flex;
   align-items: center;
