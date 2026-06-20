@@ -4,6 +4,7 @@ export type {
   NoteInput,
   NoteRecord,
   SemanticSearchResult,
+  WorkflowStatusRef,
 } from "../../contracts/notes-app";
 
 export interface NoteEmbeddingWriteInput {

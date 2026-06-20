@@ -46,14 +46,29 @@ export interface NoteTagRef {
   label: string;
 }
 
+export interface WorkflowStatusRef {
+  id: number;
+  label: string;
+  sortOrder: number;
+  isTerminal: boolean;
+}
+
+export interface WorkflowStatusRecord extends WorkflowStatusRef {
+  userId: number;
+  itemCount: number;
+  lastUsedAt: string | null;
+}
+
 export interface NoteRecord {
   id: number;
   userId: number;
   category: NoteCategoryRef;
+  workflowStatus: WorkflowStatusRef | null;
   tags: NoteTagRef[];
   description: string | null;
   timeDue: string | null;
   timeRemind: string | null;
+  timeCompleted: string | null;
   timeCreated: string;
   timeModified: string;
 }
@@ -71,6 +86,7 @@ export interface NoteInput {
   description: string;
   timeDue: string | null;
   timeRemind: string | null;
+  workflowStatusId: number | null;
 }
 
 export interface SessionRequest {
@@ -94,6 +110,10 @@ export interface CategoriesRequest {
   userId: number;
 }
 
+export interface WorkflowStatusesRequest {
+  userId: number;
+}
+
 export interface CreateCategoryRequest {
   userId: number;
   label: string;
@@ -108,6 +128,24 @@ export interface UpdateCategoryRequest {
 export interface DeleteCategoryRequest {
   userId: number;
   categoryId: number;
+}
+
+export interface CreateWorkflowStatusRequest {
+  userId: number;
+  label: string;
+}
+
+export interface UpdateWorkflowStatusRequest {
+  userId: number;
+  workflowStatusId: number;
+  label?: string;
+  sortOrder?: number;
+}
+
+export interface DeleteWorkflowStatusRequest {
+  userId: number;
+  workflowStatusId: number;
+  reassignToId: number;
 }
 
 export interface CreateTagRequest {
@@ -179,6 +217,10 @@ export interface CategoriesResponse {
   categories: CategoryRecord[];
 }
 
+export interface WorkflowStatusesResponse {
+  workflowStatuses: WorkflowStatusRecord[];
+}
+
 export interface CreateCategoryResponse {
   category: CategoryRecord;
 }
@@ -189,6 +231,19 @@ export interface UpdateCategoryResponse {
 
 export interface DeleteCategoryResponse {
   ok: true;
+}
+
+export interface CreateWorkflowStatusResponse {
+  workflowStatus: WorkflowStatusRecord;
+}
+
+export interface UpdateWorkflowStatusResponse {
+  workflowStatus: WorkflowStatusRecord;
+}
+
+export interface DeleteWorkflowStatusResponse {
+  ok: true;
+  reassignedItems: number;
 }
 
 export interface DeleteCategoryWithNotesRequest {

@@ -1,13 +1,28 @@
-import type { NoteCategoryRef, NoteTagRef, NoteRecord } from "./types";
+import type {
+  NoteCategoryRef,
+  NoteTagRef,
+  NoteRecord,
+  WorkflowStatusRef,
+} from "./types";
 import type { PoolClient } from "pg";
 
 export const noteColumns = `
   n.id,
   n.user_id,
   json_build_object('id', cat.id, 'label', cat.label) AS category,
+  CASE
+    WHEN ws.id IS NULL THEN NULL
+    ELSE json_build_object(
+      'id', ws.id,
+      'label', ws.label,
+      'sortOrder', ws.sort_order,
+      'isTerminal', ws.is_terminal
+    )
+  END AS workflow_status,
   n.description,
   n.time_due,
   n.time_remind,
+  n.time_completed,
   n.time_created,
   n.time_modified,
   COALESCE(
@@ -33,15 +48,20 @@ export const noteSelect = `
   JOIN public.user_note_category_v1 cat
     ON cat.id = n.category_id
    AND cat.user_id = n.user_id
+  LEFT JOIN public.user_workflow_status_v1 ws
+    ON ws.id = n.workflow_status_id
+   AND ws.user_id = n.user_id
 `;
 
 export interface NoteRow {
   id: number;
   user_id: number;
   category: unknown;
+  workflow_status: unknown;
   description: string | null;
   time_due: Date | null;
   time_remind: Date | null;
+  time_completed: Date | null;
   time_created: Date;
   time_modified: Date;
   tags: unknown;
@@ -168,17 +188,102 @@ const parseTags = (value: unknown): NoteTagRef[] => {
   );
 };
 
+const parseWorkflowStatus = (value: unknown): WorkflowStatusRef | null => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (
+    typeof value !== "object" ||
+    typeof (value as WorkflowStatusRef).id !== "number" ||
+    typeof (value as WorkflowStatusRef).label !== "string" ||
+    typeof (value as WorkflowStatusRef).sortOrder !== "number" ||
+    typeof (value as WorkflowStatusRef).isTerminal !== "boolean"
+  ) {
+    throw new Error("Note workflow status payload is invalid.");
+  }
+
+  return value as WorkflowStatusRef;
+};
+
 export const mapNote = (row: NoteRow): NoteRecord => ({
   id: row.id,
   userId: row.user_id,
   category: parseCategory(row.category),
+  workflowStatus: parseWorkflowStatus(row.workflow_status),
   tags: parseTags(row.tags),
   description: row.description,
   timeDue: row.time_due?.toISOString() ?? null,
   timeRemind: row.time_remind?.toISOString() ?? null,
+  timeCompleted: row.time_completed?.toISOString() ?? null,
   timeCreated: row.time_created.toISOString(),
   timeModified: row.time_modified.toISOString(),
 });
+
+export const ensureWorkflowStatusIdForUser = async (
+  client: PoolClient,
+  userId: number,
+  workflowStatusId: number
+) => {
+  const { rows } = await client.query<{ c: number }>(
+    `
+      SELECT COUNT(*)::int AS c
+      FROM public.user_workflow_status_v1
+      WHERE user_id = $1
+        AND id = $2
+    `,
+    [userId, workflowStatusId]
+  );
+
+  if (!rows[0] || rows[0].c !== 1) {
+    throw new Error("Workflow status was not found for this user.");
+  }
+};
+
+export const resolveNoteWorkflowFields = async (
+  client: PoolClient,
+  userId: number,
+  workflowStatusId: number | null,
+  currentTimeCompleted: Date | null
+): Promise<{
+  workflowStatusId: number | null;
+  timeCompleted: Date | null;
+}> => {
+  if (workflowStatusId === null) {
+    return {
+      workflowStatusId: null,
+      timeCompleted: currentTimeCompleted,
+    };
+  }
+
+  await ensureWorkflowStatusIdForUser(client, userId, workflowStatusId);
+
+  const { rows } = await client.query<{ is_terminal: boolean }>(
+    `
+      SELECT is_terminal
+      FROM public.user_workflow_status_v1
+      WHERE id = $1
+        AND user_id = $2
+    `,
+    [workflowStatusId, userId]
+  );
+
+  if (!rows[0]) {
+    throw new Error("Workflow status was not found for this user.");
+  }
+
+  if (rows[0].is_terminal) {
+    return {
+      workflowStatusId,
+      timeCompleted: currentTimeCompleted ?? new Date(),
+    };
+  }
+
+  return {
+    workflowStatusId,
+    timeCompleted: null,
+  };
+};
 
 export const ensureCategoryIdForUser = async (
   client: PoolClient,

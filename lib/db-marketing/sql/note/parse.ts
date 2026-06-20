@@ -68,6 +68,25 @@ const parseCategoryId = (value: unknown): number => {
   throw new Error("categoryId must be an integer of at least 1.");
 };
 
+const parseOptionalWorkflowStatusId = (value: unknown): number | null => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === "number" && Number.isInteger(value) && value >= 1) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isInteger(parsed) && parsed >= 1) {
+      return parsed;
+    }
+  }
+
+  throw new Error("workflowStatusId must be null or an integer of at least 1.");
+};
+
 export const parseNoteInput = (value: unknown): NoteInput => {
   if (typeof value !== "object" || value === null) {
     throw new Error("Note payload is required.");
@@ -82,5 +101,6 @@ export const parseNoteInput = (value: unknown): NoteInput => {
       typeof record.description === "string" ? record.description : "",
     timeDue: toOptionalIsoTimestamp(record.timeDue, "Due time"),
     timeRemind: toOptionalIsoTimestamp(record.timeRemind, "Reminder time"),
+    workflowStatusId: parseOptionalWorkflowStatusId(record.workflowStatusId),
   };
 };

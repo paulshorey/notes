@@ -39,12 +39,14 @@ const sampleNote = {
   id: 41,
   userId: sampleUser.id,
   category: { id: 5, label: "work" },
+  workflowStatus: null,
   tags: [
     { id: 12, label: "verify both http adapters" },
   ],
   description: "The Next and Express routes should stay behaviorally aligned.",
   timeDue: "2026-03-18T16:00:00.000Z",
   timeRemind: "2026-03-18T15:30:00.000Z",
+  timeCompleted: null,
   timeCreated: "2026-03-17T10:00:00.000Z",
   timeModified: "2026-03-17T10:05:00.000Z",
 }
@@ -72,6 +74,16 @@ const sampleCategory = {
   lastUsedAt: sampleNote.timeModified,
 }
 
+const sampleWorkflowStatus = {
+  id: 9,
+  userId: sampleUser.id,
+  label: "todo",
+  sortOrder: 1,
+  isTerminal: false,
+  itemCount: 0,
+  lastUsedAt: null,
+}
+
 const sampleEmbeddingMaintenanceResponse = {
   mode: "missing",
   processed: 3,
@@ -97,9 +109,22 @@ export const createFakeNotesAppService = (
   updateNotesAppUserPreferences: async () => ({ user: sampleUser }),
   listNotesForNotesApp: async () => ({ notes: [sampleNote] }),
   listCategoriesForNotesApp: async () => ({ categories: [sampleCategory] }),
+  listWorkflowStatusesForNotesApp: async () => ({
+    workflowStatuses: [sampleWorkflowStatus],
+  }),
   createCategoryForNotesApp: async () => ({ category: sampleCategory }),
+  createWorkflowStatusForNotesApp: async () => ({
+    workflowStatus: sampleWorkflowStatus,
+  }),
   updateCategoryForNotesApp: async () => ({ category: sampleCategory }),
+  updateWorkflowStatusForNotesApp: async () => ({
+    workflowStatus: sampleWorkflowStatus,
+  }),
   deleteCategoryForNotesApp: async () => ({ ok: true }),
+  deleteWorkflowStatusForNotesApp: async () => ({
+    ok: true,
+    reassignedItems: 0,
+  }),
   deleteCategoryWithNotesForNotesApp: async () => ({ ok: true, deletedNotes: 1 }),
   listTagsForNotesApp: async () => ({ tags: [sampleTag] }),
   createTagForNotesApp: async () => ({ tag: sampleTag }),
@@ -587,6 +612,7 @@ export const registerNotesApiAdapterSuite = (
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
           timeRemind: "2026-03-18T15:30:00.000Z",
+          workflowStatusId: null,
         },
       },
     })
@@ -602,6 +628,7 @@ export const registerNotesApiAdapterSuite = (
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
           timeRemind: "2026-03-18T15:30:00.000Z",
+          workflowStatusId: null,
         },
       },
     ])
@@ -652,6 +679,7 @@ export const registerNotesApiAdapterSuite = (
           description: "No due or reminder dates selected.",
           timeDue: null,
           timeRemind: null,
+          workflowStatusId: null,
         },
       },
     ])
@@ -681,6 +709,7 @@ export const registerNotesApiAdapterSuite = (
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
           timeRemind: "2026-03-18T15:30:00.000Z",
+          workflowStatusId: null,
         },
       },
     })

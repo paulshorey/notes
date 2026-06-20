@@ -177,6 +177,16 @@
       "column": "category_id",
       "nullable": false,
       "type": "number"
+    },
+    {
+      "column": "workflow_status_id",
+      "nullable": true,
+      "type": "number"
+    },
+    {
+      "column": "time_completed",
+      "nullable": true,
+      "type": "Date"
     }
   ],
   "user_v1": [
@@ -224,6 +234,43 @@
       "column": "is_anonymous",
       "nullable": false,
       "type": "boolean"
+    }
+  ],
+  "user_workflow_status_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "sort_order",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "is_terminal",
+      "nullable": false,
+      "type": "boolean"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
     }
   ]
 }

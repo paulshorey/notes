@@ -2,6 +2,7 @@ import { getDb } from "../../lib/db/postgres";
 import {
   ensureCategoryIdForUser,
   replaceNoteTagsForNote,
+  resolveNoteWorkflowFields,
   selectNoteById,
   toNullableText,
 } from "./shared";
@@ -23,17 +24,41 @@ export const updateNoteForUser = async (
 
     await ensureCategoryIdForUser(client, userId, note.categoryId);
 
+    const currentResult = await client.query<{ time_completed: Date | null }>(
+      `
+        SELECT time_completed
+        FROM public.user_note_v1
+        WHERE id = $1
+          AND user_id = $2
+      `,
+      [noteId, userId]
+    );
+
+    if (!currentResult.rows[0]) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const workflowFields = await resolveNoteWorkflowFields(
+      client,
+      userId,
+      note.workflowStatusId,
+      currentResult.rows[0].time_completed
+    );
+
     const { rowCount } = await client.query(
       `
         UPDATE public.user_note_v1
         SET
           category_id = $3,
-          description = $4,
-          time_due = $5,
-          time_remind = $6,
-          description_embedding = $7::vector,
-          embedding_model = $8,
-          embedding_updated_at = $9,
+          workflow_status_id = $4,
+          description = $5,
+          time_due = $6,
+          time_remind = $7,
+          time_completed = $8,
+          description_embedding = $9::vector,
+          embedding_model = $10,
+          embedding_updated_at = $11,
           time_modified = CURRENT_TIMESTAMP
         WHERE id = $1
           AND user_id = $2
@@ -42,9 +67,11 @@ export const updateNoteForUser = async (
         noteId,
         userId,
         note.categoryId,
+        workflowFields.workflowStatusId,
         toNullableText(note.description),
         note.timeDue,
         note.timeRemind,
+        workflowFields.timeCompleted?.toISOString() ?? null,
         embeddings.descriptionEmbedding,
         embeddings.embeddingModel,
         embeddingUpdatedAt,

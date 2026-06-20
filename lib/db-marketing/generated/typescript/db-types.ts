@@ -48,6 +48,8 @@ export interface UserNoteV1Row {
   "embedding_updated_at": Date | null;
   "description_embedding": string | null;
   "category_id": number;
+  "workflow_status_id": number | null;
+  "time_completed": Date | null;
 }
 
 export interface UserV1Row {
@@ -62,6 +64,16 @@ export interface UserV1Row {
   "is_anonymous": boolean;
 }
 
+export interface UserWorkflowStatusV1Row {
+  "id": number;
+  "user_id": number;
+  "label": string;
+  "sort_order": number;
+  "is_terminal": boolean;
+  "time_created": Date;
+  "time_modified": Date;
+}
+
 export interface PostgresDbSchema {
   "user_api_token_v1": UserApiTokenV1Row;
   "user_note_category_v1": UserNoteCategoryV1Row;
@@ -69,4 +81,5 @@ export interface PostgresDbSchema {
   "user_note_tag_v1": UserNoteTagV1Row;
   "user_note_v1": UserNoteV1Row;
   "user_v1": UserV1Row;
+  "user_workflow_status_v1": UserWorkflowStatusV1Row;
 }

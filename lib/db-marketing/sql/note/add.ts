@@ -2,6 +2,7 @@ import { getDb } from "../../lib/db/postgres";
 import {
   ensureCategoryIdForUser,
   replaceNoteTagsForNote,
+  resolveNoteWorkflowFields,
   selectNoteById,
   toNullableText,
 } from "./shared";
@@ -21,14 +22,23 @@ export const createNoteForUser = async (
     await client.query("BEGIN");
     await ensureCategoryIdForUser(client, userId, note.categoryId);
 
+    const workflowFields = await resolveNoteWorkflowFields(
+      client,
+      userId,
+      note.workflowStatusId,
+      null
+    );
+
     const { rows } = await client.query<{ id: number }>(
       `
         INSERT INTO public.user_note_v1 (
           user_id,
           category_id,
+          workflow_status_id,
           description,
           time_due,
           time_remind,
+          time_completed,
           description_embedding,
           embedding_model,
           embedding_updated_at
@@ -39,18 +49,22 @@ export const createNoteForUser = async (
           $3,
           $4,
           $5,
-          $6::vector,
+          $6,
           $7,
-          $8
+          $8::vector,
+          $9,
+          $10
         )
         RETURNING id
       `,
       [
         userId,
         note.categoryId,
+        workflowFields.workflowStatusId,
         toNullableText(note.description),
         note.timeDue,
         note.timeRemind,
+        workflowFields.timeCompleted?.toISOString() ?? null,
         embeddings.descriptionEmbedding,
         embeddings.embeddingModel,
         embeddingUpdatedAt,

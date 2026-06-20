@@ -6,6 +6,8 @@ import type {
   CreateNoteRequest,
   CreateTagRequest,
   CreateTagResponse,
+  CreateWorkflowStatusRequest,
+  CreateWorkflowStatusResponse,
   DeleteCategoryRequest,
   DeleteCategoryResponse,
   DeleteCategoryWithNotesRequest,
@@ -14,6 +16,8 @@ import type {
   DeleteResponse,
   DeleteTagRequest,
   DeleteTagResponse,
+  DeleteWorkflowStatusRequest,
+  DeleteWorkflowStatusResponse,
   EmbeddingMaintenanceRequest,
   EmbeddingMaintenanceResponse,
   NotesRequest,
@@ -33,7 +37,11 @@ import type {
   UpdateNoteRequest,
   UpdateTagRequest,
   UpdateTagResponse,
+  UpdateWorkflowStatusRequest,
+  UpdateWorkflowStatusResponse,
   UserPreferences,
+  WorkflowStatusesRequest,
+  WorkflowStatusesResponse,
 } from "../contracts/notes-app";
 import type { PoolClient } from "pg";
 import { getDb } from "../lib/db/postgres";
@@ -76,6 +84,15 @@ import {
   updateTagLabelForUser,
 } from "../sql/tag";
 import {
+  createWorkflowStatusForUser,
+  deleteWorkflowStatusForUser,
+  ensureDefaultWorkflowStatusesForUser,
+  getWorkflowStatusByIdForUser,
+  listWorkflowStatusesByUser,
+  updateWorkflowStatusLabelForUser,
+  updateWorkflowStatusSortOrderForUser,
+} from "../sql/workflow-status";
+import {
   createAnonymousUser,
   createApiTokenForUser,
   deleteApiToken,
@@ -98,6 +115,7 @@ import {
 export const NOTES_APP_NOTE_NOT_FOUND_ERROR = "Note not found.";
 export const NOTES_APP_CATEGORY_NOT_FOUND_ERROR = "Category not found.";
 export const NOTES_APP_TAG_NOT_FOUND_ERROR = "Tag not found.";
+export const NOTES_APP_WORKFLOW_STATUS_NOT_FOUND_ERROR = "Workflow status not found.";
 export const NOTES_APP_USER_NOT_FOUND_ERROR = "User not found.";
 export const NOTES_APP_INVALID_CREDENTIALS_ERROR =
   "Invalid username, email, phone, or password.";
@@ -187,6 +205,12 @@ export const parseCategoriesRequest = (userId: unknown): CategoriesRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 });
 
+export const parseWorkflowStatusesRequest = (
+  userId: unknown
+): WorkflowStatusesRequest => ({
+  userId: parsePositiveInteger(userId, "userId"),
+});
+
 export const parseTagsRequest = (userId: unknown): TagsRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 });
@@ -207,6 +231,10 @@ export const parseCreateCategoryRequest = (
 export const parseCreateTagRequest = (
   value: unknown
 ): CreateTagRequest => parseLabelRequest(value);
+
+export const parseCreateWorkflowStatusRequest = (
+  value: unknown
+): CreateWorkflowStatusRequest => parseLabelRequest(value);
 
 export const parseUpdateCategoryRequest = (
   value: unknown
@@ -230,6 +258,29 @@ export const parseUpdateTagRequest = (value: unknown): UpdateTagRequest => {
   };
 };
 
+export const parseUpdateWorkflowStatusRequest = (
+  value: unknown
+): UpdateWorkflowStatusRequest => {
+  const body = toRequestObject(value);
+  const hasLabel = typeof body.label === "string";
+  const hasSortOrder = body.sortOrder !== undefined && body.sortOrder !== null;
+
+  if (!hasLabel && !hasSortOrder) {
+    throw new Error("label or sortOrder is required.");
+  }
+
+  return {
+    userId: parsePositiveInteger(body.userId, "userId"),
+    workflowStatusId: parsePositiveInteger(body.workflowStatusId, "workflowStatusId"),
+    ...(hasLabel
+      ? { label: normalizeTaxonomyLabel(body.label as string) }
+      : {}),
+    ...(hasSortOrder
+      ? { sortOrder: parsePositiveInteger(body.sortOrder, "sortOrder", { min: 0 }) }
+      : {}),
+  };
+};
+
 export const parseDeleteCategoryRequest = (
   value: unknown
 ): DeleteCategoryRequest => {
@@ -247,6 +298,18 @@ export const parseDeleteTagRequest = (value: unknown): DeleteTagRequest => {
   return {
     userId: parsePositiveInteger(body.userId, "userId"),
     tagId: parsePositiveInteger(body.tagId, "tagId"),
+  };
+};
+
+export const parseDeleteWorkflowStatusRequest = (
+  value: unknown
+): DeleteWorkflowStatusRequest => {
+  const body = toRequestObject(value);
+
+  return {
+    userId: parsePositiveInteger(body.userId, "userId"),
+    workflowStatusId: parsePositiveInteger(body.workflowStatusId, "workflowStatusId"),
+    reassignToId: parsePositiveInteger(body.reassignToId, "reassignToId"),
   };
 };
 
@@ -392,6 +455,22 @@ export const listCategoriesForNotesApp = async (
   categories: await listCategoriesByUser(request.userId),
 });
 
+export const listWorkflowStatusesForNotesApp = async (
+  request: WorkflowStatusesRequest
+): Promise<WorkflowStatusesResponse> => {
+  const client = await getDb().connect();
+
+  try {
+    await ensureDefaultWorkflowStatusesForUser(client, request.userId);
+  } finally {
+    client.release();
+  }
+
+  return {
+    workflowStatuses: await listWorkflowStatusesByUser(request.userId),
+  };
+};
+
 export const listTagsForNotesApp = async (
   request: TagsRequest
 ): Promise<TagsResponse> => {
@@ -505,6 +584,49 @@ export const createTagForNotesApp = async (
   }
 
   return { tag };
+};
+
+export const createWorkflowStatusForNotesApp = async (
+  request: CreateWorkflowStatusRequest
+): Promise<CreateWorkflowStatusResponse> => {
+  const trimmed = normalizeTaxonomyLabel(request.label);
+
+  if (trimmed === "") {
+    throw new Error("label is required.");
+  }
+
+  const client = await getDb().connect();
+  let workflowStatusId: number | null;
+
+  try {
+    await client.query("BEGIN");
+    workflowStatusId = await createWorkflowStatusForUser(
+      client,
+      request.userId,
+      trimmed
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  if (workflowStatusId === null) {
+    throw new Error("Failed to create workflow status.");
+  }
+
+  const workflowStatus = await getWorkflowStatusByIdForUser(
+    request.userId,
+    workflowStatusId
+  );
+
+  if (!workflowStatus) {
+    throw new Error("Failed to load workflow status.");
+  }
+
+  return { workflowStatus };
 };
 
 const updateLabeledEntityForNotesApp = async <T>({
@@ -672,6 +794,64 @@ export const updateTagForNotesApp = async (
   return tag ? { tag } : null;
 };
 
+export const updateWorkflowStatusForNotesApp = async (
+  request: UpdateWorkflowStatusRequest
+): Promise<UpdateWorkflowStatusResponse | null> => {
+  const client = await getDb().connect();
+
+  try {
+    await client.query("BEGIN");
+
+    if (typeof request.label === "string") {
+      const trimmed = normalizeTaxonomyLabel(request.label);
+
+      if (trimmed === "") {
+        throw new Error("label is required.");
+      }
+
+      const updatedId = await updateWorkflowStatusLabelForUser(
+        client,
+        request.userId,
+        request.workflowStatusId,
+        trimmed
+      );
+
+      if (updatedId === null) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+    }
+
+    if (typeof request.sortOrder === "number") {
+      const updatedId = await updateWorkflowStatusSortOrderForUser(
+        client,
+        request.userId,
+        request.workflowStatusId,
+        request.sortOrder
+      );
+
+      if (updatedId === null) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  const workflowStatus = await getWorkflowStatusByIdForUser(
+    request.userId,
+    request.workflowStatusId
+  );
+
+  return workflowStatus ? { workflowStatus } : null;
+};
+
 export const deleteCategoryForNotesApp = async (
   request: DeleteCategoryRequest
 ): Promise<DeleteCategoryResponse | null> => {
@@ -732,6 +912,22 @@ export const deleteTagForNotesApp = async (
   }
 
   return { ok: true, deletedLinks: result.deletedLinks };
+};
+
+export const deleteWorkflowStatusForNotesApp = async (
+  request: DeleteWorkflowStatusRequest
+): Promise<DeleteWorkflowStatusResponse | null> => {
+  const result = await deleteWorkflowStatusForUser(
+    request.userId,
+    request.workflowStatusId,
+    request.reassignToId
+  );
+
+  if (!result.deleted) {
+    return null;
+  }
+
+  return { ok: true, reassignedItems: result.reassignedItems };
 };
 
 export const createNoteForNotesApp = async (
@@ -898,14 +1094,18 @@ export const notesAppService = {
   updateNotesAppUserPreferences,
   listNotesForNotesApp,
   listCategoriesForNotesApp,
+  listWorkflowStatusesForNotesApp,
   listTagsForNotesApp,
   createCategoryForNotesApp,
   createTagForNotesApp,
+  createWorkflowStatusForNotesApp,
   updateCategoryForNotesApp,
   updateTagForNotesApp,
+  updateWorkflowStatusForNotesApp,
   deleteCategoryForNotesApp,
   deleteCategoryWithNotesForNotesApp,
   deleteTagForNotesApp,
+  deleteWorkflowStatusForNotesApp,
   createNoteForNotesApp,
   updateNoteForNotesApp,
   deleteNoteForNotesApp,

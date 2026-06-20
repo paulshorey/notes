@@ -200,6 +200,38 @@
         }
       ]
     },
+    "WorkflowStatusRef": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "sortOrder",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "isTerminal",
+          "optional": false,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
+        }
+      ]
+    },
     "NoteRecord": {
       "fields": [
         {
@@ -222,6 +254,13 @@
           "kind": "model",
           "type": "NoteCategoryRef",
           "nullable": false
+        },
+        {
+          "name": "workflowStatus",
+          "optional": false,
+          "kind": "model",
+          "type": "WorkflowStatusRef",
+          "nullable": true
         },
         {
           "name": "tags",
@@ -249,6 +288,13 @@
         },
         {
           "name": "timeRemind",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeCompleted",
           "optional": false,
           "kind": "scalar",
           "type": "string",
@@ -341,6 +387,13 @@
           "kind": "scalar",
           "type": "string",
           "nullable": true
+        },
+        {
+          "name": "workflowStatusId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
         }
       ]
     },
@@ -406,6 +459,17 @@
         }
       ]
     },
+    "WorkflowStatusesRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
     "CreateCategoryRequest": {
       "fields": [
         {
@@ -460,6 +524,81 @@
         },
         {
           "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "CreateWorkflowStatusRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateWorkflowStatusRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workflowStatusId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "sortOrder",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteWorkflowStatusRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workflowStatusId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "reassignToId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -721,6 +860,20 @@
         }
       ]
     },
+    "WorkflowStatusesResponse": {
+      "fields": [
+        {
+          "name": "workflowStatuses",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "WorkflowStatusRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
     "CreateCategoryResponse": {
       "fields": [
         {
@@ -750,6 +903,46 @@
           "optional": false,
           "kind": "scalar",
           "type": "true",
+          "nullable": false
+        }
+      ]
+    },
+    "CreateWorkflowStatusResponse": {
+      "fields": [
+        {
+          "name": "workflowStatus",
+          "optional": false,
+          "kind": "model",
+          "type": "WorkflowStatusRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateWorkflowStatusResponse": {
+      "fields": [
+        {
+          "name": "workflowStatus",
+          "optional": false,
+          "kind": "model",
+          "type": "WorkflowStatusRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteWorkflowStatusResponse": {
+      "fields": [
+        {
+          "name": "ok",
+          "optional": false,
+          "kind": "scalar",
+          "type": "true",
+          "nullable": false
+        },
+        {
+          "name": "reassignedItems",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
           "nullable": false
         }
       ]

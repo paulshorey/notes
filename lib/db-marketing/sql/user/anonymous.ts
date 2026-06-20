@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { UserV1Row } from "../../generated/typescript/db-types";
 import { getDb } from "../../lib/db/postgres";
 import { ensureDefaultTagForUser } from "../tag";
+import { ensureDefaultWorkflowStatusesForUser } from "../workflow-status";
 import type { UserSummary } from "./types";
 
 const mapUser = (row: UserV1Row): UserSummary => ({
@@ -36,6 +37,7 @@ export const createAnonymousUser = async (): Promise<UserSummary> => {
     }
 
     await ensureDefaultTagForUser(client, rows[0].id);
+    await ensureDefaultWorkflowStatusesForUser(client, rows[0].id);
     await client.query("COMMIT");
 
     return mapUser(rows[0]);
@@ -91,6 +93,33 @@ export const mergeAnonymousUserInto = async (
       [realUserId, anonUserId]
     );
 
+    // Dedupe workflow statuses: insert anon labels into real user, skip conflicts
+    await client.query(
+      `INSERT INTO public.user_workflow_status_v1 (
+         user_id,
+         label,
+         sort_order,
+         is_terminal
+       )
+       SELECT $1, label, sort_order, is_terminal
+       FROM public.user_workflow_status_v1
+       WHERE user_id = $2
+       ON CONFLICT (user_id, label) DO NOTHING`,
+      [realUserId, anonUserId]
+    );
+
+    const workflowStatusRemap = await client.query<{
+      anon_id: number;
+      real_id: number;
+    }>(
+      `SELECT a.id AS anon_id, r.id AS real_id
+       FROM public.user_workflow_status_v1 a
+       JOIN public.user_workflow_status_v1 r
+         ON r.user_id = $1 AND r.label = a.label
+       WHERE a.user_id = $2`,
+      [realUserId, anonUserId]
+    );
+
     // Dedupe tags: insert anon labels into real user, skip conflicts
     await client.query(
       `INSERT INTO public.user_note_tag_v1 (user_id, label)
@@ -121,6 +150,20 @@ export const mergeAnonymousUserInto = async (
          FROM (VALUES ${values}) AS m(anon_id, real_id)
          WHERE n.user_id = $2 AND n.category_id = m.anon_id`,
         [realUserId, anonUserId]
+      );
+    }
+
+    if (workflowStatusRemap.rows.length > 0) {
+      const values = workflowStatusRemap.rows
+        .map((r) => `(${r.anon_id}, ${r.real_id})`)
+        .join(", ");
+      await client.query(
+        `UPDATE public.user_note_v1 n
+         SET workflow_status_id = m.real_id
+         FROM (VALUES ${values}) AS m(anon_id, real_id)
+         WHERE n.user_id = $1
+           AND n.workflow_status_id = m.anon_id`,
+        [realUserId]
       );
     }
 
