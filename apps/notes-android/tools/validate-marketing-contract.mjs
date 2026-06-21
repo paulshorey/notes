@@ -312,6 +312,11 @@ const requiredApiSnippets = [
   'userFromJson(response.getJSONObject("user"))',
   'val notesArray = response.getJSONArray("notes")',
   'noteFromJson(response.getJSONObject("note"))',
+  'val workflowStatusesArray = response.getJSONArray("workflowStatuses")',
+  'add(workflowStatusFromJson(workflowStatusesArray.getJSONObject(index)))',
+  'pathSegments = listOf("api", "workflow-statuses")',
+  '.put("workflowStatusId", workflowStatusId)',
+  'workflowStatusFromJson(response.getJSONObject("workflowStatus"))',
   'val resultsArray = response.getJSONArray("results")',
 ];
 

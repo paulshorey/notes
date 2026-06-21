@@ -3,10 +3,12 @@ package com.eighthbrain.notesandroid.app.data
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.LoginSession
 import com.eighthbrain.notesandroid.app.model.NoteDraft
+import com.eighthbrain.notesandroid.app.model.NoteInput
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.SemanticSearchResult
 import com.eighthbrain.notesandroid.app.model.TagRecord
 import com.eighthbrain.notesandroid.app.model.UserSummary
+import com.eighthbrain.notesandroid.app.model.WorkflowStatusRecord
 import com.eighthbrain.notesandroid.app.model.parseOptionalLocalInputToIso
 import org.json.JSONObject.NULL
 import kotlinx.coroutines.Dispatchers
@@ -179,6 +181,80 @@ class NotesApiClient(
                 )
 
             noteFromJson(response.getJSONObject("note"))
+        }
+
+    suspend fun patchNote(
+        baseUrl: String,
+        token: String,
+        userId: Int,
+        noteId: Int,
+        input: NoteInput,
+    ): NoteRecord =
+        withContext(Dispatchers.IO) {
+            val payload =
+                JSONObject()
+                    .put("userId", userId)
+                    .put("noteId", noteId)
+                    .put("note", noteInputToJson(input))
+
+            val response =
+                execute(
+                    baseUrl = normalizeBaseUrl(baseUrl),
+                    pathSegments = listOf("api", "notes"),
+                    method = "PATCH",
+                    requestBody = payload.toString().toRequestBody(jsonMediaType),
+                    token = token,
+                )
+
+            noteFromJson(response.getJSONObject("note"))
+        }
+
+    suspend fun listWorkflowStatuses(
+        baseUrl: String,
+        token: String,
+    ): List<WorkflowStatusRecord> =
+        withContext(Dispatchers.IO) {
+            val response =
+                execute(
+                    baseUrl = normalizeBaseUrl(baseUrl),
+                    pathSegments = listOf("api", "workflow-statuses"),
+                    token = token,
+                )
+
+            val workflowStatusesArray = response.getJSONArray("workflowStatuses")
+            buildList {
+                for (index in 0 until workflowStatusesArray.length()) {
+                    add(workflowStatusFromJson(workflowStatusesArray.getJSONObject(index)))
+                }
+            }
+        }
+
+    suspend fun updateWorkflowStatus(
+        baseUrl: String,
+        token: String,
+        userId: Int,
+        workflowStatusId: Int,
+        label: String,
+    ): WorkflowStatusRecord =
+        withContext(Dispatchers.IO) {
+            val payload =
+                JSONObject()
+                    .put("userId", userId)
+                    .put("workflowStatusId", workflowStatusId)
+                    .put("label", label.trim())
+                    .toString()
+                    .toRequestBody(jsonMediaType)
+
+            val response =
+                execute(
+                    baseUrl = normalizeBaseUrl(baseUrl),
+                    pathSegments = listOf("api", "workflow-statuses"),
+                    method = "PATCH",
+                    requestBody = payload,
+                    token = token,
+                )
+
+            workflowStatusFromJson(response.getJSONObject("workflowStatus"))
         }
 
     suspend fun createCategory(
@@ -462,5 +538,18 @@ class NotesApiClient(
 
     companion object {
         private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+
+        private fun noteInputToJson(input: NoteInput): JSONObject {
+            val tagIdsJson = JSONArray()
+            input.tagIds.forEach { tagIdsJson.put(it) }
+
+            return JSONObject()
+                .put("categoryId", input.categoryId)
+                .put("tagIds", tagIdsJson)
+                .put("description", input.description)
+                .put("timeDue", input.timeDue ?: NULL)
+                .put("timeRemind", input.timeRemind ?: NULL)
+                .put("workflowStatusId", input.workflowStatusId ?: NULL)
+        }
     }
 }

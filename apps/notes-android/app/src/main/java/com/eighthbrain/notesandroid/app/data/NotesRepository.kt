@@ -9,6 +9,8 @@ import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.UserSummary
 import com.eighthbrain.notesandroid.app.model.WidgetMode
+import com.eighthbrain.notesandroid.app.model.WorkflowStatusRecord
+import com.eighthbrain.notesandroid.app.model.noteRecordToInput
 import com.eighthbrain.notesandroid.app.widget.refreshWidgetsAfterSnapshotChange
 import com.eighthbrain.notesandroid.app.work.WidgetRefreshScheduler
 import kotlinx.coroutines.flow.Flow
@@ -35,6 +37,7 @@ class NotesRepository(
             val categories = apiClient.listCategories(baseUrl, token)
             val tags = apiClient.listTags(baseUrl, token)
             val notes = apiClient.listNotes(baseUrl, token)
+            val workflowStatuses = apiClient.listWorkflowStatuses(baseUrl, token)
             val next =
                 snapshot.copy(
                     user = session.user,
@@ -42,6 +45,7 @@ class NotesRepository(
                     categories = categories,
                     tags = tags,
                     notes = notes,
+                    workflowStatuses = workflowStatuses,
                     lastSearchQuery = "",
                     searchResults = emptyList(),
                     widgetMode = WidgetMode.NOTES,
@@ -223,6 +227,49 @@ class NotesRepository(
         }
     }
 
+    suspend fun setNoteWorkflowStatus(
+        noteId: Int,
+        workflowStatusId: Int?,
+    ): AppSnapshot {
+        val snapshot = readSnapshot()
+        val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
+        val note =
+            snapshot.notes.firstOrNull { it.id == noteId }
+                ?: throw IllegalStateException("Note not found.")
+        return runWithErrorPersistence(snapshot) {
+            apiClient.patchNote(
+                BuildConfig.DEFAULT_API_BASE_URL,
+                token,
+                user.id,
+                noteId,
+                noteRecordToInput(note, workflowStatusId = workflowStatusId),
+            )
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+        }
+    }
+
+    suspend fun updateWorkflowStatusLabel(
+        workflowStatusId: Int,
+        label: String,
+    ): AppSnapshot {
+        val snapshot = readSnapshot()
+        val user = requireUser(snapshot)
+        val token = requireToken(snapshot)
+        val trimmed = label.trim()
+        require(trimmed.isNotEmpty()) { "label is required." }
+        return runWithErrorPersistence(snapshot) {
+            apiClient.updateWorkflowStatus(
+                BuildConfig.DEFAULT_API_BASE_URL,
+                token,
+                user.id,
+                workflowStatusId,
+                trimmed,
+            )
+            syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
+        }
+    }
+
     suspend fun deleteNote(noteId: Int): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
@@ -294,6 +341,8 @@ class NotesRepository(
 
     suspend fun categories(): List<CategoryRecord> = readSnapshot().categories
 
+    suspend fun workflowStatuses(): List<WorkflowStatusRecord> = readSnapshot().workflowStatuses
+
     private suspend fun syncSnapshot(
         snapshot: AppSnapshot,
         refreshSearch: Boolean,
@@ -305,6 +354,7 @@ class NotesRepository(
             val categories = apiClient.listCategories(baseUrl, token)
             val tags = apiClient.listTags(baseUrl, token)
             val notes = apiClient.listNotes(baseUrl, token)
+            val workflowStatuses = apiClient.listWorkflowStatuses(baseUrl, token)
             val results =
                 if (refreshSearch && snapshot.lastSearchQuery.isNotBlank()) {
                     apiClient.semanticSearch(baseUrl, token, verifiedUser.id, snapshot.lastSearchQuery)
@@ -318,6 +368,7 @@ class NotesRepository(
                     categories = categories,
                     tags = tags,
                     notes = notes,
+                    workflowStatuses = workflowStatuses,
                     searchResults = results,
                     lastSyncEpochMillis = System.currentTimeMillis(),
                     lastError = null,

@@ -4,8 +4,8 @@ Networking and persistence layer for the Android Notes app.
 
 ## Files
 
-- `NotesApiClient.kt` - OkHttp client for the deployed `notes-next` REST API (`/api/auth/token`, `/api/session`, `/api/notes`, `/api/tags`, `/api/categories`, `/api/notes/search`). Note saves include explicit `workflowStatusId` (Phase A); workflow status list/CRUD endpoints land in Phase B.
-- `NotesRepository.kt` - orchestration layer that reads/writes `AppSnapshot`, calls the API client, persists errors, updates the widget, and schedules/cancels background refresh.
+- `NotesApiClient.kt` - OkHttp client for the deployed `notes-next` REST API (`/api/auth/token`, `/api/session`, `/api/notes`, `/api/tags`, `/api/categories`, `/api/workflow-statuses`, `/api/notes/search`). Note saves include explicit `workflowStatusId`; `patchNote` builds full `NoteInput` bodies for workflow moves.
+- `NotesRepository.kt` - orchestration layer that reads/writes `AppSnapshot`, calls the API client, persists errors, updates the widget, and schedules/cancels background refresh. `login` / `syncSnapshot` load `workflowStatuses`; use `setNoteWorkflowStatus` and `updateWorkflowStatusLabel` for board changes.
 - `SessionStore.kt` - DataStore-backed persistence for the durable app snapshot, including `workflowStatuses`.
 - `JsonCodec.kt` - JSON serialization helpers for snapshot storage and API payload decoding, including `workflowStatus` / `timeCompleted` on notes.
 
