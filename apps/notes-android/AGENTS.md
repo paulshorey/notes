@@ -1,6 +1,10 @@
 # `notes-android`
 
+## Products
+
 Native Android Notes client built with Kotlin, Jetpack Compose, WorkManager, and Glance. It talks to the deployed `notes-next` REST API only; this package does not currently contain a local `server/` folder and does not access Postgres directly.
+
+**Workflow (notes + board):** implementation plan at [`docs/workflow-implementation-plan.md`](docs/workflow-implementation-plan.md). Android is not yet aligned with the unified library/board model from web Phases 1–3; follow that doc before editing models, API, or UI for workflow status.
 
 ## Folder map
 

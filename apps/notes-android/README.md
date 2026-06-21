@@ -4,6 +4,8 @@ Native Android client for the Notes product. This package is not deployed to Rai
 
 The app always calls the deployed `notes-next` API. There is no local `server/` package here.
 
+For the **notes + board (workflow)** rollout on Android, see [`docs/workflow-implementation-plan.md`](docs/workflow-implementation-plan.md).
+
 ## Structure
 
 - `app/` - Kotlin Android app
