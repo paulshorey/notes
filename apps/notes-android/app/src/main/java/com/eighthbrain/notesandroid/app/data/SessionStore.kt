@@ -24,6 +24,7 @@ private object PreferenceKeys {
     val categoriesJson = stringPreferencesKey("categories_json")
     val tagsJson = stringPreferencesKey("tags_json")
     val notesJson = stringPreferencesKey("notes_json")
+    val workflowStatusesJson = stringPreferencesKey("workflow_statuses_json")
     val lastSearchQuery = stringPreferencesKey("last_search_query")
     val searchResultsJson = stringPreferencesKey("search_results_json")
     val widgetMode = stringPreferencesKey("widget_mode")
@@ -58,6 +59,7 @@ class SessionStore(
             preferences[PreferenceKeys.categoriesJson] = categoriesToJson(snapshot.categories)
             preferences[PreferenceKeys.tagsJson] = tagsToJson(snapshot.tags)
             preferences[PreferenceKeys.notesJson] = notesToJson(snapshot.notes)
+            preferences[PreferenceKeys.workflowStatusesJson] = workflowStatusesToJson(snapshot.workflowStatuses)
             preferences[PreferenceKeys.lastSearchQuery] = snapshot.lastSearchQuery
             preferences[PreferenceKeys.searchResultsJson] = searchResultsToJson(snapshot.searchResults)
             preferences[PreferenceKeys.widgetMode] = snapshot.widgetMode.name
@@ -96,6 +98,9 @@ class SessionStore(
                     .getOrDefault(emptyList()),
             tags = runCatching { tagsFromJson(this[PreferenceKeys.tagsJson]) }.getOrDefault(emptyList()),
             notes = runCatching { notesFromJson(this[PreferenceKeys.notesJson]) }.getOrDefault(emptyList()),
+            workflowStatuses =
+                runCatching { workflowStatusesFromJson(this[PreferenceKeys.workflowStatusesJson]) }
+                    .getOrDefault(emptyList()),
             lastSearchQuery = this[PreferenceKeys.lastSearchQuery].orEmpty(),
             searchResults =
                 runCatching { searchResultsFromJson(this[PreferenceKeys.searchResultsJson]) }

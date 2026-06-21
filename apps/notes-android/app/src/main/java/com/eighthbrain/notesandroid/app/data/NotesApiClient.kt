@@ -158,6 +158,7 @@ class NotesApiClient(
                     .put("description", noteDraft.description)
                     .put("timeDue", parseOptionalLocalInputToIso(noteDraft.dueInput, "Due time") ?: NULL)
                     .put("timeRemind", parseOptionalLocalInputToIso(noteDraft.remindInput, "Reminder time") ?: NULL)
+                    .put("workflowStatusId", noteDraft.workflowStatusId ?: NULL)
 
             val payload =
                 JSONObject()

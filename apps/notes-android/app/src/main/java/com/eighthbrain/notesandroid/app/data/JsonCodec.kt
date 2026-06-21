@@ -9,6 +9,8 @@ import com.eighthbrain.notesandroid.app.model.SemanticSearchResult
 import com.eighthbrain.notesandroid.app.model.TagRecord
 import com.eighthbrain.notesandroid.app.model.UserPreferences
 import com.eighthbrain.notesandroid.app.model.UserSummary
+import com.eighthbrain.notesandroid.app.model.WorkflowStatusRecord
+import com.eighthbrain.notesandroid.app.model.WorkflowStatusRef
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -135,6 +137,62 @@ private fun noteCategoryRefFromJson(json: JSONObject): NoteCategoryRef =
         label = json.getString("label"),
     )
 
+fun workflowStatusRefFromJson(json: JSONObject): WorkflowStatusRef =
+    WorkflowStatusRef(
+        id = json.getInt("id"),
+        label = json.getString("label"),
+        sortOrder = json.getInt("sortOrder"),
+        isTerminal = json.getBoolean("isTerminal"),
+    )
+
+private fun workflowStatusRefToJson(status: WorkflowStatusRef): JSONObject =
+    JSONObject()
+        .put("id", status.id)
+        .put("label", status.label)
+        .put("sortOrder", status.sortOrder)
+        .put("isTerminal", status.isTerminal)
+
+private fun workflowStatusRefFromNoteJson(json: JSONObject): WorkflowStatusRef? {
+    if (!json.has("workflowStatus") || json.isNull("workflowStatus")) {
+        return null
+    }
+    return workflowStatusRefFromJson(json.getJSONObject("workflowStatus"))
+}
+
+fun workflowStatusToJson(status: WorkflowStatusRecord): JSONObject =
+    JSONObject()
+        .put("id", status.id)
+        .put("label", status.label)
+        .put("sortOrder", status.sortOrder)
+        .put("isTerminal", status.isTerminal)
+        .put("userId", status.userId)
+        .put("itemCount", status.itemCount)
+        .put("lastUsedAt", status.lastUsedAt)
+
+fun workflowStatusFromJson(json: JSONObject): WorkflowStatusRecord =
+    WorkflowStatusRecord(
+        id = json.getInt("id"),
+        label = json.getString("label"),
+        sortOrder = json.getInt("sortOrder"),
+        isTerminal = json.getBoolean("isTerminal"),
+        userId = json.getInt("userId"),
+        itemCount = json.getInt("itemCount"),
+        lastUsedAt = json.stringOrNull("lastUsedAt"),
+    )
+
+fun workflowStatusesToJson(statuses: List<WorkflowStatusRecord>): String =
+    JSONArray().apply { statuses.forEach { put(workflowStatusToJson(it)) } }.toString()
+
+fun workflowStatusesFromJson(raw: String?): List<WorkflowStatusRecord> {
+    return safeDecodeList(raw) { array ->
+        buildList {
+            for (index in 0 until array.length()) {
+                add(workflowStatusFromJson(array.getJSONObject(index)))
+            }
+        }
+    }
+}
+
 private fun noteCategoryRefFromLegacyJson(json: JSONObject): NoteCategoryRef =
     NoteCategoryRef(
         id = json.getInt("id"),
@@ -196,10 +254,15 @@ fun noteToJson(note: NoteRecord): JSONObject {
         .put("id", note.id)
         .put("userId", note.userId)
         .put("category", noteCategoryRefToJson(note.category))
+        .put(
+            "workflowStatus",
+            note.workflowStatus?.let(::workflowStatusRefToJson) ?: JSONObject.NULL,
+        )
         .put("tags", tagsJson)
         .put("description", note.description)
         .put("timeDue", note.timeDue)
         .put("timeRemind", note.timeRemind)
+        .put("timeCompleted", note.timeCompleted)
         .put("timeCreated", note.timeCreated)
         .put("timeModified", note.timeModified)
 }
@@ -209,10 +272,12 @@ fun noteFromJson(json: JSONObject): NoteRecord =
         id = json.getInt("id"),
         userId = json.getInt("userId"),
         category = categoryFromNoteJson(json),
+        workflowStatus = workflowStatusRefFromNoteJson(json),
         tags = tagsArrayFromJson(json),
         description = json.stringOrNull("description"),
         timeDue = json.stringOrNull("timeDue"),
         timeRemind = json.stringOrNull("timeRemind"),
+        timeCompleted = json.stringOrNull("timeCompleted"),
         timeCreated = json.getString("timeCreated"),
         timeModified = json.getString("timeModified"),
     )

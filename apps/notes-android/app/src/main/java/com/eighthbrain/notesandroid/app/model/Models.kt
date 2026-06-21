@@ -60,17 +60,75 @@ data class NoteTagRef(
     val label: String,
 )
 
+data class WorkflowStatusRef(
+    val id: Int,
+    val label: String,
+    val sortOrder: Int,
+    val isTerminal: Boolean,
+)
+
+data class WorkflowStatusRecord(
+    val id: Int,
+    val label: String,
+    val sortOrder: Int,
+    val isTerminal: Boolean,
+    val userId: Int,
+    val itemCount: Int,
+    val lastUsedAt: String?,
+)
+
 data class NoteRecord(
     val id: Int,
     val userId: Int,
     val category: NoteCategoryRef,
+    val workflowStatus: WorkflowStatusRef?,
     val tags: List<NoteTagRef>,
     val description: String?,
     val timeDue: String?,
     val timeRemind: String?,
+    val timeCompleted: String?,
     val timeCreated: String,
     val timeModified: String,
 )
+
+fun NoteRecord.isLibraryNote(): Boolean = workflowStatus == null
+
+fun NoteRecord.isOnBoard(): Boolean = workflowStatus != null
+
+fun getDefaultWorkflowStatusId(
+    workflowStatuses: List<WorkflowStatusRecord>,
+): Int? {
+    workflowStatuses.find { it.label == "todo" }?.let { return it.id }
+    workflowStatuses.firstOrNull { !it.isTerminal }?.let { return it.id }
+    return workflowStatuses.firstOrNull()?.id
+}
+
+data class NoteInput(
+    val categoryId: Int,
+    val tagIds: List<Int>,
+    val description: String,
+    val timeDue: String?,
+    val timeRemind: String?,
+    val workflowStatusId: Int?,
+)
+
+fun noteRecordToInput(
+    note: NoteRecord,
+    categoryId: Int = note.category.id,
+    tagIds: List<Int> = note.tags.map { it.id },
+    description: String = note.description.orEmpty(),
+    timeDue: String? = note.timeDue,
+    timeRemind: String? = note.timeRemind,
+    workflowStatusId: Int? = note.workflowStatus?.id,
+): NoteInput =
+    NoteInput(
+        categoryId = categoryId,
+        tagIds = tagIds,
+        description = description,
+        timeDue = timeDue,
+        timeRemind = timeRemind,
+        workflowStatusId = workflowStatusId,
+    )
 
 fun List<NoteRecord>.sortedByLastUpdated(): List<NoteRecord> =
     sortedByDescending { Instant.parse(it.timeModified) }
@@ -92,6 +150,7 @@ data class NoteDraft(
     val remindInput: String? = null,
     val dueExpanded: Boolean = false,
     val remindExpanded: Boolean = false,
+    val workflowStatusId: Int? = null,
 )
 
 data class AppSnapshot(
@@ -100,6 +159,7 @@ data class AppSnapshot(
     val categories: List<CategoryRecord> = emptyList(),
     val tags: List<TagRecord> = emptyList(),
     val notes: List<NoteRecord> = emptyList(),
+    val workflowStatuses: List<WorkflowStatusRecord> = emptyList(),
     val lastSearchQuery: String = "",
     val searchResults: List<SemanticSearchResult> = emptyList(),
     val widgetMode: WidgetMode = WidgetMode.NOTES,
@@ -130,6 +190,7 @@ fun NoteRecord.toDraft(): NoteDraft =
         remindInput = timeRemind?.let(::isoToLocalInput),
         dueExpanded = timeDue != null,
         remindExpanded = timeRemind != null,
+        workflowStatusId = workflowStatus?.id,
     )
 
 fun NoteRecord.headline(): String {
