@@ -115,6 +115,42 @@ fun libraryNoteCountsByTag(notes: List<NoteRecord>): Map<Int, Int> {
     return counts
 }
 
+data class LibraryPickerCounts(
+    val total: Int,
+    val byCategory: Map<Int, Int>,
+    val byTag: Map<Int, Int>,
+)
+
+fun libraryPickerCounts(
+    notes: List<NoteRecord>,
+    selectedCategoryId: Int? = null,
+    selectedTagId: Int? = null,
+): LibraryPickerCounts {
+    val libraryNotes = notes.libraryNotes()
+    val filteredForTotal =
+        libraryNotes.filter { note ->
+            (selectedTagId == null || note.tags.any { it.id == selectedTagId }) &&
+                (selectedCategoryId == null || note.category.id == selectedCategoryId)
+        }
+    val categoryBase =
+        if (selectedTagId == null) {
+            libraryNotes
+        } else {
+            libraryNotes.filter { note -> note.tags.any { it.id == selectedTagId } }
+        }
+    val tagBase =
+        if (selectedCategoryId == null) {
+            libraryNotes
+        } else {
+            libraryNotes.filter { note -> note.category.id == selectedCategoryId }
+        }
+    return LibraryPickerCounts(
+        total = filteredForTotal.size,
+        byCategory = libraryNoteCountsByCategory(categoryBase),
+        byTag = libraryNoteCountsByTag(tagBase),
+    )
+}
+
 fun getDefaultWorkflowStatusId(
     workflowStatuses: List<WorkflowStatusRecord>,
 ): Int? {

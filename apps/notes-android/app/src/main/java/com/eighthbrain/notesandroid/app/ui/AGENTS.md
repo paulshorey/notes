@@ -20,7 +20,7 @@ Compose UI for the main app plus the small overlay activities used by widget-tri
 - `LaunchRequest` normalizes both explicit widget extras and the `notes-android://search` deep link into one handling path.
 - Widget delete launches `WidgetDeleteNoteActivity` (confirmation overlay), not `MainActivity`. Edit still uses `MainActivity.createLaunchIntent`. See `.cursor/skills/android-widget-actions/SKILL.md`.
 - Tag editing and deletion are inline flows driven by hoisted state rather than separate screens.
-- Category/tag picker counts in the main app use library notes only (`libraryNoteCountsByCategory` / `libraryNoteCountsByTag`); widget overlays still use server `noteCount` until Phase D.
+- Category/tag picker counts in the main app use library notes only (`libraryPickerCounts` in `Models.kt`); widget overlays use the same helper with widget Glance filter cross-counts.
 
 ## Non-obvious rules
 
@@ -30,6 +30,7 @@ Compose UI for the main app plus the small overlay activities used by widget-tri
 - `clearWidgetExpandedStateForNote(...)` must stay aligned with widget delete behavior so stale expansion state does not remain for removed notes.
 - Board note moves and remove-from-board go through `NotesRepository.setNoteWorkflowStatus()` / `noteRecordToInput()` — never partial PATCH bodies from the UI layer.
 - Editor workflow controls: add to board (default column), column picker, remove from board; `timeCompleted` is read-only after sync.
+- `WidgetNoteEditorActivity` must pass `workflowStatusId` through `NoteDraft` on save (`note.toDraft()` on load). New widget captures default to `null` (library). No board UI in widget editor v1.
 
 ## Maintenance
 

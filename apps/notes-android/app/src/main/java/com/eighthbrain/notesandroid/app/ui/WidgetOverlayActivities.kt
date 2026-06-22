@@ -49,8 +49,10 @@ import com.eighthbrain.notesandroid.app.NotesApplication
 import com.eighthbrain.notesandroid.app.data.NotesRepository
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.TagRecord
+import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.headline
+import com.eighthbrain.notesandroid.app.model.libraryPickerCounts
 import com.eighthbrain.notesandroid.app.model.toDraft
 import com.eighthbrain.notesandroid.app.widget.clearWidgetExpandedStateForNote
 import com.eighthbrain.notesandroid.app.widget.NotesHomeWidget
@@ -352,6 +354,8 @@ private fun WidgetCategoryPickerScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     var categories by remember { mutableStateOf<List<CategoryRecord>>(emptyList()) }
     var totalNoteCount by remember { mutableStateOf(0) }
+    var categoryNoteCounts by remember { mutableStateOf<Map<Int, Int>?>(null) }
+    var crossTagFilterId by remember { mutableStateOf<Int?>(null) }
     var activeId by remember { mutableStateOf<Int?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -377,13 +381,29 @@ private fun WidgetCategoryPickerScreen(
         }
     }
 
+    fun refreshLibraryCounts(notes: List<NoteRecord>) {
+        val counts = libraryPickerCounts(notes, selectedTagId = crossTagFilterId)
+        totalNoteCount = counts.total
+        categoryNoteCounts = counts.byCategory
+    }
+
     LaunchedEffect(repository) {
         val snapshot = repository.readSnapshot()
         categories = snapshot.categories
-        totalNoteCount = snapshot.notes.size
         val appContext = context.applicationContext
         val manager = GlanceAppWidgetManager(appContext)
         val glanceIds = manager.getGlanceIds(NotesHomeWidget::class.java)
+        crossTagFilterId =
+            glanceIds.firstNotNullOfOrNull { glanceId ->
+                val prefs =
+                    getAppWidgetState(
+                        appContext,
+                        PreferencesGlanceStateDefinition,
+                        glanceId,
+                    )
+                readTagFilterId(prefs)
+            }
+        refreshLibraryCounts(snapshot.notes)
         activeId =
             glanceIds.firstNotNullOfOrNull { glanceId ->
                 val prefs =
@@ -434,7 +454,7 @@ private fun WidgetCategoryPickerScreen(
             try {
                 val snapshot = repository.updateCategory(id, trimmed)
                 categories = snapshot.categories
-                totalNoteCount = snapshot.notes.size
+                refreshLibraryCounts(snapshot.notes)
                 editingId = null
                 editingDraft = ""
             } catch (exception: Exception) {
@@ -461,7 +481,7 @@ private fun WidgetCategoryPickerScreen(
                 try {
                     val snapshot = repository.deleteCategory(category.id)
                     categories = snapshot.categories
-                    totalNoteCount = snapshot.notes.size
+                    refreshLibraryCounts(snapshot.notes)
                     if (activeId == category.id) {
                         writeWidgetFilter(null)
                         activeId = null
@@ -489,7 +509,7 @@ private fun WidgetCategoryPickerScreen(
             try {
                 val snapshot = repository.deleteCategory(id)
                 categories = snapshot.categories
-                totalNoteCount = snapshot.notes.size
+                refreshLibraryCounts(snapshot.notes)
                 deletingId = null
                 if (activeId == id) {
                     writeWidgetFilter(null)
@@ -515,6 +535,7 @@ private fun WidgetCategoryPickerScreen(
         CategoriesPopupList(
             categories = categories,
             totalNoteCount = totalNoteCount,
+            categoryNoteCounts = categoryNoteCounts,
             selectedCategoryId = activeId,
             editingCategoryId = editingId,
             editingDraft = editingDraft,
@@ -542,6 +563,8 @@ private fun WidgetTagPickerScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     var tags by remember { mutableStateOf<List<TagRecord>>(emptyList()) }
     var totalNoteCount by remember { mutableStateOf(0) }
+    var tagNoteCounts by remember { mutableStateOf<Map<Int, Int>?>(null) }
+    var crossCategoryFilterId by remember { mutableStateOf<Int?>(null) }
     var activeId by remember { mutableStateOf<Int?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -567,13 +590,29 @@ private fun WidgetTagPickerScreen(
         }
     }
 
+    fun refreshLibraryCounts(notes: List<NoteRecord>) {
+        val counts = libraryPickerCounts(notes, selectedCategoryId = crossCategoryFilterId)
+        totalNoteCount = counts.total
+        tagNoteCounts = counts.byTag
+    }
+
     LaunchedEffect(repository) {
         val snapshot = repository.readSnapshot()
         tags = snapshot.tags
-        totalNoteCount = snapshot.notes.size
         val appContext = context.applicationContext
         val manager = GlanceAppWidgetManager(appContext)
         val glanceIds = manager.getGlanceIds(NotesHomeWidget::class.java)
+        crossCategoryFilterId =
+            glanceIds.firstNotNullOfOrNull { glanceId ->
+                val prefs =
+                    getAppWidgetState(
+                        appContext,
+                        PreferencesGlanceStateDefinition,
+                        glanceId,
+                    )
+                readCategoryFilterId(prefs)
+            }
+        refreshLibraryCounts(snapshot.notes)
         activeId =
             glanceIds.firstNotNullOfOrNull { glanceId ->
                 val prefs =
@@ -624,7 +663,7 @@ private fun WidgetTagPickerScreen(
             try {
                 val snapshot = repository.updateTag(id, trimmed)
                 tags = snapshot.tags
-                totalNoteCount = snapshot.notes.size
+                refreshLibraryCounts(snapshot.notes)
                 editingId = null
                 editingDraft = ""
             } catch (exception: Exception) {
@@ -652,7 +691,7 @@ private fun WidgetTagPickerScreen(
                 try {
                     val snapshot = repository.deleteTag(tag.id)
                     tags = snapshot.tags
-                    totalNoteCount = snapshot.notes.size
+                    refreshLibraryCounts(snapshot.notes)
                     if (activeId == tag.id) {
                         writeWidgetFilter(null)
                         activeId = null
@@ -680,7 +719,7 @@ private fun WidgetTagPickerScreen(
             try {
                 val snapshot = repository.deleteTag(id)
                 tags = snapshot.tags
-                totalNoteCount = snapshot.notes.size
+                refreshLibraryCounts(snapshot.notes)
                 deletingId = null
                 if (activeId == id) {
                     writeWidgetFilter(null)
@@ -706,6 +745,7 @@ private fun WidgetTagPickerScreen(
         TagsPopupList(
             tags = tags,
             totalNoteCount = totalNoteCount,
+            tagNoteCounts = tagNoteCounts,
             selectedTagId = activeId,
             editingTagId = editingId,
             editingDraft = editingDraft,
@@ -740,6 +780,7 @@ private fun WidgetNoteEditorScreen(
     var description by remember { mutableStateOf("") }
     var dueInput by remember { mutableStateOf(NoteDraft().dueInput) }
     var remindInput by remember { mutableStateOf(NoteDraft().remindInput) }
+    var workflowStatusId by remember { mutableStateOf<Int?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -755,9 +796,11 @@ private fun WidgetNoteEditorScreen(
             description = draft.description
             dueInput = draft.dueInput
             remindInput = draft.remindInput
+            workflowStatusId = draft.workflowStatusId
         } else {
             selectedCategoryId = categories.firstOrNull()?.id
             selectedTagIds = emptyList()
+            workflowStatusId = null
         }
     }
 
@@ -964,6 +1007,7 @@ private fun WidgetNoteEditorScreen(
                                     description = description,
                                     dueInput = dueInput,
                                     remindInput = remindInput,
+                                    workflowStatusId = workflowStatusId,
                                 ),
                         )
                         finishOverlay()

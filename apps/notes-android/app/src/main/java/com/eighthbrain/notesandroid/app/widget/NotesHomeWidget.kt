@@ -57,6 +57,7 @@ import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.descriptionBody
 import com.eighthbrain.notesandroid.app.model.formatConciseDate
 import com.eighthbrain.notesandroid.app.model.headline
+import com.eighthbrain.notesandroid.app.model.isLibraryNote
 import com.eighthbrain.notesandroid.app.model.sortedByLastUpdated
 import com.eighthbrain.notesandroid.app.ui.MainActivity
 import com.eighthbrain.notesandroid.app.ui.WidgetCategoryPickerActivity
@@ -136,9 +137,9 @@ private fun WidgetContent(snapshot: AppSnapshot) {
     val tagFilterId = readTagFilterId(widgetState)
     val filteredNotes =
         snapshot.notes.filter { note ->
-            val matchesCategory = categoryFilterId == null || note.category.id == categoryFilterId
-            val matchesTag = tagFilterId == null || note.tags.any { tag -> tag.id == tagFilterId }
-            matchesCategory && matchesTag
+            note.isLibraryNote() &&
+                (categoryFilterId == null || note.category.id == categoryFilterId) &&
+                (tagFilterId == null || note.tags.any { tag -> tag.id == tagFilterId })
         }
     val sortedNotes = filteredNotes.sortedByLastUpdated().take(12)
     val activeCategoryLabel =

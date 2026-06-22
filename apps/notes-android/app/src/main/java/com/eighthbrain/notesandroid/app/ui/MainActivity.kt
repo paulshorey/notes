@@ -99,9 +99,7 @@ import com.eighthbrain.notesandroid.app.model.formatPercent
 import com.eighthbrain.notesandroid.app.model.getDefaultWorkflowStatusId
 import com.eighthbrain.notesandroid.app.model.headline
 import com.eighthbrain.notesandroid.app.model.isLibraryNote
-import com.eighthbrain.notesandroid.app.model.libraryNoteCountsByCategory
-import com.eighthbrain.notesandroid.app.model.libraryNoteCountsByTag
-import com.eighthbrain.notesandroid.app.model.libraryNotes
+import com.eighthbrain.notesandroid.app.model.libraryPickerCounts
 import com.eighthbrain.notesandroid.app.model.sortedByLastUpdatedDescending
 import com.eighthbrain.notesandroid.app.model.toDraft
 import com.eighthbrain.notesandroid.app.widget.clearWidgetExpandedStateForNote
@@ -1425,7 +1423,11 @@ private fun CategoriesPickerDialog(
 ) {
     val pickerCounts =
         remember(uiState.snapshot.notes, uiState.selectedCategoryId, uiState.selectedTagId) {
-            libraryPickerCounts(uiState)
+            libraryPickerCounts(
+                notes = uiState.snapshot.notes,
+                selectedCategoryId = uiState.selectedCategoryId,
+                selectedTagId = uiState.selectedTagId,
+            )
         }
     Dialog(
         onDismissRequest = onDismiss,
@@ -1492,7 +1494,11 @@ private fun TagsPickerDialog(
 ) {
     val pickerCounts =
         remember(uiState.snapshot.notes, uiState.selectedCategoryId, uiState.selectedTagId) {
-            libraryPickerCounts(uiState)
+            libraryPickerCounts(
+                notes = uiState.snapshot.notes,
+                selectedCategoryId = uiState.selectedCategoryId,
+                selectedTagId = uiState.selectedTagId,
+            )
         }
     Dialog(
         onDismissRequest = onDismiss,
@@ -2133,40 +2139,6 @@ private fun TagComboField(
             }
         }
     }
-}
-
-private data class LibraryPickerCounts(
-    val total: Int,
-    val byCategory: Map<Int, Int>,
-    val byTag: Map<Int, Int>,
-)
-
-private fun libraryPickerCounts(uiState: NotesUiState): LibraryPickerCounts {
-    val selectedCategoryId = uiState.selectedCategoryId
-    val selectedTagId = uiState.selectedTagId
-    val libraryNotes = uiState.snapshot.notes.libraryNotes()
-    val filteredForTotal =
-        libraryNotes.filter { note ->
-            (selectedTagId == null || note.tags.any { it.id == selectedTagId }) &&
-                (selectedCategoryId == null || note.category.id == selectedCategoryId)
-        }
-    val categoryBase =
-        if (selectedTagId == null) {
-            libraryNotes
-        } else {
-            libraryNotes.filter { note -> note.tags.any { it.id == selectedTagId } }
-        }
-    val tagBase =
-        if (selectedCategoryId == null) {
-            libraryNotes
-        } else {
-            libraryNotes.filter { note -> note.category.id == selectedCategoryId }
-        }
-    return LibraryPickerCounts(
-        total = filteredForTotal.size,
-        byCategory = libraryNoteCountsByCategory(categoryBase),
-        byTag = libraryNoteCountsByTag(tagBase),
-    )
 }
 
 private fun <T> matchingLabels(
