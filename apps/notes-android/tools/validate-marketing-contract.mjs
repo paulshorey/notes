@@ -25,11 +25,18 @@ const modelsContent = await fs.readFile(modelsPath, "utf8");
 const jsonCodecContent = await fs.readFile(jsonCodecPath, "utf8");
 const apiClientContent = await fs.readFile(apiClientPath, "utf8");
 
-const requiredModels = ["UserSummary", "TagRecord", "NoteRecord", "SemanticSearchResult"];
+const requiredModels = [
+  "UserSummary",
+  "TagRecord",
+  "NoteRecord",
+  "WorkflowStatusRecord",
+  "SemanticSearchResult",
+];
 const jsonCodecBindings = [
   { functionName: "userFromJson", modelName: "UserSummary" },
   { functionName: "tagFromJson", modelName: "TagRecord" },
   { functionName: "noteFromJson", modelName: "NoteRecord" },
+  { functionName: "workflowStatusFromJson", modelName: "WorkflowStatusRecord" },
   { functionName: "searchResultFromJson", modelName: "SemanticSearchResult" },
 ];
 
@@ -273,7 +280,9 @@ for (const binding of jsonCodecBindings) {
     const compatibilityPattern =
       binding.functionName === "noteFromJson" && expectedField.name === "category"
         ? /^categoryFromNoteJson\(json\)$/
-        : null;
+        : binding.functionName === "noteFromJson" && expectedField.name === "workflowStatus"
+          ? /^workflowStatusRefFromNoteJson\(json\)$/
+          : null;
 
     if (!pattern.test(assignment.expression) && !(compatibilityPattern?.test(assignment.expression))) {
       throw new Error(
@@ -294,6 +303,7 @@ const requiredApiSnippets = [
   '.put("description", noteDraft.description)',
   '.put("timeDue", parseOptionalLocalInputToIso(noteDraft.dueInput, "Due time") ?: NULL)',
   '.put("timeRemind", parseOptionalLocalInputToIso(noteDraft.remindInput, "Reminder time") ?: NULL)',
+  '.put("workflowStatusId", noteDraft.workflowStatusId ?: NULL)',
   '.put("userId", userId)',
   '.put("note", noteJson)',
   '.put("noteId", noteId)',
@@ -302,6 +312,11 @@ const requiredApiSnippets = [
   'userFromJson(response.getJSONObject("user"))',
   'val notesArray = response.getJSONArray("notes")',
   'noteFromJson(response.getJSONObject("note"))',
+  'val workflowStatusesArray = response.getJSONArray("workflowStatuses")',
+  'add(workflowStatusFromJson(workflowStatusesArray.getJSONObject(index)))',
+  'pathSegments = listOf("api", "workflow-statuses")',
+  '.put("workflowStatusId", workflowStatusId)',
+  'workflowStatusFromJson(response.getJSONObject("workflowStatus"))',
   'val resultsArray = response.getJSONArray("results")',
 ];
 

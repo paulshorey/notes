@@ -41,6 +41,7 @@ import com.eighthbrain.notesandroid.app.model.TagRecord
 fun TagsPopupList(
     tags: List<TagRecord>,
     totalNoteCount: Int,
+    tagNoteCounts: Map<Int, Int>? = null,
     selectedTagId: Int?,
     editingTagId: Int?,
     editingDraft: String,
@@ -104,6 +105,7 @@ fun TagsPopupList(
                     deletingTagId == tag.id ->
                         TagDeleteConfirmRow(
                             tag = tag,
+                            noteCount = tagNoteCounts?.get(tag.id) ?: tag.noteCount,
                             busy = busy,
                             onConfirm = onConfirmDelete,
                             onCancel = onCancelDelete,
@@ -111,6 +113,7 @@ fun TagsPopupList(
                     else ->
                         TagDefaultRow(
                             tag = tag,
+                            noteCount = tagNoteCounts?.get(tag.id) ?: tag.noteCount,
                             isActive = selectedTagId == tag.id,
                             isProtected = tag.id == protectedTagId,
                             busy = busy,
@@ -136,6 +139,7 @@ fun TagsPopupList(
 @Composable
 private fun TagDefaultRow(
     tag: TagRecord,
+    noteCount: Int,
     isActive: Boolean,
     isProtected: Boolean,
     busy: Boolean,
@@ -168,7 +172,7 @@ private fun TagDefaultRow(
                     .padding(horizontal = 4.dp, vertical = 12.dp),
         )
         Text(
-            text = tag.noteCount.toString(),
+            text = noteCount.toString(),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp),
@@ -243,6 +247,7 @@ private fun TagEditRow(
 @Composable
 private fun TagDeleteConfirmRow(
     tag: TagRecord,
+    noteCount: Int,
     busy: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
@@ -260,8 +265,8 @@ private fun TagDeleteConfirmRow(
         )
         Text(
             text =
-                "${tag.noteCount} " +
-                    if (tag.noteCount == 1) "note uses it." else "notes use it.",
+                "$noteCount " +
+                    if (noteCount == 1) "note uses it." else "notes use it.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

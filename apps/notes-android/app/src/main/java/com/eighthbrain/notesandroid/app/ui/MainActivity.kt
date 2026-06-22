@@ -84,6 +84,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.eighthbrain.notesandroid.app.NotesApplication
+import com.eighthbrain.notesandroid.app.model.AppView
 import com.eighthbrain.notesandroid.app.model.AppSnapshot
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
@@ -93,8 +94,12 @@ import com.eighthbrain.notesandroid.app.model.defaultDueInput
 import com.eighthbrain.notesandroid.app.model.defaultRemindInput
 import com.eighthbrain.notesandroid.app.model.descriptionBody
 import com.eighthbrain.notesandroid.app.model.formatConciseDate
+import com.eighthbrain.notesandroid.app.model.formatOptionalConciseDate
 import com.eighthbrain.notesandroid.app.model.formatPercent
+import com.eighthbrain.notesandroid.app.model.getDefaultWorkflowStatusId
 import com.eighthbrain.notesandroid.app.model.headline
+import com.eighthbrain.notesandroid.app.model.isLibraryNote
+import com.eighthbrain.notesandroid.app.model.libraryPickerCounts
 import com.eighthbrain.notesandroid.app.model.sortedByLastUpdatedDescending
 import com.eighthbrain.notesandroid.app.model.toDraft
 import com.eighthbrain.notesandroid.app.widget.clearWidgetExpandedStateForNote
@@ -135,6 +140,9 @@ data class NotesUiState(
     val editingTagId: Int? = null,
     val editingTagLabel: String = "",
     val deletingTagId: Int? = null,
+    val appView: AppView = AppView.LIBRARY,
+    val editingWorkflowStatusId: Int? = null,
+    val editingWorkflowStatusLabel: String = "",
 )
 
 private data class LaunchRequest(
@@ -479,6 +487,151 @@ class NotesViewModel(
 
     fun selectCategoryFilter(categoryId: Int?) {
         _uiState.update { it.copy(selectedCategoryId = categoryId) }
+    }
+
+    fun setAppView(view: AppView) {
+        _uiState.update { it.copy(appView = view) }
+    }
+
+    fun addNoteToBoard() {
+        val current = _uiState.value
+        val defaultStatusId =
+            getDefaultWorkflowStatusId(current.snapshot.workflowStatuses) ?: run {
+                _uiState.update { it.copy(error = "No board columns available.") }
+                return
+            }
+        val noteId = current.editingNoteId
+        if (noteId == null) {
+            _uiState.update {
+                it.copy(noteDraft = it.noteDraft.copy(workflowStatusId = defaultStatusId))
+            }
+            return
+        }
+        runAction {
+            repository.setNoteWorkflowStatus(noteId, defaultStatusId)
+            val note = repository.noteById(noteId)
+            _uiState.update {
+                it.copy(
+                    noteDraft = note?.toDraft() ?: it.noteDraft.copy(workflowStatusId = defaultStatusId),
+                    message = "Added to board.",
+                    error = null,
+                )
+            }
+        }
+    }
+
+    fun removeNoteFromBoard() {
+        val current = _uiState.value
+        val noteId = current.editingNoteId
+        if (noteId == null) {
+            _uiState.update { it.copy(noteDraft = it.noteDraft.copy(workflowStatusId = null)) }
+            return
+        }
+        runAction {
+            repository.setNoteWorkflowStatus(noteId, null)
+            val note = repository.noteById(noteId)
+            _uiState.update {
+                it.copy(
+                    noteDraft = note?.toDraft() ?: it.noteDraft.copy(workflowStatusId = null),
+                    message = "Removed from board.",
+                    error = null,
+                )
+            }
+        }
+    }
+
+    fun selectDraftWorkflowStatus(statusId: Int) {
+        val current = _uiState.value
+        val noteId = current.editingNoteId
+        if (noteId == null) {
+            _uiState.update { it.copy(noteDraft = it.noteDraft.copy(workflowStatusId = statusId)) }
+            return
+        }
+        val note = current.snapshot.notes.firstOrNull { it.id == noteId }
+        if (note?.workflowStatus?.id == statusId) {
+            _uiState.update { it.copy(noteDraft = it.noteDraft.copy(workflowStatusId = statusId)) }
+            return
+        }
+        runAction {
+            repository.setNoteWorkflowStatus(noteId, statusId)
+            val updated = repository.noteById(noteId)
+            _uiState.update {
+                it.copy(
+                    noteDraft = updated?.toDraft() ?: it.noteDraft.copy(workflowStatusId = statusId),
+                    error = null,
+                )
+            }
+        }
+    }
+
+    fun moveNoteToWorkflowStatus(
+        note: NoteRecord,
+        workflowStatusId: Int,
+    ) {
+        if (note.workflowStatus?.id == workflowStatusId) return
+        runAction {
+            repository.setNoteWorkflowStatus(note.id, workflowStatusId)
+            val statusLabel =
+                _uiState.value.snapshot.workflowStatuses
+                    .firstOrNull { it.id == workflowStatusId }
+                    ?.label
+            _uiState.update {
+                it.copy(
+                    message = statusLabel?.let { label -> "Moved to \"$label\"." } ?: "Moved on board.",
+                    error = null,
+                )
+            }
+        }
+    }
+
+    fun removeBoardNoteFromBoard(note: NoteRecord) {
+        if (note.workflowStatus == null) return
+        runAction {
+            repository.setNoteWorkflowStatus(note.id, null)
+            _uiState.update {
+                it.copy(message = "Removed from board.", error = null)
+            }
+        }
+    }
+
+    fun startEditingWorkflowStatus(statusId: Int) {
+        val status =
+            _uiState.value.snapshot.workflowStatuses.firstOrNull { it.id == statusId } ?: return
+        _uiState.update {
+            it.copy(
+                editingWorkflowStatusId = status.id,
+                editingWorkflowStatusLabel = status.label,
+                error = null,
+            )
+        }
+    }
+
+    fun updateEditingWorkflowStatusLabel(value: String) {
+        _uiState.update { it.copy(editingWorkflowStatusLabel = value.lowercase()) }
+    }
+
+    fun cancelEditingWorkflowStatus() {
+        _uiState.update {
+            it.copy(editingWorkflowStatusId = null, editingWorkflowStatusLabel = "")
+        }
+    }
+
+    fun saveEditingWorkflowStatus() {
+        val current = _uiState.value
+        val statusId = current.editingWorkflowStatusId ?: return
+        val label = current.editingWorkflowStatusLabel.trim()
+        if (label.isEmpty()) return
+        runAction {
+            repository.updateWorkflowStatusLabel(statusId, label)
+            _uiState.update {
+                it.copy(
+                    editingWorkflowStatusId = null,
+                    editingWorkflowStatusLabel = "",
+                    message = "Column renamed.",
+                    error = null,
+                )
+            }
+        }
     }
 
     fun startEditingCategory(categoryId: Int) {
@@ -958,7 +1111,7 @@ private fun MainContent(
     }
     val searchMode = uiState.searchQuery.trim().isNotEmpty()
     val isLoading = if (searchMode) uiState.searchLoading || uiState.isBusy else uiState.isBusy
-
+    val showBoardView = uiState.appView == AppView.BOARD && !searchMode
     val selectedCategoryId = uiState.selectedCategoryId
     val selectedTagId = uiState.selectedTagId
     val displayItems =
@@ -983,7 +1136,7 @@ private fun MainContent(
                     .map { DisplayItem(note = it.note, relevance = it.similarity) }
             } else {
                 uiState.snapshot.notes
-                    .filter { matchesCategory(it) && matchesTag(it) }
+                    .filter { it.isLibraryNote() && matchesCategory(it) && matchesTag(it) }
                     .sortedByLastUpdatedDescending()
                     .map { DisplayItem(note = it) }
             }
@@ -1002,9 +1155,15 @@ private fun MainContent(
                     Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                AppViewTabs(
+                    appView = uiState.appView,
+                    onAppViewChange = viewModel::setAppView,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = viewModel::refreshNotes, enabled = !uiState.isBusy) {
                     Icon(
                         Icons.Default.Refresh,
@@ -1052,6 +1211,7 @@ private fun MainContent(
                         )
                     }
                 }
+                }
             }
 
             if (isLoading) {
@@ -1070,6 +1230,7 @@ private fun MainContent(
                 }
             }
 
+            if (!showBoardView) {
             TagSelectField(
                 selectedLabel = selectedCategory?.label,
                 allLabel = "All categories",
@@ -1089,6 +1250,7 @@ private fun MainContent(
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp),
             )
+            }
 
             Row(
                 modifier =
@@ -1119,8 +1281,22 @@ private fun MainContent(
                 )
             }
 
+            if (showBoardView) {
+                BoardScreen(
+                    workflowStatuses = uiState.snapshot.workflowStatuses,
+                    notes = uiState.snapshot.notes,
+                    busy = uiState.isBusy,
+                    onEditNote = viewModel::startEditing,
+                    onMoveNoteToStatus = viewModel::moveNoteToWorkflowStatus,
+                    onRemoveNoteFromBoard = viewModel::removeBoardNoteFromBoard,
+                    onEditWorkflowStatus = { status ->
+                        viewModel.startEditingWorkflowStatus(status.id)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(bottom = 80.dp),
             ) {
                 if (displayItems.isEmpty() && !isLoading) {
@@ -1143,6 +1319,7 @@ private fun MainContent(
                         )
                     }
                 }
+            }
             }
         }
 
@@ -1186,6 +1363,16 @@ private fun MainContent(
                 viewModel.cancelDeletingTag()
                 showTagPicker = false
             },
+        )
+    }
+
+    if (uiState.editingWorkflowStatusId != null) {
+        WorkflowStatusDialog(
+            label = uiState.editingWorkflowStatusLabel,
+            busy = uiState.isBusy,
+            onLabelChange = viewModel::updateEditingWorkflowStatusLabel,
+            onDismiss = viewModel::cancelEditingWorkflowStatus,
+            onSave = viewModel::saveEditingWorkflowStatus,
         )
     }
 }
@@ -1234,6 +1421,14 @@ private fun CategoriesPickerDialog(
     viewModel: NotesViewModel,
     onDismiss: () -> Unit,
 ) {
+    val pickerCounts =
+        remember(uiState.snapshot.notes, uiState.selectedCategoryId, uiState.selectedTagId) {
+            libraryPickerCounts(
+                notes = uiState.snapshot.notes,
+                selectedCategoryId = uiState.selectedCategoryId,
+                selectedTagId = uiState.selectedTagId,
+            )
+        }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -1265,7 +1460,8 @@ private fun CategoriesPickerDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 CategoriesPopupList(
                     categories = uiState.snapshot.categories,
-                    totalNoteCount = uiState.snapshot.notes.size,
+                    totalNoteCount = pickerCounts.total,
+                    categoryNoteCounts = pickerCounts.byCategory,
                     selectedCategoryId = uiState.selectedCategoryId,
                     editingCategoryId = uiState.editingCategoryId,
                     editingDraft = uiState.editingCategoryLabel,
@@ -1296,6 +1492,14 @@ private fun TagsPickerDialog(
     viewModel: NotesViewModel,
     onDismiss: () -> Unit,
 ) {
+    val pickerCounts =
+        remember(uiState.snapshot.notes, uiState.selectedCategoryId, uiState.selectedTagId) {
+            libraryPickerCounts(
+                notes = uiState.snapshot.notes,
+                selectedCategoryId = uiState.selectedCategoryId,
+                selectedTagId = uiState.selectedTagId,
+            )
+        }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -1327,7 +1531,8 @@ private fun TagsPickerDialog(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 TagsPopupList(
                     tags = uiState.snapshot.tags,
-                    totalNoteCount = uiState.snapshot.notes.size,
+                    totalNoteCount = pickerCounts.total,
+                    tagNoteCounts = pickerCounts.byTag,
                     selectedTagId = uiState.selectedTagId,
                     editingTagId = uiState.editingTagId,
                     editingDraft = uiState.editingTagLabel,
@@ -1439,6 +1644,7 @@ private fun NoteItem(
                 listOfNotNull(
                     item.note.timeDue?.let { "Due ${formatConciseDate(it)}" },
                     item.note.timeRemind?.let { "Remind ${formatConciseDate(it)}" },
+                    formatOptionalConciseDate(item.note.timeCompleted)?.let { "Completed $it" },
                 )
             if (dateLabels.isNotEmpty()) {
                 Text(
@@ -1595,6 +1801,10 @@ private fun NoteEditorModal(
                                 ),
                         )
                     }
+                    WorkflowEditorSection(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                    )
                     Button(
                         onClick = viewModel::saveNote,
                         modifier = Modifier.fillMaxWidth(),
@@ -1604,6 +1814,86 @@ private fun NoteEditorModal(
                     }
                     Spacer(Modifier.height(16.dp))
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkflowEditorSection(
+    uiState: NotesUiState,
+    viewModel: NotesViewModel,
+) {
+    val workflowStatuses = uiState.snapshot.workflowStatuses
+    val onBoard = uiState.noteDraft.workflowStatusId != null
+    val selectedStatus =
+        workflowStatuses.firstOrNull { it.id == uiState.noteDraft.workflowStatusId }
+    val editingNote =
+        uiState.editingNoteId?.let { id ->
+            uiState.snapshot.notes.firstOrNull { it.id == id }
+        }
+    var workflowMenuOpen by remember { mutableStateOf(false) }
+
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+    if (!onBoard) {
+        TextButton(
+            onClick = viewModel::addNoteToBoard,
+            enabled = !uiState.isBusy && workflowStatuses.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
+        ) {
+            Text("Add to board")
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                TextButton(
+                    onClick = { workflowMenuOpen = true },
+                    enabled = !uiState.isBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
+                ) {
+                    Text("Board: ${selectedStatus?.label ?: "column"}")
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = workflowMenuOpen,
+                    onDismissRequest = { workflowMenuOpen = false },
+                ) {
+                    workflowStatuses.forEach { status ->
+                        DropdownMenuItem(
+                            text = { Text(status.label) },
+                            onClick = {
+                                workflowMenuOpen = false
+                                viewModel.selectDraftWorkflowStatus(status.id)
+                            },
+                        )
+                    }
+                }
+            }
+            TextButton(
+                onClick = viewModel::removeNoteFromBoard,
+                enabled = !uiState.isBusy,
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp),
+            ) {
+                Text("Remove from board")
+            }
+            editingNote?.timeCompleted?.let { completedAt ->
+                Text(
+                    text = "Completed ${formatConciseDate(completedAt)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }

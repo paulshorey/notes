@@ -13,6 +13,7 @@ Glance home-screen widget implementation for Notes. This folder owns widget rend
 - Widget-only UI state is stored in Glance preferences, not in `SessionStore`.
 - `widgetCategoryFilterKey` and `widgetTagFilterKey` store the widget's category and tag filters.
 - `expanded_<noteId>` preference keys store per-note expand/collapse state.
+- **Library only:** the note list filters to `workflowStatus == null` (off-board notes). Board tasks are managed in `MainActivity`; widget capture stays library-first.
 
 ## Non-obvious behavior
 
@@ -22,6 +23,7 @@ Glance home-screen widget implementation for Notes. This folder owns widget rend
 - `clearWidgetExpandedStateForNote(...)` must be kept in sync with delete flows so removed notes do not leave stale expanded state behind.
 - `SignInOnly` and `LogoutAction` are currently unused; confirm they are truly dead before removing them.
 - Widget icons must stay as Android drawable resources; do not replace them with Compose-only vectors.
+- Widget category/tag picker overlays use library-only note counts (`libraryPickerCounts` in `Models.kt`), cross-filtered by the other active widget filter.
 
 ## Maintenance
 
