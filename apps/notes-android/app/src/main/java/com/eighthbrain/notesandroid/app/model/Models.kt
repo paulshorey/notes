@@ -12,6 +12,11 @@ enum class WidgetMode {
     SEARCH,
 }
 
+enum class AppView {
+    LIBRARY,
+    BOARD,
+}
+
 data class NotesAppPreferences(
     val resultsColumnWidth: Int?,
 )
@@ -94,6 +99,21 @@ data class NoteRecord(
 fun NoteRecord.isLibraryNote(): Boolean = workflowStatus == null
 
 fun NoteRecord.isOnBoard(): Boolean = workflowStatus != null
+
+fun List<NoteRecord>.libraryNotes(): List<NoteRecord> = filter { it.isLibraryNote() }
+
+fun libraryNoteCountsByCategory(notes: List<NoteRecord>): Map<Int, Int> =
+    notes.libraryNotes().groupingBy { it.category.id }.eachCount()
+
+fun libraryNoteCountsByTag(notes: List<NoteRecord>): Map<Int, Int> {
+    val counts = mutableMapOf<Int, Int>()
+    for (note in notes.libraryNotes()) {
+        for (tag in note.tags) {
+            counts[tag.id] = (counts[tag.id] ?: 0) + 1
+        }
+    }
+    return counts
+}
 
 fun getDefaultWorkflowStatusId(
     workflowStatuses: List<WorkflowStatusRecord>,

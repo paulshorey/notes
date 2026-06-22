@@ -31,6 +31,7 @@ import com.eighthbrain.notesandroid.app.model.CategoryRecord
 fun CategoriesPopupList(
     categories: List<CategoryRecord>,
     totalNoteCount: Int,
+    categoryNoteCounts: Map<Int, Int>? = null,
     selectedCategoryId: Int?,
     editingCategoryId: Int?,
     editingDraft: String,
@@ -94,6 +95,7 @@ fun CategoriesPopupList(
                     deletingCategoryId == category.id ->
                         CategoryDeleteConfirmRow(
                             category = category,
+                            noteCount = categoryNoteCounts?.get(category.id) ?: category.noteCount,
                             busy = busy,
                             onConfirm = onConfirmDelete,
                             onCancel = onCancelDelete,
@@ -101,6 +103,7 @@ fun CategoriesPopupList(
                     else ->
                         CategoryDefaultRow(
                             category = category,
+                            noteCount = categoryNoteCounts?.get(category.id) ?: category.noteCount,
                             isActive = selectedCategoryId == category.id,
                             isProtected = category.id == protectedCategoryId,
                             busy = busy,
@@ -126,6 +129,7 @@ fun CategoriesPopupList(
 @Composable
 private fun CategoryDefaultRow(
     category: CategoryRecord,
+    noteCount: Int,
     isActive: Boolean,
     isProtected: Boolean,
     busy: Boolean,
@@ -158,7 +162,7 @@ private fun CategoryDefaultRow(
                     .padding(horizontal = 4.dp, vertical = 12.dp),
         )
         Text(
-            text = category.noteCount.toString(),
+            text = noteCount.toString(),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 4.dp),
@@ -233,6 +237,7 @@ private fun CategoryEditRow(
 @Composable
 private fun CategoryDeleteConfirmRow(
     category: CategoryRecord,
+    noteCount: Int,
     busy: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
@@ -250,8 +255,8 @@ private fun CategoryDeleteConfirmRow(
         )
         Text(
             text =
-                "${category.noteCount} " +
-                    if (category.noteCount == 1) "note uses it." else "notes use it.",
+                "$noteCount " +
+                    if (noteCount == 1) "note uses it." else "notes use it.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
