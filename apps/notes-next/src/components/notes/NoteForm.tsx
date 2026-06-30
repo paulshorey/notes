@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { Button, Popup, Text } from "@gravity-ui/uikit"
+import { FilterablePickerPopup } from "@/components/ui/FilterablePickerPopup"
 import { CalendarBlank, CaretDown, DotsThree, Plus, X } from "@phosphor-icons/react"
 import {
   type Dispatch,
@@ -146,18 +147,6 @@ export function NoteForm({
     }
   }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
 
-  useEffect(() => {
-    if (categoryPickerOpen) {
-      window.setTimeout(() => categoryInputRef.current?.focus(), 0)
-    }
-  }, [categoryPickerOpen])
-
-  useEffect(() => {
-    if (tagPickerOpen) {
-      window.setTimeout(() => tagInputRef.current?.focus(), 0)
-    }
-  }, [tagPickerOpen])
-
   const openCategoryDropdown = () => {
     onCategoryInputValueChange("")
     setCategoryPickerOpen(true)
@@ -197,6 +186,29 @@ export function NoteForm({
     setCategoryPickerOpen(false)
   }
 
+  const submitCategoryInput = () => {
+    const label = categoryInputValue.trim()
+    if (label === "") {
+      return
+    }
+    const matchingCategory = categories.find(
+      (category) => normalizeLabel(category.label) === normalizeLabel(label),
+    )
+    if (matchingCategory) {
+      selectCategory(matchingCategory.id)
+      return
+    }
+    if (filteredCategoryOptions.length === 0) {
+      void (async () => {
+        try {
+          await onCreateCategory(label)
+        } finally {
+          setCategoryPickerOpen(false)
+        }
+      })()
+    }
+  }
+
   const handleCategoryInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
       event.preventDefault()
@@ -206,28 +218,8 @@ export function NoteForm({
     if (event.key !== "Enter") {
       return
     }
-    const label = categoryInputValue.trim()
-    if (label === "") {
-      return
-    }
-    const matchingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
-    )
-    if (matchingCategory) {
-      event.preventDefault()
-      selectCategory(matchingCategory.id)
-      return
-    }
-    if (filteredCategoryOptions.length === 0) {
-      event.preventDefault()
-      void (async () => {
-        try {
-          await onCreateCategory(label)
-        } finally {
-          setCategoryPickerOpen(false)
-        }
-      })()
-    }
+    event.preventDefault()
+    submitCategoryInput()
   }
 
   const addTagLabel = (label: string) => {
@@ -248,6 +240,17 @@ export function NoteForm({
     )
   }
 
+  const submitTagInput = () => {
+    const label = tagInputValue.trim()
+    if (label === "") {
+      return
+    }
+    const matchingTag = filteredTagOptions.find(
+      (tag) => normalizeLabel(tag.label) === normalizeLabel(label),
+    )
+    addTagLabel(matchingTag?.label ?? label)
+  }
+
   const handleTagInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Escape") {
       event.preventDefault()
@@ -257,15 +260,8 @@ export function NoteForm({
     if (event.key !== "Enter") {
       return
     }
-    const label = tagInputValue.trim()
-    if (label === "") {
-      return
-    }
     event.preventDefault()
-    const matchingTag = filteredTagOptions.find(
-      (tag) => normalizeLabel(tag.label) === normalizeLabel(label),
-    )
-    addTagLabel(matchingTag?.label ?? label)
+    submitTagInput()
   }
 
   const expandDateField = (field: "due" | "remind") => {
@@ -374,57 +370,24 @@ export function NoteForm({
               <CaretDown size={14} weight="regular" />
             </button>
 
-            <Popup
+            <FilterablePickerPopup
               anchorRef={categoryTriggerRef}
               open={categoryPickerOpen}
               onClose={closeCategoryDropdown}
               placement={["top-start", "top-end", "bottom-start", "bottom-end"]}
-              offset={6}
-              role="dialog"
-            >
-              <div className={styles.categoryPanel}>
-                <div
-                  className={styles.categoryOptions}
-                  role="listbox"
-                  aria-label="Category options"
-                >
-                  {filteredCategoryOptions.length === 0 && categoryInputValue.trim() !== "" ? (
-                    <div className={styles.categoryEmpty}>
-                      Press Enter to create &quot;{categoryInputValue.trim()}&quot;
-                    </div>
-                  ) : (
-                    filteredCategoryOptions.map((category) => (
-                      <button
-                        key={category.id}
-                        type="button"
-                        className={styles.categoryOption}
-                        data-active={form.selectedCategoryId === category.id || undefined}
-                        onClick={() => selectCategory(category.id)}
-                        role="option"
-                        aria-selected={form.selectedCategoryId === category.id}
-                      >
-                        {category.label}
-                      </button>
-                    ))
-                  )}
-                  {filteredCategoryOptions.length === 0 && categoryInputValue.trim() === "" && (
-                    <div className={styles.categoryEmpty}>No categories yet</div>
-                  )}
-                </div>
-                <input
-                  ref={categoryInputRef}
-                  type="text"
-                  className={styles.categoryInput}
-                  placeholder="Enter new..."
-                  value={categoryInputValue}
-                  disabled={!userPresent || createCategoryPending}
-                  onChange={(event) => {
-                    onCategoryInputValueChange(toLowercaseInput(event.currentTarget.value))
-                  }}
-                  onKeyDown={handleCategoryInputKeyDown}
-                />
-              </div>
-            </Popup>
+              listboxAriaLabel="Category options"
+              options={filteredCategoryOptions}
+              inputValue={categoryInputValue}
+              inputRef={categoryInputRef}
+              inputDisabled={!userPresent || createCategoryPending}
+              onInputChange={(value) => onCategoryInputValueChange(toLowercaseInput(value))}
+              onInputKeyDown={handleCategoryInputKeyDown}
+              onInputSubmit={submitCategoryInput}
+              onSelectOption={(category) => selectCategory(Number(category.id))}
+              isOptionActive={(category) => form.selectedCategoryId === Number(category.id)}
+              isOptionSelected={(category) => form.selectedCategoryId === Number(category.id)}
+              emptyWithoutQueryMessage="No categories yet"
+            />
           </div>
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {form.remindExpanded &&
@@ -487,52 +450,22 @@ export function NoteForm({
                   <span>Tag</span>
                   <Plus size={12} weight="regular" />
                 </button>
-                <Popup
+                <FilterablePickerPopup
                   anchorRef={tagTriggerRef}
                   open={tagPickerOpen}
                   onClose={closeTagDropdown}
                   placement={["left-start", "right-start", "top-start", "bottom-start"]}
-                  offset={6}
-                  role="dialog"
-                >
-                  <div className={styles.categoryPanel}>
-                    <div className={styles.categoryOptions} role="listbox" aria-label="Tag options">
-                      {filteredTagOptions.length === 0 && tagInputValue.trim() !== "" ? (
-                        <div className={styles.categoryEmpty}>
-                          Press Enter to create &quot;{tagInputValue.trim()}&quot;
-                        </div>
-                      ) : (
-                        filteredTagOptions.map((tag) => (
-                          <button
-                            key={tag.id}
-                            type="button"
-                            className={styles.categoryOption}
-                            onClick={() => addTagLabel(tag.label)}
-                            role="option"
-                            aria-selected={false}
-                          >
-                            {tag.label}
-                          </button>
-                        ))
-                      )}
-                      {filteredTagOptions.length === 0 && tagInputValue.trim() === "" && (
-                        <div className={styles.categoryEmpty}>No more tags.</div>
-                      )}
-                    </div>
-                    <input
-                      ref={tagInputRef}
-                      type="text"
-                      className={styles.categoryInput}
-                      placeholder="Enter new..."
-                      value={tagInputValue}
-                      disabled={!userPresent || createTagPending}
-                      onChange={(event) => {
-                        setTagInputValue(toLowercaseInput(event.currentTarget.value))
-                      }}
-                      onKeyDown={handleTagInputKeyDown}
-                    />
-                  </div>
-                </Popup>
+                  listboxAriaLabel="Tag options"
+                  options={filteredTagOptions}
+                  inputValue={tagInputValue}
+                  inputRef={tagInputRef}
+                  inputDisabled={!userPresent || createTagPending}
+                  onInputChange={(value) => setTagInputValue(toLowercaseInput(value))}
+                  onInputKeyDown={handleTagInputKeyDown}
+                  onInputSubmit={submitTagInput}
+                  onSelectOption={(tag) => addTagLabel(tag.label)}
+                  emptyWithoutQueryMessage="No more tags."
+                />
               </div>
             </Popup>
           </div>

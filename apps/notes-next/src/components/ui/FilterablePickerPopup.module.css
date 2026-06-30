@@ -1,0 +1,111 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(320px, calc(100vw - 32px));
+  max-height: min(420px, 60dvh);
+  overflow: hidden;
+  padding: 6px;
+  border: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  background: var(--g-color-base-float, #1f1f1f);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+}
+
+.inputRow {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  border-radius: 4px;
+  background: var(--g-color-base-background, #151515);
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 4px 7px 9px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.input:focus {
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--g-color-text-secondary, rgba(255, 255, 255, 0.62));
+}
+
+.submitButton {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0 4px 4px 0;
+  background: transparent;
+  color: var(--g-color-text-secondary, rgba(255, 255, 255, 0.62));
+  cursor: pointer;
+}
+
+.submitButton:hover:not(:disabled),
+.submitButton:focus-visible:not(:disabled) {
+  background: var(--g-color-base-generic-hover, rgba(255, 255, 255, 0.08));
+  color: var(--g-color-text-link, #4da3ff);
+  outline: none;
+}
+
+.submitButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.options {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+}
+
+.option {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.25;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+
+.option:hover,
+.option:focus-visible,
+.option[data-active="true"] {
+  background: var(--g-color-base-generic-hover, rgba(255, 255, 255, 0.08));
+  outline: none;
+}
+
+.empty {
+  padding: 6px 8px;
+  color: var(--g-color-text-secondary, rgba(255, 255, 255, 0.62));
+  font-size: 1rem;
+}

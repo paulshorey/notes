@@ -5,7 +5,8 @@ import {
   type AtomicCodeMirrorEditorHandle,
 } from "@atomic-editor/editor"
 import "@atomic-editor/editor/styles.css"
-import { placeholder } from "@codemirror/view"
+import { Prec } from "@codemirror/state"
+import { keymap, placeholder } from "@codemirror/view"
 import React from "react"
 import styles from "./AtomicEditor.module.css"
 
@@ -42,10 +43,33 @@ export const AtomicEditor = React.forwardRef<AtomicEditorHandle, AtomicEditorPro
     const onUpdateRef = React.useRef(onUpdate)
     onUpdateRef.current = onUpdate
 
-    const extensions = React.useMemo(
-      () => (placeholderText ? [placeholder(placeholderText)] : []),
-      [placeholderText],
-    )
+    const extensions = React.useMemo(() => {
+      const next = [
+        Prec.low(
+          keymap.of([
+            {
+              key: "Escape",
+              run(view) {
+                const active = document.activeElement
+                if (active instanceof HTMLElement && view.dom.contains(active)) {
+                  active.blur()
+                  return true
+                }
+
+                view.contentDOM.blur()
+                return true
+              },
+            },
+          ]),
+        ),
+      ]
+
+      if (placeholderText) {
+        next.push(placeholder(placeholderText))
+      }
+
+      return next
+    }, [placeholderText])
 
     const resolvedDocumentId =
       documentId === undefined || documentId === null ? value : String(documentId)

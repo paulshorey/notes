@@ -7,7 +7,7 @@
     "dev": "next dev --port 3000",
     "contracts:check": "pnpm --filter @lib/db-marketing app:contract:check",
     "build:contracts": "pnpm run contracts:check",
-    "build": "pnpm run contracts:check && next build",
+    "build": "pnpm run contracts:check && pnpm --filter @atomic-editor/editor build && next build",
     "start": "next start",
     "test": "node --import tsx --test ./test/*.test.ts",
     "lint": "eslint . --ignore-pattern .next",
@@ -15,7 +15,7 @@
     "verify": "pnpm run check-types && pnpm run test && pnpm run build"
   },
   "dependencies": {
-    "@atomic-editor/editor": "^0.4.3",
+    "@atomic-editor/editor": "workspace:*",
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-markdown": "^6.5.0",

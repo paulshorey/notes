@@ -13,6 +13,17 @@ Monorepo using pnpm + Turborepo.
 
 - `lib/config` - shared tooling and config
 - `lib/db-marketing` - Notes database schema, migrations, generated contracts, and shared Notes service logic
+- `lib/atomic-editor` - git submodule fork of `@atomic-editor/editor` (see below)
+
+## atomic-editor submodule
+
+`lib/atomic-editor` is a git submodule pointing at `paulshorey/atomic-editor`, with `upstream` set to `kenforthewin/atomic-editor`. `notes-next` consumes it via `workspace:*`.
+
+- Clone/init: `git submodule update --init --recursive` (also run by `scripts/install-workspace-deps.sh`).
+- Build output lives in `lib/atomic-editor/dist/` (gitignored in the submodule). `notes-next build` builds the editor first.
+- Peer deps (`@codemirror/*`, `react`) resolve from `notes-next` — do not add duplicate copies in the submodule.
+- Local dev: run `pnpm --filter @atomic-editor/editor exec tsc -w -p tsconfig.build.json` while editing `src/`, then `pnpm --filter notes-next dev`.
+- Upstream PRs: branch inside `lib/atomic-editor`, push to `origin`, open PR against `kenforthewin/atomic-editor`, then bump the submodule pointer in this repo.
 
 ## Data
 
