@@ -1,0 +1,3 @@
+[submodule "lib/atomic-editor"]
+	path = lib/atomic-editor
+	url = git@github.com:paulshorey/atomic-editor.git
