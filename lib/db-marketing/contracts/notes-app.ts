@@ -1,5 +1,6 @@
-export interface SessionLookupRequest {
+export interface TokenLoginRequest {
   identifier: string;
+  password: string;
 }
 
 export interface NotesAppPreferences {
@@ -155,6 +156,15 @@ export interface EmbeddingMaintenanceRequest {
 
 export interface SessionResponse {
   user: UserSummary;
+}
+
+export interface TokenLoginResponse {
+  token: string;
+  user: UserSummary;
+}
+
+export interface TokenRevokeResponse {
+  ok: true;
 }
 
 export interface NotesResponse {

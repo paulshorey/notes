@@ -45,6 +45,7 @@ fun TagsPopupList(
     editingTagId: Int?,
     editingDraft: String,
     deletingTagId: Int?,
+    protectedTagId: Int?,
     busy: Boolean,
     onSelect: (Int?) -> Unit,
     onStartEdit: (TagRecord) -> Unit,
@@ -111,6 +112,7 @@ fun TagsPopupList(
                         TagDefaultRow(
                             tag = tag,
                             isActive = selectedTagId == tag.id,
+                            isProtected = tag.id == protectedTagId,
                             busy = busy,
                             onSelect = { onSelect(tag.id) },
                             onEdit = { onStartEdit(tag) },
@@ -135,6 +137,7 @@ fun TagsPopupList(
 private fun TagDefaultRow(
     tag: TagRecord,
     isActive: Boolean,
+    isProtected: Boolean,
     busy: Boolean,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
@@ -181,16 +184,18 @@ private fun TagDefaultRow(
                 modifier = Modifier.size(16.dp),
             )
         }
-        IconButton(
-            onClick = onDelete,
-            modifier = Modifier.size(36.dp),
-            enabled = !busy,
-        ) {
-            Icon(
-                Icons.Default.Delete,
-                contentDescription = "Delete",
-                modifier = Modifier.size(16.dp),
-            )
+        if (!isProtected) {
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(36.dp),
+                enabled = !busy,
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    modifier = Modifier.size(16.dp),
+                )
+            }
         }
     }
 }

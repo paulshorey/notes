@@ -4,6 +4,8 @@ import type { TagRecord } from "../contracts/notes-app";
 import { CURRENT_NOTE_EMBEDDING_MODEL } from "../services/notes-embeddings";
 import type { PoolClient } from "pg";
 
+export const DEFAULT_TAG_LABEL = "important";
+
 export interface TagEmbeddingBackfillRow {
   id: number;
   label: string;
@@ -54,6 +56,37 @@ const mapTag = (row: TagWithCountRow): TagRecord => ({
   noteCount: Number(row.note_count ?? 0),
   lastUsedAt: toIsoStringOrNull(row.last_used_at),
 });
+
+export const getFirstTagForUser = async (
+  client: PoolClient,
+  userId: number
+): Promise<{ id: number; label: string } | null> => {
+  const { rows } = await client.query<{ id: number; label: string }>(
+    `
+      SELECT id, label
+      FROM public.user_note_tag_v1
+      WHERE user_id = $1
+      ORDER BY id ASC
+      LIMIT 1
+    `,
+    [userId]
+  );
+  return rows[0] ?? null;
+};
+
+export const ensureDefaultTagForUser = async (
+  client: PoolClient,
+  userId: number
+) => {
+  await client.query(
+    `
+      INSERT INTO public.user_note_tag_v1 (user_id, label)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id, label) DO NOTHING
+    `,
+    [userId, DEFAULT_TAG_LABEL]
+  );
+};
 
 export const listTagsByUser = async (userId: number) => {
   const { rows } = await getDb().query<TagWithCountRow>(
@@ -204,12 +237,31 @@ export const updateTagLabelForUser = async (
 
 export const deleteTagForUser = async (
   userId: number,
-  tagId: number
+  tagId: number,
+  protectedTagId: number
 ) => {
   const client = await getDb().connect();
 
   try {
     await client.query("BEGIN");
+
+    if (tagId === protectedTagId) {
+      throw new Error("Cannot delete the fallback tag.");
+    }
+
+    const protectedResult = await client.query<{ count: number | string }>(
+      `
+        SELECT COUNT(*)::int AS count
+        FROM public.user_note_tag_v1
+        WHERE user_id = $1
+          AND id = $2
+      `,
+      [userId, protectedTagId]
+    );
+
+    if (Number(protectedResult.rows[0]?.count ?? 0) !== 1) {
+      throw new Error("Fallback tag was not found for this user.");
+    }
 
     const linkResult = await client.query<{ count: number | string }>(
       `

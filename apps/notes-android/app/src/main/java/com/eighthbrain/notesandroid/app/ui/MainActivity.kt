@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +71,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -114,6 +117,7 @@ data class DisplayItem(
 data class NotesUiState(
     val snapshot: AppSnapshot = AppSnapshot(),
     val identifier: String = "",
+    val password: String = "",
     val noteDraft: NoteDraft = NoteDraft(),
     val editingNoteId: Int? = null,
     val searchQuery: String = "",
@@ -207,6 +211,10 @@ class NotesViewModel(
 
     fun updateIdentifier(value: String) {
         _uiState.update { it.copy(identifier = value) }
+    }
+
+    fun updatePassword(value: String) {
+        _uiState.update { it.copy(password = value) }
     }
 
     fun updateSearchQuery(value: String) {
@@ -359,10 +367,11 @@ class NotesViewModel(
     fun signIn() {
         val current = uiState.value
         runAction {
-            val snapshot = repository.login(current.identifier)
+            val snapshot = repository.login(current.identifier, current.password)
             _uiState.update {
                 it.copy(
                     identifier = "",
+                    password = "",
                     noteDraft = NoteDraft(),
                     editingNoteId = null,
                     searchQuery = "",
@@ -604,6 +613,11 @@ class NotesViewModel(
     fun startDeletingTag(tagId: Int) {
         val current = _uiState.value
         val tag = current.snapshot.tags.firstOrNull { it.id == tagId } ?: return
+        val fallbackId = current.snapshot.tags.minByOrNull { it.id }?.id
+        if (tagId == fallbackId) {
+            _uiState.update { it.copy(error = "The default tag cannot be deleted.") }
+            return
+        }
         if (tag.noteCount == 0) {
             runAction {
                 repository.deleteTag(tagId)
@@ -895,6 +909,16 @@ private fun LoginScreen(
             placeholder = { Text("Username, email, or phone") },
             modifier = Modifier.fillMaxWidth(0.85f),
             singleLine = true,
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = uiState.password,
+            onValueChange = viewModel::updatePassword,
+            placeholder = { Text("Password") },
+            modifier = Modifier.fillMaxWidth(0.85f),
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         )
         Spacer(Modifier.height(12.dp))
         Button(
@@ -1308,6 +1332,7 @@ private fun TagsPickerDialog(
                     editingTagId = uiState.editingTagId,
                     editingDraft = uiState.editingTagLabel,
                     deletingTagId = uiState.deletingTagId,
+                    protectedTagId = uiState.snapshot.tags.minByOrNull { it.id }?.id,
                     busy = uiState.isBusy,
                     onSelect = { id ->
                         viewModel.selectTagFilter(id)

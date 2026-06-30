@@ -63,6 +63,7 @@ interface ResultsColumnProps {
   notesLoading: boolean
   categories: CategoryRecord[]
   fallbackCategoryId: number | null
+  fallbackTagId: number | null
   selectedTag: TagRecord | null
   searchMode: boolean
   searchItems: DisplayNoteItem[]
@@ -97,6 +98,7 @@ export function ResultsColumn({
   notesLoading,
   categories,
   fallbackCategoryId,
+  fallbackTagId,
   selectedTag,
   searchMode,
   searchItems,
@@ -450,6 +452,7 @@ export function ResultsColumn({
               {tagNoteGroups.map(({ tag, items }) => {
                 const expanded = expandedTagId === tag.id
                 const panelId = `tag-notes-${tag.id}`
+                const deleteDisabled = tag.id === fallbackTagId
 
                 return (
                   <div className={styles.categoryGroup} key={tag.id} role="listitem">
@@ -474,6 +477,10 @@ export function ResultsColumn({
                           onOpenActionMenuChange={setOpenActionMenuId}
                           onEdit={() => onEditTag(tag)}
                           onDelete={() => onDeleteTag(tag)}
+                          deleteDisabled={deleteDisabled}
+                          deleteTitle={
+                            deleteDisabled ? "The default tag cannot be deleted" : undefined
+                          }
                         />
                       </SectionTitle>
                     </div>

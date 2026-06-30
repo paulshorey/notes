@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
+  NOTES_APP_AUTH_REQUIRED_ERROR,
   NOTES_APP_CATEGORY_NOT_FOUND_ERROR,
+  NOTES_APP_INVALID_CREDENTIALS_ERROR,
   NOTES_APP_TAG_NOT_FOUND_ERROR,
-  NOTES_APP_LOGIN_NOT_FOUND_ERROR,
   NOTES_APP_NOTE_NOT_FOUND_ERROR,
   NOTES_APP_USER_NOT_FOUND_ERROR,
   parseCategoriesRequest,
@@ -18,14 +19,56 @@ import {
   parseDeleteNoteRequest,
   parseNotesRequest,
   parseSearchRequest,
-  parseSessionLookupRequest,
   parseSessionRequest,
+  parseTokenLoginRequest,
   parseUpdateUserPreferencesRequest,
   parseUpdateCategoryRequest,
   parseUpdateTagRequest,
   parseUpdateNoteRequest,
   type NotesAppService,
 } from "@lib/db-marketing/services/notes-app"
+
+/**
+ * Resolves the NextAuth (cookie) session to a Notes user id. Kept injectable
+ * so route files wire in the real resolver while tests stay hermetic and rely
+ * on bearer tokens only.
+ */
+export type SessionUserResolver = () => Promise<number | null>
+
+const noSessionUser: SessionUserResolver = async () => null
+
+const readBearerToken = (request: Request): string | null => {
+  const header = request.headers.get("authorization")
+
+  if (!header) {
+    return null
+  }
+
+  const match = header.match(/^Bearer\s+(.+)$/i)
+  return match?.[1] ? match[1].trim() : null
+}
+
+/**
+ * Derives the authenticated user id for a request. Clients never choose their
+ * own userId: a bearer token (Android) or the NextAuth session cookie (web)
+ * is the only source of identity. Returns null when unauthenticated.
+ */
+const resolveRequestUserId = async (
+  request: Request,
+  service: NotesAppService,
+  resolveSessionUserId: SessionUserResolver,
+): Promise<number | null> => {
+  const token = readBearerToken(request)
+
+  if (token !== null) {
+    return service.getNotesAppUserIdForToken({ token })
+  }
+
+  return resolveSessionUserId()
+}
+
+const unauthorizedResponse = () =>
+  NextResponse.json({ error: NOTES_APP_AUTH_REQUIRED_ERROR }, { status: 401 })
 
 const readJsonObject = async (request: Request) => {
   try {
@@ -45,18 +88,67 @@ const readJsonObject = async (request: Request) => {
   }
 }
 
+const readAuthorizedJsonObject = async (request: Request, userId: number) => ({
+  ...(await readJsonObject(request)),
+  userId,
+})
+
 const toErrorResponse = (error: unknown, status = 400) =>
   NextResponse.json(
     { error: error instanceof Error ? error.message : "Unexpected server error." },
     { status },
   )
 
-export const createSessionRouteHandlers = (service: NotesAppService = notesAppService) => ({
+export const createAuthTokenRouteHandlers = (
+  service: NotesAppService = notesAppService,
+) => ({
+  POST: async (request: Request) => {
+    try {
+      const result = await service.loginNotesAppUser(
+        parseTokenLoginRequest(await readJsonObject(request)),
+      )
+
+      if (!result) {
+        return NextResponse.json(
+          { error: NOTES_APP_INVALID_CREDENTIALS_ERROR },
+          { status: 401 },
+        )
+      }
+
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+  DELETE: async (request: Request) => {
+    try {
+      const token = readBearerToken(request)
+
+      if (token === null) {
+        return unauthorizedResponse()
+      }
+
+      await service.revokeNotesAppToken({ token })
+      return NextResponse.json({ ok: true })
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+})
+
+export const createSessionRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
   GET: async (request: NextRequest) => {
     try {
-      const result = await service.getNotesAppSession(
-        parseSessionRequest(request.nextUrl.searchParams.get("userId")),
-      )
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.getNotesAppSession(parseSessionRequest(userId))
 
       if (!result) {
         return NextResponse.json({ error: NOTES_APP_USER_NOT_FOUND_ERROR }, { status: 404 })
@@ -67,30 +159,16 @@ export const createSessionRouteHandlers = (service: NotesAppService = notesAppSe
       return toErrorResponse(error)
     }
   },
-  POST: async (request: Request) => {
-    try {
-      const result = await service.findNotesAppSession(
-        parseSessionLookupRequest(await readJsonObject(request)),
-      )
-
-      if (!result) {
-        return NextResponse.json(
-          {
-            error: NOTES_APP_LOGIN_NOT_FOUND_ERROR,
-          },
-          { status: 404 },
-        )
-      }
-
-      return NextResponse.json(result)
-    } catch (error) {
-      return toErrorResponse(error)
-    }
-  },
   PATCH: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.updateNotesAppUserPreferences(
-        parseUpdateUserPreferencesRequest(await readJsonObject(request)),
+        parseUpdateUserPreferencesRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
@@ -104,12 +182,19 @@ export const createSessionRouteHandlers = (service: NotesAppService = notesAppSe
   },
 })
 
-export const createNotesRouteHandlers = (service: NotesAppService = notesAppService) => ({
+export const createNotesRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
   GET: async (request: NextRequest) => {
     try {
-      const result = await service.listNotesForNotesApp(
-        parseNotesRequest(request.nextUrl.searchParams.get("userId")),
-      )
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.listNotesForNotesApp(parseNotesRequest(userId))
       return NextResponse.json(result)
     } catch (error) {
       return toErrorResponse(error)
@@ -117,8 +202,14 @@ export const createNotesRouteHandlers = (service: NotesAppService = notesAppServ
   },
   POST: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.createNoteForNotesApp(
-        parseCreateNoteRequest(await readJsonObject(request)),
+        parseCreateNoteRequest(await readAuthorizedJsonObject(request, userId)),
       )
       return NextResponse.json(result, { status: 201 })
     } catch (error) {
@@ -127,8 +218,14 @@ export const createNotesRouteHandlers = (service: NotesAppService = notesAppServ
   },
   PATCH: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.updateNoteForNotesApp(
-        parseUpdateNoteRequest(await readJsonObject(request)),
+        parseUpdateNoteRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
@@ -142,8 +239,14 @@ export const createNotesRouteHandlers = (service: NotesAppService = notesAppServ
   },
   DELETE: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.deleteNoteForNotesApp(
-        parseDeleteNoteRequest(await readJsonObject(request)),
+        parseDeleteNoteRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
@@ -157,12 +260,19 @@ export const createNotesRouteHandlers = (service: NotesAppService = notesAppServ
   },
 })
 
-export const createTagsRouteHandlers = (service: NotesAppService = notesAppService) => ({
+export const createTagsRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
   GET: async (request: NextRequest) => {
     try {
-      const result = await service.listTagsForNotesApp(
-        parseTagsRequest(request.nextUrl.searchParams.get("userId")),
-      )
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.listTagsForNotesApp(parseTagsRequest(userId))
       return NextResponse.json(result)
     } catch (error) {
       return toErrorResponse(error)
@@ -170,8 +280,14 @@ export const createTagsRouteHandlers = (service: NotesAppService = notesAppServi
   },
   POST: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.createTagForNotesApp(
-        parseCreateTagRequest(await readJsonObject(request)),
+        parseCreateTagRequest(await readAuthorizedJsonObject(request, userId)),
       )
       return NextResponse.json(result, { status: 201 })
     } catch (error) {
@@ -180,8 +296,14 @@ export const createTagsRouteHandlers = (service: NotesAppService = notesAppServi
   },
   PATCH: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.updateTagForNotesApp(
-        parseUpdateTagRequest(await readJsonObject(request)),
+        parseUpdateTagRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
@@ -198,8 +320,14 @@ export const createTagsRouteHandlers = (service: NotesAppService = notesAppServi
   },
   DELETE: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.deleteTagForNotesApp(
-        parseDeleteTagRequest(await readJsonObject(request)),
+        parseDeleteTagRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
@@ -216,12 +344,19 @@ export const createTagsRouteHandlers = (service: NotesAppService = notesAppServi
   },
 })
 
-export const createCategoriesRouteHandlers = (service: NotesAppService = notesAppService) => ({
+export const createCategoriesRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
   GET: async (request: NextRequest) => {
     try {
-      const result = await service.listCategoriesForNotesApp(
-        parseCategoriesRequest(request.nextUrl.searchParams.get("userId")),
-      )
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.listCategoriesForNotesApp(parseCategoriesRequest(userId))
       return NextResponse.json(result)
     } catch (error) {
       return toErrorResponse(error)
@@ -229,8 +364,14 @@ export const createCategoriesRouteHandlers = (service: NotesAppService = notesAp
   },
   POST: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.createCategoryForNotesApp(
-        parseCreateCategoryRequest(await readJsonObject(request)),
+        parseCreateCategoryRequest(await readAuthorizedJsonObject(request, userId)),
       )
       return NextResponse.json(result, { status: 201 })
     } catch (error) {
@@ -239,8 +380,14 @@ export const createCategoriesRouteHandlers = (service: NotesAppService = notesAp
   },
   PATCH: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.updateCategoryForNotesApp(
-        parseUpdateCategoryRequest(await readJsonObject(request)),
+        parseUpdateCategoryRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
@@ -257,8 +404,14 @@ export const createCategoriesRouteHandlers = (service: NotesAppService = notesAp
   },
   DELETE: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.deleteCategoryForNotesApp(
-        parseDeleteCategoryRequest(await readJsonObject(request)),
+        parseDeleteCategoryRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
@@ -276,12 +429,19 @@ export const createCategoriesRouteHandlers = (service: NotesAppService = notesAp
 })
 
 export const createDeleteCategoryWithNotesRouteHandlers = (
-  service: NotesAppService = notesAppService
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
 ) => ({
   DELETE: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.deleteCategoryWithNotesForNotesApp(
-        parseDeleteCategoryWithNotesRequest(await readJsonObject(request)),
+        parseDeleteCategoryWithNotesRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
@@ -298,11 +458,20 @@ export const createDeleteCategoryWithNotesRouteHandlers = (
   },
 })
 
-export const createSearchRouteHandlers = (service: NotesAppService = notesAppService) => ({
+export const createSearchRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
   POST: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.searchNotesForNotesApp(
-        parseSearchRequest(await readJsonObject(request)),
+        parseSearchRequest(await readAuthorizedJsonObject(request, userId)),
       )
       return NextResponse.json(result)
     } catch (error) {
@@ -312,12 +481,19 @@ export const createSearchRouteHandlers = (service: NotesAppService = notesAppSer
 })
 
 export const createEmbeddingMaintenanceRouteHandlers = (
-  service: NotesAppService = notesAppService
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
 ) => ({
   POST: async (request: Request) => {
     try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
       const result = await service.maintainNoteEmbeddingsForNotesApp(
-        parseEmbeddingMaintenanceRequest(await readJsonObject(request)),
+        parseEmbeddingMaintenanceRequest(await readAuthorizedJsonObject(request, userId)),
       )
       return NextResponse.json(result)
     } catch (error) {
