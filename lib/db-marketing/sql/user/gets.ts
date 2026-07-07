@@ -1,5 +1,6 @@
 import type { UserV1Row } from "../../generated/typescript/db-types";
 import { getDb } from "../../lib/db/postgres";
+import { hashPassword, isHashedPassword, verifyPassword } from "./password";
 import type { UserPreferences, UserSummary } from "./types";
 
 const userSelect = `
@@ -46,7 +47,7 @@ export const verifyUserCredentials = async (identifier: string, password: string
     ${userSelectWithPassword}
     WHERE (lower(username) = lower($1)
       OR lower(email) = lower($1)
-      OR regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2)
+      OR ($2 <> '' AND regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2))
       AND is_anonymous = false
     ORDER BY id ASC
     LIMIT 1
@@ -54,8 +55,21 @@ export const verifyUserCredentials = async (identifier: string, password: string
   const { rows } = await getDb().query<UserV1RowWithPassword>(query, [trimmed, phoneDigits]);
   const row = rows[0];
 
-  if (!row || row.password !== password) {
+  if (!row || !verifyPassword(password, row.password)) {
     return null;
+  }
+
+  // Upgrade legacy plaintext rows the first time they log in successfully.
+  // Best-effort: the login must succeed even if the rehash write fails.
+  if (row.password !== null && !isHashedPassword(row.password)) {
+    try {
+      await getDb().query(`UPDATE public.user_v1 SET password = $2 WHERE id = $1`, [
+        row.id,
+        hashPassword(password),
+      ]);
+    } catch {
+      // Ignore; the row stays on plaintext until the next login.
+    }
   }
 
   return mapUser(row);
@@ -73,7 +87,7 @@ export const findUserByIdentifier = async (identifier: string) => {
     ${userSelect}
     WHERE (lower(username) = lower($1)
       OR lower(email) = lower($1)
-      OR regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2)
+      OR ($2 <> '' AND regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2))
       AND is_anonymous = false
     ORDER BY id ASC
     LIMIT 1

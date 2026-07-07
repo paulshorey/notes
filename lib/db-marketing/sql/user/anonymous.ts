@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 import type { UserV1Row } from "../../generated/typescript/db-types";
 import { getDb } from "../../lib/db/postgres";
 import { ensureDefaultTagForUser } from "../tag";
+import { hashPassword } from "./password";
 import type { UserSummary } from "./types";
+
+export const CLAIM_IDENTIFIER_TAKEN_ERROR =
+  "That username or email is already taken.";
+export const CLAIM_NOT_ANONYMOUS_ERROR =
+  "Only an anonymous user can be claimed.";
 
 const mapUser = (row: UserV1Row): UserSummary => ({
   id: row.id,
@@ -45,6 +51,106 @@ export const createAnonymousUser = async (): Promise<UserSummary> => {
   } finally {
     client.release();
   }
+};
+
+/**
+ * Upgrade an anonymous user row into a permanent account in place. The user id
+ * (and therefore every owned row) is untouched — only identity columns change.
+ * This is the common signup path; no cross-user data movement happens here.
+ */
+export const claimAnonymousUser = async (
+  anonUserId: number,
+  identity: { username: string; password: string; email?: string }
+): Promise<UserSummary> => {
+  const client = await getDb().connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const anonCheck = await client.query<{ is_anonymous: boolean }>(
+      `SELECT is_anonymous FROM public.user_v1 WHERE id = $1 FOR UPDATE`,
+      [anonUserId]
+    );
+    if (!anonCheck.rows[0]?.is_anonymous) {
+      throw new Error(CLAIM_NOT_ANONYMOUS_ERROR);
+    }
+
+    // Same normalization findUserByIdentifier uses. Only non-anonymous rows
+    // count as conflicts; this row is still anonymous, so it excludes itself.
+    // username also has a global UNIQUE constraint — the 23505 handler below
+    // covers a race or a collision with another anonymous row.
+    const conflict = await client.query<{ id: number }>(
+      `SELECT id FROM public.user_v1
+       WHERE is_anonymous = false
+         AND (lower(username) = lower($1)
+           OR ($2::text IS NOT NULL AND lower(email) = lower($2)))
+       LIMIT 1`,
+      [identity.username, identity.email ?? null]
+    );
+    if (conflict.rows[0]) {
+      throw new Error(CLAIM_IDENTIFIER_TAKEN_ERROR);
+    }
+
+    const { rows } = await client.query<UserV1Row>(
+      `UPDATE public.user_v1
+       SET username = $2, email = $3, password = $4, is_anonymous = false
+       WHERE id = $1
+       RETURNING id, username, email, phone, preferences`,
+      [
+        anonUserId,
+        identity.username,
+        identity.email ?? null,
+        hashPassword(identity.password),
+      ]
+    );
+
+    if (!rows[0]) {
+      throw new Error("Failed to claim anonymous user.");
+    }
+
+    await client.query("COMMIT");
+    return mapUser(rows[0]);
+  } catch (error) {
+    await client.query("ROLLBACK");
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      (error as { code?: string }).code === "23505"
+    ) {
+      throw new Error(CLAIM_IDENTIFIER_TAKEN_ERROR);
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Every table with a foreign key to user_v1 must be listed here with the
+ * strategy mergeAnonymousUserInto applies to it:
+ *
+ * - "dedup-remap": rows are deduplicated against the destination user by a
+ *   natural key and references are remapped (categories/tags by label).
+ * - "reparent":    rows simply change user_id to the destination user.
+ * - "drop":        rows are intentionally discarded via the CASCADE delete of
+ *   the anonymous user row.
+ *
+ * A test diffs this map against information_schema, so adding a user-owned
+ * table without deciding its merge behavior fails CI instead of silently
+ * losing data.
+ */
+export const MERGE_TABLE_STRATEGIES: Record<
+  string,
+  "dedup-remap" | "reparent" | "drop"
+> = {
+  user_note_category_v1: "dedup-remap",
+  user_note_tag_v1: "dedup-remap",
+  user_note_v1: "reparent",
+  // Anonymous sessions have no way to mint API tokens; any that existed would
+  // be discarded with the anonymous row.
+  user_api_token_v1: "drop",
 };
 
 export const mergeAnonymousUserInto = async (

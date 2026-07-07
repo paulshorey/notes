@@ -54,7 +54,7 @@ import { useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
-import { NotesHeader } from "./NotesHeader"
+import { NotesHeader, type SignupFields } from "./NotesHeader"
 import { ResultsColumn, type CategoryNoteGroup, type TagNoteGroup } from "./ResultsColumn"
 import { DeleteCategoryModal, type DeleteCategoryAction } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
@@ -1581,33 +1581,62 @@ export default function NotesApp() {
     }
   }
 
-  const handleSocialSignIn = async (provider: string) => {
+  const handleSignup = async (fields: SignupFields) => {
     clearMessages()
     setAuthPending(true)
     try {
-      // Persist unsaved edits to the anonymous account before the OAuth redirect
-      // navigates away from the page.
+      // Persist any unsaved edits before the claim. The data stays on the same
+      // user row, but the debounced autosave must not fire mid-transition.
       await flushPendingNoteSave()
 
-      // Capture the merge token while still anonymous and stash it so it
-      // survives the OAuth round-trip. On return, restoreSession finds the
-      // token and performs the merge + single reload (same path as credentials).
-      if (authSession?.user?.isAnonymous && authSession.user.notesUserId) {
-        try {
-          const tokenResponse = await fetch("/api/anon-session/merge-token", {
-            method: "POST",
-          })
-          if (tokenResponse.ok) {
-            const tokenData = (await tokenResponse.json()) as { mergeToken: string }
-            writePendingMergeToken(tokenData.mergeToken)
-          }
-        } catch {
-          // Continue with sign-in even if merge-token capture fails.
+      // Claim the anonymous row in place: same user_id, identity + password set,
+      // is_anonymous flipped to false. Nothing moves between users, so there is
+      // no merge token and no race in this path.
+      const claimResponse = await fetch("/api/anon-session/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: fields.username,
+          email: fields.email.trim() === "" ? undefined : fields.email,
+          password: fields.password,
+        }),
+      })
+
+      if (!claimResponse.ok) {
+        if (claimResponse.status === 409) {
+          setErrorMessage(
+            "That username or email is already taken — sign in instead to keep your notes.",
+          )
+        } else {
+          const body = (await claimResponse.json().catch(() => null)) as
+            | { error?: string }
+            | null
+          setErrorMessage(body?.error ?? "Unable to create the account. Try again.")
         }
+        return
       }
-      await signIn(provider, { callbackUrl: "/" })
+
+      // Re-mint the JWT for the same user id so isAnonymous flips to false.
+      const result = await signIn("credentials", {
+        identifier: fields.username,
+        password: fields.password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        // The account is already claimed; only the session refresh failed.
+        setErrorMessage(
+          "Account created — sign in with your new username and password.",
+        )
+        return
+      }
+
+      // restoreSession re-fires (isAnonymous flipped) and refreshes the same
+      // account's data. No merge token is pending, so it is a plain reload.
+      setStatusMessage("Account created. Your notes are saved to it.")
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
+    } finally {
       setAuthPending(false)
     }
   }
@@ -2304,7 +2333,7 @@ export default function NotesApp() {
                 onIdentifierChange={setIdentifier}
                 onPasswordChange={setPassword}
                 onLoginSubmit={handleLogin}
-                onSocialSignIn={handleSocialSignIn}
+                onSignupSubmit={(fields) => void handleSignup(fields)}
                 authPending={authPending}
                 loginErrorMessage={authPending ? null : errorMessage}
                 onDismissLoginError={() => setErrorMessage(null)}

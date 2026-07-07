@@ -44,12 +44,11 @@ function SaveStatusIndicator() {
   )
 }
 
-const SOCIAL_PROVIDERS = [
-  { id: "google", label: "Google" },
-  { id: "github", label: "GitHub" },
-  { id: "linkedin", label: "LinkedIn" },
-  { id: "facebook", label: "Facebook" },
-] as const
+export interface SignupFields {
+  username: string
+  email: string
+  password: string
+}
 
 interface NotesHeaderProps {
   user: UserSummary
@@ -64,7 +63,7 @@ interface NotesHeaderProps {
   onIdentifierChange: (value: string) => void
   onPasswordChange: (value: string) => void
   onLoginSubmit: (event: FormEvent<HTMLFormElement>) => void
-  onSocialSignIn: (provider: string) => void
+  onSignupSubmit: (fields: SignupFields) => void
   authPending: boolean
   loginErrorMessage: string | null
   onDismissLoginError: () => void
@@ -83,13 +82,17 @@ export function NotesHeader({
   onIdentifierChange,
   onPasswordChange,
   onLoginSubmit,
-  onSocialSignIn,
+  onSignupSubmit,
   authPending,
   loginErrorMessage,
   onDismissLoginError,
 }: NotesHeaderProps) {
   const userBtnRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
+  const [signupUsername, setSignupUsername] = useState("")
+  const [signupEmail, setSignupEmail] = useState("")
+  const [signupPassword, setSignupPassword] = useState("")
   const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
   const resultsButtonClassName = `${styles.headerButton} ${styles.mobileResultsButton} ${
     resultsListVisible ? styles.mobileResultsButtonHiddenDesktop : ""
@@ -151,59 +154,116 @@ export function NotesHeader({
       >
         <div className={styles.userMenu}>
           {isAnonymous ? (
-            <form
-              onSubmit={(e) => {
-                onLoginSubmit(e)
-                setMenuOpen(false)
-              }}
-              className={styles.loginFormInPopup}
-            >
-              <Text variant="body-2">Sign in to keep your notes</Text>
-              <TextInput
-                size="m"
-                placeholder="Username, email, or phone"
-                value={identifier}
-                onUpdate={onIdentifierChange}
-                autoComplete="username"
-              />
-              <TextInput
-                size="m"
-                type="password"
-                placeholder="Password"
-                value={password}
-                onUpdate={onPasswordChange}
-                autoComplete="current-password"
-              />
-              <Button view="action" size="m" type="submit" loading={authPending} width="max">
-                Sign in
-              </Button>
-              {SOCIAL_PROVIDERS.map((provider) => (
+            authMode === "signin" ? (
+              <form
+                onSubmit={(e) => {
+                  onLoginSubmit(e)
+                  setMenuOpen(false)
+                }}
+                className={styles.loginFormInPopup}
+              >
+                <Text variant="body-2">Sign in to keep your notes</Text>
+                <TextInput
+                  size="m"
+                  placeholder="Username, email, or phone"
+                  value={identifier}
+                  onUpdate={onIdentifierChange}
+                  autoComplete="username"
+                />
+                <TextInput
+                  size="m"
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onUpdate={onPasswordChange}
+                  autoComplete="current-password"
+                />
+                <Button view="action" size="m" type="submit" loading={authPending} width="max">
+                  Sign in
+                </Button>
                 <Button
-                  key={provider.id}
-                  view="outlined"
+                  view="flat"
                   size="m"
                   width="max"
                   disabled={authPending}
-                  onClick={() => {
-                    onSocialSignIn(provider.id)
-                    setMenuOpen(false)
-                  }}
+                  onClick={() => setAuthMode("signup")}
                 >
-                  Continue with {provider.label}
+                  Create account
                 </Button>
-              ))}
-              {loginErrorMessage && (
-                <Notification
-                  color="red"
-                  radius="md"
-                  title="Unable to sign in"
-                  withCloseButton
-                  onClose={onDismissLoginError}
+                {loginErrorMessage && (
+                  <Notification
+                    color="red"
+                    radius="md"
+                    title="Unable to sign in"
+                    withCloseButton
+                    onClose={onDismissLoginError}
+                  >
+                    {loginErrorMessage}
+                  </Notification>
+                )}
+              </form>
+            ) : (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  onSignupSubmit({
+                    username: signupUsername,
+                    email: signupEmail,
+                    password: signupPassword,
+                  })
+                  setMenuOpen(false)
+                }}
+                className={styles.loginFormInPopup}
+              >
+                <Text variant="body-2">Create an account to keep your notes</Text>
+                <TextInput
+                  size="m"
+                  placeholder="Username"
+                  value={signupUsername}
+                  onUpdate={setSignupUsername}
+                  autoComplete="username"
+                />
+                <TextInput
+                  size="m"
+                  type="email"
+                  placeholder="Email (optional)"
+                  value={signupEmail}
+                  onUpdate={setSignupEmail}
+                  autoComplete="email"
+                />
+                <TextInput
+                  size="m"
+                  type="password"
+                  placeholder="Password (8+ characters)"
+                  value={signupPassword}
+                  onUpdate={setSignupPassword}
+                  autoComplete="new-password"
+                />
+                <Button view="action" size="m" type="submit" loading={authPending} width="max">
+                  Create account
+                </Button>
+                <Button
+                  view="flat"
+                  size="m"
+                  width="max"
+                  disabled={authPending}
+                  onClick={() => setAuthMode("signin")}
                 >
-                  {loginErrorMessage}
-                </Notification>
-              )}
-            </form>
+                  I already have an account
+                </Button>
+                {loginErrorMessage && (
+                  <Notification
+                    color="red"
+                    radius="md"
+                    title="Unable to create account"
+                    withCloseButton
+                    onClose={onDismissLoginError}
+                  >
+                    {loginErrorMessage}
+                  </Notification>
+                )}
+              </form>
+            )
           ) : (
             <>
               <Text variant="body-2">{user.username}</Text>

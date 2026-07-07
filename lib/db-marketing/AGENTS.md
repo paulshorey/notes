@@ -28,6 +28,16 @@ Database-first package for the `MARKETING_DB_URL` database.
   duplicate them.
 - `user_v1.phone` is stored as `text`, not a numeric type. Treat phone numbers
   as identifiers and normalize digits at query boundaries when needed.
+- `user_v1.password` stores scrypt hashes in the self-describing
+  `scrypt$N$r$p$salt$hash` format (`sql/user/password.ts`). Legacy plaintext
+  values still verify and are rehashed on the next successful login. Always
+  write passwords through `hashPassword`.
+- Every table with a foreign key to `user_v1` must be registered in
+  `MERGE_TABLE_STRATEGIES` (`sql/user/anonymous.ts`) with the strategy
+  `mergeAnonymousUserInto` applies to it (`dedup-remap`, `reparent`, or
+  `drop`). `db:verify` diffs the registry against `information_schema` and
+  fails on unregistered tables, so a new user-owned table forces a conscious
+  merge decision.
 - `user_v1` and `user_note_v1` share the `apply_row_timestamps_v1()` trigger
   function so `time_modified` refreshes automatically on insert/update while
   `time_created` stays stable after insert.
