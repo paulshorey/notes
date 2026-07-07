@@ -76,6 +76,38 @@ const NOTE_URL_ID_PARAM = "id"
 const NOTE_URL_CATEGORY_PARAM = "category"
 const NOTE_URL_TAGS_PARAM = "tags"
 
+// A signed, short-lived token captured while the browser is still an anonymous
+// session. It is stashed here across the sign-in transition (including an OAuth
+// redirect) so the single post-login loader can merge the anonymous account.
+const PENDING_MERGE_TOKEN_KEY = "notes-pending-merge-token"
+
+const readPendingMergeToken = (): string | null => {
+  if (typeof window === "undefined") return null
+  try {
+    return window.sessionStorage.getItem(PENDING_MERGE_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+const writePendingMergeToken = (token: string): void => {
+  if (typeof window === "undefined") return
+  try {
+    window.sessionStorage.setItem(PENDING_MERGE_TOKEN_KEY, token)
+  } catch {
+    // Best-effort; if sessionStorage is unavailable the merge is simply skipped.
+  }
+}
+
+const clearPendingMergeToken = (): void => {
+  if (typeof window === "undefined") return
+  try {
+    window.sessionStorage.removeItem(PENDING_MERGE_TOKEN_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 interface NotesUrlSelection {
   hasState: boolean
   noteId: number | null
@@ -386,6 +418,10 @@ export default function NotesApp() {
   const noteSavePromiseRef = useRef<Promise<void> | null>(null)
   const queuedAutosaveRef = useRef(false)
   const noteSaveInFlightRef = useRef(false)
+  // Guards the anonymous→real merge so a re-render mid-request cannot fire it
+  // twice. The sessionStorage token removal is the primary idempotency guard;
+  // this ref covers the in-flight window before that removal is observed.
+  const mergeInFlightRef = useRef(false)
   const lastSavedNoteDraftRef = useRef<string | null>(null)
   // Stable handle to the latest flush implementation so handlers declared
   // before it (e.g. handleCancelEdit) can trigger a save without dependency or
@@ -818,7 +854,50 @@ export default function NotesApp() {
       const storedUserId = String(authSession.user.notesUserId)
       window.localStorage.setItem(STORAGE_KEY, storedUserId)
       const numericUserId = Number.parseInt(storedUserId, 10)
-      const cachedSnapshot = Number.isInteger(numericUserId) ? readNotesCache(numericUserId) : null
+
+      // If the user just signed in from an anonymous session, merge that
+      // visitor data into the real account *before* loading anything. Running
+      // the merge here — inside the single post-login loader — guarantees the
+      // data loaded below is always post-merge, so there is no window where a
+      // stale pre-merge fetch can win a race.
+      const pendingMergeToken =
+        !authSession.user.isAnonymous && !mergeInFlightRef.current
+          ? readPendingMergeToken()
+          : null
+
+      if (pendingMergeToken) {
+        mergeInFlightRef.current = true
+        clearPendingMergeToken()
+        try {
+          const mergeResponse = await fetch("/api/anon-session/merge", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mergeToken: pendingMergeToken }),
+          })
+          if (!mergeResponse.ok) {
+            throw new Error(`Merge failed with status ${mergeResponse.status}`)
+          }
+        } catch {
+          // The real sign-in stays successful; the visitor data remains on the
+          // anonymous row for the cleanup script. Surface a recoverable warning
+          // rather than failing silently.
+          if (active) {
+            setErrorMessage(
+              "Signed in, but we couldn't move your visitor notes. They're still saved — try signing in again.",
+            )
+          }
+        } finally {
+          mergeInFlightRef.current = false
+        }
+      }
+
+      // Skip the stale-while-revalidate cache paint when a merge just ran: the
+      // cached snapshot predates the merge, so we load fresh post-merge data in
+      // a single pass instead.
+      const cachedSnapshot =
+        !pendingMergeToken && Number.isInteger(numericUserId)
+          ? readNotesCache(numericUserId)
+          : null
 
       // Stale-while-revalidate. If we have a recent local snapshot for this
       // user, render the app immediately from cache and refresh in the
@@ -883,6 +962,7 @@ export default function NotesApp() {
     }
   }, [
     authSession?.user?.notesUserId,
+    authSession?.user?.isAnonymous,
     authStatus,
     applyLoadedUser,
     loadCategories,
@@ -1451,8 +1531,15 @@ export default function NotesApp() {
     clearMessages()
     setAuthPending(true)
     try {
-      // Get merge token before signing in if currently anonymous
-      let mergeToken: string | null = null
+      // Persist any unsaved edits to the anonymous account before the session
+      // changes, otherwise the outgoing draft never reaches the DB and the
+      // merge below cannot move it.
+      await flushPendingNoteSave()
+
+      // While still anonymous, capture a signed merge token and stash it across
+      // the sign-in transition. The single post-login loader (restoreSession)
+      // performs the merge and the reload, so there is exactly one writer of
+      // session data — no race.
       if (authSession?.user?.isAnonymous && authSession.user.notesUserId) {
         try {
           const tokenResponse = await fetch("/api/anon-session/merge-token", {
@@ -1460,10 +1547,10 @@ export default function NotesApp() {
           })
           if (tokenResponse.ok) {
             const tokenData = (await tokenResponse.json()) as { mergeToken: string }
-            mergeToken = tokenData.mergeToken
+            writePendingMergeToken(tokenData.mergeToken)
           }
         } catch {
-          // Continue with sign-in even if merge-token fails
+          // Continue with sign-in even if merge-token capture fails.
         }
       }
 
@@ -1474,47 +1561,23 @@ export default function NotesApp() {
       })
 
       if (result?.error) {
+        // Sign-in failed; the session is still anonymous. Drop the stashed
+        // token so it is not applied on a later unrelated render.
+        clearPendingMergeToken()
         setErrorMessage("Unable to sign in. Check your identifier and password.")
         return
       }
 
-      // Merge anonymous data after successful sign-in, then reload
-      if (mergeToken) {
-        try {
-          const mergeResponse = await fetch("/api/anon-session/merge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mergeToken }),
-          })
-          if (mergeResponse.ok) {
-            const mergeData = (await mergeResponse.json()) as SessionResponse
-            const realUserId = mergeData.user.id
-            applyLoadedUser(mergeData.user)
-            const [mergedCategories, mergedTags, mergedNotes] = await Promise.all([
-              loadCategories(realUserId),
-              loadTags(realUserId),
-              loadNotes(realUserId),
-            ])
-            writeNotesCache({
-              userId: realUserId,
-              user: mergeData.user,
-              notes: mergedNotes,
-              categories: mergedCategories,
-              tags: mergedTags,
-            })
-          }
-        } catch {
-          // Merge failure is non-fatal — anonymous data stays for cleanup
-        }
-      }
-
+      // A successful sign-in flips authSession to the real user, which re-runs
+      // restoreSession. Show the loading state so the merge + single reload is
+      // not interleaved with a flash of the outgoing anonymous data.
+      setSessionLoading(true)
       setIdentifier("")
       setPassword("")
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
       setAuthPending(false)
-      setSessionLoading(false)
     }
   }
 
@@ -1522,7 +1585,13 @@ export default function NotesApp() {
     clearMessages()
     setAuthPending(true)
     try {
-      // Get merge token before OAuth redirect if currently anonymous
+      // Persist unsaved edits to the anonymous account before the OAuth redirect
+      // navigates away from the page.
+      await flushPendingNoteSave()
+
+      // Capture the merge token while still anonymous and stash it so it
+      // survives the OAuth round-trip. On return, restoreSession finds the
+      // token and performs the merge + single reload (same path as credentials).
       if (authSession?.user?.isAnonymous && authSession.user.notesUserId) {
         try {
           const tokenResponse = await fetch("/api/anon-session/merge-token", {
@@ -1530,10 +1599,10 @@ export default function NotesApp() {
           })
           if (tokenResponse.ok) {
             const tokenData = (await tokenResponse.json()) as { mergeToken: string }
-            sessionStorage.setItem("notes-merge-token", tokenData.mergeToken)
+            writePendingMergeToken(tokenData.mergeToken)
           }
         } catch {
-          // Continue with sign-in even if merge-token fails
+          // Continue with sign-in even if merge-token capture fails.
         }
       }
       await signIn(provider, { callbackUrl: "/" })
@@ -2171,24 +2240,6 @@ export default function NotesApp() {
       void signIn("anonymous", { redirect: false })
     }
   }, [authStatus])
-
-  // After OAuth redirect, check for pending merge token in sessionStorage
-  useEffect(() => {
-    if (authStatus !== "authenticated" || !authSession?.user?.notesUserId) return
-    if (authSession.user.isAnonymous) return
-
-    const pendingMergeToken = sessionStorage.getItem("notes-merge-token")
-    if (!pendingMergeToken) return
-
-    sessionStorage.removeItem("notes-merge-token")
-    void fetch("/api/anon-session/merge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mergeToken: pendingMergeToken }),
-    }).catch(() => {
-      // Merge failure is non-fatal
-    })
-  }, [authStatus, authSession?.user?.notesUserId, authSession?.user?.isAnonymous])
 
   if (authStatus === "loading" || sessionLoading || !user) {
     return (
