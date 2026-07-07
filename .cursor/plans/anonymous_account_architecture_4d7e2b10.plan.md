@@ -54,17 +54,17 @@ should ship alongside Phase 1.
 
 ### Key files
 
-| Layer | File |
-|-------|------|
-| UI / load orchestration | `apps/notes-next/src/components/notes/NotesApp.tsx` |
-| Session provider | `apps/notes-next/app/providers.tsx` |
-| Auth (providers, JWT/session callbacks) | `apps/notes-next/src/auth.ts` |
-| Merge token (HMAC) | `apps/notes-next/src/lib/anonymousMergeToken.ts` |
-| Merge / anon SQL | `lib/db-marketing/sql/user/anonymous.ts` |
-| Credential lookup | `lib/db-marketing/sql/user/gets.ts` |
-| Service layer | `lib/db-marketing/services/notes-app.ts` |
-| Merge routes | `apps/notes-next/app/api/anon-session/merge-token/route.ts`, `.../merge/route.ts` |
-| Local cache | `apps/notes-next/src/lib/notesCache.ts` |
+| Layer                                   | File                                                                              |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| UI / load orchestration                 | `apps/notes-next/src/components/notes/NotesApp.tsx`                               |
+| Session provider                        | `apps/notes-next/app/providers.tsx`                                               |
+| Auth (providers, JWT/session callbacks) | `apps/notes-next/src/auth.ts`                                                     |
+| Merge token (HMAC)                      | `apps/notes-next/src/lib/anonymousMergeToken.ts`                                  |
+| Merge / anon SQL                        | `lib/db-marketing/sql/user/anonymous.ts`                                          |
+| Credential lookup                       | `lib/db-marketing/sql/user/gets.ts`                                               |
+| Service layer                           | `lib/db-marketing/services/notes-app.ts`                                          |
+| Merge routes                            | `apps/notes-next/app/api/anon-session/merge-token/route.ts`, `.../merge/route.ts` |
+| Local cache                             | `apps/notes-next/src/lib/notesCache.ts`                                           |
 
 ---
 
@@ -170,18 +170,20 @@ Inside `restoreSession`, after confirming an authenticated **non-anonymous** ses
 
 1. Read the pending merge token from `sessionStorage`.
 2. If present:
-   - **Skip the stale cache-first paint** for this login (do not early-return on
-     `cachedSnapshot`) so pre-merge data is never shown.
-   - `await fetch("/api/anon-session/merge", { body: { mergeToken } })`.
-   - Remove the token from `sessionStorage`.
-   - On success: fall through to the existing
-     `fetchFreshSession(storedUserId, { applyUser: true })`, which now returns
-     post-merge data and rewrites the cache. Optionally seed `applyLoadedUser` from
-     the merge response to avoid any flash.
-   - On failure: still load the real account (so the user isn't stuck) and surface a
-     recoverable warning (merge-failure UX in the improvements plan). Do **not** sign
-     the user out.
-3. If absent: existing behavior (cache-first paint + background refresh) unchanged.
+
+- **Skip the stale cache-first paint** for this login (do not early-return on
+  `cachedSnapshot`) so pre-merge data is never shown.
+- `await fetch("/api/anon-session/merge", { body: { mergeToken } })`.
+- Remove the token from `sessionStorage`.
+- On success: fall through to the existing
+  `fetchFreshSession(storedUserId, { applyUser: true })`, which now returns
+  post-merge data and rewrites the cache. Optionally seed `applyLoadedUser` from
+  the merge response to avoid any flash.
+- On failure: still load the real account (so the user isn't stuck) and surface a
+  recoverable warning (merge-failure UX in the improvements plan). Do **not** sign
+  the user out.
+
+1. If absent: existing behavior (cache-first paint + background refresh) unchanged.
 
 ### 3. Remove the other writers
 
@@ -291,8 +293,7 @@ uses the same normalization (phone digit-stripping, case-insensitive email/usern
 
 ## Part B — Existing-account login: one server-authoritative, schema-durable merge
 
-For the rare case (anonymous user authenticates to an account that already exists),
-keep a merge, but harden it:
+When anonymous user authenticates to an account that already exists - keep a merge, but harden it:
 
 ### B1. Server-authoritative
 
