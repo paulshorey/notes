@@ -13,28 +13,35 @@ Monorepo using pnpm + Turborepo.
 
 - `lib/config` - shared tooling and config
 - `lib/db-marketing` - Notes database schema, migrations, generated contracts, and shared Notes service logic
-- `lib/atomic-editor` - vendored fork of `@atomic-editor/editor` (see below)
+- `lib/atomic-editor` - fork of `@atomic-editor/editor`, tracked as a git subtree (see below)
 
-## atomic-editor package
+## atomic-editor package (git subtree)
 
-`lib/atomic-editor` is a fork of `kenforthewin/atomic-editor`, committed directly to this monorepo as regular files (NOT a git submodule). `notes-next` consumes it via `workspace:*`. The standalone fork lives at `paulshorey/atomic-editor` and is synced with `git subtree` when needed.
+`lib/atomic-editor` is a fork of `kenforthewin/atomic-editor`. It is committed directly to this monorepo as regular files (NOT a git submodule) and linked to the standalone fork `paulshorey/atomic-editor` via **git subtree**. `notes-next` consumes it via `workspace:*`.
 
 - Build output lives in `lib/atomic-editor/dist/` (gitignored). `notes-next build` builds the editor first.
 - Peer deps (`@codemirror/*`, `react`) resolve from `notes-next` — do not add duplicate copies in this package.
 - Local dev: run `pnpm --filter @atomic-editor/editor exec tsc -w -p tsconfig.build.json` while editing `src/`, then `pnpm --filter notes-next dev`.
 - `lib/atomic-editor/package-lock.json` and `lib/atomic-editor/.github/` belong to the standalone fork repo; keep them intact for subtree syncs, but pnpm (not npm) manages deps inside this monorepo.
-- Sync to the fork (`paulshorey/atomic-editor`), e.g. to open an upstream PR against `kenforthewin/atomic-editor`:
+
+### How the subtree link works
+
+The directory was imported with `git subtree add --prefix=lib/atomic-editor <fork> main` (no `--squash`), so the fork's commit history is a real ancestor in this repo. That shared ancestry is what lets `git subtree push`/`pull` produce clean, minimal diffs. Do NOT use `--squash` for these operations — it breaks the linkage and makes future pushes show every file as new.
+
+- Edit the editor directly in `lib/atomic-editor/` like any other workspace package. No pointer bumps or init steps; a fresh clone already has everything.
+- Sync commits to the fork (e.g. before opening an upstream PR against `kenforthewin/atomic-editor`):
 
   ```bash
-  git remote add atomic-editor-fork https://github.com/paulshorey/atomic-editor.git  # once
-  git subtree push --prefix=lib/atomic-editor atomic-editor-fork <feature-branch>
+  bash scripts/atomic-editor-sync.sh push <fork-branch>   # git subtree push -> paulshorey/atomic-editor
   ```
 
 - Pull changes from the fork back into the monorepo:
 
   ```bash
-  git subtree pull --prefix=lib/atomic-editor atomic-editor-fork main --squash
+  bash scripts/atomic-editor-sync.sh pull [<fork-branch>]  # default branch: main
   ```
+
+  Both wrap `git subtree` against `https://github.com/paulshorey/atomic-editor.git` (override with `ATOMIC_EDITOR_FORK_URL`). Pushing writes to a branch on the fork; open the PR from there.
 
 ## Data
 
