@@ -12,8 +12,8 @@ todos:
     content: Run maintainNoteEmbeddingsForNotesApp({ mode "missing" }) for the real user after a successful merge so merged categories/tags are searchable
     status: pending
   - id: sql_cleanup
-    content: Remove the dead [realUserId, anonUserId] params from the tag-link UPDATE in mergeAnonymousUserInto
-    status: pending
+    content: Remove the extraneous [realUserId, anonUserId] params from the tag-link UPDATE in mergeAnonymousUserInto — found to be the TRUE ROOT CAUSE of all merges failing (Postgres rejects bind params a statement doesn't use, aborting the transaction); fixed and verified end-to-end
+    status: completed
   - id: preferences_decision
     content: Decide and implement whether anonymous UI preferences carry over to the real account on merge (open product question)
     status: pending
@@ -116,22 +116,39 @@ real user. Guard it so a missing `JINA_API_KEY` or a Jina error logs/degrades ra
 than failing the whole merge (the merge must remain successful even if embedding
 backfill can't run).
 
-## 4. SQL cleanup (low priority)
+## 4. SQL fix — extraneous bind params aborted every merge (ROOT CAUSE — fixed)
 
-The tag-link `UPDATE` in `mergeAnonymousUserInto` passes params it does not use:
+Originally filed here as a "harmless" cleanup; end-to-end testing against a real
+Postgres proved it was the actual cause of the reported data loss. The tag-link
+`UPDATE` in `mergeAnonymousUserInto` passed bind params the statement does not use:
 
-```138:145:lib/db-marketing/sql/user/anonymous.ts
-      await client.query(
-        `UPDATE public.user_note_tag_link_v1 l
-         SET tag_id = m.real_id
-         FROM (VALUES ${tagValues}) AS m(anon_id, real_id)
-         WHERE l.tag_id = m.anon_id`,
-        [realUserId, anonUserId]
-      );
+```sql
+UPDATE public.user_note_tag_link_v1 l
+SET tag_id = m.real_id
+FROM (VALUES ...) AS m(anon_id, real_id)
+WHERE l.tag_id = m.anon_id
+-- executed with params [realUserId, anonUserId] but no $1/$2 in the SQL
 ```
 
-The query references no `$1`/`$2`. **Change:** drop the unused
-`[realUserId, anonUserId]` argument. Harmless but avoids confusion.
+Postgres rejects this outright — `bind message supplies 2 parameters, but prepared
+statement "" requires 0` — which **aborts the entire merge transaction**. The merge
+route returned HTTP 400 and the old client swallowed it silently.
+
+Why it used to work: this statement only runs when the tag remap is non-empty.
+Before commit `986d5a4` ("Add default important tag with delete protection"), an
+anonymous user who never used tags had an empty remap and the statement was skipped.
+Since that commit every anonymous user is seeded with an `important` tag, so the
+remap is never empty and **every merge failed**.
+
+**Fix (done):** removed the extraneous argument. Verified with a full live flow
+(anonymous sign-in → create category + tagged note → merge token → credentials
+sign-in → merge): HTTP 200, note reassigned with category recreated and tag
+remapped, anonymous user deleted.
+
+**Recovery note:** merges that failed in production left the visitor data intact on
+orphaned anonymous `user_v1` rows. That data can be recovered by running the merge
+manually for the affected anon→real user pairs before the cleanup script removes
+them.
 
 ## 5. Anonymous preferences on merge (open product question)
 

@@ -15,8 +15,8 @@ todos:
     content: Phase 1 — guard the merge so re-renders during the async call cannot fire it twice (sessionStorage removal + in-flight ref)
     status: completed
   - id: p1_verify
-    content: Phase 1 — automated checks (check-types, build, unit tests) pass; live browser end-to-end merge verification still pending (needs running DB + session)
-    status: in_progress
+    content: Phase 1 — automated checks pass AND full live end-to-end merge verified against a real Postgres (anon sign-in → notes/categories/tags → credentials sign-in → merge → data on real account, anon row deleted). NOTE — testing surfaced the true root cause of the reported loss, a server-side SQL bind-param bug in mergeAnonymousUserInto that aborted every merge; fixed (see anonymous_merge_sync_fix plan §4)
+    status: completed
   - id: p2_claim_sql
     content: Phase 2 — add claimAnonymousUser DB helper that upgrades the anonymous row in place (set identity + password, flip is_anonymous=false) in one transaction with uniqueness checks
     status: pending

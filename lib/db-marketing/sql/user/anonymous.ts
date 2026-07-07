@@ -135,12 +135,14 @@ export const mergeAnonymousUserInto = async (
       const tagValues = tagRemap.rows
         .map((r) => `(${r.anon_id}, ${r.real_id})`)
         .join(", ");
+      // No bind parameters: the remap values are inlined above. Passing unused
+      // parameters makes Postgres reject the statement ("bind message supplies
+      // N parameters, but prepared statement requires 0"), aborting the merge.
       await client.query(
         `UPDATE public.user_note_tag_link_v1 l
          SET tag_id = m.real_id
          FROM (VALUES ${tagValues}) AS m(anon_id, real_id)
-         WHERE l.tag_id = m.anon_id`,
-        [realUserId, anonUserId]
+         WHERE l.tag_id = m.anon_id`
       );
     }
 
