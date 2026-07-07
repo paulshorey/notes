@@ -1,6 +1,6 @@
 ---
 name: Anonymous Account Architecture — Deterministic Load Path, then Claim-in-Place
-overview: Rework how an anonymous visitor becomes a permanent account so it is race-free by construction, both now and as login methods and schema evolve. Phase 1 collapses all post-login data loading in notes-next into a single, merge-aware path so there is exactly one writer of session data (eliminating the current race that loses visitor notes on sign-in). Phase 2 removes cross-user data movement from the common path entirely by adding a signup flow that upgrades the anonymous user row in place, and confines the only remaining merge (logging into a pre-existing account) to a single server-authoritative, schema-durable step.
+overview: Rework how an anonymous visitor becomes a permanent account so it is race-free by construction and lossless, both now and as login methods and schema evolve. Phase 1 collapses all post-login data loading in notes-next into a single, merge-aware path so there is exactly one writer of session data (eliminating the current race that loses visitor notes on sign-in). Phase 2 makes both first-class transitions correct: signup (new account) upgrades the anonymous row in place for BOTH credentials and OAuth (moving no data), while signing back into a pre-existing account is confined to a single server-authoritative, schema-durable, retryable merge that can never strand the visitor's work. It also fixes two current gaps this depends on — passwords are compared in plaintext with no writer today (claim is the first, so hashing must be added on write and verify together) and OAuth currently cannot create an account at all.
 todos:
   - id: p1_unify_token
     content: Phase 1 — capture the merge token into a single sessionStorage key while still anonymous, for both credentials and OAuth logins
@@ -17,20 +17,26 @@ todos:
   - id: p1_verify
     content: Phase 1 — automated checks pass AND full live end-to-end merge verified against a real Postgres (anon sign-in → notes/categories/tags → credentials sign-in → merge → data on real account, anon row deleted). NOTE — testing surfaced the true root cause of the reported loss, a server-side SQL bind-param bug in mergeAnonymousUserInto that aborted every merge; fixed (see anonymous_merge_sync_fix plan §4)
     status: completed
+  - id: p2_password_hash
+    content: Phase 2 — introduce ONE shared password helper (hash on write, verify on read) used by both claimAnonymousUser and verifyUserCredentials. Today passwords are compared in plaintext (gets.ts row.password !== password) and nothing in code writes a password yet, so claim is the first writer — make write and verify formats match in the SAME change or credentials login breaks.
+    status: pending
   - id: p2_claim_sql
-    content: Phase 2 — add claimAnonymousUser DB helper that upgrades the anonymous row in place (set identity + password, flip is_anonymous=false) in one transaction with uniqueness checks
+    content: Phase 2 — add claimAnonymousUser DB helper that upgrades the anonymous row in place (set identity + password via the shared helper, flip is_anonymous=false) in one transaction with per-field uniqueness checks (username/email/phone vs non-anonymous rows) and FOR UPDATE on the anon row
     status: pending
   - id: p2_claim_service_api
-    content: Phase 2 — add service wrapper and POST /api/anon-session/claim; require the caller to be the anonymous session
+    content: Phase 2 — add service wrapper and POST /api/anon-session/claim; require the caller to be the anonymous session; return a typed conflict (identity already belongs to an account → tell client to sign in + merge instead)
     status: pending
   - id: p2_signup_ui
-    content: Phase 2 — add a signup UI in the header popup; after claim, re-mint the JWT via signIn(credentials) for the same user id so isAnonymous flips with no data movement
+    content: Phase 2 — add a Create-account UI in the header popup (toggle vs sign-in); after claim, re-mint the JWT via signIn(credentials) for the same user id so isAnonymous flips with no data movement; on identity-conflict, guide the user into the returning-account sign-in path
+    status: pending
+  - id: p2_oauth_signup
+    content: Phase 2 — make OAuth work for a first-time anonymous visitor. Today auth.ts signIn callback DENIES OAuth when no non-anonymous account matches the email, so social signup is impossible. Add claim-in-place for OAuth (link the OAuth identity to the anon row) so the four social buttons shown to anon users actually create an account instead of failing.
     status: pending
   - id: p2_merge_durable
-    content: Phase 2 — make the residual existing-account merge server-authoritative and schema-durable via a data-driven owner-reassignment registry (generic reparent + label dedup only where needed)
+    content: Phase 2 — treat returning-account login as a first-class, must-be-lossless path (NOT an edge case). Make the merge server-authoritative and schema-durable via a data-driven owner-reassignment registry (generic user_id reparent + label dedup for categories/tags; tag-links follow the remap since they have no user_id), AND make it retryable so a transient failure never strands data (do not drop the pending merge until the server confirms success; retry on next load).
     status: pending
   - id: p2_verify
-    content: Phase 2 — verify signup (claim-in-place, zero data movement) and existing-account login (single server merge); build/type-check/test
+    content: Phase 2 — verify credentials signup (claim-in-place, zero rows change user_id) AND OAuth signup for a brand-new visitor AND returning-account login via both credentials and OAuth (single server merge, deduped, no data loss even across a forced merge failure + retry); build/type-check/test
     status: pending
 isProject: false
 ---
@@ -221,21 +227,60 @@ nothing to race because nothing changes owner.
 
 ## Insight
 
-Turning a visitor into an account has two distinct cases:
+Turning a visitor into an account has two distinct cases. **Both are expected,
+first-class workflows** — the entire premise of the app is "write first, sign in /
+organize later," so a visitor arriving with real work is the norm, not an edge case.
+Neither case may ever lose data:
 
-- **New account (the common path):** there is no second user. We don't need to move
+- **New account (signup):** there is no second user. We don't need to move
   anything — we upgrade the anonymous row in place.
-- **Log into a pre-existing account (the rare path):** two rows genuinely exist and
-  must be reconciled (dedup categories/tags by label). Keep a merge, but make it
-  server-authoritative and schema-durable.
+- **Sign back into a pre-existing account:** two rows genuinely exist and must be
+  reconciled (dedup categories/tags by label). This is a fully-supported, everyday
+  path (a returning user who jotted more notes while signed out), not a rarity. Keep
+  a merge, but make it server-authoritative, schema-durable, **and retryable so a
+  transient failure can never strand the visitor's work.**
 
 Phase 2 introduces a **signup** flow (which the app does not have today — the login
-form only authenticates against existing accounts) to unlock the common path.
+form only authenticates against existing accounts) to unlock the signup case, and
+hardens the merge so the sign-back-in case is equally lossless.
+
+### Two facts about today's code that shape Phase 2
+
+1. **Passwords are stored and compared in plaintext.** `verifyUserCredentials`
+   (`lib/db-marketing/sql/user/gets.ts`) does `row.password !== password`; there is
+   no hashing helper, and **no code path currently writes a password** (the
+   `password` column exists but is only ever set out-of-band). `claimAnonymousUser`
+   will be the first writer, so its write format and the verify format must be
+   changed together (see Part A / `p2_password_hash`).
+2. **OAuth cannot create an account today.** The `signIn` callback in `auth.ts`
+   returns `false` for a social login unless `findUserByIdentifier(email)` already
+   finds a **non-anonymous** account. An anonymous visitor who clicks one of the
+   four social buttons for the first time is rejected. Signup-via-OAuth therefore
+   needs an explicit claim-in-place path (see Part A / `p2_oauth_signup`).
 
 ## Part A — Claim the anonymous user in place (signup)
 
 No data moves; `user_id` is stable end to end; there is no cross-user load, so no
 race is even possible.
+
+### A0. Password helper (prerequisite for A1)
+
+Today `verifyUserCredentials` compares plaintext (`row.password !== password`) and
+nothing in the codebase writes a password. Because `claimAnonymousUser` is the first
+writer, introduce **one** shared helper module (e.g.
+`lib/db-marketing/sql/user/password.ts`) with `hashPassword(plain)` and
+`verifyPassword(plain, stored)` and use it in **both** places in the same change:
+
+- `claimAnonymousUser` hashes on write.
+- `verifyUserCredentials` switches from `!==` to `verifyPassword(...)`.
+
+Since no plaintext passwords are produced by code today, there is no legacy data to
+migrate; this is a safe moment to add hashing (prefer `scrypt`/`bcrypt` from a
+vetted dep, or Node's built-in `crypto.scrypt` to avoid a new dependency). No schema
+change is needed — the `password text` column already stores the encoded hash. If
+the team prefers to defer hashing, the fallback is to write plaintext to match the
+current verify — but do **not** write a hash while verify still compares plaintext,
+or every claimed account will be locked out on next sign-in.
 
 ### A1. DB helper
 
@@ -245,18 +290,20 @@ Add `claimAnonymousUser` in `lib/db-marketing/sql/user/anonymous.ts`
 ```
 claimAnonymousUser(anonUserId, { username, email?, phone?, password }): Promise<UserSummary>
   1. SELECT is_anonymous FROM user_v1 WHERE id = anonUserId FOR UPDATE
-     → throw if not anonymous.
-  2. Enforce identity uniqueness against non-anonymous rows (reuse the same
-     predicate findUserByIdentifier uses: lower(username)/lower(email)/normalized
-     phone AND is_anonymous = false), excluding this row.
-  3. UPDATE user_v1 SET username=$, email=$, phone=$, password=<hash>,
+     → throw if row missing or not anonymous.
+  2. Enforce identity uniqueness against non-anonymous rows, checking EACH provided
+     field independently with the same normalization gets.ts uses
+     (lower(username), lower(email), phone digits via
+     regexp_replace(...,'\D','','g')) AND is_anonymous = false, excluding this row.
+     On collision, throw a typed/identifiable error so the API can return a 409 and
+     the UI can redirect the user to the returning-account sign-in path.
+  3. UPDATE user_v1 SET username=$, email=$, phone=$, password=hashPassword($),
      is_anonymous=false WHERE id = anonUserId.
   4. RETURN the updated UserSummary.
 ```
 
-Password hashing must match `verifyUserCredentials` in
-`lib/db-marketing/sql/user/gets.ts` (reuse the same hashing helper so the new
-credentials verify on the next sign-in).
+The written password format MUST match what `verifyUserCredentials` compares against
+(see A0) so the new credentials verify on the next sign-in.
 
 ### A2. Service + API
 
@@ -264,18 +311,31 @@ credentials verify on the next sign-in).
   `lib/db-marketing/services/notes-app.ts`, added to `notesAppService`.
 - `POST /api/anon-session/claim`: `auth()` must be the anonymous session
   (`session.user.isAnonymous === true`); call the service with
-  `anonUserId = session.user.notesUserId`; return the updated user.
+  `anonUserId = session.user.notesUserId`; return the updated user. Map the A1
+  identity-collision error to **409** so the client can switch to the
+  returning-account sign-in (which then runs the Part B merge into the existing
+  account) instead of silently failing.
+- The claim response reuses the existing `SessionResponse`/`UserSummary` shape, so
+  no Notes contract change or migration is required. If any contract/schema does
+  change, follow the DB discipline in the Phase 2 verification checklist.
 
 ### A3. Client flow (race-free by construction)
 
-1. Anonymous user opens the header popup and chooses **Create account**; fills
-   username/email/password (extend `NotesHeader.tsx` / `LoginForm.tsx`).
+1. Anonymous user opens the header popup and chooses **Create account**; the popup
+   toggles between "Sign in" (existing) and "Create account" (new). Fills
+   username/email/password (extend `NotesHeader.tsx`; keep `LoginForm.tsx` in sync
+   if the full-page login also gains signup).
 2. (Persist outgoing draft — improvements plan.) `POST /api/anon-session/claim`.
 3. On success, `signIn("credentials", { identifier, password, redirect: false })`
    for the **same** `user_id`. This re-mints the JWT with `isAnonymous = false`
    (see `jwt` callback in `auth.ts`, which sets `isAnonymous` at sign-in time).
 4. `restoreSession` sees the **same** `notesUserId` → it just refreshes the same
    account's data. No merge, no token, no cross-user load, no race.
+5. On **409 identity conflict** (the chosen username/email/phone already belongs to
+   a real account): surface a clear message and route the user into the normal
+   sign-in flow for that account. That flow already captures a merge token while
+   anonymous (Phase 1), so their current visitor work is reconciled into the
+   existing account via Part B — no data is lost by picking an in-use identity.
 
 Note on the JWT: `isAnonymous` is only set when `user` is present (initial sign-in),
 so re-signing in is the clean way to flip it. Alternatively extend the `jwt` callback
@@ -289,10 +349,44 @@ so an anonymous placeholder username can never satisfy a login. After claim the 
 is non-anonymous and behaves like any account. Confirm the uniqueness check in A1
 uses the same normalization (phone digit-stripping, case-insensitive email/username).
 
-## Part B — Existing-account login: one server-authoritative, schema-durable merge
+### A5. Signup via OAuth (first-time social visitor)
 
-For the rare case (anonymous user authenticates to an account that already exists),
-keep a merge, but harden it:
+The header popup shows four social buttons to anonymous users, but today a social
+login **cannot create an account**: `auth.ts`'s `signIn` callback returns `false`
+unless `resolveNotesUserId(email)` already finds a non-anonymous account. So a
+first-time visitor who clicks "Continue with Google" is rejected — which directly
+contradicts the "sign in later" product promise. Phase 2 must make OAuth a real
+signup path, using the same claim-in-place principle (no data movement):
+
+- **Carry the anonymous `user_id` across the OAuth round-trip.** The redirect leaves
+  the page, so stash it the same way the merge token is stashed: when
+  `handleSocialSignIn` runs for an anonymous session, write a short-lived, signed
+  claim intent (reuse `anonymousMergeToken.ts`'s HMAC signing, or set a dedicated
+  httpOnly cookie server-side) alongside the existing merge-token capture.
+- **In the `signIn`/`jwt` callbacks, branch on "is there a pending anon claim?":**
+  - **Email matches an existing non-anonymous account** → this is the
+    *returning-account* case: allow sign-in to that account and let Part B merge the
+    anon work in (unchanged from Phase 1). Do **not** claim.
+  - **Email matches no account** → this is *signup*: claim the anon row in place —
+    set `email` (and `username` from the profile), flip `is_anonymous = false`, and
+    resolve `notesUserId` to the **same** anon `user_id`. No second row, no merge.
+- Enforce the same per-field uniqueness as A1 (guard against two anon sessions
+  claiming the same email). If the email is taken by a real account, fall through to
+  the returning-account merge rather than erroring.
+- **Security:** only honor the pending-claim intent when the caller genuinely owns
+  the anon session (verify the signed token / httpOnly cookie server-side); never
+  trust a client-supplied anon id.
+
+This keeps one mental model: an anonymous→real transition either **claims in place**
+(no matching account) or **merges** (matching account), regardless of whether the
+method is credentials or OAuth.
+
+## Part B — Existing-account login: one server-authoritative, schema-durable, lossless merge
+
+For the **expected, first-class** case (an anonymous visitor signs back into an
+account that already exists — e.g. a returning user who jotted more notes while
+signed out), keep a merge, but harden it so it is durable, schema-proof, and
+**never loses the visitor's work**:
 
 ### B1. Server-authoritative
 
@@ -321,25 +415,76 @@ ownership reassignment data-driven:
 - Keep the whole thing in one transaction with `FOR UPDATE` on the real user (as
   today) so concurrent merges into the same account serialize.
 
-### B3. Cleanup implications
+### B3. Lossless & retryable (no stranded data, ever)
 
-Because the common path now claims in place, far fewer orphaned anon rows are
-created. `scripts/cleanup-anonymous-users.mjs` still handles genuinely abandoned
-sessions and any anon row left behind by a failed existing-account merge.
+Phase 1 currently clears the pending merge token *before* awaiting the merge fetch
+(for idempotency). The side effect: if that single merge attempt fails (network
+blip, cold DB, deploy), the token is already gone, the session is now the real user,
+and the visitor's anon rows are stranded with no automatic recovery — a data-loss
+outcome the product cannot accept. Harden this:
+
+- **Do not treat one failed attempt as terminal.** Keep the pending-merge marker
+  until the server confirms success (HTTP 2xx). Prefer clearing it only in the
+  success branch; keep the `mergeInFlightRef` guard to prevent concurrent duplicate
+  calls within a single load. The merge SQL is already idempotent
+  (`ON CONFLICT DO NOTHING`, anon-existence checks), so a retried attempt is safe.
+- **Retry on the next `restoreSession`.** If a marker survives (previous attempt
+  failed), the next authenticated load re-attempts the merge before loading. Because
+  the merge is keyed on the signed token (which encodes the anon `user_id`), it does
+  not depend on still holding an anon session.
+- **Optional stronger durability:** if the token's short TTL is a concern, record a
+  server-side "pending reparent (anonUserId → realUserId)" row so a background job /
+  next login can complete it even after the client token expires. This makes the
+  guarantee independent of client storage entirely.
+- **Only surface "signed in" as fully done once the merge succeeds**; while a retry
+  is pending, keep the recoverable warning (improvements plan) rather than implying
+  the work is lost.
+
+### B4. Cleanup implications
+
+Because signup now claims in place, far fewer orphaned anon rows are created.
+`scripts/cleanup-anonymous-users.mjs` still handles genuinely abandoned sessions and
+any anon row left behind by a merge that ultimately failed — but with B3, a merge
+that failed transiently should have already been retried and completed, so cleanup
+should rarely be deleting rows that still hold un-merged user work. The cleanup
+script must not delete an anon row that still has a live pending-reparent marker.
 
 ## Phase 2 verification
 
-1. **Signup (claim-in-place)** — as anon, create notes/categories, choose Create
-   account, submit → same notes remain, `user_v1.id` unchanged, `is_anonymous` now
-   false, credentials log in on next visit. Confirm **zero** rows changed `user_id`.
-2. **Existing-account login** — anon work + existing account reconcile server-side;
-   deduped by label; anon row deleted.
-3. **Schema-durability probe** — add a throwaway user-owned table, register it, run an
-   existing-account merge, confirm its rows reparent without editing merge SQL.
-4. `pnpm --filter notes-next check-types`, `build`, `test`.
-5. DB migration/verify discipline if any schema/contract changes are introduced
+Run against a real Postgres (as Phase 1 verification required), not just unit fakes —
+the merge/claim bugs only surface against real SQL.
+
+1. **Credentials signup (claim-in-place)** — as anon, create notes/categories, choose
+   Create account, submit → same notes remain, `user_v1.id` unchanged, `is_anonymous`
+   now false. Confirm **zero** rows changed `user_id`. Then **sign out and sign back
+   in with the new credentials** to prove the written password verifies (A0 hashing
+   round-trips).
+2. **OAuth signup (first-time social visitor)** — as anon with notes, click a social
+   provider whose email has **no** existing account → account is created by claiming
+   the anon row in place (same `user_v1.id`, `is_anonymous` false, zero `user_id`
+   changes), notes intact. (Before Phase 2 this login is rejected outright.)
+3. **Identity conflict on signup** — as anon, try Create account with a
+   username/email already owned by a real account → API returns 409, UI routes to
+   sign-in, and completing sign-in merges the anon work into that existing account
+   (case 4) with no loss.
+4. **Returning-account login (credentials and OAuth)** — anon work + existing account
+   reconcile server-side; deduped by label; anon row deleted; both the pre-existing
+   notes and the new anon notes are present.
+5. **Lossless merge under failure (B3)** — force the first `/api/anon-session/merge`
+   to fail (e.g. throttle/kill the request or return 500 once), confirm the visitor
+   data is **not** lost: the pending marker survives and the next `restoreSession`
+   retries and completes the merge; final state has all data on the real account.
+6. **Schema-durability probe** — add a throwaway user-owned table, register it, run a
+   returning-account merge, confirm its rows reparent without editing merge SQL.
+   (Confirm tables without a `user_id` column, like `user_note_tag_link_v1`, are
+   handled via the remap path, not the generic reparent registry.)
+7. `pnpm --filter notes-next check-types`, `build`, `test`.
+8. DB migration/verify discipline if any schema/contract changes are introduced
    (`db:migrate`, update `scripts/verify-contract.mjs`, `db:verify`, commit generated
-   artifacts) per `lib/db-marketing/AGENTS.md`.
+   artifacts) per `lib/db-marketing/AGENTS.md`. Note: claim/OAuth-claim reuse the
+   existing `password` column and `UserSummary` shape, so no migration is expected —
+   but if you add a pending-reparent table (B3 optional) or change the contract, run
+   the full discipline.
 
 ## Sequencing
 
