@@ -4,19 +4,19 @@ overview: Rework how an anonymous visitor becomes a permanent account so it is r
 todos:
   - id: p1_unify_token
     content: Phase 1 — capture the merge token into a single sessionStorage key while still anonymous, for both credentials and OAuth logins
-    status: pending
+    status: completed
   - id: p1_single_loader
     content: Phase 1 — make restoreSession the only post-login data loader; when a pending merge token exists for a real session, run the merge first (bypassing the stale cache paint), then load once
-    status: pending
+    status: completed
   - id: p1_remove_racers
     content: Phase 1 — remove the inline merge+reload from handleLogin and the standalone OAuth merge effect so there is exactly one writer of session data
-    status: pending
+    status: completed
   - id: p1_idempotency
     content: Phase 1 — guard the merge so re-renders during the async call cannot fire it twice (sessionStorage removal + in-flight ref)
-    status: pending
+    status: completed
   - id: p1_verify
-    content: Phase 1 — verify credentials + OAuth + returning-account flows show merged data with no manual refresh; build/type-check
-    status: pending
+    content: Phase 1 — automated checks (check-types, build, unit tests) pass; live browser end-to-end merge verification still pending (needs running DB + session)
+    status: in_progress
   - id: p2_claim_sql
     content: Phase 2 — add claimAnonymousUser DB helper that upgrades the anonymous row in place (set identity + password, flip is_anonymous=false) in one transaction with uniqueness checks
     status: pending
