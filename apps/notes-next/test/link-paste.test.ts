@@ -16,6 +16,20 @@ test("markdownLinkFromUrl converts a standalone plain URL", () => {
   )
 })
 
+test("markdownLinkFromUrl strips www from link display text", () => {
+  assert.equal(
+    markdownLinkFromUrl("https://www.example.com/page/"),
+    "[example.com/page](https://www.example.com/page/)",
+  )
+})
+
+test("markdownLinkFromUrl strips query string from link display text", () => {
+  assert.equal(
+    markdownLinkFromUrl("https://example.com/path?ref=abc&utm_source=x"),
+    "[example.com/path](https://example.com/path?ref=abc&utm_source=x)",
+  )
+})
+
 test("markdownLinkFromHtml converts a single anchor's text and href", () => {
   const parse = () => ({
     anchors: [

@@ -49,7 +49,11 @@ export function isStandaloneUrl(text: string): boolean {
 }
 
 export function formatUrlDisplayText(url: string): string {
-  return url.replace(/^https?:\/\//i, "").replace(/\/$/, "")
+  return url
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\?.*$/, "")
+    .replace(/\/$/, "")
 }
 
 export function escapeLinkText(text: string): string {
