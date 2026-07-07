@@ -1,7 +1,0 @@
-#!/bin/sh
-set -e
-
-if git diff --cached --name-only | grep -qE '^(\.gitmodules|lib/atomic-editor)$'; then
-  bash scripts/sync-submodule-refs.sh
-  git add lib/*.ref 2>/dev/null || true
-fi
