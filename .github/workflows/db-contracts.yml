@@ -8,6 +8,7 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "lib/atomic-editor"
+      - "lib/atomic-editor.ref"
       - "lib/db-marketing/**"
       - "apps/notes-android/**"
       - "apps/notes-next/**"
@@ -20,6 +21,7 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "lib/atomic-editor"
+      - "lib/atomic-editor.ref"
       - "lib/db-marketing/**"
       - "apps/notes-android/**"
       - "apps/notes-next/**"
@@ -49,6 +51,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Verify submodule ref pins
+        run: bash scripts/verify-submodule-refs.sh
 
       - uses: pnpm/action-setup@v4
         with:
@@ -89,6 +94,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Verify submodule ref pins
+        run: bash scripts/verify-submodule-refs.sh
 
       - uses: pnpm/action-setup@v4
         with:

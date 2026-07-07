@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 if [[ -f .gitmodules ]]; then
-  git submodule update --init --recursive
+  bash scripts/ensure-submodules.sh
 fi
 
 # Ensure node/corepack are on PATH (NVM installs under /home/ubuntu on the
