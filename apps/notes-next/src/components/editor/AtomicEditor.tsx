@@ -8,6 +8,7 @@ import "@atomic-editor/editor/styles.css"
 import { Prec } from "@codemirror/state"
 import { keymap, placeholder } from "@codemirror/view"
 import React from "react"
+import { linkPasteHandler } from "@/components/editor/extensions/linkPaste"
 import styles from "./AtomicEditor.module.css"
 
 export type AtomicEditorHandle = AtomicCodeMirrorEditorHandle
@@ -67,6 +68,8 @@ export const AtomicEditor = React.forwardRef<AtomicEditorHandle, AtomicEditorPro
       if (placeholderText) {
         next.push(placeholder(placeholderText))
       }
+
+      next.push(linkPasteHandler())
 
       return next
     }, [placeholderText])
