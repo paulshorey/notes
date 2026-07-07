@@ -2,8 +2,8 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "pnpm --filter notes-next build",
-    "watchPatterns": ["apps/notes-next/**", "lib/db-marketing/**"]
+    "buildCommand": "git submodule update --init --recursive && pnpm --filter notes-next build",
+    "watchPatterns": ["apps/notes-next/**", "lib/db-marketing/**", "lib/atomic-editor/**"]
   },
   "deploy": {
     "startCommand": "pnpm --filter notes-next start",
