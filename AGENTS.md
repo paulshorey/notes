@@ -13,17 +13,28 @@ Monorepo using pnpm + Turborepo.
 
 - `lib/config` - shared tooling and config
 - `lib/db-marketing` - Notes database schema, migrations, generated contracts, and shared Notes service logic
-- `lib/atomic-editor` - git submodule fork of `@atomic-editor/editor` (see below)
+- `lib/atomic-editor` - vendored fork of `@atomic-editor/editor` (see below)
 
-## atomic-editor submodule
+## atomic-editor package
 
-`lib/atomic-editor` is a git submodule pointing at `paulshorey/atomic-editor`, with `upstream` set to `kenforthewin/atomic-editor`. `notes-next` consumes it via `workspace:*`.
+`lib/atomic-editor` is a fork of `kenforthewin/atomic-editor`, committed directly to this monorepo as regular files (NOT a git submodule). `notes-next` consumes it via `workspace:*`. The standalone fork lives at `paulshorey/atomic-editor` and is synced with `git subtree` when needed.
 
-- Clone/init: `git submodule update --init --recursive` (also run by `scripts/install-workspace-deps.sh` and CI/Railway checkout).
-- Build output lives in `lib/atomic-editor/dist/` (gitignored in the submodule). `notes-next build` builds the editor first.
-- Peer deps (`@codemirror/*`, `react`) resolve from `notes-next` — do not add duplicate copies in the submodule.
+- Build output lives in `lib/atomic-editor/dist/` (gitignored). `notes-next build` builds the editor first.
+- Peer deps (`@codemirror/*`, `react`) resolve from `notes-next` — do not add duplicate copies in this package.
 - Local dev: run `pnpm --filter @atomic-editor/editor exec tsc -w -p tsconfig.build.json` while editing `src/`, then `pnpm --filter notes-next dev`.
-- Upstream PRs: branch inside `lib/atomic-editor`, push to `origin`, open PR against `kenforthewin/atomic-editor`, then bump the submodule pointer in this repo.
+- `lib/atomic-editor/package-lock.json` and `lib/atomic-editor/.github/` belong to the standalone fork repo; keep them intact for subtree syncs, but pnpm (not npm) manages deps inside this monorepo.
+- Sync to the fork (`paulshorey/atomic-editor`), e.g. to open an upstream PR against `kenforthewin/atomic-editor`:
+
+  ```bash
+  git remote add atomic-editor-fork https://github.com/paulshorey/atomic-editor.git  # once
+  git subtree push --prefix=lib/atomic-editor atomic-editor-fork <feature-branch>
+  ```
+
+- Pull changes from the fork back into the monorepo:
+
+  ```bash
+  git subtree pull --prefix=lib/atomic-editor atomic-editor-fork main --squash
+  ```
 
 ## Data
 

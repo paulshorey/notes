@@ -4,10 +4,9 @@ on:
   pull_request:
     paths:
       - ".github/workflows/db-contracts.yml"
-      - ".gitmodules"
       - "package.json"
       - "pnpm-lock.yaml"
-      - "lib/atomic-editor"
+      - "lib/atomic-editor/**"
       - "lib/db-marketing/**"
       - "apps/notes-android/**"
       - "apps/notes-next/**"
@@ -16,10 +15,9 @@ on:
       - main
     paths:
       - ".github/workflows/db-contracts.yml"
-      - ".gitmodules"
       - "package.json"
       - "pnpm-lock.yaml"
-      - "lib/atomic-editor"
+      - "lib/atomic-editor/**"
       - "lib/db-marketing/**"
       - "apps/notes-android/**"
       - "apps/notes-next/**"
@@ -47,8 +45,6 @@ jobs:
       MARKETING_DB_URL: postgres://postgres:postgres@localhost:5432/app_contracts
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: pnpm/action-setup@v4
         with:
@@ -87,8 +83,6 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: pnpm/action-setup@v4
         with:

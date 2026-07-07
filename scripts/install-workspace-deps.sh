@@ -4,10 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-if [[ -f .gitmodules ]]; then
-  git submodule update --init --recursive
-fi
-
 # Ensure node/corepack are on PATH (NVM installs under /home/ubuntu on the
 # Cursor cloud image but the agent runs as root).
 if ! command -v node >/dev/null 2>&1; then
