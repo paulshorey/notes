@@ -19,24 +19,17 @@ submodule_populated() {
   [[ -f "${path}/package.json" ]]
 }
 
-clone_submodule_at_ref() {
+clone_submodule_at_commit() {
   local path="$1"
   local url="$2"
-  local ref_file="$3"
+  local commit="$3"
 
-  if [[ ! -f "$ref_file" ]]; then
-    echo "error: ${path} is missing and ${ref_file} was not found for non-git checkout" >&2
-    exit 1
-  fi
-
-  local commit
-  commit="$(tr -d '[:space:]' < "$ref_file")"
   if [[ -z "$commit" ]]; then
-    echo "error: ${ref_file} is empty" >&2
+    echo "error: missing commit for ${path}" >&2
     exit 1
   fi
 
-  echo "Cloning ${path} at ${commit} (non-git checkout)"
+  echo "Cloning ${path} at ${commit}"
   rm -rf "$path"
   git clone --filter=blob:none --no-checkout "$url" "$path"
   git -C "$path" checkout "$commit"
@@ -55,10 +48,9 @@ atomic_editor_url="$(submodule_url "lib/atomic-editor")"
 
 if [[ -e .git ]]; then
   git submodule update --init --recursive
+  bash scripts/sync-submodule-refs.sh
   exit 0
 fi
 
-clone_submodule_at_ref \
-  "$atomic_editor_path" \
-  "$atomic_editor_url" \
-  "${atomic_editor_path}.ref"
+commit="$(bash scripts/resolve-submodule-commit.sh "$atomic_editor_path")"
+clone_submodule_at_commit "$atomic_editor_path" "$atomic_editor_url" "$commit"

@@ -19,8 +19,8 @@ Monorepo using pnpm + Turborepo.
 
 `lib/atomic-editor` is a git submodule pointing at `paulshorey/atomic-editor`, with `upstream` set to `kenforthewin/atomic-editor`. `notes-next` consumes it via `workspace:*`.
 
-- Clone/init: `git submodule update --init --recursive` locally, or `bash scripts/ensure-submodules.sh` (used by `scripts/install-workspace-deps.sh` and Railway). Railway builds have no `.git` directory, so the script clones `lib/atomic-editor` from `lib/atomic-editor.ref` when needed.
-- When bumping the submodule pointer, update `lib/atomic-editor.ref` to the same commit hash (`scripts/verify-submodule-refs.sh` checks this in CI).
+- Clone/init: `git submodule update --init --recursive` locally, or `bash scripts/ensure-submodules.sh` (used by `scripts/install-workspace-deps.sh` and Railway). Railway builds have no `.git` directory; the script resolves the submodule commit from Railway git metadata (GitHub API) or falls back to `lib/atomic-editor.ref`.
+- Ref pins in `lib/*.ref` are auto-synced by `scripts/sync-submodule-refs.sh` (pre-commit hook when the submodule pointer changes; also run by `deps:install`). CI fails if they drift.
 - Build output lives in `lib/atomic-editor/dist/` (gitignored in the submodule). `notes-next build` builds the editor first.
 - Peer deps (`@codemirror/*`, `react`) resolve from `notes-next` — do not add duplicate copies in the submodule.
 - Local dev: run `pnpm --filter @atomic-editor/editor exec tsc -w -p tsconfig.build.json` while editing `src/`, then `pnpm --filter notes-next dev`.

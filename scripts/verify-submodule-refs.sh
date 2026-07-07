@@ -9,12 +9,12 @@ if [[ ! -e .git ]]; then
   exit 0
 fi
 
-expected="$(git ls-tree HEAD lib/atomic-editor | awk '{print $3}')"
-actual="$(tr -d '[:space:]' < lib/atomic-editor.ref)"
+bash scripts/sync-submodule-refs.sh
 
-if [[ "$expected" != "$actual" ]]; then
-  echo "error: lib/atomic-editor.ref (${actual}) does not match git submodule pointer (${expected})" >&2
-  echo "Update lib/atomic-editor.ref when bumping the lib/atomic-editor submodule." >&2
+if ! git diff --quiet -- lib/*.ref; then
+  echo "error: submodule ref pins were out of date and have been refreshed in the working tree" >&2
+  echo "Stage the updated *.ref files and commit them (pre-commit should do this automatically)." >&2
+  git diff -- lib/*.ref >&2 || true
   exit 1
 fi
 
