@@ -188,6 +188,37 @@ export const MERGE_TABLE_STRATEGIES: Record<
   user_api_token_v1: "drop",
 };
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * Recursive per-property merge of preference objects. Anonymous values win at
+ * the leaf level; keys only the real account has are preserved.
+ *
+ * Why anon-wins is safe: `user_v1.preferences` defaults to `{}` and the app
+ * only ever writes a key when the user explicitly changes that setting, so a
+ * key present in the anonymous row means the person customized it during
+ * their (more recent) anonymous session. A key absent from the anonymous row
+ * means "still default" and the real account's value is kept.
+ */
+export const mergePreferenceObjects = (
+  real: Record<string, unknown>,
+  anon: Record<string, unknown>
+): Record<string, unknown> => {
+  const merged: Record<string, unknown> = { ...real };
+
+  for (const [key, anonValue] of Object.entries(anon)) {
+    if (anonValue === undefined) continue;
+    const realValue = merged[key];
+    merged[key] =
+      isPlainObject(realValue) && isPlainObject(anonValue)
+        ? mergePreferenceObjects(realValue, anonValue)
+        : anonValue;
+  }
+
+  return merged;
+};
+
 export const mergeAnonymousUserInto = async (
   anonUserId: number,
   realUserId: number
@@ -203,20 +234,42 @@ export const mergeAnonymousUserInto = async (
     // could pass this check, wait on the claim's row lock, and then delete a
     // row that had just become a permanent account. Locking here makes the
     // read see the latest committed state, so a claimed row fails the check.
-    const anonCheck = await client.query<{ is_anonymous: boolean }>(
-      `SELECT is_anonymous FROM public.user_v1 WHERE id = $1 FOR UPDATE`,
+    const anonCheck = await client.query<{
+      is_anonymous: boolean;
+      preferences: unknown;
+    }>(
+      `SELECT is_anonymous, preferences FROM public.user_v1 WHERE id = $1 FOR UPDATE`,
       [anonUserId]
     );
     if (!anonCheck.rows[0]?.is_anonymous) {
       throw new Error("Source user is not anonymous.");
     }
 
-    const realCheck = await client.query<{ is_anonymous: boolean }>(
-      `SELECT is_anonymous FROM public.user_v1 WHERE id = $1 FOR UPDATE`,
+    const realCheck = await client.query<{
+      is_anonymous: boolean;
+      preferences: unknown;
+    }>(
+      `SELECT is_anonymous, preferences FROM public.user_v1 WHERE id = $1 FOR UPDATE`,
       [realUserId]
     );
     if (!realCheck.rows[0] || realCheck.rows[0].is_anonymous) {
       throw new Error("Destination user is anonymous or does not exist.");
+    }
+
+    // Carry the visitor's explicitly-set UI preferences into the real account
+    // (per-property; see mergePreferenceObjects) before the anon row is
+    // deleted below.
+    const anonPreferences = anonCheck.rows[0].preferences;
+    const realPreferences = realCheck.rows[0].preferences;
+    if (isPlainObject(anonPreferences) && Object.keys(anonPreferences).length > 0) {
+      const mergedPreferences = mergePreferenceObjects(
+        isPlainObject(realPreferences) ? realPreferences : {},
+        anonPreferences
+      );
+      await client.query(
+        `UPDATE public.user_v1 SET preferences = $2::jsonb WHERE id = $1`,
+        [realUserId, JSON.stringify(mergedPreferences)]
+      );
     }
 
     // Dedupe categories: insert anon labels into real user, skip conflicts

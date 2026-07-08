@@ -55,6 +55,23 @@ Database-first package for the `MARKETING_DB_URL` database.
   `drop`). `db:verify` diffs the registry against `information_schema` and
   fails on unregistered tables, so a new user-owned table forces a conscious
   merge decision.
+- `mergeAnonymousUserInto` also carries the anonymous user's preferences into
+  the destination account with a recursive per-property merge
+  (`mergePreferenceObjects`): anon leaf values win, real-only keys are kept.
+  This is safe because `user_v1.preferences` defaults to `{}` and the app only
+  writes a key when the user explicitly changes that setting — key presence
+  means "customized", key absence means "still default".
+- `mergeAnonymousNotesAppSession` (`services/notes-app.ts`) runs a best-effort
+  `mode: "missing"` embedding backfill for the destination user after the
+  merge commits, because categories/tags inserted by the merge SQL bypass the
+  embed-on-write paths. A missing `JINA_API_KEY` or a Jina failure logs a
+  warning and never fails the merge.
+- Tests: `pnpm --filter @lib/db-marketing test` (node test runner via tsx).
+  The merge regression suite (`testing/anonymous-merge.test.ts`) only touches
+  a database when `DB_MARKETING_TEST_URL` is set, and it connects to that URL
+  — never to `MARKETING_DB_URL`, which in cloud environments points at the
+  real Notes database. CI's verify-marketing job runs it against its
+  throwaway migrated container.
 - `user_v1` and `user_note_v1` share the `apply_row_timestamps_v1()` trigger
   function so `time_modified` refreshes automatically on insert/update while
   `time_created` stays stable after insert.

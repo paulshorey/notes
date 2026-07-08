@@ -34,7 +34,7 @@ export interface FilterablePickerPopupProps {
   isOptionActive?: (option: FilterablePickerOption) => boolean
   isOptionSelected?: (option: FilterablePickerOption) => boolean
   emptyWithQueryMessage?: (query: string) => ReactNode
-  emptyWithoutQueryMessage?: ReactNode
+  emptyWithoutQueryMessage?: string | null
 }
 
 export function FilterablePickerPopup({
@@ -101,7 +101,7 @@ export function FilterablePickerPopup({
               </button>
             ))
           )}
-          {options.length === 0 && trimmedInputValue === "" && emptyWithoutQueryMessage !== null ? (
+          {options.length === 0 && trimmedInputValue === "" && emptyWithoutQueryMessage ? (
             <div className={styles.empty}>{emptyWithoutQueryMessage}</div>
           ) : null}
         </div>

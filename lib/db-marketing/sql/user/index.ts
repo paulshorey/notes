@@ -16,6 +16,7 @@ export {
   claimAnonymousUser,
   createAnonymousUser,
   mergeAnonymousUserInto,
+  mergePreferenceObjects,
 } from "./anonymous";
 export { hashPassword, isHashedPassword, verifyPassword } from "./password";
 export type { UserPreferences, UserSummary } from "./types";
