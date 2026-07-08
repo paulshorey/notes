@@ -32,6 +32,23 @@ Database-first package for the `MARKETING_DB_URL` database.
   `scrypt$N$r$p$salt$hash` format (`sql/user/password.ts`). Legacy plaintext
   values still verify and are rehashed on the next successful login. Always
   write passwords through `hashPassword`.
+- `claimAnonymousUser` (`sql/user/anonymous.ts`) upgrades an anonymous row into
+  a permanent account in place. Identity uniqueness is enforced in application
+  code, not by the schema (only `username` has an exact-match DB UNIQUE; email
+  and phone have none). Two safeguards make it correct: (1) the proposed
+  username and email are each checked against username, email, AND phone-digit
+  namespaces of non-anonymous rows — mirroring `findUserByIdentifier`, so a
+  claimed identifier can never resolve to a different account at sign-in; (2)
+  transaction-scoped `pg_advisory_xact_lock`s on the normalized (lowercased)
+  username and email serialize concurrent claims of case-variant identifiers.
+  If you add a real DB uniqueness constraint (e.g. `lower()` indexes) later,
+  audit existing rows for case-duplicates first and you can then drop the
+  advisory locks.
+- Because claim flips `is_anonymous` on a live row, `mergeAnonymousUserInto`
+  locks its source-anonymity check with `FOR UPDATE`. This serializes a merge
+  against a concurrent claim of the same row so the merge cannot delete a row
+  that just became a permanent account. Keep that lock if you refactor the
+  merge.
 - Every table with a foreign key to `user_v1` must be registered in
   `MERGE_TABLE_STRATEGIES` (`sql/user/anonymous.ts`) with the strategy
   `mergeAnonymousUserInto` applies to it (`dedup-remap`, `reparent`, or
