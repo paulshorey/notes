@@ -19,6 +19,10 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     auth/
       [...nextauth]/        — Auth.js (NextAuth) sign-in routes for the web UI
       token/                — POST (credentials -> bearer token, used by Android), DELETE (revoke)
+    anon-session/
+      merge-token/          — POST (anonymous session mints a signed merge token)
+      merge/                — POST (real session merges anonymous data using the token)
+      claim/                — POST (anonymous session upgrades itself into a permanent account in place)
     session/                — GET (authenticated user), PATCH (preferences)
     notes/                  — GET (list), POST (create), PATCH (update), DELETE
     tags/                   — GET (list), POST (create)
@@ -35,8 +39,7 @@ src/                        — non-route code (import with "@/..." alias)
     notes/                  — notes-feature UI (NotesApp and sub-components)
       NotesApp.tsx          — top-level notes page container
       NotesApp.module.css   — shared notes CSS module
-      LoginForm.tsx
-      NotesHeader.tsx
+      NotesHeader.tsx       — header incl. the sign-in / create-account popup
       FeedbackNotifications.tsx
       FilterBanners.tsx
       NoteResultsList.tsx
@@ -74,11 +77,16 @@ The note editor persists through `saveCurrentNote(mode)` in `NotesApp.tsx`, with
 - `autosave` — trailing debounce (`NOTE_AUTOSAVE_DEBOUNCE_MS`, 3s) while the note stays open. The debounce and `saveCurrentNote` both compare a draft signature against `lastSavedNoteDraftRef`, so an unchanged note never hits the network.
 - `flush` — forced save of the *outgoing* note right before the editor is replaced. `saveCurrentNote` snapshots the editor synchronously before any `await`, so a flush captures the note being left, not the one being opened.
 
-Anything that replaces the editor awaits `flushPendingNoteSave()` first: opening another note, starting a new note (header `+`/`jot.new`, cancel button, sidebar `+`), browser back/forward (`popstate`), signing in (`handleLogin`/`handleSocialSignIn`), and sign-out. `pagehide`/`visibilitychange` fire a best-effort `keepalive` request to cover abrupt tab closes inside the debounce window.
+Anything that replaces the editor awaits `flushPendingNoteSave()` first: opening another note, starting a new note (header `+`/`jot.new`, cancel button, sidebar `+`), browser back/forward (`popstate`), signing in or creating an account (`handleLogin`/`handleSignup`), and sign-out. `pagehide`/`visibilitychange` fire a best-effort `keepalive` request to cover abrupt tab closes inside the debounce window.
 
-## Anonymous → permanent account merge (single load path)
+## Anonymous → permanent account (claim or merge, single load path)
 
-When an anonymous visitor signs in, their visitor data is merged into the real account. To keep this race-free there is exactly **one** writer of post-login session data: the `restoreSession` effect in `NotesApp.tsx`. `handleLogin`/`handleSocialSignIn` only flush, capture a signed merge token while still anonymous (stashed in `sessionStorage` under `notes-pending-merge-token`), and call `signIn`. When `restoreSession` next runs for a real (non-anonymous) session and finds a pending token, it POSTs `/api/anon-session/merge`, then loads the account's data once (skipping the stale cache paint). The login handlers must not load data or run the merge themselves — doing so reintroduces the clobber race.
+Anonymous visitors are real `user_v1` rows (`is_anonymous = true`). Two ways they become permanent, both credentials-based (OAuth login was removed as unfinished):
+
+- **Create account (common path, claim-in-place):** `handleSignup` flushes pending saves, POSTs `/api/anon-session/claim` (which sets username/email/hashed password and flips `is_anonymous` on the *same* row), then re-runs `signIn("credentials")` for the same user id so the JWT's `isAnonymous` flips. No data moves between users, no merge token exists in this path.
+- **Sign in to an existing account (merge path):** to keep this race-free there is exactly **one** writer of post-login session data: the `restoreSession` effect in `NotesApp.tsx`. `handleLogin` only flushes, captures a signed merge token while still anonymous (stashed in `sessionStorage` under `notes-pending-merge-token`), and calls `signIn`. When `restoreSession` next runs for a real (non-anonymous) session and finds a pending token, it POSTs `/api/anon-session/merge`, then loads the account's data once (skipping the stale cache paint). The login handlers must not load data or run the merge themselves — doing so reintroduces the clobber race.
+
+Merge failure handling (no silent loss): if merge-token capture fails in `handleLogin` while the visitor has notes, the sign-in is aborted with an error so the user retries while still anonymous. If the merge POST itself fails transiently (network/5xx), `restoreSession` re-stashes the token so a page reload retries within the token's 10-minute TTL; a 4xx is permanent (token/anon row invalid) and only shows a warning. Server-side, the merge also carries the visitor's explicitly-set preferences into the real account (per-property, anon wins) and backfills missing category/tag embeddings best-effort — see `lib/db-marketing`.
 
 `noteSaveStatus` in `notesAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `NotesHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.

@@ -28,6 +28,50 @@ Database-first package for the `MARKETING_DB_URL` database.
   duplicate them.
 - `user_v1.phone` is stored as `text`, not a numeric type. Treat phone numbers
   as identifiers and normalize digits at query boundaries when needed.
+- `user_v1.password` stores scrypt hashes in the self-describing
+  `scrypt$N$r$p$salt$hash` format (`sql/user/password.ts`). Legacy plaintext
+  values still verify and are rehashed on the next successful login. Always
+  write passwords through `hashPassword`.
+- `claimAnonymousUser` (`sql/user/anonymous.ts`) upgrades an anonymous row into
+  a permanent account in place. Identity uniqueness is enforced in application
+  code, not by the schema (only `username` has an exact-match DB UNIQUE; email
+  and phone have none). Two safeguards make it correct: (1) the proposed
+  username and email are each checked against username, email, AND phone-digit
+  namespaces of non-anonymous rows — mirroring `findUserByIdentifier`, so a
+  claimed identifier can never resolve to a different account at sign-in; (2)
+  transaction-scoped `pg_advisory_xact_lock`s on the normalized (lowercased)
+  username and email serialize concurrent claims of case-variant identifiers.
+  If you add a real DB uniqueness constraint (e.g. `lower()` indexes) later,
+  audit existing rows for case-duplicates first and you can then drop the
+  advisory locks.
+- Because claim flips `is_anonymous` on a live row, `mergeAnonymousUserInto`
+  locks its source-anonymity check with `FOR UPDATE`. This serializes a merge
+  against a concurrent claim of the same row so the merge cannot delete a row
+  that just became a permanent account. Keep that lock if you refactor the
+  merge.
+- Every table with a foreign key to `user_v1` must be registered in
+  `MERGE_TABLE_STRATEGIES` (`sql/user/anonymous.ts`) with the strategy
+  `mergeAnonymousUserInto` applies to it (`dedup-remap`, `reparent`, or
+  `drop`). `db:verify` diffs the registry against `information_schema` and
+  fails on unregistered tables, so a new user-owned table forces a conscious
+  merge decision.
+- `mergeAnonymousUserInto` also carries the anonymous user's preferences into
+  the destination account with a recursive per-property merge
+  (`mergePreferenceObjects`): anon leaf values win, real-only keys are kept.
+  This is safe because `user_v1.preferences` defaults to `{}` and the app only
+  writes a key when the user explicitly changes that setting — key presence
+  means "customized", key absence means "still default".
+- `mergeAnonymousNotesAppSession` (`services/notes-app.ts`) runs a best-effort
+  `mode: "missing"` embedding backfill for the destination user after the
+  merge commits, because categories/tags inserted by the merge SQL bypass the
+  embed-on-write paths. A missing `JINA_API_KEY` or a Jina failure logs a
+  warning and never fails the merge.
+- Tests: `pnpm --filter @lib/db-marketing test` (node test runner via tsx).
+  The merge regression suite (`testing/anonymous-merge.test.ts`) only touches
+  a database when `DB_MARKETING_TEST_URL` is set, and it connects to that URL
+  — never to `MARKETING_DB_URL`, which in cloud environments points at the
+  real Notes database. CI's verify-marketing job runs it against its
+  throwaway migrated container.
 - `user_v1` and `user_note_v1` share the `apply_row_timestamps_v1()` trigger
   function so `time_modified` refreshes automatically on insert/update while
   `time_created` stays stable after insert.

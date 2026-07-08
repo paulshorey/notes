@@ -54,7 +54,7 @@ import { useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
-import { NotesHeader } from "./NotesHeader"
+import { NotesHeader, type SignupFields } from "./NotesHeader"
 import { ResultsColumn, type CategoryNoteGroup, type TagNoteGroup } from "./ResultsColumn"
 import { DeleteCategoryModal, type DeleteCategoryAction } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
@@ -869,22 +869,37 @@ export default function NotesApp() {
         mergeInFlightRef.current = true
         clearPendingMergeToken()
         try {
-          const mergeResponse = await fetch("/api/anon-session/merge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mergeToken: pendingMergeToken }),
-          })
-          if (!mergeResponse.ok) {
-            throw new Error(`Merge failed with status ${mergeResponse.status}`)
+          let mergeResponse: Response | null = null
+          try {
+            mergeResponse = await fetch("/api/anon-session/merge", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ mergeToken: pendingMergeToken }),
+            })
+          } catch {
+            // Network failure — handled as retryable below.
           }
-        } catch {
-          // The real sign-in stays successful; the visitor data remains on the
-          // anonymous row for the cleanup script. Surface a recoverable warning
-          // rather than failing silently.
-          if (active) {
-            setErrorMessage(
-              "Signed in, but we couldn't move your visitor notes. They're still saved — try signing in again.",
-            )
+
+          if (!mergeResponse || !mergeResponse.ok) {
+            // The real sign-in stays successful; the visitor data remains on
+            // the anonymous row for the cleanup script. Surface a warning
+            // rather than failing silently — and make retry actually work
+            // where it can: transient failures (network, 5xx) re-stash the
+            // token so the next restoreSession run (e.g. a page reload,
+            // within the token's 10-minute TTL) retries the merge. A 4xx
+            // means the token or the anonymous row is no longer valid, so a
+            // retry cannot succeed and the token stays cleared.
+            const retryable = !mergeResponse || mergeResponse.status >= 500
+            if (retryable) {
+              writePendingMergeToken(pendingMergeToken)
+            }
+            if (active) {
+              setErrorMessage(
+                retryable
+                  ? "Signed in, but we couldn't move your visitor notes yet. Reload the page to try again."
+                  : "Signed in, but your visitor notes couldn't be transferred to this account.",
+              )
+            }
           }
         } finally {
           mergeInFlightRef.current = false
@@ -1541,6 +1556,7 @@ export default function NotesApp() {
       // performs the merge and the reload, so there is exactly one writer of
       // session data — no race.
       if (authSession?.user?.isAnonymous && authSession.user.notesUserId) {
+        let mergeTokenCaptured = false
         try {
           const tokenResponse = await fetch("/api/anon-session/merge-token", {
             method: "POST",
@@ -1548,9 +1564,22 @@ export default function NotesApp() {
           if (tokenResponse.ok) {
             const tokenData = (await tokenResponse.json()) as { mergeToken: string }
             writePendingMergeToken(tokenData.mergeToken)
+            mergeTokenCaptured = true
           }
         } catch {
-          // Continue with sign-in even if merge-token capture fails.
+          // Handled below — treated the same as a non-OK response.
+        }
+
+        // Without a token the merge can never run, and after sign-in the
+        // anonymous session is gone, stranding the visitor's notes. When
+        // there is anything to lose, abort while the user is still anonymous
+        // so they can simply retry. An empty visitor session has nothing to
+        // merge, so it proceeds without a token.
+        if (!mergeTokenCaptured && notesRef.current.length > 0) {
+          setErrorMessage(
+            "Couldn't prepare your notes to transfer to the account. Check your connection and try again.",
+          )
+          return
         }
       }
 
@@ -1581,33 +1610,70 @@ export default function NotesApp() {
     }
   }
 
-  const handleSocialSignIn = async (provider: string) => {
+  const handleSignup = async (fields: SignupFields) => {
     clearMessages()
     setAuthPending(true)
     try {
-      // Persist unsaved edits to the anonymous account before the OAuth redirect
-      // navigates away from the page.
+      // Persist any unsaved edits before the claim. The data stays on the same
+      // user row, but the debounced autosave must not fire mid-transition.
       await flushPendingNoteSave()
 
-      // Capture the merge token while still anonymous and stash it so it
-      // survives the OAuth round-trip. On return, restoreSession finds the
-      // token and performs the merge + single reload (same path as credentials).
-      if (authSession?.user?.isAnonymous && authSession.user.notesUserId) {
-        try {
-          const tokenResponse = await fetch("/api/anon-session/merge-token", {
-            method: "POST",
-          })
-          if (tokenResponse.ok) {
-            const tokenData = (await tokenResponse.json()) as { mergeToken: string }
-            writePendingMergeToken(tokenData.mergeToken)
-          }
-        } catch {
-          // Continue with sign-in even if merge-token capture fails.
+      // Claim the anonymous row in place: same user_id, identity + password set,
+      // is_anonymous flipped to false. Nothing moves between users, so there is
+      // no merge token and no race in this path.
+      const claimResponse = await fetch("/api/anon-session/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: fields.username,
+          email: fields.email.trim() === "" ? undefined : fields.email,
+          password: fields.password,
+        }),
+      })
+
+      if (!claimResponse.ok) {
+        if (claimResponse.status === 409) {
+          setErrorMessage(
+            "That username or email is already taken — sign in instead to keep your notes.",
+          )
+        } else {
+          const body = (await claimResponse.json().catch(() => null)) as
+            | { error?: string }
+            | null
+          setErrorMessage(body?.error ?? "Unable to create the account. Try again.")
         }
+        return
       }
-      await signIn(provider, { callbackUrl: "/" })
+
+      // Apply the claimed identity to state and the local cache now. The
+      // restoreSession re-run below takes the cache-first branch (same user id,
+      // no merge token) and its background refresh keeps the in-memory user, so
+      // without this the header would show the old anon-* username until a
+      // full reload.
+      const claimData = (await claimResponse.json()) as SessionResponse
+      applyLoadedUser(claimData.user)
+
+      // Re-mint the JWT for the same user id so isAnonymous flips to false.
+      const result = await signIn("credentials", {
+        identifier: fields.username,
+        password: fields.password,
+        redirect: false,
+      })
+
+      if (result?.error) {
+        // The account is already claimed; only the session refresh failed.
+        setErrorMessage(
+          "Account created — sign in with your new username and password.",
+        )
+        return
+      }
+
+      // restoreSession re-fires (isAnonymous flipped) and refreshes the same
+      // account's data. No merge token is pending, so it is a plain reload.
+      setStatusMessage("Account created. Your notes are saved to it.")
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
+    } finally {
       setAuthPending(false)
     }
   }
@@ -2304,7 +2370,7 @@ export default function NotesApp() {
                 onIdentifierChange={setIdentifier}
                 onPasswordChange={setPassword}
                 onLoginSubmit={handleLogin}
-                onSocialSignIn={handleSocialSignIn}
+                onSignupSubmit={(fields) => void handleSignup(fields)}
                 authPending={authPending}
                 loginErrorMessage={authPending ? null : errorMessage}
                 onDismissLoginError={() => setErrorMessage(null)}

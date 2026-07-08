@@ -77,6 +77,15 @@ jobs:
       - name: Verify @lib/db-marketing
         run: pnpm --filter @lib/db-marketing db:verify
 
+      # DB-backed regression tests (anonymous merge). Requires the schema that
+      # db:verify just migrated into the service container. The tests only run
+      # against an explicit DB_MARKETING_TEST_URL so they can never write to a
+      # real MARKETING_DB_URL by accident.
+      - name: Test @lib/db-marketing
+        run: pnpm --filter @lib/db-marketing test
+        env:
+          DB_MARKETING_TEST_URL: ${{ env.MARKETING_DB_URL }}
+
   verify-marketing-clients:
     name: Verify Marketing clients
     runs-on: ubuntu-latest

@@ -77,6 +77,8 @@ import {
 } from "../sql/tag";
 import {
   createAnonymousUser,
+  CLAIM_IDENTIFIER_TAKEN_ERROR,
+  claimAnonymousUser,
   createApiTokenForUser,
   deleteApiToken,
   findUserIdByApiToken,
@@ -151,6 +153,10 @@ export const getNotesAppErrorStatus = (error: unknown) => {
 
   if (error instanceof EmbeddingRequestError) {
     return error.status >= 400 && error.status < 500 ? 502 : error.status;
+  }
+
+  if (error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR) {
+    return 409;
   }
 
   return 400;
@@ -248,6 +254,44 @@ export const parseDeleteTagRequest = (value: unknown): DeleteTagRequest => {
     userId: parsePositiveInteger(body.userId, "userId"),
     tagId: parsePositiveInteger(body.tagId, "tagId"),
   };
+};
+
+export interface ClaimAnonymousSessionRequest {
+  username: string;
+  password: string;
+  email?: string;
+}
+
+export const parseClaimAnonymousSessionRequest = (
+  value: unknown
+): ClaimAnonymousSessionRequest => {
+  const body = toRequestObject(value);
+
+  const username = typeof body.username === "string" ? body.username.trim() : "";
+  if (username === "") {
+    throw new Error("username is required.");
+  }
+
+  const password = typeof body.password === "string" ? body.password : "";
+  if (password.length < 8) {
+    throw new Error("password must be at least 8 characters.");
+  }
+
+  let email: string | undefined;
+  if (body.email !== undefined && body.email !== null) {
+    if (typeof body.email !== "string") {
+      throw new Error("email must be a string.");
+    }
+    const trimmedEmail = body.email.trim();
+    if (trimmedEmail !== "") {
+      if (!trimmedEmail.includes("@")) {
+        throw new Error("email must be a valid email address.");
+      }
+      email = trimmedEmail;
+    }
+  }
+
+  return { username, password, email };
 };
 
 export const parseTokenLoginRequest = (value: unknown): TokenLoginRequest => {
@@ -875,11 +919,45 @@ export const createAnonymousNotesAppSession = async (): Promise<SessionResponse>
   return { user };
 };
 
+export const claimAnonymousNotesAppSession = async (request: {
+  anonUserId: number;
+  username: string;
+  password: string;
+  email?: string;
+}): Promise<SessionResponse> => {
+  const user = await claimAnonymousUser(request.anonUserId, {
+    username: request.username,
+    password: request.password,
+    email: request.email,
+  });
+
+  return { user };
+};
+
 export const mergeAnonymousNotesAppSession = async (request: {
   anonUserId: number;
   realUserId: number;
 }): Promise<SessionResponse> => {
   await mergeAnonymousUserInto(request.anonUserId, request.realUserId);
+
+  // Categories/tags inserted by the merge bypass the embed-on-write service
+  // paths, so their embeddings are NULL and they would be invisible to
+  // semantic search until maintenance runs. Backfill them now, best-effort:
+  // the merge has already committed and must stay successful even when Jina
+  // is unconfigured (missing JINA_API_KEY) or unavailable.
+  try {
+    await maintainNoteEmbeddingsForNotesApp({
+      userId: request.realUserId,
+      mode: NOTES_APP_EMBEDDING_MAINTENANCE_MISSING_MODE,
+      limit: 100,
+    });
+  } catch (error) {
+    console.warn(
+      `Embedding backfill after anonymous merge failed for user ${request.realUserId}; ` +
+        "merged categories/tags stay unsearchable until embedding maintenance runs.",
+      error
+    );
+  }
 
   const user = await getUserById(request.realUserId);
   if (!user) {
@@ -912,6 +990,7 @@ export const notesAppService = {
   searchNotesForNotesApp,
   maintainNoteEmbeddingsForNotesApp,
   createAnonymousNotesAppSession,
+  claimAnonymousNotesAppSession,
   mergeAnonymousNotesAppSession,
 };
 
