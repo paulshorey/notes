@@ -63,3 +63,21 @@ if [[ -x "${PG17_BINDIR}/pg_dump" ]]; then
 elif command -v pg_dump >/dev/null 2>&1; then
   echo "PostgreSQL client tools ready: $(pg_dump --version)"
 fi
+
+# 4. Install the PostgreSQL 17 server + pgvector so a local database can back
+# notes-next in the cloud dev environment (see AGENTS.md "Cursor Cloud specific
+# instructions"). The remote MARKETING_DB_URL secret must not be migrated
+# against for local development, so agents run against a local cluster instead.
+if [[ ! -x "${PG17_BINDIR}/postgres" ]]; then
+  echo "Installing PostgreSQL 17 server..."
+  sudo apt-get install -y postgresql-17
+fi
+
+if ! ls /usr/share/postgresql/17/extension/vector.control >/dev/null 2>&1; then
+  echo "Installing pgvector (postgresql-17-pgvector)..."
+  sudo apt-get install -y postgresql-17-pgvector
+fi
+
+if [[ -x "${PG17_BINDIR}/postgres" ]]; then
+  echo "PostgreSQL server ready: $("${PG17_BINDIR}/postgres" --version)"
+fi

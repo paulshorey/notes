@@ -100,12 +100,45 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 ## Cursor Cloud specific instructions
 
-Before running `notes-next` or any `db:*` command, start Postgres and add pg17 tools to PATH:
+The `MARKETING_DB_URL` secret injected into cloud VMs points at a **remote Railway
+Postgres**, not a local database. Do not run `db:migrate` / `db:verify` (or the
+note-writing UI) against it — per the db rules, remote migrations require an
+explicit request. For local development, run against a **local** Postgres and
+override `MARKETING_DB_URL` in the shell.
+
+`scripts/cloud-agent-install.sh` installs the PostgreSQL 17 server + `pgvector`
+(migrations use `vector(1024)` HNSW indexes). Bring up a local DB and point
+`notes-next` at it:
 
 ```bash
-sudo pg_ctlcluster 17 main start
+sudo pg_ctlcluster 17 main start          # start the local cluster (port 5432)
 export PATH="/usr/lib/postgresql/17/bin:$PATH"
+# create a local role + db once (idempotent)
+sudo -u postgres psql -c "SELECT 1 FROM pg_roles WHERE rolname='notes'" | grep -q 1 \
+  || sudo -u postgres psql -c "CREATE ROLE notes LOGIN PASSWORD 'notes' SUPERUSER;"
+sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='notes'" | grep -q 1 \
+  || sudo -u postgres createdb -O notes notes
+# override the remote secret for this shell, then migrate
+export MARKETING_DB_URL="postgresql://notes:notes@localhost:5432/notes"  # pragma: allowlist secret (local dev only)
+export AUTH_SECRET="$(openssl rand -base64 32)" AUTH_TRUST_HOST=true
+pnpm run db:migrate
+pnpm --filter notes-next dev              # http://localhost:3000
 ```
+
+Non-obvious gotchas:
+
+- Next.js does not override an **already-exported** `MARKETING_DB_URL` with values
+  in `apps/notes-next/.env.local`, so the local URL must be exported in the same
+  shell that runs `db:migrate` and `dev` (as above). `.env.local` is only used for
+  vars not already in the environment (e.g. `AUTH_SECRET`).
+- A new visitor gets an anonymous user automatically, but a note only **autosaves**
+  once a **category is selected** and the body is non-empty (there is no save
+  button; autosave fires ~3s after typing). Anonymous users start with no
+  categories, so create/select one first or the save is silently skipped.
+- If the Next.js dev server is restarted while a browser tab is open, stale chunk
+  hashes make the page hang on "Loading…". Hard-reload the tab (Ctrl+Shift+R).
+- Health check: `GET http://localhost:3000/api/health` returns
+  `{"database":"connected"}` when the DB wiring is correct.
 
 ## Maintenance
 
