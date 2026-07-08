@@ -940,6 +940,25 @@ export const mergeAnonymousNotesAppSession = async (request: {
 }): Promise<SessionResponse> => {
   await mergeAnonymousUserInto(request.anonUserId, request.realUserId);
 
+  // Categories/tags inserted by the merge bypass the embed-on-write service
+  // paths, so their embeddings are NULL and they would be invisible to
+  // semantic search until maintenance runs. Backfill them now, best-effort:
+  // the merge has already committed and must stay successful even when Jina
+  // is unconfigured (missing JINA_API_KEY) or unavailable.
+  try {
+    await maintainNoteEmbeddingsForNotesApp({
+      userId: request.realUserId,
+      mode: NOTES_APP_EMBEDDING_MAINTENANCE_MISSING_MODE,
+      limit: 100,
+    });
+  } catch (error) {
+    console.warn(
+      `Embedding backfill after anonymous merge failed for user ${request.realUserId}; ` +
+        "merged categories/tags stay unsearchable until embedding maintenance runs.",
+      error
+    );
+  }
+
   const user = await getUserById(request.realUserId);
   if (!user) {
     throw new Error("Real user not found after merge.");

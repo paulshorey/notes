@@ -1,189 +1,144 @@
 ---
 name: Anonymous Merge — Correctness & Robustness Improvements
-overview: Supporting improvements around anonymous→permanent account merge that are independent of the load-path architecture rework. Covers persisting the outgoing draft before sign-in, surfacing merge failures instead of failing silently, backfilling embeddings for merged categories/tags, a small SQL cleanup, and a test/verification pass. The core race fix and the longer-term account model live in the separate architecture plan (`anonymous_account_architecture_4d7e2b10.plan.md`).
+overview: Supporting improvements around the anonymous→existing-account merge, independent of the load-path architecture rework (Phase 1, PR #61) and the claim-in-place signup (Phase 2, PR #63). All items are now complete — the flush and the basic merge-failure warning shipped with Phase 1; this plan's final pass added the embedding backfill, the preferences carry-over (per the product decision), two remaining silent-loss fixes in the client, and DB-backed regression tests that run in CI.
 todos:
   - id: flush_before_login
-    content: Await flushPendingNoteSave() at the start of handleLogin and handleSocialSignIn so in-flight/debounced anon edits are persisted before the session changes
-    status: pending
+    content: Await flushPendingNoteSave() at the start of handleLogin (and handleSignup) so in-flight/debounced anon edits are persisted before the session changes — SHIPPED in PR #61; handleSocialSignIn was removed with OAuth in PR #63
+    status: completed
   - id: merge_failure_ux
-    content: Surface a recoverable warning when merge fails (expired token, network, deleted anon row) instead of failing silently; keep the real sign-in successful
-    status: pending
+    content: Surface a recoverable warning when merge fails instead of failing silently; keep the real sign-in successful. Basic warning shipped in PR #61; hardened here — token-capture failure aborts sign-in while still anonymous (when there are notes to lose), transient merge failures re-stash the token so a reload retries, permanent (4xx) failures warn without a false retry promise
+    status: completed
   - id: embedding_backfill
-    content: Run maintainNoteEmbeddingsForNotesApp({ mode "missing" }) for the real user after a successful merge so merged categories/tags are searchable
-    status: pending
+    content: Run maintainNoteEmbeddingsForNotesApp({ mode "missing" }) for the real user after a successful merge so merged categories/tags are searchable — best-effort, never fails the merge
+    status: completed
   - id: sql_cleanup
     content: Remove the extraneous [realUserId, anonUserId] params from the tag-link UPDATE in mergeAnonymousUserInto — found to be the TRUE ROOT CAUSE of all merges failing (Postgres rejects bind params a statement doesn't use, aborting the transaction); fixed and verified end-to-end
     status: completed
   - id: preferences_decision
-    content: Decide and implement whether anonymous UI preferences carry over to the real account on merge (open product question)
-    status: pending
+    content: "Decision (product owner): carry anon preferences into the real account with a per-property merge, not a whole-JSON overwrite. Implemented as mergePreferenceObjects in mergeAnonymousUserInto — anon leaf values win (key presence = explicitly customized), real-only keys preserved"
+    status: completed
   - id: tests_verify
-    content: Add regression coverage for the merge flow and run notes-next build/type-check/test
-    status: pending
+    content: Added DB-backed regression coverage (testing/anonymous-merge.test.ts) run by `pnpm --filter @lib/db-marketing test` against DB_MARKETING_TEST_URL only (opt-in; never MARKETING_DB_URL), wired into the CI verify-marketing job; notes-next check-types/test/build pass
+    status: completed
 isProject: false
 ---
 
 # Anonymous Merge — Correctness & Robustness Improvements
 
-## Scope
+## Status: complete
 
-These are the improvements around the anonymous→permanent account merge that stand
-on their own, independent of how post-login data loading is orchestrated. The
-client load-path race fix and the longer-term account model are in the separate
-architecture plan: `anonymous_account_architecture_4d7e2b10.plan.md`. Apply that
-plan's Phase 1 alongside these items; they are complementary and touch some of the
-same handlers.
+All items in this plan have shipped. Items 1, 2 (basic warning), and 4 landed
+with Phase 1 (PR #61). The remaining items — embedding backfill, preferences
+carry-over, the last two silent-loss gaps, and regression tests — landed in the
+final pass on branch `cursor/anonymous-merge-improvements-bc9b`.
 
 ## Background
 
 Anonymous visitors are backed by a real `user_v1` row with `is_anonymous = true`
-plus real notes/categories/tags (no localStorage note storage). On sign-in, a signed
-HMAC merge token proves browser ownership of the anonymous session, and
-`mergeAnonymousUserInto` (`lib/db-marketing/sql/user/anonymous.ts`) moves the data
-into the real account and deletes the anon row. The DB merge itself is sound; the
-items below harden the surrounding behavior.
+plus real notes/categories/tags. Since Phase 2 (PR #63) there are two paths to a
+permanent account:
 
-## 1. Flush pending autosaves before sign-in
+- **Claim-in-place (signup, common):** the anonymous row is upgraded in place —
+  same `user_id`, no data movement, preferences survive automatically, no
+  embeddings to backfill. Nothing in this plan applies to that path.
+- **Merge (sign in to a pre-existing account, rare):** a signed HMAC merge token
+  proves browser ownership of the anonymous session, and
+  `mergeAnonymousUserInto` (`lib/db-marketing/sql/user/anonymous.ts`) moves the
+  data into the real account and deletes the anon row. This plan hardened that
+  path.
 
-Sign-out flushes before tearing down the session; login does not:
+## 1. Flush pending autosaves before sign-in — DONE (PR #61 / #63)
 
-```1546:1549:apps/notes-next/src/components/notes/NotesApp.tsx
-  const handleLogout = async () => {
-    await flushPendingNoteSave()
-    await signOut({ redirect: false })
-```
+`handleLogin` and `handleSignup` both `await flushPendingNoteSave()` before any
+token/claim request or `signIn` call. `handleSocialSignIn` no longer exists
+(OAuth removed in Phase 2). `apps/notes-next/AGENTS.md` lists sign-in and signup
+among the flush triggers.
 
-`handleLogin` (`:1449`) and `handleSocialSignIn` (`:1521`) never call
-`flushPendingNoteSave()`. Any edit still inside the 3s autosave debounce
-(`NOTE_AUTOSAVE_DEBOUNCE_MS`) is never written to the anonymous account, so the merge
-cannot move it — permanent loss for that last note.
+## 2. Surface merge failures (no silent loss) — DONE
 
-**Change:** `await flushPendingNoteSave()` as the first statement in both
-`handleLogin` and `handleSocialSignIn`, before any merge-token request or `signIn`
-call. Update `apps/notes-next/AGENTS.md` "Note saving lifecycle" section to list
-login among the flush triggers (currently it lists opening/creating notes,
-back/forward, and sign-out).
+Phase 1 added the basic warning in `restoreSession`. Re-audit for this plan
+found two remaining silent-loss gaps, both fixed here:
 
-## 2. Surface merge failures (no silent loss)
+- **Token capture failure was silent:** if `POST /api/anon-session/merge-token`
+  failed in `handleLogin`, sign-in proceeded with no token — the merge could
+  never run, and after sign-in the anonymous session (and any path back to that
+  data) is gone. Now, when the visitor has notes, a failed capture **aborts the
+  sign-in** with an error while the user is still anonymous, so retrying
+  actually works. An empty visitor session proceeds without a token (nothing to
+  lose).
+- **"Try signing in again" could never work:** the old warning suggested a
+  retry, but the token had already been cleared and the anon session cookie was
+  gone. Now transient merge failures (network error, 5xx) **re-stash the token**
+  so the next `restoreSession` run — e.g. a page reload, within the token's
+  10-minute TTL — retries the merge, and the message says to reload. Permanent
+  failures (4xx: invalid/expired token, anon row already gone) keep the token
+  cleared and show a plain warning. The real sign-in is never rolled back; an
+  unmerged anon row remains eligible for the cleanup script.
 
-Today both login paths swallow merge errors:
+## 3. Embedding backfill after merge — DONE
 
-```1506:1508:apps/notes-next/src/components/notes/NotesApp.tsx
-        } catch {
-          // Merge failure is non-fatal — anonymous data stays for cleanup
-        }
-```
+`mergeAnonymousNotesAppSession` (`lib/db-marketing/services/notes-app.ts`) now
+calls `maintainNoteEmbeddingsForNotesApp({ userId: realUserId, mode: "missing",
+limit: 100 })` after the merge transaction commits, so categories/tags inserted
+by the merge SQL (which bypass embed-on-write) become searchable. It is wrapped
+in try/catch: a missing `JINA_API_KEY` or a Jina error logs a warning and the
+merge stays successful. The regression test exercises exactly this degraded
+path (no `JINA_API_KEY` set).
 
-If the token expired, the network blipped, or the anon row was already cleaned up,
-the user lands on the real account with no indication their visitor work wasn't
-transferred.
+## 4. SQL fix — extraneous bind params aborted every merge — DONE (PR #61)
 
-**Change:** when the merge call returns non-OK or throws, show a non-blocking,
-recoverable message via the existing status/error banner (or a Gravity UI toast),
-e.g. "Signed in, but we couldn't move your visitor notes. They're still saved — try
-signing in again." Keep the real sign-in successful (do not roll it back); the
-abandoned anon row remains eligible for the cleanup script. This applies wherever the
-merge call ends up living (see the architecture plan for the single owner).
+The tag-link `UPDATE` in `mergeAnonymousUserInto` passed bind params the
+statement does not use; Postgres rejects that outright, aborting the entire
+merge transaction. This was the root cause of the reported data loss (every
+anonymous user is seeded with an `important` tag since commit `986d5a4`, so the
+remap was never empty and every merge failed). Fixed and verified end-to-end in
+PR #61. Recovery note: failed production merges left visitor data intact on
+orphaned anonymous rows; it can be recovered by running the merge manually for
+the affected pairs before the cleanup script removes them.
 
-## 3. Embedding backfill after merge
+## 5. Anonymous preferences on merge — DECIDED & DONE
 
-The original design (`.cursor/plans/anonymous_sessions_26b7a04c.plan.md`, "Embedding
-backfill after merge") specified running embedding maintenance after merge so newly
-inserted categories/tags become searchable. It was never implemented —
-`mergeAnonymousNotesAppSession` only runs the SQL:
+**Decision (product owner, Jul 2026):** carry anon preferences into the real
+account, but never overwrite the real account's whole preferences JSON. Merge
+per property: a value the anonymous user added or changed (i.e. non-default)
+wins; everything else on the real account is preserved.
 
-```878:890:lib/db-marketing/services/notes-app.ts
-export const mergeAnonymousNotesAppSession = async (request: {
-  anonUserId: number;
-  realUserId: number;
-}): Promise<SessionResponse> => {
-  await mergeAnonymousUserInto(request.anonUserId, request.realUserId);
+**Why per-property is checkable:** `user_v1.preferences` defaults to `{}` and
+the client only writes a key when the user explicitly changes that setting
+(e.g. dragging the results column writes `notesApp.resultsColumnWidth`). So key
+presence = explicitly customized, key absence = still default. No ambiguity —
+the "if unable to check default vs custom, re-think" escape hatch was not
+needed.
 
-  const user = await getUserById(request.realUserId);
-  // ...
-  return { user };
-};
-```
+**Implementation:** `mergePreferenceObjects` in
+`lib/db-marketing/sql/user/anonymous.ts` — recursive merge where anon leaf
+values win and objects merge key-by-key; applied inside the merge transaction
+(rows already locked `FOR UPDATE`) before the anon row is deleted. An anon row
+with empty preferences leaves the real account untouched.
 
-Category/tag rows inserted during merge bypass the service paths that generate Jina
-embeddings, so they have `NULL` embeddings and won't appear in semantic search until
-maintenance runs. (Notes keep their `description_embedding`, so they don't need a
-backfill.)
+Note: this only matters for the merge path. The claim-in-place signup keeps the
+same row, so preferences survive there automatically.
 
-**Change:** after the merge transaction commits, call
-`maintainNoteEmbeddingsForNotesApp({ userId: realUserId, mode: "missing" })` for the
-real user. Guard it so a missing `JINA_API_KEY` or a Jina error logs/degrades rather
-than failing the whole merge (the merge must remain successful even if embedding
-backfill can't run).
+## 6. Tests & verification — DONE
 
-## 4. SQL fix — extraneous bind params aborted every merge (ROOT CAUSE — fixed)
-
-Originally filed here as a "harmless" cleanup; end-to-end testing against a real
-Postgres proved it was the actual cause of the reported data loss. The tag-link
-`UPDATE` in `mergeAnonymousUserInto` passed bind params the statement does not use:
-
-```sql
-UPDATE public.user_note_tag_link_v1 l
-SET tag_id = m.real_id
-FROM (VALUES ...) AS m(anon_id, real_id)
-WHERE l.tag_id = m.anon_id
--- executed with params [realUserId, anonUserId] but no $1/$2 in the SQL
-```
-
-Postgres rejects this outright — `bind message supplies 2 parameters, but prepared
-statement "" requires 0` — which **aborts the entire merge transaction**. The merge
-route returned HTTP 400 and the old client swallowed it silently.
-
-Why it used to work: this statement only runs when the tag remap is non-empty.
-Before commit `986d5a4` ("Add default important tag with delete protection"), an
-anonymous user who never used tags had an empty remap and the statement was skipped.
-Since that commit every anonymous user is seeded with an `important` tag, so the
-remap is never empty and **every merge failed**.
-
-**Fix (done):** removed the extraneous argument. Verified with a full live flow
-(anonymous sign-in → create category + tagged note → merge token → credentials
-sign-in → merge): HTTP 200, note reassigned with category recreated and tag
-remapped, anonymous user deleted.
-
-**Recovery note:** merges that failed in production left the visitor data intact on
-orphaned anonymous `user_v1` rows. That data can be recovered by running the merge
-manually for the affected anon→real user pairs before the cleanup script removes
-them.
-
-## 5. Anonymous preferences on merge (open product question)
-
-Anonymous UI preferences (e.g. results column width) live on the anon `user_v1` row
-and are discarded when it is deleted. `mergeAnonymousUserInto` does not copy
-`preferences`.
-
-**Decision needed:** carry anon preferences into the real account (ideally only when
-the real account is still on defaults, so we don't overwrite a returning user's
-settings), or intentionally drop them? If we carry them over, add a preferences-merge
-step to `mergeAnonymousUserInto` (or the service wrapper) with the "only if real is
-default" guard.
-
-## 6. Tests & verification
-
-- Add regression coverage for the merge flow where the harness allows mocking the
-  session (there is currently no automated coverage of anonymous merge). At minimum:
-  merge reassigns notes, dedupes categories/tags by label, and deletes the anon row.
-- `pnpm --filter notes-next check-types`
-- `pnpm --filter notes-next build`
-- `pnpm --filter notes-next test`
-- On Cursor Cloud, start Postgres and add pg17 to PATH before any `db:*` command (see
-  root `AGENTS.md`).
-
-## Files touched
-
-| File | Change |
-|------|--------|
-| `apps/notes-next/src/components/notes/NotesApp.tsx` | Flush before login; merge-failure warning |
-| `apps/notes-next/AGENTS.md` | Add login to the documented flush triggers |
-| `lib/db-marketing/services/notes-app.ts` | Embedding backfill after merge; (optional) preferences carry-over |
-| `lib/db-marketing/sql/user/anonymous.ts` | Drop dead query params; (optional) preferences carry-over |
+- `lib/db-marketing/testing/anonymous-merge.test.ts`: pure unit tests for
+  `mergePreferenceObjects`, plus DB-backed regression tests asserting the merge
+  reassigns notes (with category remap), dedupes categories/tags by label,
+  remaps tag links, deletes the anon row, merges preferences per property, and
+  succeeds without `JINA_API_KEY`.
+- The DB suite is **opt-in via `DB_MARKETING_TEST_URL`** and connects only to
+  that URL — deliberately not `MARKETING_DB_URL`, which in cloud/deployed
+  environments points at the real Notes database. Without the variable the DB
+  suite skips, so `turbo run test` stays green anywhere.
+- `@lib/db-marketing` gained a `test` script (node test runner via tsx). CI's
+  `verify-marketing` job runs it after `db:verify` against the job's throwaway
+  migrated Postgres container.
+- Verified locally against a fresh Postgres 17 + pgvector cluster: migrate →
+  all tests pass; `check-types`, notes-next `test`, and `build` pass.
 
 ## Cross-reference
 
-The client race that causes the reported "visitor notes disappear on sign-in" symptom
-is addressed in `anonymous_account_architecture_4d7e2b10.plan.md` (Phase 1). These
-improvements should ship together with that phase.
+The client race that caused "visitor notes disappear on sign-in" was fixed in
+`anonymous_account_architecture_4d7e2b10.plan.md` Phase 1 (PR #61); the
+claim-in-place signup that removes the merge from the common path is Phase 2
+(PR #63).
