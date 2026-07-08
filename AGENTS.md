@@ -106,24 +106,30 @@ note-writing UI) against it — per the db rules, remote migrations require an
 explicit request. For local development, run against a **local** Postgres and
 override `MARKETING_DB_URL` in the shell.
 
-`scripts/cloud-agent-install.sh` installs the PostgreSQL 17 server + `pgvector`
-(migrations use `vector(1024)` HNSW indexes). Bring up a local DB and point
-`notes-next` at it:
+Local Postgres is provisioned automatically:
+
+- `scripts/cloud-agent-install.sh` installs the PostgreSQL 17 server + `pgvector`
+  (migrations use `vector(1024)` HNSW indexes).
+- `scripts/cloud-agent-start.sh` starts the `17 main` cluster (port 5432) and
+  creates the `notes` role plus the `notes` (dev) and `notes_test` (test)
+  databases. All steps are idempotent.
+- `DB_MARKETING_TEST_URL` is preset (in `.cursor/environment.json`) to
+  `postgresql://notes:notes@localhost:5432/notes_test` for `@lib/db-marketing`
+  tests.
+
+So per session you only need to point `notes-next` at a local DB and run it:
 
 ```bash
-sudo pg_ctlcluster 17 main start          # start the local cluster (port 5432)
 export PATH="/usr/lib/postgresql/17/bin:$PATH"
-# create a local role + db once (idempotent)
-sudo -u postgres psql -c "SELECT 1 FROM pg_roles WHERE rolname='notes'" | grep -q 1 \
-  || sudo -u postgres psql -c "CREATE ROLE notes LOGIN PASSWORD 'notes' SUPERUSER;"
-sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='notes'" | grep -q 1 \
-  || sudo -u postgres createdb -O notes notes
-# override the remote secret for this shell, then migrate
-export MARKETING_DB_URL="postgresql://notes:notes@localhost:5432/notes"  # pragma: allowlist secret (local dev only)
+# override the remote secret for this shell (local dev only)
+export MARKETING_DB_URL="postgresql://notes:notes@localhost:5432/notes"  # pragma: allowlist secret
 export AUTH_SECRET="$(openssl rand -base64 32)" AUTH_TRUST_HOST=true
-pnpm run db:migrate
+pnpm run db:migrate                       # migrates the local 'notes' db
 pnpm --filter notes-next dev              # http://localhost:3000
 ```
+
+To migrate the test database instead, point `db:migrate` at `notes_test`:
+`MARKETING_DB_URL="$DB_MARKETING_TEST_URL" pnpm run db:migrate`.
 
 Non-obvious gotchas:
 
@@ -131,6 +137,8 @@ Non-obvious gotchas:
   in `apps/notes-next/.env.local`, so the local URL must be exported in the same
   shell that runs `db:migrate` and `dev` (as above). `.env.local` is only used for
   vars not already in the environment (e.g. `AUTH_SECRET`).
+- If a cluster is not yet running (e.g. the start hook was skipped), bring it up
+  with `sudo pg_ctlcluster 17 main start` before any `db:*` command.
 - A new visitor gets an anonymous user automatically, but a note only **autosaves**
   once a **category is selected** and the body is non-empty (there is no save
   button; autosave fires ~3s after typing). Anonymous users start with no

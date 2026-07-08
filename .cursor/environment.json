@@ -14,6 +14,7 @@
     "ANDROID_HOME": "/workspace/.android-sdk",
     "ANDROID_USER_HOME": "/workspace/.android-user-home",
     "CI": "true",
+    "DB_MARKETING_TEST_URL": "postgresql://notes:notes@localhost:5432/notes_test",
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
     "GRADLE_USER_HOME": "/workspace/.gradle",
     "HUSKY": "0",
