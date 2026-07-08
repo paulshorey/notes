@@ -1616,6 +1616,14 @@ export default function NotesApp() {
         return
       }
 
+      // Apply the claimed identity to state and the local cache now. The
+      // restoreSession re-run below takes the cache-first branch (same user id,
+      // no merge token) and its background refresh keeps the in-memory user, so
+      // without this the header would show the old anon-* username until a
+      // full reload.
+      const claimData = (await claimResponse.json()) as SessionResponse
+      applyLoadedUser(claimData.user)
+
       // Re-mint the JWT for the same user id so isAnonymous flips to false.
       const result = await signIn("credentials", {
         identifier: fields.username,

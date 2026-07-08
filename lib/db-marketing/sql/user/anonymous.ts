@@ -75,17 +75,52 @@ export const claimAnonymousUser = async (
       throw new Error(CLAIM_NOT_ANONYMOUS_ERROR);
     }
 
-    // Same normalization findUserByIdentifier uses. Only non-anonymous rows
-    // count as conflicts; this row is still anonymous, so it excludes itself.
-    // username also has a global UNIQUE constraint — the 23505 handler below
-    // covers a race or a collision with another anonymous row.
+    // Serialize concurrent claims of the same normalized identifier. The DB
+    // only has an exact-match UNIQUE(username); it has no case-insensitive
+    // username or email uniqueness, so two simultaneous claims of "Alice" and
+    // "alice" (or the same email) could otherwise both pass the conflict
+    // SELECT below and both commit. Transaction-scoped advisory locks on the
+    // normalized identifiers close that window without a schema migration
+    // (adding lower() unique indexes would first require auditing production
+    // data for existing case-duplicates). Keys are sorted so two claims that
+    // lock the same pair cannot deadlock.
+    const lockKeys = [identity.username.toLowerCase()];
+    if (identity.email) {
+      lockKeys.push(identity.email.toLowerCase());
+    }
+    for (const key of [...new Set(lockKeys)].sort()) {
+      await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [
+        key,
+      ]);
+    }
+
+    // A claimed identifier must not resolve to another account through
+    // findUserByIdentifier, which matches ONE identifier string against
+    // username, email, AND phone digits. So the proposed username and email
+    // are each checked against all three namespaces (e.g. a username of
+    // "alice@example.com" conflicts with an account whose EMAIL is
+    // alice@example.com — otherwise sign-in with that identifier would
+    // resolve to the older row and lock the new user out). Only
+    // non-anonymous rows count; this row is still anonymous, so it excludes
+    // itself. The global UNIQUE(username) plus the 23505 handler below covers
+    // exact collisions with other anonymous rows.
+    const usernameDigits = identity.username.replace(/\D/g, "");
+    const emailDigits = identity.email?.replace(/\D/g, "") ?? "";
     const conflict = await client.query<{ id: number }>(
       `SELECT id FROM public.user_v1
        WHERE is_anonymous = false
-         AND (lower(username) = lower($1)
-           OR ($2::text IS NOT NULL AND lower(email) = lower($2)))
+         AND (
+           lower(username) = lower($1)
+           OR lower(email) = lower($1)
+           OR ($2 <> '' AND regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2)
+           OR ($3::text IS NOT NULL AND (
+             lower(username) = lower($3)
+             OR lower(email) = lower($3)
+             OR ($4 <> '' AND regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $4)
+           ))
+         )
        LIMIT 1`,
-      [identity.username, identity.email ?? null]
+      [identity.username, usernameDigits, identity.email ?? null, emailDigits]
     );
     if (conflict.rows[0]) {
       throw new Error(CLAIM_IDENTIFIER_TAKEN_ERROR);
@@ -163,8 +198,13 @@ export const mergeAnonymousUserInto = async (
   try {
     await client.query("BEGIN");
 
+    // FOR UPDATE is load-bearing: it serializes this merge against a
+    // concurrent claimAnonymousUser of the same row. Without it the merge
+    // could pass this check, wait on the claim's row lock, and then delete a
+    // row that had just become a permanent account. Locking here makes the
+    // read see the latest committed state, so a claimed row fails the check.
     const anonCheck = await client.query<{ is_anonymous: boolean }>(
-      `SELECT is_anonymous FROM public.user_v1 WHERE id = $1`,
+      `SELECT is_anonymous FROM public.user_v1 WHERE id = $1 FOR UPDATE`,
       [anonUserId]
     );
     if (!anonCheck.rows[0]?.is_anonymous) {
