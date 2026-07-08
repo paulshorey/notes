@@ -869,22 +869,37 @@ export default function NotesApp() {
         mergeInFlightRef.current = true
         clearPendingMergeToken()
         try {
-          const mergeResponse = await fetch("/api/anon-session/merge", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ mergeToken: pendingMergeToken }),
-          })
-          if (!mergeResponse.ok) {
-            throw new Error(`Merge failed with status ${mergeResponse.status}`)
+          let mergeResponse: Response | null = null
+          try {
+            mergeResponse = await fetch("/api/anon-session/merge", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ mergeToken: pendingMergeToken }),
+            })
+          } catch {
+            // Network failure — handled as retryable below.
           }
-        } catch {
-          // The real sign-in stays successful; the visitor data remains on the
-          // anonymous row for the cleanup script. Surface a recoverable warning
-          // rather than failing silently.
-          if (active) {
-            setErrorMessage(
-              "Signed in, but we couldn't move your visitor notes. They're still saved — try signing in again.",
-            )
+
+          if (!mergeResponse || !mergeResponse.ok) {
+            // The real sign-in stays successful; the visitor data remains on
+            // the anonymous row for the cleanup script. Surface a warning
+            // rather than failing silently — and make retry actually work
+            // where it can: transient failures (network, 5xx) re-stash the
+            // token so the next restoreSession run (e.g. a page reload,
+            // within the token's 10-minute TTL) retries the merge. A 4xx
+            // means the token or the anonymous row is no longer valid, so a
+            // retry cannot succeed and the token stays cleared.
+            const retryable = !mergeResponse || mergeResponse.status >= 500
+            if (retryable) {
+              writePendingMergeToken(pendingMergeToken)
+            }
+            if (active) {
+              setErrorMessage(
+                retryable
+                  ? "Signed in, but we couldn't move your visitor notes yet. Reload the page to try again."
+                  : "Signed in, but your visitor notes couldn't be transferred to this account.",
+              )
+            }
           }
         } finally {
           mergeInFlightRef.current = false
@@ -1541,6 +1556,7 @@ export default function NotesApp() {
       // performs the merge and the reload, so there is exactly one writer of
       // session data — no race.
       if (authSession?.user?.isAnonymous && authSession.user.notesUserId) {
+        let mergeTokenCaptured = false
         try {
           const tokenResponse = await fetch("/api/anon-session/merge-token", {
             method: "POST",
@@ -1548,9 +1564,22 @@ export default function NotesApp() {
           if (tokenResponse.ok) {
             const tokenData = (await tokenResponse.json()) as { mergeToken: string }
             writePendingMergeToken(tokenData.mergeToken)
+            mergeTokenCaptured = true
           }
         } catch {
-          // Continue with sign-in even if merge-token capture fails.
+          // Handled below — treated the same as a non-OK response.
+        }
+
+        // Without a token the merge can never run, and after sign-in the
+        // anonymous session is gone, stranding the visitor's notes. When
+        // there is anything to lose, abort while the user is still anonymous
+        // so they can simply retry. An empty visitor session has nothing to
+        // merge, so it proceeds without a token.
+        if (!mergeTokenCaptured && notesRef.current.length > 0) {
+          setErrorMessage(
+            "Couldn't prepare your notes to transfer to the account. Check your connection and try again.",
+          )
+          return
         }
       }
 
