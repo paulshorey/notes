@@ -62,8 +62,8 @@ interface NotesHeaderProps {
   password: string
   onIdentifierChange: (value: string) => void
   onPasswordChange: (value: string) => void
-  onLoginSubmit: (event: FormEvent<HTMLFormElement>) => void
-  onSignupSubmit: (fields: SignupFields) => void
+  onLoginSubmit: (event: FormEvent<HTMLFormElement>) => Promise<boolean>
+  onSignupSubmit: (fields: SignupFields) => Promise<boolean>
   authPending: boolean
   loginErrorMessage: string | null
   onDismissLoginError: () => void
@@ -97,6 +97,37 @@ export function NotesHeader({
   const resultsButtonClassName = `${styles.headerButton} ${styles.mobileResultsButton} ${
     resultsListVisible ? styles.mobileResultsButtonHiddenDesktop : ""
   }`
+
+  const resetAuthPopupState = () => {
+    setAuthMode("signin")
+    setSignupUsername("")
+    setSignupEmail("")
+    setSignupPassword("")
+  }
+
+  const closeAuthMenu = () => {
+    setMenuOpen(false)
+    resetAuthPopupState()
+  }
+
+  const handleSigninSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    const success = await onLoginSubmit(event)
+    if (success) {
+      closeAuthMenu()
+    }
+  }
+
+  const handleSignupFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const success = await onSignupSubmit({
+      username: signupUsername,
+      email: signupEmail,
+      password: signupPassword,
+    })
+    if (success) {
+      closeAuthMenu()
+    }
+  }
 
   return (
     <div className={styles.headerActions}>
@@ -149,16 +180,15 @@ export function NotesHeader({
       <Popup
         anchorRef={userBtnRef}
         open={menuOpen}
-        onClose={() => setMenuOpen(false)}
+        onClose={closeAuthMenu}
         placement="bottom-end"
       >
         <div className={styles.userMenu}>
           {isAnonymous ? (
             authMode === "signin" ? (
               <form
-                onSubmit={(e) => {
-                  onLoginSubmit(e)
-                  setMenuOpen(false)
+                onSubmit={(event) => {
+                  void handleSigninSubmit(event)
                 }}
                 className={styles.loginFormInPopup}
               >
@@ -182,11 +212,15 @@ export function NotesHeader({
                   Sign in
                 </Button>
                 <Button
+                  type="button"
                   view="flat"
                   size="m"
                   width="max"
                   disabled={authPending}
-                  onClick={() => setAuthMode("signup")}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setAuthMode("signup")
+                  }}
                 >
                   Create account
                 </Button>
@@ -205,13 +239,7 @@ export function NotesHeader({
             ) : (
               <form
                 onSubmit={(event) => {
-                  event.preventDefault()
-                  onSignupSubmit({
-                    username: signupUsername,
-                    email: signupEmail,
-                    password: signupPassword,
-                  })
-                  setMenuOpen(false)
+                  void handleSignupFormSubmit(event)
                 }}
                 className={styles.loginFormInPopup}
               >
@@ -243,11 +271,15 @@ export function NotesHeader({
                   Create account
                 </Button>
                 <Button
+                  type="button"
                   view="flat"
                   size="m"
                   width="max"
                   disabled={authPending}
-                  onClick={() => setAuthMode("signin")}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setAuthMode("signin")
+                  }}
                 >
                   I already have an account
                 </Button>

@@ -3,7 +3,7 @@ name: Anonymous Account Architecture — Claim-in-Place Signup (Phase 2)
 overview: Turn an anonymous visitor into a permanent account without moving data between users. Phase 1 (shipped) made restoreSession the single post-login loader and merge trigger, fixing the sign-in race. Phase 2 removes the unfinished OAuth login, introduces password hashing, and adds a signup flow that upgrades the anonymous user row in place (same user_id, zero data movement). The only remaining cross-user merge — logging into a pre-existing account — stays server-side behind the existing token flow and gains an automated schema-coverage guard so new user-owned tables cannot be silently forgotten.
 todos:
   - id: p1_shipped
-    content: Phase 1 (SHIPPED, PR #61) — restoreSession is the single merge-aware post-login loader; login handlers only flush, stash the merge token, and signIn; server-side SQL bind-param bug that aborted every merge fixed
+    content: Phase 1 (SHIPPED, PR
     status: completed
   - id: p2_remove_oauth
     content: Remove the unfinished OAuth login — social buttons in NotesHeader, handleSocialSignIn in NotesApp, social providers + OAuth branches in auth.ts, and the dead LoginForm.tsx; update AGENTS.md references
@@ -78,15 +78,15 @@ Turning a visitor into an account has two distinct cases:
 
 ### Key files
 
-| Layer                          | File                                                                 |
-| ------------------------------ | -------------------------------------------------------------------- |
-| UI / load orchestration        | `apps/notes-next/src/components/notes/NotesApp.tsx`                  |
-| Login/signup popup             | `apps/notes-next/src/components/notes/NotesHeader.tsx`               |
-| Auth (providers, JWT/session)  | `apps/notes-next/src/auth.ts`                                        |
-| Credential lookup / user SQL   | `lib/db-marketing/sql/user/gets.ts`, `lib/db-marketing/sql/user/anonymous.ts` |
-| Service layer                  | `lib/db-marketing/services/notes-app.ts`                             |
-| Anon-session routes            | `apps/notes-next/app/api/anon-session/*`                             |
-| Docs to update                 | `apps/notes-next/AGENTS.md`                                          |
+| Layer                         | File                                                                          |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| UI / load orchestration       | `apps/notes-next/src/components/notes/NotesApp.tsx`                           |
+| Login/signup popup            | `apps/notes-next/src/components/notes/NotesHeader.tsx`                        |
+| Auth (providers, JWT/session) | `apps/notes-next/src/auth.ts`                                                 |
+| Credential lookup / user SQL  | `lib/db-marketing/sql/user/gets.ts`, `lib/db-marketing/sql/user/anonymous.ts` |
+| Service layer                 | `lib/db-marketing/services/notes-app.ts`                                      |
+| Anon-session routes           | `apps/notes-next/app/api/anon-session/*`                                      |
+| Docs to update                | `apps/notes-next/AGENTS.md`                                                   |
 
 No DB migration is required anywhere in this phase: `user_v1.password` is already
 `text`, `is_anonymous` exists, and no tables are added.
@@ -196,7 +196,7 @@ password). Follow the existing prop pattern (`onSignupSubmit` etc. from `NotesAp
    taken — sign in instead?"; on other failure show the error. **No merge token is
    captured in this path** — there is nothing to merge.
 3. On success, `signIn("credentials", { identifier: username, password,
-   redirect: false })`. This re-mints the JWT for the **same** `user_id` with
+redirect: false })`. This re-mints the JWT for the **same** `user_id` with
    `isAnonymous = false` (the `jwt` callback sets `isAnonymous` from the `user`
    object at initial sign-in, so re-signing-in is the clean way to flip it —
    simpler than teaching the callback about `trigger === "update"`).
@@ -232,7 +232,7 @@ machinery than a five-table schema needs), make forgetting impossible:
 
 - In `sql/user/anonymous.ts`, next to `mergeAnonymousUserInto`, export a
   hand-maintained map `MERGE_TABLE_STRATEGIES: Record<tableName, "dedup-remap" |
-  "reparent" | "drop">` documenting every table with a direct FK to `user_v1` and
+"reparent" | "drop">` documenting every table with a direct FK to `user_v1` and
   what the merge does with it. Today: `user_note_category_v1: "dedup-remap"`,
   `user_note_tag_v1: "dedup-remap"`, `user_note_v1: "reparent"`,
   `user_api_token_v1: "drop"` (anon tokens are intentionally discarded by
@@ -259,8 +259,8 @@ The merge SQL itself stays explicit — it already serializes concurrent merges 
 ## Verification (all performed against a throwaway local Postgres 17 + pgvector)
 
 1. **Signup (claim-in-place)** — full HTTP flow against the built app (`next
-   start`): anonymous sign-in → create category + note → `POST
-   /api/anon-session/claim` → credentials re-sign-in. Same `user_v1.id` end to
+start`): anonymous sign-in → create category + note → `POST
+/api/anon-session/claim` → credentials re-sign-in. Same `user_v1.id` end to
    end, `is_anonymous` flipped, `password` stored as `scrypt$…`, the pre-claim
    note visible after claim, zero rows changed `user_id`. ✔
 2. **Signup conflicts** — short password → 400; duplicate username from a second

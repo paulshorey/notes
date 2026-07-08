@@ -1,111 +1,201 @@
 # Semantic Search & Vector Embeddings
 
-This document explains how vector-based semantic search works across the Notes
+This document describes how vector-based semantic search works across the Notes
 apps (`notes-next`, `notes-android`) and the shared database layer
 (`@lib/db-marketing`).
 
 ## Overview
 
-Every note is embedded into a set of 1024-dimensional vectors using the
-Jina AI Embeddings API (`jina-embeddings-v5-text-small`). When a user
-searches, the query text is also embedded with the same model. The database
-ranks notes by cosine similarity between the query vector and each note's
-stored vectors.
+Notes search is **semantic**, not keyword-based. Each searchable text field is
+embedded into a 1024-dimensional vector using the Jina AI Embeddings API
+(`jina-embeddings-v5-text-small`). When a user searches, the query text is
+embedded with the same model (using a different task adapter). Postgres then
+ranks notes by cosine similarity between the query vector and stored vectors.
 
-Jina v5 supports **task-specific LoRA adapters** that significantly improve
-search quality, especially for short phrases:
+Search spans three entity types:
 
-- **`retrieval.passage`** — used when storing note content and category labels
-- **`retrieval.query`** — used when embedding the user's search query
+| Entity   | Table                    | Embedded text      | Column               |
+|----------|--------------------------|--------------------|----------------------|
+| Note     | `user_note_v1`           | `description`      | `description_embedding` |
+| Category | `user_note_category_v1`  | `label`            | `category_embedding` |
+| Tag      | `user_note_tag_v1`       | `label`            | `tag_embedding`      |
 
-This asymmetric approach means the model understands the difference between
-"a document about X" and "a query looking for X", producing much better
-similarity rankings than a single symmetric embedding.
+Every note belongs to exactly one category and may have zero or more tags. The
+ranking formula combines description similarity with taxonomy similarity
+(category + tags).
 
-## Embedding model
+## PostgreSQL: pgvector extension
+
+**Yes — vector comparison is performed in Postgres using the
+[pgvector](https://github.com/pgvector/pgvector) extension.**
+
+The extension is enabled in the first embeddings migration:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+### Column type
+
+Embedding columns use pgvector's fixed-dimension type:
+
+```sql
+description_embedding vector(1024)
+category_embedding    vector(1024)
+tag_embedding         vector(1024)
+```
+
+Vectors are stored as JSON array literals at the application layer and cast to
+`::vector` in SQL (for example `$2::vector`).
+
+### Similarity operator
+
+Search uses pgvector's **cosine distance** operator `<=>` with the
+`vector_cosine_ops` operator class. Because Jina returns L2-normalized vectors
+(`normalized: true`), cosine distance maps cleanly to a 0–1 similarity score:
+
+```sql
+1 - (stored_embedding <=> query_embedding::vector)
+```
+
+- `<=>` returns cosine **distance** (0 = identical, 2 = opposite).
+- Subtracting from 1 yields cosine **similarity** (1 = identical, -1 = opposite).
+
+The app never computes similarity in TypeScript; all distance math happens in
+Postgres via pgvector operators.
+
+### HNSW indexes
+
+Each embedding column has an **HNSW** (Hierarchical Navigable Small World)
+approximate-nearest-neighbor index:
+
+```sql
+CREATE INDEX ... USING hnsw (description_embedding vector_cosine_ops);
+CREATE INDEX ... USING hnsw (category_embedding vector_cosine_ops);
+CREATE INDEX ... USING hnsw (tag_embedding vector_cosine_ops);
+```
+
+These indexes support fast top-k nearest-neighbor queries on a single column.
+The current search query in `sql/note/gets.ts` does **not** use them directly:
+it scans all of a user's notes, computes a composite score across description +
+category + tags, and sorts in SQL. This is appropriate for per-user note counts
+but would need revisiting if cross-user or very large per-user search becomes a
+requirement.
+
+## Embedding model (Jina AI)
 
 | Setting    | Value                                      |
 |------------|--------------------------------------------|
-| Provider   | Jina AI (`/v1/embeddings`)                 |
+| Provider   | Jina AI (`https://api.jina.ai/v1/embeddings`) |
 | Model      | `jina-embeddings-v5-text-small`            |
 | Dimensions | 1024                                       |
 | Normalized | `true` (L2 normalized for cosine via dot)  |
+| Truncate   | `true`                                     |
 | Timeout    | 30 seconds                                 |
 
-The model identifier stored alongside each note is
-`jina-embeddings-v5-text-small:notes-v3`. This tag lets the maintenance
-endpoint detect notes that were embedded with an older model version so they
-can be re-embedded.
+The model version tag stored alongside each row is
+`jina-embeddings-v5-text-small:notes-v3`. The maintenance endpoint uses this
+tag to detect rows embedded with an older model version.
 
-### Task types
+### Task types (asymmetric retrieval)
 
-| Task               | Used for                              |
-|--------------------|---------------------------------------|
-| `retrieval.passage`| Storing note descriptions, content, category labels |
-| `retrieval.query`  | Embedding user search queries         |
-| `text-matching`    | Symmetric similarity (not used yet)   |
+Jina v5 supports task-specific LoRA adapters that improve search quality for
+short phrases:
+
+| Task                | Used for                                    |
+|---------------------|---------------------------------------------|
+| `retrieval.passage` | Storing note descriptions, category labels, tag labels |
+| `retrieval.query`   | Embedding user search queries               |
+| `text-matching`     | Symmetric similarity (not used)             |
+
+Passages (stored content) and queries (user input) are embedded with different
+adapters. This asymmetric approach produces better rankings than using one
+adapter for both sides.
 
 ## Database schema
 
-The `user_note_v1` table stores one embedding column (`vector(1024)`):
+Relevant columns on each table:
 
-| Column                  | Source text        |
-|-------------------------|--------------------|
-| `description_embedding` | `description` only |
+### `user_note_v1`
 
-The `user_note_category_v1` table stores one embedding column:
+| Column                  | Type            | Source text   |
+|-------------------------|-----------------|---------------|
+| `description_embedding` | `vector(1024)` | `description` |
+| `embedding_model`       | `text`          | model version tag |
+| `embedding_updated_at`  | `timestamptz`   | last write    |
 
-| Column               | Source text       |
-|----------------------|-------------------|
-| `category_embedding` | `label` only      |
+### `user_note_category_v1`
 
-Additional metadata columns (on both tables):
+| Column               | Type            | Source text |
+|----------------------|-----------------|-------------|
+| `category_embedding` | `vector(1024)`  | `label`     |
+| `embedding_model`    | `text`          | model version tag |
+| `embedding_updated_at` | `timestamptz` | last write  |
 
-- `embedding_model` — records which model version produced the vectors
-- `embedding_updated_at` — timestamp of the last embedding write
+### `user_note_tag_v1`
 
-Each embedding column has an HNSW index using `vector_cosine_ops` for
-approximate nearest-neighbor search.
+| Column               | Type            | Source text |
+|----------------------|-----------------|-------------|
+| `tag_embedding`      | `vector(1024)`  | `label`     |
+| `embedding_model`    | `text`          | model version tag |
+| `embedding_updated_at` | `timestamptz` | last write  |
 
-### Why a combined `content_embedding`?
+### Schema history (brief)
 
-A single embedding that captures the full note gives the best relevance for
-queries that match the overall idea of a note rather than one specific
-field. Per-column embeddings complement this by boosting notes where a
-particular field aligns strongly with the query.
+Embeddings evolved through several migrations:
+
+1. **202603151000** — Initial pgvector setup (OpenAI `text-embedding-3-small`,
+   1536 dims) on `title_embedding` and `content_embedding`.
+2. **202603251200** — Per-column embeddings (`summary_embedding`,
+   `description_embedding`).
+3. **202604081200** — Switched to Jina v5 at 1024 dims; nulled all existing
+   embeddings for regeneration.
+4. **202604081300** — Dropped unused `content_embedding` (computed but never
+   queried).
+5. **202604221200+** — Category/tag taxonomy tables gained their own embedding
+   columns.
+
+Only `description_embedding` is embedded per note today. Category and tag
+labels are embedded on their respective taxonomy rows.
 
 ## Embedding lifecycle
 
 ### On note create / update
 
-`services/notes-app.ts` calls `createNoteEmbeddingInput(note)` before
-writing to the database. This function:
+`services/notes-app.ts` calls `createNoteEmbeddingInput()` before writing to
+the database. This function:
 
-1. Normalizes each text field (trim whitespace, normalize line endings).
-2. Builds the combined content string from all non-empty fields.
-3. Collects the individual non-empty field texts.
-4. Sends all texts to Jina with `task: "retrieval.passage"` in a single batch.
-5. Returns a `NoteEmbeddingWriteInput` with JSON-serialized vector literals
-   for each column, or `null` for fields that had no text.
+1. Normalizes the description (trim whitespace, normalize line endings).
+2. Skips the Jina call if the description is empty (embeddings set to `NULL`).
+3. Otherwise sends the description to Jina with `task: "retrieval.passage"`.
+4. Returns a `NoteEmbeddingWriteInput` with a JSON-serialized vector literal
+   and the current model tag.
 
-The INSERT / UPDATE queries cast these values to `::vector` and write them
-alongside the note content.
+INSERT/UPDATE queries cast the literal to `::vector` and set
+`embedding_updated_at`.
 
-### On search (backfill)
+### On category / tag create / update
 
-Before executing a search, the service checks for notes belonging to the
-user that are missing any embedding column they should have. If any are
-found, they are backfilled in a batch before the query runs. This
-ensures newly imported or legacy notes are searchable immediately.
+Creating or renaming a category or tag calls `createTagLabelEmbedding()` with
+the normalized label and `task: "retrieval.passage"`, then writes the vector to
+`category_embedding` or `tag_embedding` respectively.
+
+### On search
+
+`searchNotesForNotesApp()` embeds the query and runs the ranking SQL. **Search
+does not backfill missing embeddings.** Notes or taxonomy rows with `NULL`
+embeddings contribute zero to their similarity component but still appear in
+results (ranked lower).
 
 ### Maintenance endpoint
 
-`POST /api/notes/maintenance/embeddings` supports two modes:
+`POST /api/notes/maintenance/embeddings` backfills or upgrades embeddings in
+batches. The web app exposes a UI action that calls this endpoint.
 
 | Mode      | Behavior                                                          |
 |-----------|-------------------------------------------------------------------|
-| `missing` | Re-embed notes that have at least one expected embedding column as NULL |
-| `stale`   | Re-embed notes whose `embedding_model` differs from the current version, or that are missing any column |
+| `missing` | Re-embed rows with at least one expected embedding column as NULL |
+| `stale`   | Re-embed rows whose `embedding_model` differs from the current version, or that are missing any column |
 
 Request body:
 
@@ -113,7 +203,7 @@ Request body:
 {
   "userId": 7,
   "mode": "missing",
-  "limit": 25
+  "limit": 100
 }
 ```
 
@@ -124,12 +214,26 @@ Response:
   "mode": "missing",
   "processed": 10,
   "updated": 10,
+  "categoriesUpdated": 2,
+  "tagsUpdated": 3,
   "hasMore": false
 }
 ```
 
-Call this endpoint in a loop (incrementing until `hasMore` is `false`) to
-backfill or upgrade all notes for a user.
+Call in a loop until `hasMore` is `false` to backfill or upgrade all rows for a
+user. `limit` accepts 1–500 (default 100).
+
+### Standalone regeneration script
+
+`lib/db-marketing/scripts/regenerate-embeddings.mjs` bulk-regenerates all
+embeddings outside the app:
+
+```bash
+MARKETING_DB_URL=… JINA_API_KEY=… node lib/db-marketing/scripts/regenerate-embeddings.mjs [--user <id>] [--dry-run] [--batch-size <n>]
+```
+
+Keep this script in sync with `services/notes-embeddings.ts` when changing
+model, dimensions, or text format.
 
 ## Query-time search
 
@@ -143,33 +247,45 @@ Request body:
 {
   "userId": 7,
   "query": "grocery shopping list",
-  "limit": 12
+  "limit": 20
 }
 ```
 
-### How the query is processed
+`limit` defaults to 20 and accepts 1–20 (`NOTES_APP_SEARCH_MAX_RESULTS`).
 
-1. The query string is normalized and sent to Jina with
-   `task: "retrieval.query"` to produce a single 1024-dimension embedding.
-2. The database computes cosine similarity (`1 - (embedding <=> query)`)
-   between the query vector and each note's embedding columns.
-3. A composite score is calculated and results are sorted by descending
-   similarity.
+### Processing steps
+
+1. **Normalize** the query string (`parseSearchRequest` / `normalizeSearchQuery`).
+2. **Embed** via Jina with `task: "retrieval.query"` → single 1024-dim vector.
+3. **Rank** in Postgres: for each user note, compute per-field cosine
+   similarities using pgvector's `<=>` operator.
+4. **Combine** into a composite score, sort descending, apply `LIMIT`.
 
 ### Ranking formula
 
+From `sql/note/gets.ts`:
+
 ```
-score = description_similarity * 0.67 + avg_category_similarity * 0.33
+taxonomy_similarity =
+  category_similarity                          -- if only category has embedding
+  tag_similarity                               -- if only tags have embeddings
+  (category_similarity + tag_similarity) / 2   -- if both present
+  NULL                                         -- if neither present
+
+score = description_similarity * 0.67 + taxonomy_similarity * 0.33
 ```
 
-- Description similarity is the primary signal (67% weight).
-- All linked categories contribute equally via their average (33% weight).
+- **Description** (67%): cosine similarity between query and
+  `description_embedding`.
+- **Taxonomy** (33%): average of the note's category similarity and the average
+  tag similarity across linked tags. When only one side has embeddings, that
+  side alone contributes.
 
-When `description_embedding` is `NULL`, its contribution is zero.
-When no categories have embeddings, the category contribution is zero.
+NULL similarities are treated as 0 in the final score. All user notes are
+included in the result set (up to `limit`), so low-relevance matches appear
+after stronger ones rather than being excluded.
 
-**Ordering:** Results are ordered by `semantic_similarity DESC, time_modified DESC`
-and limited by the requested `limit` (1–25, default 12).
+**Ordering:** `semantic_similarity DESC, time_modified DESC`.
 
 ### Response shape
 
@@ -177,51 +293,87 @@ and limited by the requested `limit` (1–25, default 12).
 {
   "results": [
     {
-      "note": { "id": 41, "description": "...", "..." : "..." },
+      "note": { "id": 41, "description": "...", "...": "..." },
       "similarity": 0.87,
-      "categorySimilarity": 0.79,
+      "tagSimilarity": 0.79,
       "descriptionSimilarity": 0.82
     }
   ]
 }
 ```
 
-The `similarity` field is the composite score. The per-column values are
-exposed for debugging and UI display but are not used for ordering.
+| Field                   | Meaning                                      |
+|-------------------------|----------------------------------------------|
+| `similarity`            | Composite score used for ordering            |
+| `descriptionSimilarity` | Query ↔ note description cosine similarity   |
+| `tagSimilarity`         | Average query ↔ linked tag similarities      |
+
+`categorySimilarity` is computed in SQL for ranking but is not part of the
+public `SemanticSearchResult` contract.
 
 ## Client behavior
 
 ### notes-next (web)
 
-The main page has a search input above the notes list. As the user types,
-the client debounces input (250 ms) and fires a `POST /api/notes/search`
-request. While a search query is active, the note list switches from
-chronological order to relevance order and shows a similarity percentage
-badge on each row.
+`NotesApp.tsx` debounces search input (250 ms) and calls
+`POST /api/notes/search`. While a query is active, the note list switches from
+chronological order to relevance order and shows a similarity percentage badge.
+The app can also trigger embedding maintenance from the UI.
 
 ### notes-android
 
-The Android client calls the same `POST /api/notes/search` endpoint via its
-companion Express server, which delegates to the same shared service layer
-in `@lib/db-marketing`. The ranking logic is identical.
+The Android client calls the same `POST /api/notes/search` endpoint on the
+deployed `notes-next` REST API (`NotesApiClient.kt`). Ranking is identical.
+Search results are cached in `SessionStore` and restored on session reload when
+`lastSearchQuery` is non-blank.
+
+## Environment
+
+| Variable         | Required | Purpose                          |
+|------------------|----------|----------------------------------|
+| `JINA_API_KEY`   | Yes      | Jina AI API authentication       |
+| `MARKETING_DB_URL` | Yes (script only) | Postgres connection for `regenerate-embeddings.mjs` |
+
+If `JINA_API_KEY` is missing, search and note/taxonomy writes that require
+embedding return a 500 with "JINA_API_KEY environment variable not set."
+
+## Architecture diagram
+
+```
+┌─────────────┐     retrieval.query      ┌──────────────┐
+│ User query  │ ────────────────────────▶│  Jina AI API │
+└─────────────┘                          └──────┬───────┘
+                                                │ 1024-dim vector
+                                                ▼
+┌─────────────┐   <=> cosine distance   ┌──────────────┐
+│ notes-next  │ ◀───────────────────────│  PostgreSQL  │
+│ /api/search │                         │  + pgvector  │
+└─────────────┘                         └──────▲───────┘
+                                               │
+                    retrieval.passage          │ stored vectors
+┌─────────────┐                          ┌─────┴────────┐
+│ Note CRUD   │ ──embed on write───────▶│  Jina AI API │
+│ Category/   │                          └────────────┘
+│ Tag CRUD    │
+└─────────────┘
+```
 
 ## Key source files
 
 | Path | Role |
 |------|------|
 | `lib/db-marketing/services/notes-embeddings.ts` | Jina API calls, text normalization, vector generation |
-| `lib/db-marketing/services/notes-app.ts` | Orchestrates embed-then-write for CRUD + search workflow |
-| `lib/db-marketing/sql/note/gets.ts` | Search SQL with ranking, backfill queries |
-| `lib/db-marketing/sql/note/add.ts` | INSERT with embedding columns |
-| `lib/db-marketing/sql/note/update.ts` | UPDATE with embedding columns, backfill UPDATE |
-| `lib/db-marketing/sql/note/types.ts` | `NoteEmbeddingWriteInput` type |
-| `lib/db-marketing/contracts/notes-app.ts` | `SearchRequest`, `SearchResponse`, `SemanticSearchResult` types |
-| `apps/notes-next/app/api/notes/search/route.ts` | Next.js route handler |
-| `apps/notes-next/app/api/notes/maintenance/embeddings/route.ts` | Maintenance route handler |
-| `apps/notes-next/app/notes-app.tsx` | Client-side search UI and debounce logic |
-
-## Environment
-
-The `JINA_API_KEY` environment variable must be set on the server. If it
-is missing, search and note creation/update return a `500` error with the
-message "JINA_API_KEY environment variable not set."
+| `lib/db-marketing/services/notes-app.ts` | Orchestrates embed-then-write for CRUD, search, maintenance |
+| `lib/db-marketing/sql/note/gets.ts` | Search SQL with pgvector `<=>` ranking |
+| `lib/db-marketing/sql/note/add.ts` | INSERT with `description_embedding` |
+| `lib/db-marketing/sql/note/update.ts` | UPDATE with embeddings, backfill UPDATE |
+| `lib/db-marketing/sql/category.ts` | Category embedding backfill queries |
+| `lib/db-marketing/sql/tag.ts` | Tag embedding backfill queries |
+| `lib/db-marketing/notes-search-constants.ts` | `NOTES_APP_SEARCH_MAX_RESULTS` (20) |
+| `lib/db-marketing/migrations/202603151000__note_embeddings.sql` | `CREATE EXTENSION vector`, initial indexes |
+| `lib/db-marketing/migrations/202604081200__jina_embeddings_v5_1024.sql` | Jina v5 / 1024-dim migration |
+| `lib/db-marketing/scripts/regenerate-embeddings.mjs` | Bulk offline regeneration |
+| `apps/notes-next/app/api/notes/search/route.ts` | Next.js search route |
+| `apps/notes-next/app/api/notes/maintenance/embeddings/route.ts` | Maintenance route |
+| `apps/notes-next/src/components/notes/NotesApp.tsx` | Client search UI and debounce |
+| `apps/notes-android/.../NotesApiClient.kt` | Android search API client |

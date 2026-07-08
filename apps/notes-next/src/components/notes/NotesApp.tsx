@@ -1526,7 +1526,7 @@ export default function NotesApp() {
     }
   }
 
-  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>): Promise<boolean> => {
     event.preventDefault()
     clearMessages()
     setAuthPending(true)
@@ -1565,7 +1565,7 @@ export default function NotesApp() {
         // token so it is not applied on a later unrelated render.
         clearPendingMergeToken()
         setErrorMessage("Unable to sign in. Check your identifier and password.")
-        return
+        return false
       }
 
       // A successful sign-in flips authSession to the real user, which re-runs
@@ -1574,15 +1574,33 @@ export default function NotesApp() {
       setSessionLoading(true)
       setIdentifier("")
       setPassword("")
+      return true
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
+      return false
     } finally {
       setAuthPending(false)
     }
   }
 
-  const handleSignup = async (fields: SignupFields) => {
+  const handleSignup = async (fields: SignupFields): Promise<boolean> => {
     clearMessages()
+
+    const username = fields.username.trim()
+    const email = fields.email.trim()
+    if (username === "") {
+      setErrorMessage("Username is required.")
+      return false
+    }
+    if (fields.password.length < 8) {
+      setErrorMessage("Password must be at least 8 characters.")
+      return false
+    }
+    if (email !== "" && !email.includes("@")) {
+      setErrorMessage("Email must be a valid email address.")
+      return false
+    }
+
     setAuthPending(true)
     try {
       // Persist any unsaved edits before the claim. The data stays on the same
@@ -1596,8 +1614,8 @@ export default function NotesApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username: fields.username,
-          email: fields.email.trim() === "" ? undefined : fields.email,
+          username,
+          email: email === "" ? undefined : email,
           password: fields.password,
         }),
       })
@@ -1613,7 +1631,7 @@ export default function NotesApp() {
             | null
           setErrorMessage(body?.error ?? "Unable to create the account. Try again.")
         }
-        return
+        return false
       }
 
       // Apply the claimed identity to state and the local cache now. The
@@ -1626,7 +1644,7 @@ export default function NotesApp() {
 
       // Re-mint the JWT for the same user id so isAnonymous flips to false.
       const result = await signIn("credentials", {
-        identifier: fields.username,
+        identifier: username,
         password: fields.password,
         redirect: false,
       })
@@ -1636,14 +1654,16 @@ export default function NotesApp() {
         setErrorMessage(
           "Account created — sign in with your new username and password.",
         )
-        return
+        return false
       }
 
       // restoreSession re-fires (isAnonymous flipped) and refreshes the same
       // account's data. No merge token is pending, so it is a plain reload.
       setStatusMessage("Account created. Your notes are saved to it.")
+      return true
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
+      return false
     } finally {
       setAuthPending(false)
     }
@@ -2341,7 +2361,7 @@ export default function NotesApp() {
                 onIdentifierChange={setIdentifier}
                 onPasswordChange={setPassword}
                 onLoginSubmit={handleLogin}
-                onSignupSubmit={(fields) => void handleSignup(fields)}
+                onSignupSubmit={handleSignup}
                 authPending={authPending}
                 loginErrorMessage={authPending ? null : errorMessage}
                 onDismissLoginError={() => setErrorMessage(null)}
