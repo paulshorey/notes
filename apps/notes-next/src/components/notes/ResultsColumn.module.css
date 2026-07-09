@@ -305,8 +305,49 @@
 }
 
 .categoryResults {
+  position: relative;
   min-width: 0;
+  max-height: 200px;
   padding-left: 10px;
+}
+
+.categoryResultsScroll {
+  max-height: 200px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.categoryResultsScroll > * {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.categoryResultsFade {
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 10px;
+  z-index: 1;
+  display: flex;
+  height: 36px;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 2px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    color-mix(in srgb, var(--g-color-base-background, #151515) 72%, transparent) 45%,
+    var(--g-color-base-background, #151515) 100%
+  );
+}
+
+.categoryResultsMoreHint {
+  color: var(--g-color-text-hint, #8a8a8a);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
 }
 
 .sectionAddNoteButton {

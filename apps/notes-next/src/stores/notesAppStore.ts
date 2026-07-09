@@ -12,8 +12,9 @@ type State = {
    */
   resultsListVisible: boolean
   /**
-   * Category the user explicitly opened in the notes results column, in
-   * addition to the category currently selected in the note form.
+   * Category currently expanded in the notes results accordion.
+   * Only one category can be expanded at a time; null means all collapsed.
+   * Independent of the active note form category (which only affects color).
    */
   manuallyExpandedCategoryId: number | null
   /**

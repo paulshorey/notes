@@ -51,6 +51,7 @@ interface NoteFormProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
+  onAddNote: () => void
   header?: JSX.Element
 }
 
@@ -75,6 +76,7 @@ export function NoteForm({
   onSubmit,
   onCancelEdit,
   onDeleteEditingNote,
+  onAddNote,
   header,
 }: NoteFormProps) {
   const categoryTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -351,7 +353,15 @@ export function NoteForm({
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
         />
 
-        <div className={styles.dateFields}>
+        <div className={styles.formToolbar}>
+          <button
+            type="button"
+            className={styles.addNoteButton}
+            onClick={onAddNote}
+            aria-label="Add new note"
+          >
+            <Plus size={16} weight="bold" aria-hidden />
+          </button>
           <div className={styles.categoryPicker}>
             <button
               ref={categoryTriggerRef}

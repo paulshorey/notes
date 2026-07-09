@@ -127,6 +127,7 @@ export function ResultsColumn({
   const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
   const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
+  const didExpandActiveCategoryOnLoadRef = useRef(false)
   const {
     manuallyExpandedCategoryId,
     setManuallyExpandedCategoryId,
@@ -139,12 +140,24 @@ export function ResultsColumn({
   const visibleCategoryNoteGroups = categoryNoteGroups
 
   useEffect(() => {
-    if (manuallyExpandedCategoryId === null) {
+    if (didExpandActiveCategoryOnLoadRef.current) {
       return
     }
 
-    if (manuallyExpandedCategoryId === activeCategoryId) {
-      setManuallyExpandedCategoryId(null)
+    if (activeCategoryId === null) {
+      return
+    }
+
+    if (!categories.some((category) => category.id === activeCategoryId)) {
+      return
+    }
+
+    didExpandActiveCategoryOnLoadRef.current = true
+    setManuallyExpandedCategoryId(activeCategoryId)
+  }, [activeCategoryId, categories, setManuallyExpandedCategoryId])
+
+  useEffect(() => {
+    if (manuallyExpandedCategoryId === null) {
       return
     }
 
@@ -153,7 +166,7 @@ export function ResultsColumn({
     }
 
     setManuallyExpandedCategoryId(null)
-  }, [activeCategoryId, categories, manuallyExpandedCategoryId, setManuallyExpandedCategoryId])
+  }, [categories, manuallyExpandedCategoryId, setManuallyExpandedCategoryId])
 
   useEffect(() => {
     setExpandedTagId((current) => {
@@ -205,12 +218,11 @@ export function ResultsColumn({
   const getFilteredNoteCount = (category: CategoryRecord, items: DisplayNoteItem[]) =>
     selectedTag === null ? category.noteCount : items.length
 
+  const isCategoryExpanded = (categoryId: number) => manuallyExpandedCategoryId === categoryId
+
   const toggleCategory = (categoryId: number) => {
     setOpenActionMenuId(null)
     setActiveMovePicker(null)
-    if (categoryId === activeCategoryId) {
-      return
-    }
     setManuallyExpandedCategoryId(manuallyExpandedCategoryId === categoryId ? null : categoryId)
   }
 
@@ -382,8 +394,7 @@ export function ResultsColumn({
             ) : (
               <>
                 {visibleCategoryNoteGroups.map(({ category, items }) => {
-                  const expanded =
-                    activeCategoryId === category.id || manuallyExpandedCategoryId === category.id
+                  const expanded = isCategoryExpanded(category.id)
                   const panelId = `category-notes-${category.id}`
                   const deleteDisabled = category.id === fallbackCategoryId
                   return (
@@ -402,7 +413,10 @@ export function ResultsColumn({
                             label={`Add note in ${category.label}`}
                             active={expanded}
                             selected={activeCategoryId === category.id}
-                            onClick={() => onAddNoteForCategory(category)}
+                            onClick={() => {
+                              setManuallyExpandedCategoryId(category.id)
+                              onAddNoteForCategory(category)
+                            }}
                           />
                           <SectionActionMenu
                             id={`category-${category.id}`}
@@ -418,26 +432,24 @@ export function ResultsColumn({
                           />
                         </SectionTitle>
                       </div>
-                      {expanded && (
-                        <div id={panelId} className={styles.categoryResults}>
-                          {items.length > 0 && (
-                            <NoteResultsList
-                              items={items}
-                              activeNoteId={activeNoteId}
-                              loading={false}
-                              emptyMessage=""
-                              onEdit={handleResultEdit}
-                              renderAction={(note) =>
-                                renderNoteRowAction(
-                                  note,
-                                  `category-${category.id}-note-${note.id}`,
-                                  `category-${category.id}-note-${note.id}`,
-                                  () => openCategoryMovePicker(note, category.id),
-                                )
-                              }
-                            />
-                          )}
-                        </div>
+                      {expanded && items.length > 0 && (
+                        <ScrollableNotesPanel id={panelId}>
+                          <NoteResultsList
+                            items={items}
+                            activeNoteId={activeNoteId}
+                            loading={false}
+                            emptyMessage=""
+                            onEdit={handleResultEdit}
+                            renderAction={(note) =>
+                              renderNoteRowAction(
+                                note,
+                                `category-${category.id}-note-${note.id}`,
+                                `category-${category.id}-note-${note.id}`,
+                                () => openCategoryMovePicker(note, category.id),
+                              )
+                            }
+                          />
+                        </ScrollableNotesPanel>
                       )}
                     </div>
                   )
@@ -484,26 +496,24 @@ export function ResultsColumn({
                         />
                       </SectionTitle>
                     </div>
-                    {expanded && (
-                      <div id={panelId} className={styles.categoryResults}>
-                        {items.length > 0 && (
-                          <NoteResultsList
-                            items={items}
-                            activeNoteId={activeNoteId}
-                            loading={false}
-                            emptyMessage=""
-                            onEdit={handleResultEdit}
-                            renderAction={(note) =>
-                              renderNoteRowAction(
-                                note,
-                                `tag-${tag.id}-note-${note.id}`,
-                                `tag-${tag.id}-note-${note.id}`,
-                                () => openTagMovePicker(note, tag.id),
-                              )
-                            }
-                          />
-                        )}
-                      </div>
+                    {expanded && items.length > 0 && (
+                      <ScrollableNotesPanel id={panelId}>
+                        <NoteResultsList
+                          items={items}
+                          activeNoteId={activeNoteId}
+                          loading={false}
+                          emptyMessage=""
+                          onEdit={handleResultEdit}
+                          renderAction={(note) =>
+                            renderNoteRowAction(
+                              note,
+                              `tag-${tag.id}-note-${note.id}`,
+                              `tag-${tag.id}-note-${note.id}`,
+                              () => openTagMovePicker(note, tag.id),
+                            )
+                          }
+                        />
+                      </ScrollableNotesPanel>
                     )}
                   </div>
                 )
@@ -519,6 +529,66 @@ export function ResultsColumn({
           )}
         </div>
       </section>
+    </div>
+  )
+}
+
+interface ScrollableNotesPanelProps {
+  id: string
+  children: ReactNode
+}
+
+function ScrollableNotesPanel({ id, children }: ScrollableNotesPanelProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollDown, setCanScrollDown] = useState(false)
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (element === null) {
+      return
+    }
+
+    const updateOverflow = () => {
+      const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
+      setCanScrollDown(remaining > 2)
+    }
+
+    updateOverflow()
+    element.addEventListener("scroll", updateOverflow, { passive: true })
+
+    const resizeObserver = new ResizeObserver(updateOverflow)
+    resizeObserver.observe(element)
+    const content = element.firstElementChild
+    if (content !== null) {
+      resizeObserver.observe(content)
+    }
+
+    const mutationObserver = new MutationObserver(() => {
+      const nextContent = element.firstElementChild
+      if (nextContent !== null) {
+        resizeObserver.observe(nextContent)
+      }
+      updateOverflow()
+    })
+    mutationObserver.observe(element, { childList: true, subtree: true })
+
+    return () => {
+      element.removeEventListener("scroll", updateOverflow)
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+    }
+  }, [])
+
+  return (
+    <div className={styles.categoryResults}>
+      <div id={id} ref={scrollRef} className={styles.categoryResultsScroll}>
+        {children}
+      </div>
+      {canScrollDown && (
+        <div className={styles.categoryResultsFade} aria-hidden="true">
+          <span className={styles.categoryResultsMoreHint}>...</span>
+        </div>
+      )}
     </div>
   )
 }

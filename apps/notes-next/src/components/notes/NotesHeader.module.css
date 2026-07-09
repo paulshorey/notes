@@ -13,33 +13,7 @@
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
-  margin-left: 0.5rem;
-}
-
-.addNoteButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  color: var(--g-color-text-link);
-  /* color: var(--g-color-line-generic); */
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  background-color: transparent;
-  /* background: var(--g-color-text-link); */
-  margin: 0 0.2rem 0 0.4rem;
-}
-
-.addNoteButton:hover {
-  filter: brightness(1.08);
-}
-
-.addNoteButton:active {
-  filter: brightness(0.95);
+  margin-left: 1.1875rem;
 }
 
 .headerLogo {

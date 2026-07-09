@@ -79,7 +79,7 @@
   width: 100%;
 }
 
-.dateFields {
+.formToolbar {
   display: flex;
   width: 100%;
   flex: 0 0 auto;
@@ -89,6 +89,30 @@
   gap: 8px;
   padding: 8px 8px 14px 14px;
   text-align: right;
+}
+
+.addNoteButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-right: auto;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  color: var(--g-color-text-link);
+  cursor: pointer;
+  background-color: transparent;
+}
+
+.addNoteButton:hover {
+  filter: brightness(1.08);
+}
+
+.addNoteButton:active {
+  filter: brightness(0.95);
 }
 
 .categoryPicker {
@@ -302,7 +326,7 @@
     padding: 0 8px;
   }
 
-  .dateFields {
+  .formToolbar {
     padding: 0 8px 6px;
     gap: 6px;
   }

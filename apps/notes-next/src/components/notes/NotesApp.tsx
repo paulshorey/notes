@@ -2370,6 +2370,7 @@ export default function NotesApp() {
           onTagValuesChange={handleTagValuesChange}
           onSubmit={handleSaveNote}
           onCancelEdit={handleCancelEdit}
+          onAddNote={() => void handleCancelEdit()}
           onDeleteEditingNote={() => {
             if (editingNoteId !== null) {
               void handleDeleteNote(editingNoteId)

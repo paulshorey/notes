@@ -4,7 +4,7 @@ import type { FormEvent } from "react"
 import { useRef, useState } from "react"
 import { Button, Popup, Spin, Text, TextInput } from "@gravity-ui/uikit"
 import { Notification } from "@mantine/core"
-import { Check, Cloud, Plus, SidebarSimple, User, WarningCircle } from "@phosphor-icons/react"
+import { Check, Cloud, SidebarSimple, User, WarningCircle } from "@phosphor-icons/react"
 import type { UserSummary } from "@lib/db-marketing"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import type { EmbeddingMaintenanceMode, NoteSaveStatus } from "@/types/notes"
@@ -132,14 +132,6 @@ export function NotesHeader({
   return (
     <div className={styles.headerActions}>
       <div className={styles.headerBrand}>
-        <button
-          type="button"
-          className={styles.addNoteButton}
-          onClick={onAddNote}
-          aria-label="Add new note"
-        >
-          <Plus size={16} weight="bold" aria-hidden />
-        </button>
         <span
           className={styles.headerLogo}
           onClick={onAddNote}
