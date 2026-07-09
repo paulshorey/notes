@@ -2348,6 +2348,27 @@ export default function NotesApp() {
         onDismissSearchError={() => setSearchErrorMessage(null)}
       />
 
+      <div className={styles.header}>
+        <NotesHeader
+          user={user}
+          isAnonymous={authSession?.user?.isAnonymous ?? false}
+          resultsListVisible={resultsListVisible}
+          onAddNote={handleCancelEdit}
+          onLogout={handleLogout}
+          embeddingMaintenancePending={embeddingMaintenancePending}
+          onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
+          identifier={identifier}
+          password={password}
+          onIdentifierChange={setIdentifier}
+          onPasswordChange={setPassword}
+          onLoginSubmit={handleLogin}
+          onSignupSubmit={handleSignup}
+          authPending={authPending}
+          loginErrorMessage={authPending ? null : errorMessage}
+          onDismissLoginError={() => setErrorMessage(null)}
+        />
+      </div>
+
       <div className={styles.content} ref={contentRef}>
         <NoteForm
           form={noteForm}
@@ -2376,28 +2397,6 @@ export default function NotesApp() {
               void handleDeleteNote(editingNoteId)
             }
           }}
-          header={
-            <div className={`${styles.header} ${styles.headerLeft}`}>
-              <NotesHeader
-                user={user}
-                isAnonymous={authSession?.user?.isAnonymous ?? false}
-                resultsListVisible={resultsListVisible}
-                onAddNote={handleCancelEdit}
-                onLogout={handleLogout}
-                embeddingMaintenancePending={embeddingMaintenancePending}
-                onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
-                identifier={identifier}
-                password={password}
-                onIdentifierChange={setIdentifier}
-                onPasswordChange={setPassword}
-                onLoginSubmit={handleLogin}
-                onSignupSubmit={handleSignup}
-                authPending={authPending}
-                loginErrorMessage={authPending ? null : errorMessage}
-                onDismissLoginError={() => setErrorMessage(null)}
-              />
-            </div>
-          }
         />
 
         {mobileResultsOverlayMounted && (
@@ -2465,7 +2464,6 @@ export default function NotesApp() {
           onDeleteCategory={openDeleteCategory}
           onEditTag={openEditTag}
           onDeleteTag={openDeleteTag}
-          onClose={handleMobileResultsOverlayClick}
         />
       </div>
 

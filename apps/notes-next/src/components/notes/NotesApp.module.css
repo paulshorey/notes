@@ -7,16 +7,6 @@
   overflow: hidden;
 }
 
-.content {
-  position: relative;
-  display: flex;
-  gap: 0;
-  height: 100%;
-  align-items: stretch;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-
 .header {
   display: flex;
   flex: 0 0 44px;
@@ -28,8 +18,16 @@
   background: var(--g-color-line-generic);
 }
 
-.headerLeft {
-  justify-content: flex-start;
+.content {
+  position: relative;
+  display: flex;
+  gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .resizeHandle {

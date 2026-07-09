@@ -13,6 +13,7 @@
   align-items: center;
   gap: 0.5rem;
   min-width: 0;
+  flex: 0 0 auto;
   margin-left: 1.1875rem;
 }
 
@@ -69,6 +70,10 @@
 
 .headerButtons {
   display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
   margin-right: 0.125rem;
 }
 
@@ -82,20 +87,119 @@
   display: block;
 }
 
-.mobileResultsButton {
-  display: inline-flex;
-  margin-left: auto;
-  transform: scaleX(-1);
-  color: var(--g-color-text-link);
+.headerSearch {
+  --search-expanded-width: min(280px, calc(100vw - 148px));
+
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  /* Collapsed: hug the real button; never clip its rounded corners. */
+  width: auto;
+  min-width: 0;
+  overflow: visible;
+  transition:
+    width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    min-width 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@media (min-width: 721px) {
-  .mobileResultsButtonHiddenDesktop {
-    display: none;
-  }
-  .mobileResultsButton {
-    margin-right: -12px;
-  }
+.headerSearchExpanded {
+  width: var(--search-expanded-width);
+  min-width: min(180px, calc(100vw - 148px));
+  margin-right: 2px;
+  overflow: hidden;
+}
+
+.searchToggleButton {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.12s ease;
+}
+
+.headerSearchExpanded .searchToggleButton {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.searchField {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+}
+
+.headerSearchExpanded .searchField {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.searchLeadingIcon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  color: var(--g-color-text-secondary);
+}
+
+.searchInput {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+}
+
+.searchInput :global(.g-text-input__content) {
+  min-height: 36px;
+}
+
+.searchInput :global(.g-text-input__control) {
+  min-height: 36px;
+}
+
+.searchInput :global(.g-text-input__start-content) {
+  margin: 0;
+  padding-inline: 4px 0;
+}
+
+.searchClearButton {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--g-color-text-secondary);
+  cursor: pointer;
+}
+
+.searchClearButton:hover,
+.searchClearButton:focus-visible {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06));
+  color: var(--g-color-text-primary);
+  outline: none;
+}
+
+.resultsToggleButton {
+  display: inline-flex;
+  transform: scaleX(-1);
+  color: var(--g-color-text-link);
 }
 
 .userMenu {
@@ -119,4 +223,14 @@
   flex-direction: column;
   gap: 8px;
   width: min(280px, 80vw);
+}
+
+@media (max-width: 720px) {
+  .headerSearch {
+    --search-expanded-width: min(220px, calc(100vw - 132px));
+  }
+
+  .headerSearchExpanded {
+    min-width: min(140px, calc(100vw - 132px));
+  }
 }

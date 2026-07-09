@@ -6,11 +6,9 @@ import {
   DotsThreeVertical,
   PencilSimple,
   Plus,
-  SidebarSimple,
   Trash,
-  X,
 } from "@phosphor-icons/react"
-import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
+import { Button, Popup, Text } from "@gravity-ui/uikit"
 import { firstLineLabel, normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import {
   type CSSProperties,
@@ -87,7 +85,6 @@ interface ResultsColumnProps {
   onDeleteCategory: (category: CategoryRecord) => void
   onEditTag: (tag: TagRecord) => void
   onDeleteTag: (tag: TagRecord) => void
-  onClose: () => void
 }
 
 export function ResultsColumn({
@@ -122,7 +119,6 @@ export function ResultsColumn({
   onDeleteCategory,
   onEditTag,
   onDeleteTag,
-  onClose,
 }: ResultsColumnProps) {
   const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
@@ -133,10 +129,7 @@ export function ResultsColumn({
     setManuallyExpandedCategoryId,
     selectedTagId,
     setSelectedTagId,
-    searchQuery,
-    setSearchQuery,
   } = useNotesAppStore()
-  const trimmedSearchQuery = searchQuery.trim()
   const visibleCategoryNoteGroups = categoryNoteGroups
 
   useEffect(() => {
@@ -328,38 +321,6 @@ export function ResultsColumn({
       }`}
     >
       <section className={styles.resultsColumn} style={columnStyle}>
-        <div className={`${styles.header} ${styles.headerRight}`}>
-          <div className={styles.resultsColumnHeaderSearch}>
-            <TextInput
-              size="l"
-              placeholder="AI Search"
-              value={searchQuery}
-              onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
-              className={styles.searchInput}
-            />
-            {trimmedSearchQuery !== "" && (
-              <button
-                type="button"
-                className={styles.searchClearButton}
-                aria-label="Clear search"
-                title="Clear search"
-                onClick={() => setSearchQuery("")}
-              >
-                <X size={14} weight="bold" />
-              </button>
-            )}
-          </div>
-          <Button
-            view="flat"
-            size="m"
-            onClick={onClose}
-            aria-label="Hide notes list"
-            title="Hide notes list"
-            className={styles.resultsColumnCloseButton}
-          >
-            <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
-          </Button>
-        </div>
         <div className={styles.noteResults}>
           {searchMode && (
             <div className={styles.searchResultsSection}>

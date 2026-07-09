@@ -7,7 +7,6 @@ import { CalendarBlank, CaretDown, DotsThree, Plus, X } from "@phosphor-icons/re
 import {
   type Dispatch,
   type FormEvent,
-  type JSX,
   type KeyboardEvent,
   type SetStateAction,
   useEffect,
@@ -52,7 +51,6 @@ interface NoteFormProps {
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
   onAddNote: () => void
-  header?: JSX.Element
 }
 
 export function NoteForm({
@@ -77,7 +75,6 @@ export function NoteForm({
   onCancelEdit,
   onDeleteEditingNote,
   onAddNote,
-  header,
 }: NoteFormProps) {
   const categoryTriggerRef = useRef<HTMLButtonElement | null>(null)
   const categoryInputRef = useRef<HTMLInputElement | null>(null)
@@ -326,7 +323,6 @@ export function NoteForm({
 
   return (
     <section className={styles.formColumn}>
-      {header}
       <form className={styles.form} onSubmit={onSubmit}>
         <div className={styles.formActions}>
           {showCancelButton && (

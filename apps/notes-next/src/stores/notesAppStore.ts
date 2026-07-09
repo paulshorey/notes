@@ -23,7 +23,7 @@ type State = {
    */
   selectedTagId: number | null
   /**
-   * Query used by the notes results search field.
+   * Query used by the app header search field.
    */
   searchQuery: string
   /**

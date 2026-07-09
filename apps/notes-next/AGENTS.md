@@ -39,7 +39,7 @@ src/                        — non-route code (import with "@/..." alias)
     notes/                  — notes-feature UI (NotesApp and sub-components)
       NotesApp.tsx          — top-level notes page container
       NotesApp.module.css   — shared notes CSS module
-      NotesHeader.tsx       — header incl. the sign-in / create-account popup
+      NotesHeader.tsx       — app-wide header (logo, search, user menu, results toggle)
       FeedbackNotifications.tsx
       FilterBanners.tsx
       NoteResultsList.tsx
