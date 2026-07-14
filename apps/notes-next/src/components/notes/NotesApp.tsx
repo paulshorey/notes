@@ -1579,7 +1579,7 @@ export default function NotesApp() {
           setErrorMessage(
             "Couldn't prepare your notes to transfer to the account. Check your connection and try again.",
           )
-          return
+          return false
         }
       }
 
