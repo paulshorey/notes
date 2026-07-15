@@ -82,9 +82,9 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
-      '@lib/db-marketing':
+      '@lib/db-notes':
         specifier: workspace:*
-        version: link:../../lib/db-marketing
+        version: link:../../lib/db-notes
       '@mantine/core':
         specifier: ^9.1.0
         version: 9.1.0(@mantine/hooks@9.1.0(react@19.2.4))(@types/react@19.2.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -307,7 +307,7 @@ importers:
         specifier: ^8.37.0
         version: 8.55.0(eslint@9.35.0(jiti@2.5.1))(typescript@5.8.3)
 
-  lib/db-marketing:
+  lib/db-notes:
     dependencies:
       pg:
         specifier: ^8.16.3
