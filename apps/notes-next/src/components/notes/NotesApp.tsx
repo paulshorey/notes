@@ -242,6 +242,24 @@ const withResultsColumnWidthPreference = (
   },
 })
 
+const getPasteUrlAsMarkdownPreference = (preferences: UserPreferences) => {
+  const notesAppPreferences = preferences.notesApp
+  if (!isPreferencesObject(notesAppPreferences)) return false
+
+  return notesAppPreferences.pasteUrlAsMarkdown === true
+}
+
+const withPasteUrlAsMarkdownPreference = (
+  preferences: UserPreferences,
+  enabled: boolean,
+): UserPreferences => ({
+  ...preferences,
+  notesApp: {
+    ...(isPreferencesObject(preferences.notesApp) ? preferences.notesApp : {}),
+    pasteUrlAsMarkdown: enabled,
+  },
+})
+
 const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
   categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
 
@@ -461,6 +479,16 @@ export default function NotesApp() {
     }),
     [resultsColumnWidth],
   )
+
+  const pasteUrlAsMarkdown = getPasteUrlAsMarkdownPreference(userPreferences)
+
+  const handlePasteUrlAsMarkdownChange = useCallback((enabled: boolean) => {
+    setUserPreferences((current) =>
+      getPasteUrlAsMarkdownPreference(current) === enabled
+        ? current
+        : withPasteUrlAsMarkdownPreference(current, enabled),
+    )
+  }, [])
 
   const clearMobileResultsOverlayTimeout = useCallback(() => {
     if (mobileResultsOverlayTimeoutRef.current === null) return
@@ -2353,6 +2381,8 @@ export default function NotesApp() {
           user={user}
           isAnonymous={authSession?.user?.isAnonymous ?? false}
           resultsListVisible={resultsListVisible}
+          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
+          onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
           onAddNote={handleCancelEdit}
           onLogout={handleLogout}
           embeddingMaintenancePending={embeddingMaintenancePending}
@@ -2376,6 +2406,7 @@ export default function NotesApp() {
           editingNoteId={editingNoteId}
           notePending={notePending}
           userPresent={Boolean(user)}
+          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
           categories={categories}
           tags={tags}
           pendingTagLabels={pendingTagLabels}

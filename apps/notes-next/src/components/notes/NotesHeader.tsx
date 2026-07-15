@@ -2,7 +2,7 @@
 
 import type { FormEvent, KeyboardEvent } from "react"
 import { useEffect, useRef, useState } from "react"
-import { Button, Popup, Spin, Text, TextInput } from "@gravity-ui/uikit"
+import { Button, Checkbox, Popup, Spin, Text, TextInput } from "@gravity-ui/uikit"
 import { Notification } from "@mantine/core"
 import {
   Check,
@@ -63,6 +63,8 @@ interface NotesHeaderProps {
   user: UserSummary
   isAnonymous: boolean
   resultsListVisible: boolean
+  pasteUrlAsMarkdown: boolean
+  onPasteUrlAsMarkdownChange: (enabled: boolean) => void
   onAddNote: () => void
   onLogout: () => void
   embeddingMaintenancePending: EmbeddingMaintenanceMode | null
@@ -82,6 +84,8 @@ export function NotesHeader({
   user,
   isAnonymous,
   resultsListVisible,
+  pasteUrlAsMarkdown,
+  onPasteUrlAsMarkdownChange,
   onAddNote,
   onLogout,
   embeddingMaintenancePending,
@@ -176,6 +180,17 @@ export function NotesHeader({
     }
     setSearchOpen(false)
   }
+
+  const pasteUrlPreference = (
+    <Checkbox
+      size="m"
+      checked={pasteUrlAsMarkdown}
+      onUpdate={onPasteUrlAsMarkdownChange}
+      className={styles.userMenuPreference}
+    >
+      Paste URLs as markdown links
+    </Checkbox>
+  )
 
   return (
     <div className={styles.headerActions}>
@@ -283,6 +298,7 @@ export function NotesHeader({
         placement="bottom-end"
       >
         <div className={styles.userMenu}>
+          {pasteUrlPreference}
           {isAnonymous ? (
             authMode === "signin" ? (
               <form

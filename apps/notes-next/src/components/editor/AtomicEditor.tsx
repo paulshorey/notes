@@ -23,6 +23,7 @@ export type AtomicEditorProps = {
   documentId?: string | number | null
   initialSearchText?: string | null
   initialRevealText?: string | null
+  pasteUrlAsMarkdown?: boolean
 }
 
 export const AtomicEditor = React.forwardRef<AtomicEditorHandle, AtomicEditorProps>(
@@ -37,12 +38,15 @@ export const AtomicEditor = React.forwardRef<AtomicEditorHandle, AtomicEditorPro
       documentId,
       initialSearchText = null,
       initialRevealText = null,
+      pasteUrlAsMarkdown = false,
     },
     ref,
   ) {
     const editorHandleRef = React.useRef<AtomicCodeMirrorEditorHandle | null>(null)
     const onUpdateRef = React.useRef(onUpdate)
     onUpdateRef.current = onUpdate
+    const pasteUrlAsMarkdownRef = React.useRef(pasteUrlAsMarkdown)
+    pasteUrlAsMarkdownRef.current = pasteUrlAsMarkdown
 
     const extensions = React.useMemo(() => {
       const next = [
@@ -69,7 +73,7 @@ export const AtomicEditor = React.forwardRef<AtomicEditorHandle, AtomicEditorPro
         next.push(placeholder(placeholderText))
       }
 
-      next.push(linkPasteHandler())
+      next.push(linkPasteHandler(() => pasteUrlAsMarkdownRef.current))
 
       return next
     }, [placeholderText])

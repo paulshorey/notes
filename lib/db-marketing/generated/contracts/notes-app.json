@@ -33,6 +33,13 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
+        },
+        {
+          "name": "pasteUrlAsMarkdown",
+          "optional": true,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
         }
       ]
     },

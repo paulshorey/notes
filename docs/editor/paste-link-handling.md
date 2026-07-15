@@ -210,6 +210,10 @@ Minimum cases:
 - HTML where visible body text does not equal the anchor text -> default paste
 - HTML anchor with non-HTTP href -> allowed for HTML case unless product requirements change
 - Feature is always on for the notes editor; no new public prop is required
++ Feature is off by default. When `preferences.notesApp.pasteUrlAsMarkdown` is
++ `true`, the notes editor enables the paste handler via `AtomicEditor`'s
++ `pasteUrlAsMarkdown` prop. The toggle lives in the NotesHeader user menu for
++ now; a dedicated settings page may follow later.
 
 ## Acceptance criteria
 

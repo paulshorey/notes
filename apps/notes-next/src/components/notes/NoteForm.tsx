@@ -34,6 +34,7 @@ interface NoteFormProps {
   editingNoteId: number | null
   notePending: boolean
   userPresent: boolean
+  pasteUrlAsMarkdown?: boolean
   categories: CategoryRecord[]
   tags: TagRecord[]
   pendingTagLabels: string[]
@@ -58,6 +59,7 @@ export function NoteForm({
   setForm,
   editingNoteId,
   userPresent,
+  pasteUrlAsMarkdown = false,
   categories,
   tags,
   pendingTagLabels,
@@ -344,6 +346,7 @@ export function NoteForm({
           autofocus={editorAutofocus}
           documentId={descriptionEditorSessionId}
           initialRevealText={editorRevealText}
+          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
           placeholder="Write now, organize later..."
           value={form.description}
           onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}

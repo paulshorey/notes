@@ -109,10 +109,14 @@ export function markdownLinkFromHtml(
   )
 }
 
-export function linkPasteHandler(): Extension {
+export function linkPasteHandler(isEnabled: () => boolean): Extension {
   return Prec.high(
     EditorView.domEventHandlers({
       paste(event, view) {
+        if (!isEnabled()) {
+          return false
+        }
+
         const data = event.clipboardData
         if (!data) {
           return false

@@ -6,6 +6,7 @@ export interface TokenLoginRequest {
 export interface NotesAppPreferences {
   markdownEditorMode?: string;
   resultsColumnWidth?: number;
+  pasteUrlAsMarkdown?: boolean;
 }
 
 export interface UserPreferences {
