@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { verifyMergeToken } from "@/lib/anonymousMergeToken"
-import { mergeAnonymousNotesAppSession } from "@lib/db-marketing/services/notes-app"
+import { mergeAnonymousNotesAppSession } from "@lib/db-notes/services/notes-app"
 
 export const POST = async (request: Request) => {
   const session = await auth()
@@ -31,10 +31,7 @@ export const POST = async (request: Request) => {
 
   const verified = verifyMergeToken(mergeToken)
   if (!verified) {
-    return NextResponse.json(
-      { error: "Invalid or expired merge token." },
-      { status: 403 },
-    )
+    return NextResponse.json({ error: "Invalid or expired merge token." }, { status: 403 })
   }
 
   try {

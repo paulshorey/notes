@@ -4,7 +4,7 @@ TypeScript-side adapter test entrypoint for Notes API compatibility checks.
 
 ## File map
 
-- `notes-api-adapter.test.ts` - registers the shared `@lib/db-marketing` notes adapter suite against an Express app import at `../server/src/app`.
+- `notes-api-adapter.test.ts` - registers the shared `@lib/db-notes` notes adapter suite against an Express app import at `../server/src/app`.
 
 ## Non-obvious rules
 

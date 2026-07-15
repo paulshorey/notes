@@ -33,7 +33,7 @@ Native Android Notes client built with Kotlin, Jetpack Compose, WorkManager, and
 ## Commands
 
 - Prefer repo-root commands: `pnpm --filter notes-android ...`, `bash apps/notes-android/tools/...`, or `bash apps/notes-android/gradlew --no-daemon -p apps/notes-android ...`.
-- `pnpm --filter notes-android contracts:check` validates Kotlin/API alignment with `@lib/db-marketing`.
+- `pnpm --filter notes-android contracts:check` validates Kotlin/API alignment with `@lib/db-notes`.
 - `pnpm --filter notes-android build:contracts` remains as an alias for the contract check.
 - `pnpm --filter notes-android build:android` assembles the debug APK.
 - `pnpm --filter notes-android build:dist:dev` produces `dist/notes-android.apk` pointed at the dev `notes-next`.
@@ -44,8 +44,8 @@ Native Android Notes client built with Kotlin, Jetpack Compose, WorkManager, and
 
 - Android release means generating the APK artifact and sharing the PR download link.
 - This package does not have a Railway service and should never be documented as one.
-- Notes DB migrations belong in `lib/db-marketing`, not here.
-- The APK does not read `MARKETING_DB_URL` or `JINA_API_KEY`. Those are server-side variables on the `notes-next` Railway service. To switch the APK between environments, use `build:dist:dev` or `build:dist:prod`.
+- Notes DB migrations belong in `lib/db-notes`, not here.
+- The APK does not read `DB_NOTES_URL` or `JINA_API_KEY`. Those are server-side variables on the `notes-next` Railway service. To switch the APK between environments, use `build:dist:dev` or `build:dist:prod`.
 - `local.properties` takes precedence over the shell environment for `NOTES_ANDROID_API_BASE_URL`. If a rebuild does not change which backend the APK hits, check for a stale `NOTES_ANDROID_API_BASE_URL=` line in `apps/notes-android/local.properties` and remove it.
 
 ## Maintenance

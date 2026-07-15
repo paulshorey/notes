@@ -1,12 +1,12 @@
 # Postgres Migrations
 
-This directory is the canonical schema history for `MARKETING_DB_URL`.
+This directory is the canonical schema history for `DB_NOTES_URL`.
 
 ## Baseline
 
 - `202603141200__baseline.sql` defines the initial productivity CMS schema.
 - For existing databases that already contain this schema, mark it applied with:
-  - `pnpm --filter @lib/db-marketing db:migrate:baseline`
+  - `pnpm --filter @lib/db-notes db:migrate:baseline`
 - The repo root exposes the same operation as `pnpm run db:migrate:baseline`.
 - The baseline marker only records `__baseline` files, so later forward
   migrations will still apply normally.
@@ -42,14 +42,14 @@ Example:
 ## Typical flow
 
 1. Create migration:
-   - `pnpm --filter @lib/db-marketing db:migration:new -- add_note_status`
+   - `pnpm --filter @lib/db-notes db:migration:new -- add_note_status`
 2. Edit the new SQL file in this folder.
 3. Update `scripts/verify-contract.mjs` to match the schema change:
    - Adding columns/indexes/constraints → add "must exist" assertions.
    - Dropping columns/indexes/constraints → replace "must exist" with "must be absent" assertions.
 4. Apply to target DB:
-   - `pnpm --filter @lib/db-marketing db:migrate`
+   - `pnpm --filter @lib/db-notes db:migrate`
    - or from the repo root: `pnpm run db:migrate`
 5. Verify migrated DB contract (also regenerates snapshot + types):
-   - `pnpm --filter @lib/db-marketing db:verify`
+   - `pnpm --filter @lib/db-notes db:verify`
    - or from the repo root: `pnpm run db:verify`

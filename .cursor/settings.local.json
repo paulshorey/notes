@@ -29,7 +29,7 @@
       "Bash(export VOLTA_HOME=\"$HOME/.volta\")",
       "Bash(export PATH=\"$VOLTA_HOME/bin:$PATH\")",
       "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$HOME/.volta/bin:$PATH\")",
-      "Bash(pnpm --filter @lib/db-marketing check-types)",
+      "Bash(pnpm --filter @lib/db-notes check-types)",
       "Bash(pnpm --filter notes-next build)",
       "Bash(claude:*)"
     ]

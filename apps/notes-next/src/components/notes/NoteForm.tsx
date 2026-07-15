@@ -14,7 +14,7 @@ import {
   useRef,
   useState,
 } from "react"
-import type { CategoryRecord, TagRecord } from "@lib/db-marketing"
+import type { CategoryRecord, TagRecord } from "@lib/db-notes"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Drop the specified public tables (default: marketing Notes subset), then
+# Drop the specified public tables (default: notes Notes subset), then
 # recreate them from a schema-only SQL file produced by notes-backup-schema.sh.
-# Uses MARKETING_DB_URL. Only named tables are dropped; other tables are untouched.
+# Uses DB_NOTES_URL. Only named tables are dropped; other tables are untouched.
 # CASCADE also removes dependent objects on those tables (e.g. views referencing them).
 # Shared trigger function apply_row_timestamps_v1 is replaced via CREATE OR REPLACE when present in the dump.
 #
 # Usage:
-#   export MARKETING_DB_URL='postgresql://...'
+#   export DB_NOTES_URL='postgresql://...'
 #   ./scripts/db/notes-restore-schema.sh ./scripts/db/backups/notes-schema-....sql
 #   ./scripts/db/notes-restore-schema.sh -y BACKUP.sql    # skip confirmation
 #
@@ -16,11 +16,11 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Drop named public tables, then recreate them from a schema-only backup. Requires MARKETING_DB_URL.
+Drop named public tables, then recreate them from a schema-only backup. Requires DB_NOTES_URL.
 
 Usage: notes-restore-schema.sh [-y] [-t TABLE]... BACKUP.sql
   -t, --table TABLE   Public tables to drop before restore (repeatable). Default: same
-                      tables as notes-backup-schema.sh (MARKETING_DB_DEFAULT_TABLES in common.sh)
+                      tables as notes-backup-schema.sh (NOTES_DB_DEFAULT_TABLES in common.sh)
   -y, --yes           Do not prompt for confirmation
   -h, --help          Show this help
 EOF
@@ -72,7 +72,7 @@ if [[ ! -f "$backup_file" ]]; then
 fi
 
 if [[ ${#tables[@]} -eq 0 ]]; then
-  tables=("${MARKETING_DB_DEFAULT_TABLES[@]}")
+  tables=("${NOTES_DB_DEFAULT_TABLES[@]}")
 fi
 
 for _t in "${tables[@]}"; do
@@ -82,8 +82,8 @@ for _t in "${tables[@]}"; do
   fi
 done
 
-marketing_db_require_url
-marketing_db_resolve_clients
+notes_db_require_url
+notes_db_resolve_clients
 
 if [[ "$assume_yes" -ne 1 ]]; then
   if [[ ! -t 0 ]]; then
@@ -93,7 +93,7 @@ if [[ "$assume_yes" -ne 1 ]]; then
   echo "This will DROP these tables (and dependent objects on them) then restore from:" >&2
   echo "  $backup_file" >&2
   echo "Tables: ${tables[*]}" >&2
-  echo "Database: (from MARKETING_DB_URL)" >&2
+  echo "Database: (from DB_NOTES_URL)" >&2
   read -r -p "Type YES to continue: " confirm
   if [[ "$confirm" != "YES" ]]; then
     echo "Aborted." >&2
@@ -121,7 +121,7 @@ trap 'rm -f "$drop_sql"' EXIT
 # shellcheck disable=SC2094
 {
   cat "$drop_sql"
-  marketing_db_sql_apply_row_timestamps_or_replace <"$backup_file"
-} | "${CURSOR_POSTGRES_PSQL}" "$MARKETING_DB_URL" -v ON_ERROR_STOP=1 -f -
+  notes_db_sql_apply_row_timestamps_or_replace <"$backup_file"
+} | "${CURSOR_POSTGRES_PSQL}" "$DB_NOTES_URL" -v ON_ERROR_STOP=1 -f -
 
 echo "Restore complete for tables: ${tables[*]}" >&2

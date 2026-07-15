@@ -7,7 +7,7 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "lib/atomic-editor/**"
-      - "lib/db-marketing/**"
+      - "lib/db-notes/**"
       - "apps/notes-android/**"
       - "apps/notes-next/**"
   push:
@@ -18,14 +18,14 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "lib/atomic-editor/**"
-      - "lib/db-marketing/**"
+      - "lib/db-notes/**"
       - "apps/notes-android/**"
       - "apps/notes-next/**"
   workflow_dispatch:
 
 jobs:
-  verify-marketing:
-    name: Verify Marketing contract
+  verify-notes:
+    name: Verify Notes contract
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -42,7 +42,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      MARKETING_DB_URL: postgres://postgres:postgres@localhost:5432/app_contracts
+      DB_NOTES_URL: postgres://postgres:postgres@localhost:5432/app_contracts
     steps:
       - uses: actions/checkout@v4
 
@@ -69,25 +69,25 @@ jobs:
           which pg_dump
           pg_dump --version
           psql --version
-          psql "$MARKETING_DB_URL" -Atqc "SELECT version()"
+          psql "$DB_NOTES_URL" -Atqc "SELECT version()"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify @lib/db-marketing
-        run: pnpm --filter @lib/db-marketing db:verify
+      - name: Verify @lib/db-notes
+        run: pnpm --filter @lib/db-notes db:verify
 
       # DB-backed regression tests (anonymous merge). Requires the schema that
       # db:verify just migrated into the service container. The tests only run
-      # against an explicit DB_MARKETING_TEST_URL so they can never write to a
-      # real MARKETING_DB_URL by accident.
-      - name: Test @lib/db-marketing
-        run: pnpm --filter @lib/db-marketing test
+      # against an explicit DB_NOTES_TEST_URL so they can never write to a
+      # real DB_NOTES_URL by accident.
+      - name: Test @lib/db-notes
+        run: pnpm --filter @lib/db-notes test
         env:
-          DB_MARKETING_TEST_URL: ${{ env.MARKETING_DB_URL }}
+          DB_NOTES_TEST_URL: ${{ env.DB_NOTES_URL }}
 
-  verify-marketing-clients:
-    name: Verify Marketing clients
+  verify-notes-clients:
+    name: Verify Notes clients
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -134,6 +134,5 @@ jobs:
 
       # Turbo forwards args after `--` to each package script (e.g. `next build`), not to
       # Turbo's own --filter. Use `turbo run build --filter=...` so only those packages build.
-      - name: Build marketing clients (turbo-filtered)
+      - name: Build notes clients (turbo-filtered)
         run: pnpm exec turbo run build --filter=notes-next --filter=notes-android
-

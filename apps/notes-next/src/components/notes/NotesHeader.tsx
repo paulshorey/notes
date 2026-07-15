@@ -13,7 +13,7 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react"
-import type { UserSummary } from "@lib/db-marketing"
+import type { UserSummary } from "@lib/db-notes"
 import { toLowercaseInput } from "@/lib/strings"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 import type { EmbeddingMaintenanceMode, NoteSaveStatus } from "@/types/notes"
@@ -291,12 +291,7 @@ export function NotesHeader({
           <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
         </Button>
       </span>
-      <Popup
-        anchorRef={userBtnRef}
-        open={menuOpen}
-        onClose={closeAuthMenu}
-        placement="bottom-end"
-      >
+      <Popup anchorRef={userBtnRef} open={menuOpen} onClose={closeAuthMenu} placement="bottom-end">
         <div className={styles.userMenu}>
           {pasteUrlPreference}
           {isAnonymous ? (

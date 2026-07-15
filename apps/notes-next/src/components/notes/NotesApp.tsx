@@ -19,8 +19,8 @@ import type {
   UpdateTagResponse,
   UserPreferences,
   UserSummary,
-} from "@lib/db-marketing"
-import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-marketing/notes-search-constants"
+} from "@lib/db-notes"
+import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-notes/notes-search-constants"
 import {
   type CSSProperties,
   type FormEvent,
@@ -889,9 +889,7 @@ export default function NotesApp() {
       // data loaded below is always post-merge, so there is no window where a
       // stale pre-merge fetch can win a race.
       const pendingMergeToken =
-        !authSession.user.isAnonymous && !mergeInFlightRef.current
-          ? readPendingMergeToken()
-          : null
+        !authSession.user.isAnonymous && !mergeInFlightRef.current ? readPendingMergeToken() : null
 
       if (pendingMergeToken) {
         mergeInFlightRef.current = true
@@ -938,9 +936,7 @@ export default function NotesApp() {
       // cached snapshot predates the merge, so we load fresh post-merge data in
       // a single pass instead.
       const cachedSnapshot =
-        !pendingMergeToken && Number.isInteger(numericUserId)
-          ? readNotesCache(numericUserId)
-          : null
+        !pendingMergeToken && Number.isInteger(numericUserId) ? readNotesCache(numericUserId) : null
 
       // Stale-while-revalidate. If we have a recent local snapshot for this
       // user, render the app immediately from cache and refresh in the
@@ -1683,9 +1679,7 @@ export default function NotesApp() {
             "That username or email is already taken — sign in instead to keep your notes.",
           )
         } else {
-          const body = (await claimResponse.json().catch(() => null)) as
-            | { error?: string }
-            | null
+          const body = (await claimResponse.json().catch(() => null)) as { error?: string } | null
           setErrorMessage(body?.error ?? "Unable to create the account. Try again.")
         }
         return false
@@ -1708,9 +1702,7 @@ export default function NotesApp() {
 
       if (result?.error) {
         // The account is already claimed; only the session refresh failed.
-        setErrorMessage(
-          "Account created — sign in with your new username and password.",
-        )
+        setErrorMessage("Account created — sign in with your new username and password.")
         return false
       }
 

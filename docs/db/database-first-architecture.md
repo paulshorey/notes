@@ -1,11 +1,11 @@
 # Database-First Monorepo Architecture
 
-This monorepo uses database-first contracts so the marketing apps can share the
+This monorepo uses database-first contracts so the notes apps can share the
 same schema truth.
 
 ## Packages
 
-- `@lib/db-marketing` for `MARKETING_DB_URL`
+- `@lib/db-notes` for `DB_NOTES_URL`
 
 Each package contains:
 
@@ -16,10 +16,10 @@ Each package contains:
 
 ## Current app usage
 
-- `apps/notes-next` uses `@lib/db-marketing/services/notes-app` in its API
+- `apps/notes-next` uses `@lib/db-notes/services/notes-app` in its API
   routes.
 - `apps/notes-android` validates its client-facing models against the generated
-  Notes contract from `@lib/db-marketing`.
+  Notes contract from `@lib/db-notes`.
 
 ## Migration policy
 

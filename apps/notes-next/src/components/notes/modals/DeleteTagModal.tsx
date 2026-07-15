@@ -1,7 +1,7 @@
 "use client"
 
 import { Button, Modal, Text } from "@gravity-ui/uikit"
-import type { TagRecord } from "@lib/db-marketing"
+import type { TagRecord } from "@lib/db-notes"
 import styles from "./DeleteTagModal.module.css"
 
 interface DeleteTagModalProps {
@@ -11,12 +11,7 @@ interface DeleteTagModalProps {
   pending: boolean
 }
 
-export function DeleteTagModal({
-  tag,
-  onClose,
-  onConfirm,
-  pending,
-}: DeleteTagModalProps) {
+export function DeleteTagModal({ tag, onClose, onConfirm, pending }: DeleteTagModalProps) {
   const count = tag?.noteCount ?? 0
 
   return (
@@ -24,8 +19,8 @@ export function DeleteTagModal({
       <div className={styles.modalBody}>
         <Text variant="subheader-2">Delete {tag?.label ?? ""}?</Text>
         <Text variant="body-1" color="secondary">
-          {count} {count === 1 ? "note uses" : "notes use"} it. Deleting the tag
-          removes this tag relation from every note.
+          {count} {count === 1 ? "note uses" : "notes use"} it. Deleting the tag removes this tag
+          relation from every note.
         </Text>
         <div className={styles.modalActions}>
           <Button view="flat" size="m" onClick={onClose}>

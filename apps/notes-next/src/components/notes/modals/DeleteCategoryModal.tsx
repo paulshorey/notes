@@ -1,7 +1,7 @@
 "use client"
 
 import { Button, Modal, Text } from "@gravity-ui/uikit"
-import type { CategoryRecord } from "@lib/db-marketing"
+import type { CategoryRecord } from "@lib/db-notes"
 import styles from "./DeleteCategoryModal.module.css"
 
 export type DeleteCategoryAction = "delete-notes" | "keep-uncategorized"
@@ -54,13 +54,7 @@ export function DeleteCategoryModal({
           >
             Delete category, keep items as uncategorized
           </Button>
-          <Button
-            view="flat"
-            size="m"
-            width="max"
-            disabled={pending}
-            onClick={onClose}
-          >
+          <Button view="flat" size="m" width="max" disabled={pending} onClick={onClose}>
             Cancel
           </Button>
         </div>

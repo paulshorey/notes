@@ -8,5 +8,5 @@ These files are derived from the migrated Postgres schema:
 Regenerate them with:
 
 ```bash
-pnpm --filter @lib/db-marketing db:types:generate
+pnpm --filter @lib/db-notes db:types:generate
 ```

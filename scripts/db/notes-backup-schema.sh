@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Dump DDL only (no data) for selected public tables into a local SQL file.
-# Uses MARKETING_DB_URL. Does not dump the whole database — only named tables
-# (default: all Notes app tables in MARKETING_DB_DEFAULT_TABLES — see common.sh).
+# Uses DB_NOTES_URL. Does not dump the whole database — only named tables
+# (default: all Notes app tables in NOTES_DB_DEFAULT_TABLES — see common.sh).
 #
 # Usage:
-#   export MARKETING_DB_URL='postgresql://...'
+#   export DB_NOTES_URL='postgresql://...'
 #   ./scripts/db/notes-backup-schema.sh [OUTFILE.sql]
 #   ./scripts/db/notes-backup-schema.sh -t other_table [OUTFILE.sql]
 #
@@ -14,10 +14,10 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Dump DDL only (no data) for selected public tables. Requires MARKETING_DB_URL.
+Dump DDL only (no data) for selected public tables. Requires DB_NOTES_URL.
 
 Usage: notes-backup-schema.sh [-t TABLE]... [OUTFILE.sql]
-  -t, --table TABLE   Public table name (repeatable). Default: MARKETING_DB_DEFAULT_TABLES
+  -t, --table TABLE   Public table name (repeatable). Default: NOTES_DB_DEFAULT_TABLES
                       in common.sh (user_v1, user_note_v1, user_note_category_v1,
                       user_note_tag_v1, user_note_tag_link_v1, schema_migrations_cursor)
   -h, --help          Show this help.
@@ -64,7 +64,7 @@ elif [[ $# -ne 0 ]]; then
 fi
 
 if [[ ${#tables[@]} -eq 0 ]]; then
-  tables=("${MARKETING_DB_DEFAULT_TABLES[@]}")
+  tables=("${NOTES_DB_DEFAULT_TABLES[@]}")
 fi
 
 for _t in "${tables[@]}"; do
@@ -75,17 +75,17 @@ for _t in "${tables[@]}"; do
 done
 
 if [[ -z "$outfile" ]]; then
-  repo_root="$(marketing_db_repo_root)"
+  repo_root="$(notes_db_repo_root)"
   backup_dir="${repo_root}/scripts/db/backups"
   mkdir -p "$backup_dir"
   outfile="${backup_dir}/notes-schema-$(date +%Y%m%d-%H%M%S).sql"
 fi
 
-marketing_db_require_url
-marketing_db_resolve_clients
+notes_db_require_url
+notes_db_resolve_clients
 
 dump_args=(
-  "$MARKETING_DB_URL"
+  "$DB_NOTES_URL"
   --schema-only
   --schema=public
   --no-owner
@@ -94,7 +94,7 @@ dump_args=(
 
 while IFS= read -r -d '' flag; do
   dump_args+=("$flag")
-done < <(marketing_db_pg_dump_table_flags "${tables[@]}")
+done < <(notes_db_pg_dump_table_flags "${tables[@]}")
 
 tmp_err="$(mktemp)"
 tmp_sql="$(mktemp)"
@@ -105,7 +105,7 @@ trap cleanup EXIT
 
 set +e
 "${CURSOR_POSTGRES_PG_DUMP}" "${dump_args[@]}" 2>"$tmp_err" \
-  | marketing_db_sql_strip_pg_dump_headers \
+  | notes_db_sql_strip_pg_dump_headers \
   >"$tmp_sql"
 dump_status=$?
 set -e

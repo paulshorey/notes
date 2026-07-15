@@ -1,14 +1,12 @@
 import type { AddressInfo } from "node:net"
-import type { NotesAppService } from "@lib/db-marketing/services/notes-app"
+import type { NotesAppService } from "@lib/db-notes/services/notes-app"
 import {
   registerNotesApiAdapterSuite,
   type NotesApiAdapter,
-} from "@lib/db-marketing/testing/notes-api-adapter-suite"
+} from "@lib/db-notes/testing/notes-api-adapter-suite"
 import { createApp } from "../server/src/app"
 
-const createExpressAdapter = async (
-  service: NotesAppService,
-): Promise<NotesApiAdapter> => {
+const createExpressAdapter = async (service: NotesAppService): Promise<NotesApiAdapter> => {
   const app = createApp(service)
   const server = await new Promise<ReturnType<typeof app.listen>>((resolve) => {
     const nextServer = app.listen(0, "127.0.0.1", () => {

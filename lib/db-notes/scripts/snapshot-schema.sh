@@ -5,19 +5,19 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 package_dir="$(cd "${script_dir}/.." && pwd)"
 repo_root="$(cd "${package_dir}/../.." && pwd)"
 
-if [[ -z "${MARKETING_DB_URL:-}" ]]; then
-  echo "MARKETING_DB_URL is required"
+if [[ -z "${DB_NOTES_URL:-}" ]]; then
+  echo "DB_NOTES_URL is required"
   exit 1
 fi
 
 eval "$(
   bash "${repo_root}/scripts/check-postgres-client-version.sh" \
-    MARKETING_DB_URL \
-    "@lib/db-marketing" \
+    DB_NOTES_URL \
+    "@lib/db-notes" \
     --print-env
 )"
 
-"${CURSOR_POSTGRES_PG_DUMP}" "$MARKETING_DB_URL" \
+"${CURSOR_POSTGRES_PG_DUMP}" "$DB_NOTES_URL" \
   --schema-only \
   --schema=public \
   --no-owner \

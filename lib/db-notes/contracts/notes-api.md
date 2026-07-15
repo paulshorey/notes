@@ -286,13 +286,13 @@ Success `200`:
 
 When Notes backend code changes, CI should catch three classes of regression:
 
-1. Contract drift in `@lib/db-marketing`
+1. Contract drift in `@lib/db-notes`
 2. HTTP adapter drift between Next and Express
 3. Client incompatibility in `notes-next` or `notes-android`
 
 The expected checks are:
 
-- `pnpm --filter @lib/db-marketing db:verify`
+- `pnpm --filter @lib/db-notes db:verify`
 - `pnpm --filter notes-next test`
 - `pnpm --filter notes-next check-types`
 - `pnpm --filter notes-next build`
@@ -302,11 +302,11 @@ The expected checks are:
 ## Android Base URLs
 
 The Android APK talks to a deployed `notes-next` over HTTPS. It does not read
-`MARKETING_DB_URL` or `JINA_API_KEY`; those only affect the `notes-next` server
+`DB_NOTES_URL` or `JINA_API_KEY`; those only affect the `notes-next` server
 that the APK calls.
 
-- Production `notes-next`: `https://marketing-apps-notes-next.up.railway.app`
-- Dev `notes-next`: `https://marketing-apps-notes-next-dev.up.railway.app`
+- Production `notes-next`: `https://notes-apps-notes-next.up.railway.app`
+- Dev `notes-next`: `https://notes-apps-notes-next-dev.up.railway.app`
 - The target environment must be specified at build time. Use
   `pnpm --filter notes-android build:dist:dev` or `build:dist:prod`; there is
   no ambiguous bare `build:dist` script.

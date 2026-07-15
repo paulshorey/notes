@@ -4,7 +4,7 @@ import {
   claimAnonymousNotesAppSession,
   getNotesAppErrorStatus,
   parseClaimAnonymousSessionRequest,
-} from "@lib/db-marketing/services/notes-app"
+} from "@lib/db-notes/services/notes-app"
 
 export const POST = async (request: Request) => {
   const session = await auth()

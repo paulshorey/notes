@@ -1,6 +1,6 @@
 "use client"
 
-import type { NoteRecord } from "@lib/db-marketing"
+import type { NoteRecord } from "@lib/db-notes"
 import { Text } from "@gravity-ui/uikit"
 import type { ReactNode } from "react"
 import styles from "./NoteResultsList.module.css"

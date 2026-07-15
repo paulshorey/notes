@@ -2,7 +2,7 @@
 
 This document describes how vector-based semantic search works across the Notes
 apps (`notes-next`, `notes-android`) and the shared database layer
-(`@lib/db-marketing`).
+(`@lib/db-notes`).
 
 ## Overview
 
@@ -14,11 +14,11 @@ ranks notes by cosine similarity between the query vector and stored vectors.
 
 Search spans three entity types:
 
-| Entity   | Table                    | Embedded text      | Column               |
-|----------|--------------------------|--------------------|----------------------|
-| Note     | `user_note_v1`           | `description`      | `description_embedding` |
-| Category | `user_note_category_v1`  | `label`            | `category_embedding` |
-| Tag      | `user_note_tag_v1`       | `label`            | `tag_embedding`      |
+| Entity   | Table                   | Embedded text | Column                  |
+| -------- | ----------------------- | ------------- | ----------------------- |
+| Note     | `user_note_v1`          | `description` | `description_embedding` |
+| Category | `user_note_category_v1` | `label`       | `category_embedding`    |
+| Tag      | `user_note_tag_v1`      | `label`       | `tag_embedding`         |
 
 Every note belongs to exactly one category and may have zero or more tags. The
 ranking formula combines description similarity with taxonomy similarity
@@ -84,14 +84,14 @@ requirement.
 
 ## Embedding model (Jina AI)
 
-| Setting    | Value                                      |
-|------------|--------------------------------------------|
+| Setting    | Value                                         |
+| ---------- | --------------------------------------------- |
 | Provider   | Jina AI (`https://api.jina.ai/v1/embeddings`) |
-| Model      | `jina-embeddings-v5-text-small`            |
-| Dimensions | 1024                                       |
-| Normalized | `true` (L2 normalized for cosine via dot)  |
-| Truncate   | `true`                                     |
-| Timeout    | 30 seconds                                 |
+| Model      | `jina-embeddings-v5-text-small`               |
+| Dimensions | 1024                                          |
+| Normalized | `true` (L2 normalized for cosine via dot)     |
+| Truncate   | `true`                                        |
+| Timeout    | 30 seconds                                    |
 
 The model version tag stored alongside each row is
 `jina-embeddings-v5-text-small:notes-v3`. The maintenance endpoint uses this
@@ -102,11 +102,11 @@ tag to detect rows embedded with an older model version.
 Jina v5 supports task-specific LoRA adapters that improve search quality for
 short phrases:
 
-| Task                | Used for                                    |
-|---------------------|---------------------------------------------|
+| Task                | Used for                                               |
+| ------------------- | ------------------------------------------------------ |
 | `retrieval.passage` | Storing note descriptions, category labels, tag labels |
-| `retrieval.query`   | Embedding user search queries               |
-| `text-matching`     | Symmetric similarity (not used)             |
+| `retrieval.query`   | Embedding user search queries                          |
+| `text-matching`     | Symmetric similarity (not used)                        |
 
 Passages (stored content) and queries (user input) are embedded with different
 adapters. This asymmetric approach produces better rankings than using one
@@ -118,27 +118,27 @@ Relevant columns on each table:
 
 ### `user_note_v1`
 
-| Column                  | Type            | Source text   |
-|-------------------------|-----------------|---------------|
-| `description_embedding` | `vector(1024)` | `description` |
-| `embedding_model`       | `text`          | model version tag |
-| `embedding_updated_at`  | `timestamptz`   | last write    |
+| Column                  | Type           | Source text       |
+| ----------------------- | -------------- | ----------------- |
+| `description_embedding` | `vector(1024)` | `description`     |
+| `embedding_model`       | `text`         | model version tag |
+| `embedding_updated_at`  | `timestamptz`  | last write        |
 
 ### `user_note_category_v1`
 
-| Column               | Type            | Source text |
-|----------------------|-----------------|-------------|
-| `category_embedding` | `vector(1024)`  | `label`     |
-| `embedding_model`    | `text`          | model version tag |
-| `embedding_updated_at` | `timestamptz` | last write  |
+| Column                 | Type           | Source text       |
+| ---------------------- | -------------- | ----------------- |
+| `category_embedding`   | `vector(1024)` | `label`           |
+| `embedding_model`      | `text`         | model version tag |
+| `embedding_updated_at` | `timestamptz`  | last write        |
 
 ### `user_note_tag_v1`
 
-| Column               | Type            | Source text |
-|----------------------|-----------------|-------------|
-| `tag_embedding`      | `vector(1024)`  | `label`     |
-| `embedding_model`    | `text`          | model version tag |
-| `embedding_updated_at` | `timestamptz` | last write  |
+| Column                 | Type           | Source text       |
+| ---------------------- | -------------- | ----------------- |
+| `tag_embedding`        | `vector(1024)` | `label`           |
+| `embedding_model`      | `text`         | model version tag |
+| `embedding_updated_at` | `timestamptz`  | last write        |
 
 ### Schema history (brief)
 
@@ -192,9 +192,9 @@ results (ranked lower).
 `POST /api/notes/maintenance/embeddings` backfills or upgrades embeddings in
 batches. The web app exposes a UI action that calls this endpoint.
 
-| Mode      | Behavior                                                          |
-|-----------|-------------------------------------------------------------------|
-| `missing` | Re-embed rows with at least one expected embedding column as NULL |
+| Mode      | Behavior                                                                                               |
+| --------- | ------------------------------------------------------------------------------------------------------ |
+| `missing` | Re-embed rows with at least one expected embedding column as NULL                                      |
 | `stale`   | Re-embed rows whose `embedding_model` differs from the current version, or that are missing any column |
 
 Request body:
@@ -225,11 +225,11 @@ user. `limit` accepts 1–500 (default 100).
 
 ### Standalone regeneration script
 
-`lib/db-marketing/scripts/regenerate-embeddings.mjs` bulk-regenerates all
+`lib/db-notes/scripts/regenerate-embeddings.mjs` bulk-regenerates all
 embeddings outside the app:
 
 ```bash
-MARKETING_DB_URL=… JINA_API_KEY=… node lib/db-marketing/scripts/regenerate-embeddings.mjs [--user <id>] [--dry-run] [--batch-size <n>]
+DB_NOTES_URL=… JINA_API_KEY=… node lib/db-notes/scripts/regenerate-embeddings.mjs [--user <id>] [--dry-run] [--batch-size <n>]
 ```
 
 Keep this script in sync with `services/notes-embeddings.ts` when changing
@@ -302,11 +302,11 @@ after stronger ones rather than being excluded.
 }
 ```
 
-| Field                   | Meaning                                      |
-|-------------------------|----------------------------------------------|
-| `similarity`            | Composite score used for ordering            |
-| `descriptionSimilarity` | Query ↔ note description cosine similarity   |
-| `tagSimilarity`         | Average query ↔ linked tag similarities      |
+| Field                   | Meaning                                     |
+| ----------------------- | ------------------------------------------- |
+| `similarity`            | Composite score used for ordering           |
+| `descriptionSimilarity` | Query ↔ note description cosine similarity |
+| `tagSimilarity`         | Average query ↔ linked tag similarities    |
 
 `categorySimilarity` is computed in SQL for ranking but is not part of the
 public `SemanticSearchResult` contract.
@@ -329,10 +329,10 @@ Search results are cached in `SessionStore` and restored on session reload when
 
 ## Environment
 
-| Variable         | Required | Purpose                          |
-|------------------|----------|----------------------------------|
-| `JINA_API_KEY`   | Yes      | Jina AI API authentication       |
-| `MARKETING_DB_URL` | Yes (script only) | Postgres connection for `regenerate-embeddings.mjs` |
+| Variable       | Required          | Purpose                                             |
+| -------------- | ----------------- | --------------------------------------------------- |
+| `JINA_API_KEY` | Yes               | Jina AI API authentication                          |
+| `DB_NOTES_URL` | Yes (script only) | Postgres connection for `regenerate-embeddings.mjs` |
 
 If `JINA_API_KEY` is missing, search and note/taxonomy writes that require
 embedding return a 500 with "JINA_API_KEY environment variable not set."
@@ -360,20 +360,20 @@ embedding return a 500 with "JINA_API_KEY environment variable not set."
 
 ## Key source files
 
-| Path | Role |
-|------|------|
-| `lib/db-marketing/services/notes-embeddings.ts` | Jina API calls, text normalization, vector generation |
-| `lib/db-marketing/services/notes-app.ts` | Orchestrates embed-then-write for CRUD, search, maintenance |
-| `lib/db-marketing/sql/note/gets.ts` | Search SQL with pgvector `<=>` ranking |
-| `lib/db-marketing/sql/note/add.ts` | INSERT with `description_embedding` |
-| `lib/db-marketing/sql/note/update.ts` | UPDATE with embeddings, backfill UPDATE |
-| `lib/db-marketing/sql/category.ts` | Category embedding backfill queries |
-| `lib/db-marketing/sql/tag.ts` | Tag embedding backfill queries |
-| `lib/db-marketing/notes-search-constants.ts` | `NOTES_APP_SEARCH_MAX_RESULTS` (20) |
-| `lib/db-marketing/migrations/202603151000__note_embeddings.sql` | `CREATE EXTENSION vector`, initial indexes |
-| `lib/db-marketing/migrations/202604081200__jina_embeddings_v5_1024.sql` | Jina v5 / 1024-dim migration |
-| `lib/db-marketing/scripts/regenerate-embeddings.mjs` | Bulk offline regeneration |
-| `apps/notes-next/app/api/notes/search/route.ts` | Next.js search route |
-| `apps/notes-next/app/api/notes/maintenance/embeddings/route.ts` | Maintenance route |
-| `apps/notes-next/src/components/notes/NotesApp.tsx` | Client search UI and debounce |
-| `apps/notes-android/.../NotesApiClient.kt` | Android search API client |
+| Path                                                                | Role                                                        |
+| ------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `lib/db-notes/services/notes-embeddings.ts`                         | Jina API calls, text normalization, vector generation       |
+| `lib/db-notes/services/notes-app.ts`                                | Orchestrates embed-then-write for CRUD, search, maintenance |
+| `lib/db-notes/sql/note/gets.ts`                                     | Search SQL with pgvector `<=>` ranking                      |
+| `lib/db-notes/sql/note/add.ts`                                      | INSERT with `description_embedding`                         |
+| `lib/db-notes/sql/note/update.ts`                                   | UPDATE with embeddings, backfill UPDATE                     |
+| `lib/db-notes/sql/category.ts`                                      | Category embedding backfill queries                         |
+| `lib/db-notes/sql/tag.ts`                                           | Tag embedding backfill queries                              |
+| `lib/db-notes/notes-search-constants.ts`                            | `NOTES_APP_SEARCH_MAX_RESULTS` (20)                         |
+| `lib/db-notes/migrations/202603151000__note_embeddings.sql`         | `CREATE EXTENSION vector`, initial indexes                  |
+| `lib/db-notes/migrations/202604081200__jina_embeddings_v5_1024.sql` | Jina v5 / 1024-dim migration                                |
+| `lib/db-notes/scripts/regenerate-embeddings.mjs`                    | Bulk offline regeneration                                   |
+| `apps/notes-next/app/api/notes/search/route.ts`                     | Next.js search route                                        |
+| `apps/notes-next/app/api/notes/maintenance/embeddings/route.ts`     | Maintenance route                                           |
+| `apps/notes-next/src/components/notes/NotesApp.tsx`                 | Client search UI and debounce                               |
+| `apps/notes-android/.../NotesApiClient.kt`                          | Android search API client                                   |

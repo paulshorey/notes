@@ -12,7 +12,7 @@ Android application module for `notes-android`.
 ## Non-obvious rules
 
 - `NOTES_ANDROID_API_BASE_URL` can come from `local.properties`, a Gradle property, or the environment (in that resolution order); `build.gradle.kts` bakes the resolved value into `BuildConfig.DEFAULT_API_BASE_URL` and logs it during configuration.
-- The APK never reads `MARKETING_DB_URL`, `JINA_API_KEY`, or any other server-side env; those only live on the `notes-next` Railway service that the APK calls.
+- The APK never reads `DB_NOTES_URL`, `JINA_API_KEY`, or any other server-side env; those only live on the `notes-next` Railway service that the APK calls.
 - `compileSdk` / `targetSdk` currently track API 36; if you bump them, also update `tools/install-android-sdk.sh`.
 - The committed debug keystore is intentional; do not rotate or remove it casually because sideloaded debug upgrades depend on a stable certificate.
 

@@ -58,14 +58,14 @@ flowchart TD
 Anonymous users are not a separate storage layer. They are ordinary `user_v1`
 rows:
 
-| Column         | Anonymous visitor              | After claim (new account)     | Permanent account (login target) |
-|----------------|--------------------------------|-------------------------------|----------------------------------|
-| `id`           | Stable for the visit           | **Unchanged**                 | Pre-existing id                  |
-| `username`     | `anon-<uuid>`                  | User-chosen username          | Existing username                |
-| `password`     | `NULL`                         | `scrypt$…` hashed             | Hashed (or legacy plaintext)     |
-| `email`        | `NULL`                         | Optional                      | May be set                       |
-| `is_anonymous` | `true`                         | `false`                       | `false`                          |
-| `preferences`  | UI settings on the anon row    | **Kept** (same row)           | May differ from anon             |
+| Column         | Anonymous visitor           | After claim (new account) | Permanent account (login target) |
+| -------------- | --------------------------- | ------------------------- | -------------------------------- |
+| `id`           | Stable for the visit        | **Unchanged**             | Pre-existing id                  |
+| `username`     | `anon-<uuid>`               | User-chosen username      | Existing username                |
+| `password`     | `NULL`                      | `scrypt$…` hashed         | Hashed (or legacy plaintext)     |
+| `email`        | `NULL`                      | Optional                  | May be set                       |
+| `is_anonymous` | `true`                      | `false`                   | `false`                          |
+| `preferences`  | UI settings on the anon row | **Kept** (same row)       | May differ from anon             |
 
 Owned data (`user_note_v1`, `user_note_category_v1`, `user_note_tag_v1`,
 `user_note_tag_link_v1`) references `user_id` normally. Anonymous creation also
@@ -79,10 +79,10 @@ store).
 
 ### Providers
 
-| Provider id    | Purpose                                      |
-|----------------|----------------------------------------------|
-| `anonymous`    | Auto sign-in for new visitors                |
-| `credentials`  | Username / email / phone + password login    |
+| Provider id   | Purpose                                   |
+| ------------- | ----------------------------------------- |
+| `anonymous`   | Auto sign-in for new visitors             |
+| `credentials` | Username / email / phone + password login |
 
 OAuth/social login was removed as unfinished (Phase 2). The Android client uses
 `POST /api/auth/token` (bearer tokens) with the same `verifyUserCredentials`
@@ -102,7 +102,7 @@ request bodies are ignored.
 
 ### Password hashing
 
-`lib/db-marketing/sql/user/password.ts` implements scrypt (`node:crypto`, no extra
+`lib/db-notes/sql/user/password.ts` implements scrypt (`node:crypto`, no extra
 dependency). Format: `scrypt$<N>$<r>$<p>$<saltB64>$<hashB64>`.
 
 `verifyUserCredentials` uses `verifyPassword`. Legacy plaintext rows still
@@ -139,7 +139,7 @@ between users, so there is no merge token and no load-path race.
 - Requires an authenticated **anonymous** session (`401` otherwise)
 - Body: `{ username, password, email? }`
 - Calls `claimAnonymousNotesAppSession` → `claimAnonymousUser` in
-  `lib/db-marketing/sql/user/anonymous.ts`
+  `lib/db-notes/sql/user/anonymous.ts`
 - In one transaction: verify row is still anonymous, check identifier conflicts
   against non-anonymous users, set username/email/password hash,
   `is_anonymous = false`
@@ -245,16 +245,16 @@ Dependencies include `authSession.user.notesUserId` and
 
 ## API reference (auth-related)
 
-| Route                              | Method | Caller session   | Purpose                          |
-|------------------------------------|--------|------------------|----------------------------------|
-| `/api/auth/[...nextauth]`          | *      | —                | NextAuth sign-in/out             |
-| `/api/auth/token`                  | POST   | —                | Android credentials → bearer     |
-| `/api/auth/token`                  | DELETE | Bearer           | Revoke token                     |
-| `/api/session`                     | GET    | Any authenticated| Current user summary             |
-| `/api/session`                     | PATCH  | Any authenticated| Save UI preferences              |
-| `/api/anon-session/merge-token`    | POST   | Anonymous        | Mint HMAC merge token            |
-| `/api/anon-session/merge`          | POST   | Permanent        | Merge anon data into this account|
-| `/api/anon-session/claim`          | POST   | Anonymous        | Upgrade anon row to permanent    |
+| Route                           | Method | Caller session    | Purpose                           |
+| ------------------------------- | ------ | ----------------- | --------------------------------- |
+| `/api/auth/[...nextauth]`       | \*     | —                 | NextAuth sign-in/out              |
+| `/api/auth/token`               | POST   | —                 | Android credentials → bearer      |
+| `/api/auth/token`               | DELETE | Bearer            | Revoke token                      |
+| `/api/session`                  | GET    | Any authenticated | Current user summary              |
+| `/api/session`                  | PATCH  | Any authenticated | Save UI preferences               |
+| `/api/anon-session/merge-token` | POST   | Anonymous         | Mint HMAC merge token             |
+| `/api/anon-session/merge`       | POST   | Permanent         | Merge anon data into this account |
+| `/api/anon-session/claim`       | POST   | Anonymous         | Upgrade anon row to permanent     |
 
 ## UI entry points
 
@@ -264,10 +264,10 @@ All auth UI for the web app lives in the header user popup
 
 Anonymous users see a toggle between two modes (`authMode` local state):
 
-| Mode     | Form fields                                      | Primary action   |
-|----------|--------------------------------------------------|------------------|
-| `signin` | Identifier + password                            | Sign in          |
-| `signup` | Username, email (optional), password (8+ chars)| Create account   |
+| Mode     | Form fields                                     | Primary action |
+| -------- | ----------------------------------------------- | -------------- |
+| `signin` | Identifier + password                           | Sign in        |
+| `signup` | Username, email (optional), password (8+ chars) | Create account |
 
 Permanent users see account info, debug embedding actions, and Sign out.
 
@@ -287,11 +287,11 @@ Permanent users see account info, debug embedding actions, and Sign out.
 
 ### Still open (from merge sync plan)
 
-| Item                    | Status   | Notes                                                |
-|-------------------------|----------|------------------------------------------------------|
+| Item                           | Status  | Notes                                                                                                              |
+| ------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------ |
 | Embedding backfill after merge | Pending | Call `maintainNoteEmbeddingsForNotesApp({ mode: "missing" })` after merge so merged categories/tags are searchable |
-| Preferences on merge    | Pending  | Anon `preferences` are discarded when anon row is deleted; product decision needed |
-| Automated merge tests   | Pending  | No harness coverage for anonymous → permanent flows yet |
+| Preferences on merge           | Pending | Anon `preferences` are discarded when anon row is deleted; product decision needed                                 |
+| Automated merge tests          | Pending | No harness coverage for anonymous → permanent flows yet                                                            |
 
 Claim-in-place signup **does** preserve preferences automatically (same row).
 
@@ -426,11 +426,11 @@ Automated (follow-up): a component test that clicks the toggle and asserts
 
 ### Files to touch
 
-| File | Change |
-|------|--------|
+| File                                                   | Change                                                                                                           |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `apps/notes-next/src/components/notes/NotesHeader.tsx` | `type="button"` on toggles; popup close resets `authMode` + signup fields; defer menu close to parent on success |
-| `apps/notes-next/src/components/notes/NotesApp.tsx` | Optional client validation in `handleSignup`; close popup only on success |
-| `apps/notes-next/AGENTS.md` | Note the sign-in/signup toggle behavior once fixed |
+| `apps/notes-next/src/components/notes/NotesApp.tsx`    | Optional client validation in `handleSignup`; close popup only on success                                        |
+| `apps/notes-next/AGENTS.md`                            | Note the sign-in/signup toggle behavior once fixed                                                               |
 
 No server or schema changes are required for this fix — it is purely client-side
 form behavior.

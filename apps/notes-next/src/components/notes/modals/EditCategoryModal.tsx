@@ -1,7 +1,7 @@
 "use client"
 
 import { Button, Modal, Text, TextInput } from "@gravity-ui/uikit"
-import type { CategoryRecord } from "@lib/db-marketing"
+import type { CategoryRecord } from "@lib/db-notes"
 import { toLowercaseInput } from "@/lib/strings"
 import styles from "./EditCategoryModal.module.css"
 

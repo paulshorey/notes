@@ -14,7 +14,7 @@ val localProperties =
         if (file.exists()) load(file.inputStream())
     }
 
-val NOTES_NEXT_URL = "https://marketing-apps-notes-next-dev.up.railway.app"
+val NOTES_NEXT_URL = "https://notes-apps-notes-next-dev.up.railway.app"
 
 fun optionalUrlProperty(name: String, default: String): String =
     localProperties.getProperty(name)

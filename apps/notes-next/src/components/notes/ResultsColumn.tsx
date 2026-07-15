@@ -1,6 +1,6 @@
 "use client"
 
-import type { CategoryRecord, NoteRecord, TagRecord } from "@lib/db-marketing"
+import type { CategoryRecord, NoteRecord, TagRecord } from "@lib/db-notes"
 import {
   ArrowsLeftRight,
   DotsThreeVertical,

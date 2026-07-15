@@ -18,7 +18,7 @@ todos:
     content: "Decision (product owner): carry anon preferences into the real account with a per-property merge, not a whole-JSON overwrite. Implemented as mergePreferenceObjects in mergeAnonymousUserInto — anon leaf values win (key presence = explicitly customized), real-only keys preserved"
     status: completed
   - id: tests_verify
-    content: Added DB-backed regression coverage (testing/anonymous-merge.test.ts) run by `pnpm --filter @lib/db-marketing test` against DB_MARKETING_TEST_URL only (opt-in; never MARKETING_DB_URL), wired into the CI verify-marketing job; notes-next check-types/test/build pass
+    content: Added DB-backed regression coverage (testing/anonymous-merge.test.ts) run by `pnpm --filter @lib/db-notes test` against DB_NOTES_TEST_URL only (opt-in; never DB_NOTES_URL), wired into the CI verify-notes job; notes-next check-types/test/build pass
     status: completed
 isProject: false
 ---
@@ -43,7 +43,7 @@ permanent account:
   embeddings to backfill. Nothing in this plan applies to that path.
 - **Merge (sign in to a pre-existing account, rare):** a signed HMAC merge token
   proves browser ownership of the anonymous session, and
-  `mergeAnonymousUserInto` (`lib/db-marketing/sql/user/anonymous.ts`) moves the
+  `mergeAnonymousUserInto` (`lib/db-notes/sql/user/anonymous.ts`) moves the
   data into the real account and deletes the anon row. This plan hardened that
   path.
 
@@ -77,7 +77,7 @@ found two remaining silent-loss gaps, both fixed here:
 
 ## 3. Embedding backfill after merge — DONE
 
-`mergeAnonymousNotesAppSession` (`lib/db-marketing/services/notes-app.ts`) now
+`mergeAnonymousNotesAppSession` (`lib/db-notes/services/notes-app.ts`) now
 calls `maintainNoteEmbeddingsForNotesApp({ userId: realUserId, mode: "missing",
 limit: 100 })` after the merge transaction commits, so categories/tags inserted
 by the merge SQL (which bypass embed-on-write) become searchable. It is wrapped
@@ -111,7 +111,7 @@ the "if unable to check default vs custom, re-think" escape hatch was not
 needed.
 
 **Implementation:** `mergePreferenceObjects` in
-`lib/db-marketing/sql/user/anonymous.ts` — recursive merge where anon leaf
+`lib/db-notes/sql/user/anonymous.ts` — recursive merge where anon leaf
 values win and objects merge key-by-key; applied inside the merge transaction
 (rows already locked `FOR UPDATE`) before the anon row is deleted. An anon row
 with empty preferences leaves the real account untouched.
@@ -121,17 +121,17 @@ same row, so preferences survive there automatically.
 
 ## 6. Tests & verification — DONE
 
-- `lib/db-marketing/testing/anonymous-merge.test.ts`: pure unit tests for
+- `lib/db-notes/testing/anonymous-merge.test.ts`: pure unit tests for
   `mergePreferenceObjects`, plus DB-backed regression tests asserting the merge
   reassigns notes (with category remap), dedupes categories/tags by label,
   remaps tag links, deletes the anon row, merges preferences per property, and
   succeeds without `JINA_API_KEY`.
-- The DB suite is **opt-in via `DB_MARKETING_TEST_URL`** and connects only to
-  that URL — deliberately not `MARKETING_DB_URL`, which in cloud/deployed
+- The DB suite is **opt-in via `DB_NOTES_TEST_URL`** and connects only to
+  that URL — deliberately not `DB_NOTES_URL`, which in cloud/deployed
   environments points at the real Notes database. Without the variable the DB
   suite skips, so `turbo run test` stays green anywhere.
-- `@lib/db-marketing` gained a `test` script (node test runner via tsx). CI's
-  `verify-marketing` job runs it after `db:verify` against the job's throwaway
+- `@lib/db-notes` gained a `test` script (node test runner via tsx). CI's
+  `verify-notes` job runs it after `db:verify` against the job's throwaway
   migrated Postgres container.
 - Verified locally against a fresh Postgres 17 + pgvector cluster: migrate →
   all tests pass; `check-types`, notes-next `test`, and `build` pass.

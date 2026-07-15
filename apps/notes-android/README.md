@@ -11,15 +11,15 @@ The app always calls the deployed `notes-next` API. There is no local `server/` 
 
 ## Environment variables
 
-| Variable | Required by | Purpose |
-|----------|-------------|---------|
+| Variable                     | Required by            | Purpose                                                        |
+| ---------------------------- | ---------------------- | -------------------------------------------------------------- |
 | `NOTES_ANDROID_API_BASE_URL` | Android APK (optional) | Override the `notes-next` URL baked into the app at build time |
 
 The APK talks to a deployed `notes-next` over HTTPS. Which Notes database it hits is decided by the `notes-next` Railway service it calls, not by the APK itself.
 
 ### "Why does my APK still hit the dev database after I changed my shell env?"
 
-The Android build does not read `MARKETING_DB_URL` or `JINA_API_KEY`. Those are `notes-next` server variables. Changing them in your shell and rebuilding the APK will not change anything.
+The Android build does not read `DB_NOTES_URL` or `JINA_API_KEY`. Those are `notes-next` server variables. Changing them in your shell and rebuilding the APK will not change anything.
 
 To pick which `notes-next` deployment the APK calls, use the explicit build scripts:
 
@@ -30,8 +30,8 @@ pnpm --filter notes-android build:dist:prod  # APK calls the production notes-ne
 
 Known `notes-next` deployments:
 
-- Production: `https://marketing-apps-notes-next.up.railway.app`
-- Dev: `https://marketing-apps-notes-next-dev.up.railway.app`
+- Production: `https://notes-apps-notes-next.up.railway.app`
+- Dev: `https://notes-apps-notes-next-dev.up.railway.app`
 
 Gradle resolves `NOTES_ANDROID_API_BASE_URL` in this order: `local.properties`, `-P` Gradle property, shell environment, script-level inline assignment. If a prior experiment left `NOTES_ANDROID_API_BASE_URL=...` in `apps/notes-android/local.properties`, it will silently override everything else. Remove the stale line. The current `local.properties` should normally only contain `sdk.dir`.
 
@@ -63,7 +63,7 @@ pnpm --filter notes-android build:dist:prod
 pnpm --filter notes-android build
 ```
 
-- `contracts:check` validates Kotlin/API alignment with the generated Notes contract from `@lib/db-marketing`.
+- `contracts:check` validates Kotlin/API alignment with the generated Notes contract from `@lib/db-notes`.
 - `build:android` assembles the debug APK (uses whatever URL is in the environment — for iteration only, not release).
 - `build:dist:dev` produces `dist/notes-android.apk` pointed at the dev `notes-next`.
 - `build:dist:prod` produces `dist/notes-android.apk` pointed at the production `notes-next`.

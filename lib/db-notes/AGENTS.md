@@ -1,10 +1,10 @@
-# `@lib/db-marketing`
+# `@lib/db-notes`
 
 - This package is internal to this monorepo and is consumed directly from TypeScript source.
 - Use extensionless relative imports in `.ts` files. Do not add `.js` suffixes unless the package starts emitting build artifacts.
 - Keep database helpers here only when they are reused across apps in this repo.
 
-Database-first package for the `MARKETING_DB_URL` database.
+Database-first package for the `DB_NOTES_URL` database.
 
 ## Source of truth
 
@@ -66,16 +66,16 @@ Database-first package for the `MARKETING_DB_URL` database.
   merge commits, because categories/tags inserted by the merge SQL bypass the
   embed-on-write paths. A missing `JINA_API_KEY` or a Jina failure logs a
   warning and never fails the merge.
-- Tests: `pnpm --filter @lib/db-marketing test` (node test runner via tsx).
+- Tests: `pnpm --filter @lib/db-notes test` (node test runner via tsx).
   The merge regression suite (`testing/anonymous-merge.test.ts`) only touches
-  a database when `DB_MARKETING_TEST_URL` is set, and it connects to that URL
-  — never to `MARKETING_DB_URL`, which in cloud environments points at the
-  real Notes database. CI's verify-marketing job runs it against its
+  a database when `DB_NOTES_TEST_URL` is set, and it connects to that URL
+  — never to `DB_NOTES_URL`, which in cloud environments points at the
+  real Notes database. CI's verify-notes job runs it against its
   throwaway migrated container.
 - `user_v1` and `user_note_v1` share the `apply_row_timestamps_v1()` trigger
   function so `time_modified` refreshes automatically on insert/update while
   `time_created` stays stable after insert.
-- Fresh empty DB: run `pnpm --filter @lib/db-marketing db:migrate`, then
+- Fresh empty DB: run `pnpm --filter @lib/db-notes db:migrate`, then
   `db:verify`.
 - Existing pre-migration DB with baseline schema already present: run
   `db:migrate:baseline` once, then `db:migrate`, then `db:verify`.

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Truncate the specified public tables (default: marketing Notes subset), then
+# Truncate the specified public tables (default: notes Notes subset), then
 # load row data from a data-only SQL file produced by notes-backup-data.sh.
-# Uses MARKETING_DB_URL. Only named tables are truncated; other tables are untouched.
+# Uses DB_NOTES_URL. Only named tables are truncated; other tables are untouched.
 # Run notes-restore-schema.sh first so tables exist with the expected schema.
 #
 # Usage:
-#   export MARKETING_DB_URL='postgresql://...'
+#   export DB_NOTES_URL='postgresql://...'
 #   ./scripts/db/notes-restore-data.sh ./scripts/db/backups/notes-data-....sql
 #   ./scripts/db/notes-restore-data.sh -y BACKUP.sql    # skip confirmation
 #
@@ -15,11 +15,11 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Truncate named public tables, then load row data from a data-only backup. Requires MARKETING_DB_URL.
+Truncate named public tables, then load row data from a data-only backup. Requires DB_NOTES_URL.
 
 Usage: notes-restore-data.sh [-y] [-t TABLE]... BACKUP.sql
   -t, --table TABLE   Public tables to truncate before restore (repeatable). Default: same
-                      tables as notes-backup-data.sh (MARKETING_DB_DEFAULT_TABLES in common.sh)
+                      tables as notes-backup-data.sh (NOTES_DB_DEFAULT_TABLES in common.sh)
   -y, --yes           Do not prompt for confirmation
   -h, --help          Show this help
 EOF
@@ -71,7 +71,7 @@ if [[ ! -f "$backup_file" ]]; then
 fi
 
 if [[ ${#tables[@]} -eq 0 ]]; then
-  tables=("${MARKETING_DB_DEFAULT_TABLES[@]}")
+  tables=("${NOTES_DB_DEFAULT_TABLES[@]}")
 fi
 
 for _t in "${tables[@]}"; do
@@ -81,8 +81,8 @@ for _t in "${tables[@]}"; do
   fi
 done
 
-marketing_db_require_url
-marketing_db_resolve_clients
+notes_db_require_url
+notes_db_resolve_clients
 
 if [[ "$assume_yes" -ne 1 ]]; then
   if [[ ! -t 0 ]]; then
@@ -92,7 +92,7 @@ if [[ "$assume_yes" -ne 1 ]]; then
   echo "This will TRUNCATE these tables then load data from:" >&2
   echo "  $backup_file" >&2
   echo "Tables: ${tables[*]}" >&2
-  echo "Database: (from MARKETING_DB_URL)" >&2
+  echo "Database: (from DB_NOTES_URL)" >&2
   read -r -p "Type YES to continue: " confirm
   if [[ "$confirm" != "YES" ]]; then
     echo "Aborted." >&2
@@ -121,6 +121,6 @@ trap 'rm -f "$truncate_sql"' EXIT
 {
   cat "$truncate_sql"
   cat "$backup_file"
-} | "${CURSOR_POSTGRES_PSQL}" "$MARKETING_DB_URL" -v ON_ERROR_STOP=1 -f -
+} | "${CURSOR_POSTGRES_PSQL}" "$DB_NOTES_URL" -v ON_ERROR_STOP=1 -f -
 
 echo "Data restore complete for tables: ${tables[*]}" >&2

@@ -9,7 +9,7 @@ todos:
     content: Remove the unfinished OAuth login — social buttons in NotesHeader, handleSocialSignIn in NotesApp, social providers + OAuth branches in auth.ts, and the dead LoginForm.tsx; update AGENTS.md references
     status: completed
   - id: p2_password_hashing
-    content: Introduce scrypt password hashing (node:crypto, no new dependency) — hash helper in lib/db-marketing, verifyUserCredentials accepts hashed with legacy-plaintext fallback and rehashes on successful login
+    content: Introduce scrypt password hashing (node:crypto, no new dependency) — hash helper in lib/db-notes, verifyUserCredentials accepts hashed with legacy-plaintext fallback and rehashes on successful login
     status: completed
   - id: p2_claim_sql
     content: Add claimAnonymousUser DB helper — upgrade the anonymous row in place (username, optional email, hashed password, is_anonymous=false) in one transaction with identity-uniqueness checks
@@ -21,7 +21,7 @@ todos:
     content: Add Create-account toggle to the NotesHeader popup; signup handler = flush → claim → signIn(credentials) for the same user id; no merge token in this path
     status: completed
   - id: p2_merge_guard
-    content: Add a merge schema-coverage guard — MERGE_TABLE_STRATEGIES beside mergeAnonymousUserInto, diffed against information_schema FKs to user_v1 by db:verify (implemented in verify-contract.mjs since lib/db-marketing has no test runner)
+    content: Add a merge schema-coverage guard — MERGE_TABLE_STRATEGIES beside mergeAnonymousUserInto, diffed against information_schema FKs to user_v1 by db:verify (implemented in verify-contract.mjs since lib/db-notes has no test runner)
     status: completed
   - id: p2_verify
     content: Verified against a live local Postgres — claim keeps user id with zero data movement, conflicts 409, legacy plaintext logins rehash to scrypt, existing-account merge unchanged, coverage guard fails on an unregistered probe table; check-types/build/test all pass
@@ -78,15 +78,15 @@ Turning a visitor into an account has two distinct cases:
 
 ### Key files
 
-| Layer                         | File                                                                          |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| UI / load orchestration       | `apps/notes-next/src/components/notes/NotesApp.tsx`                           |
-| Login/signup popup            | `apps/notes-next/src/components/notes/NotesHeader.tsx`                        |
-| Auth (providers, JWT/session) | `apps/notes-next/src/auth.ts`                                                 |
-| Credential lookup / user SQL  | `lib/db-marketing/sql/user/gets.ts`, `lib/db-marketing/sql/user/anonymous.ts` |
-| Service layer                 | `lib/db-marketing/services/notes-app.ts`                                      |
-| Anon-session routes           | `apps/notes-next/app/api/anon-session/*`                                      |
-| Docs to update                | `apps/notes-next/AGENTS.md`                                                   |
+| Layer                         | File                                                                  |
+| ----------------------------- | --------------------------------------------------------------------- |
+| UI / load orchestration       | `apps/notes-next/src/components/notes/NotesApp.tsx`                   |
+| Login/signup popup            | `apps/notes-next/src/components/notes/NotesHeader.tsx`                |
+| Auth (providers, JWT/session) | `apps/notes-next/src/auth.ts`                                         |
+| Credential lookup / user SQL  | `lib/db-notes/sql/user/gets.ts`, `lib/db-notes/sql/user/anonymous.ts` |
+| Service layer                 | `lib/db-notes/services/notes-app.ts`                                  |
+| Anon-session routes           | `apps/notes-next/app/api/anon-session/*`                              |
+| Docs to update                | `apps/notes-next/AGENTS.md`                                           |
 
 No DB migration is required anywhere in this phase: `user_v1.password` is already
 `text`, `is_anonymous` exists, and no tables are added.
@@ -115,7 +115,7 @@ existing rows by email; those users can use credentials once they have a passwor
 
 ### A1. Hash helper
 
-New module `lib/db-marketing/sql/user/password.ts` using `node:crypto` scrypt (no
+New module `lib/db-notes/sql/user/password.ts` using `node:crypto` scrypt (no
 new dependency):
 
 - `hashPassword(plain): string` → self-describing format, e.g.
@@ -139,7 +139,7 @@ No other call sites exist.
 
 ### B1. DB helper
 
-`claimAnonymousUser` in `lib/db-marketing/sql/user/anonymous.ts`, one transaction:
+`claimAnonymousUser` in `lib/db-notes/sql/user/anonymous.ts`, one transaction:
 
 ```
 claimAnonymousUser(anonUserId, { username, password, email? }): Promise<UserSummary>
@@ -170,7 +170,7 @@ optional email must contain `@` if present.
 ### B2. Service + API
 
 - `claimAnonymousNotesAppSession({ anonUserId, username, password, email? })` in
-  `lib/db-marketing/services/notes-app.ts`, returning `SessionResponse` like the
+  `lib/db-notes/services/notes-app.ts`, returning `SessionResponse` like the
   merge service. Add a `parseClaimRequest` following the existing parse helpers.
   Map "identifier taken" to a 409 in `getNotesAppErrorStatus` (or route-level).
 - `POST /api/anon-session/claim` (`apps/notes-next/app/api/anon-session/claim/route.ts`):
@@ -239,7 +239,7 @@ machinery than a five-table schema needs), make forgetting impossible:
   CASCADE). (`user_note_tag_link_v1` has no direct FK to `user_v1`; it is owned
   via tag and remapped as part of the tag dedup.)
 - The guard lives in `scripts/verify-contract.mjs` (run by `db:verify`), since
-  `lib/db-marketing` has no test runner: it reads the map's keys out of
+  `lib/db-notes` has no test runner: it reads the map's keys out of
   `anonymous.ts` and diffs them against `pg_constraint` FKs referencing
   `public.user_v1`, failing when a referencing table is unregistered. Adding a
   new user-owned table then forces a conscious decision in code review instead
@@ -253,7 +253,7 @@ The merge SQL itself stays explicit — it already serializes concurrent merges 
 - `apps/notes-next/AGENTS.md`: update the merge section and flush-trigger list
   (signup added, OAuth removed), directory listing (LoginForm deleted, claim route
   added), and mention the claim endpoint under API routes.
-- `lib/db-marketing/AGENTS.md`: note the password format (`scrypt$…` with legacy
+- `lib/db-notes/AGENTS.md`: note the password format (`scrypt$…` with legacy
   plaintext fallback) and the `MERGE_TABLE_STRATEGIES` guard.
 
 ## Verification (all performed against a throwaway local Postgres 17 + pgvector)
@@ -274,7 +274,7 @@ start`): anonymous sign-in → create category + note → `POST
 5. **Coverage guard** — `db:verify` passes on the real schema; creating a
    throwaway `tmp_probe_v1` table with a `user_id` FK makes it fail with the
    registration error until the table is dropped. ✔
-6. `tsc --noEmit` (db-marketing), `check-types`, `build`, `test` (35/35) pass. ✔
+6. `tsc --noEmit` (db-notes), `check-types`, `build`, `test` (35/35) pass. ✔
 7. No schema changes were needed (`password`/`is_anonymous` already existed), so
    no migration; `verify-contract.mjs` gained the coverage guard only.
 

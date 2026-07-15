@@ -19,10 +19,10 @@ Networking and persistence layer for the Android Notes app.
 
 ## Non-obvious rules
 
-- `tools/validate-marketing-contract.mjs` validates `Models.kt`, `JsonCodec.kt`, and `NotesApiClient.kt` against `@lib/db-marketing/generated/contracts/notes-app.json`.
+- `tools/validate-notes-contract.mjs` validates `Models.kt`, `JsonCodec.kt`, and `NotesApiClient.kt` against `@lib/db-notes/generated/contracts/notes-app.json`.
 - Keep data-class field order and JSON binding structure stable when changing models; the validator is intentionally strict.
 - `restoreSession(refreshSearch = true)` re-runs semantic search only when `lastSearchQuery` is non-blank.
-- The Android app never talks to Postgres directly. If an API shape changes, update `@lib/db-marketing` and the server-side route implementation first.
+- The Android app never talks to Postgres directly. If an API shape changes, update `@lib/db-notes` and the server-side route implementation first.
 
 ## Maintenance
 

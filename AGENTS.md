@@ -12,7 +12,7 @@ Monorepo using pnpm + Turborepo.
 ### Libraries
 
 - `lib/config` - shared tooling and config
-- `lib/db-marketing` - Notes database schema, migrations, generated contracts, and shared Notes service logic
+- `lib/db-notes` - Notes database schema, migrations, generated contracts, and shared Notes service logic
 - `lib/atomic-editor` - fork of `@atomic-editor/editor`, tracked as a git subtree (see below)
 
 ## atomic-editor package (git subtree)
@@ -30,13 +30,14 @@ Monorepo using pnpm + Turborepo.
 
 ## Data
 
-- `@lib/db-marketing` owns all Notes schema changes and migration scripts.
-- `notes-next` consumes `@lib/db-marketing` at runtime.
+- `@lib/db-notes` owns all Notes schema changes and migration scripts.
+- `notes-next` consumes `@lib/db-notes` at runtime.
 - `notes-android` validates against the generated Notes app contract but does not touch Postgres directly.
 
 ## Context
 
-This codebase is developed by AI agents. 
+This codebase is developed by AI agents.
+
 - AGENTS.md - documentation for standard AI agents - source of truth - describes each folder structure and gotchas
 - CLAUDE.md - not a real file, only a symlink. When adding a new AGENTS.md file, also add a symlink to it called CLAUDE.md, so the non-standard Claude Code AI can read it also. When editing an AGENTS.md file, do not both changing CLAUDE.md, it will be automatically updated because it's only a symlink.
 
@@ -44,7 +45,7 @@ This codebase is developed by AI agents.
 
 - Root `package.json` should expose the human-friendly entry points for install, verify, app builds, APK generation, and proxied `db:*` commands.
 - Root `package.json` should also expose `release:notes:prepare` (a meaningful multi-step aggregation) and `verify:*` aliases so the documented release order maps to actual commands. Avoid adding single-command aliases that just wrap one other script.
-- `lib/db-marketing/package.json` is the canonical home for real migration and contract-generation scripts.
+- `lib/db-notes/package.json` is the canonical home for real migration and contract-generation scripts.
 - App `package.json` files should stay focused on app-local build, run, and verification commands.
 - Do not define duplicate migration scripts inside app packages.
 
@@ -64,9 +65,9 @@ This codebase is developed by AI agents.
 
 ## Database rules
 
-After changing Notes schema or contracts in `lib/db-marketing`:
+After changing Notes schema or contracts in `lib/db-notes`:
 
-1. Update `lib/db-marketing/scripts/verify-contract.mjs`.
+1. Update `lib/db-notes/scripts/verify-contract.mjs`.
 2. Run `pnpm run db:migrate`.
 3. Run `pnpm run db:verify`.
 4. Commit generated artifacts with the schema change.

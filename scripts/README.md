@@ -7,21 +7,21 @@ Repo-local utilities. This document covers the Notes database backup and restore
 Set the database connection string before running any script:
 
 ```bash
-export MARKETING_DB_URL='postgresql://USER:PASSWORD@HOST:PORT/DATABASE'
+export DB_NOTES_URL='postgresql://USER:PASSWORD@HOST:PORT/DATABASE'
 ```
 
-Scripts use `pg_dump` and `psql` from the Postgres client version required by `@lib/db-marketing` (resolved via `scripts/check-postgres-client-version.sh`). Run commands from the repo root.
+Scripts use `pg_dump` and `psql` from the Postgres client version required by `@lib/db-notes` (resolved via `scripts/check-postgres-client-version.sh`). Run commands from the repo root.
 
 Backup files are written under `scripts/db/backups/` by default (that directory is gitignored).
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
-| `notes-backup-schema.sh` | Dump table definitions (DDL only, no rows) |
-| `notes-backup-data.sh` | Dump row data only (no DDL) |
+| Script                    | Purpose                                                         |
+| ------------------------- | --------------------------------------------------------------- |
+| `notes-backup-schema.sh`  | Dump table definitions (DDL only, no rows)                      |
+| `notes-backup-data.sh`    | Dump row data only (no DDL)                                     |
 | `notes-restore-schema.sh` | Drop selected tables, then recreate schema from a schema backup |
-| `notes-restore-data.sh` | Truncate selected tables, then load rows from a data backup |
+| `notes-restore-data.sh`   | Truncate selected tables, then load rows from a data backup     |
 
 Shared defaults and helpers live in `scripts/db/common.sh`.
 
@@ -78,7 +78,7 @@ Always run schema and data as separate steps: schema first, then data.
 ### Backup
 
 ```bash
-export MARKETING_DB_URL='postgresql://...'
+export DB_NOTES_URL='postgresql://...'
 
 ./scripts/db/notes-backup-schema.sh
 # -> scripts/db/backups/notes-schema-YYYYMMDD-HHMMSS.sql
@@ -99,7 +99,7 @@ Optional: write to a specific path:
 Restore onto a database that should receive a full copy of those tables. **Schema restore drops tables** (and dependent objects on them via `CASCADE`). **Data restore truncates tables** before loading rows.
 
 ```bash
-export MARKETING_DB_URL='postgresql://...'
+export DB_NOTES_URL='postgresql://...'
 
 ./scripts/db/notes-restore-schema.sh -y ./scripts/db/backups/notes-schema-YYYYMMDD-HHMMSS.sql
 ./scripts/db/notes-restore-data.sh -y ./scripts/db/backups/notes-data-YYYYMMDD-HHMMSS.sql
@@ -121,7 +121,7 @@ TABLES=(-t user_v1 -t user_note_v1)
 
 ## Safety notes
 
-- Point `MARKETING_DB_URL` at the database you intend to modify. There is no dry-run mode.
+- Point `DB_NOTES_URL` at the database you intend to modify. There is no dry-run mode.
 - Schema restore **drops** the selected tables; data restore **truncates** them. Other tables in the same database are unchanged.
 - After schema restore, tables are empty until you run data restore.
 - Keep schema and data backup files paired; they are not interchangeable.

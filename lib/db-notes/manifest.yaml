@@ -1,5 +1,5 @@
 database: postgres
-env_var: MARKETING_DB_URL
+env_var: DB_NOTES_URL
 owners:
   - apps/notes-next
 source_of_truth:

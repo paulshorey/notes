@@ -1,4 +1,4 @@
-import type { NoteRecord } from "@lib/db-marketing"
+import type { NoteRecord } from "@lib/db-notes"
 import { toDateTimeLocalValue } from "@/lib/dates"
 
 export interface NoteFormState {

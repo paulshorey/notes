@@ -3,7 +3,7 @@
   "build": {
     "builder": "RAILPACK",
     "buildCommand": "pnpm --filter notes-next build",
-    "watchPatterns": ["apps/notes-next/**", "lib/db-marketing/**", "lib/atomic-editor/**"]
+    "watchPatterns": ["apps/notes-next/**", "lib/db-notes/**", "lib/atomic-editor/**"]
   },
   "deploy": {
     "startCommand": "pnpm --filter notes-next start",

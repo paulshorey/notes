@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getDb } from "@lib/db-marketing";
+import { NextResponse } from "next/server"
+import { getDb } from "@lib/db-notes"
 
 /**
  * Health Check
@@ -7,17 +7,17 @@ import { getDb } from "@lib/db-marketing";
  */
 export async function GET() {
   try {
-    const db = getDb();
-    await db.query("SELECT 1");
+    const db = getDb()
+    await db.query("SELECT 1")
 
     return NextResponse.json({
       status: "healthy",
       timestamp: new Date().toISOString(),
       database: "connected",
-    });
+    })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("Health check failed:", message);
+    const message = error instanceof Error ? error.message : String(error)
+    console.error("Health check failed:", message)
     return NextResponse.json(
       {
         status: "unhealthy",
@@ -25,7 +25,7 @@ export async function GET() {
         database: "disconnected",
         error: message,
       },
-      { status: 503 }
-    );
+      { status: 503 },
+    )
   }
 }

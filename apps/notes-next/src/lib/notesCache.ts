@@ -1,9 +1,4 @@
-import type {
-  CategoryRecord,
-  NoteRecord,
-  TagRecord,
-  UserSummary,
-} from "@lib/db-marketing"
+import type { CategoryRecord, NoteRecord, TagRecord, UserSummary } from "@lib/db-notes"
 
 /**
  * Local snapshot of the data that `NotesApp` shows on startup.

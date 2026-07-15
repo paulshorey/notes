@@ -26,7 +26,7 @@ import {
   parseUpdateTagRequest,
   parseUpdateNoteRequest,
   type NotesAppService,
-} from "@lib/db-marketing/services/notes-app"
+} from "@lib/db-notes/services/notes-app"
 
 /**
  * Resolves the NextAuth (cookie) session to a Notes user id. Kept injectable
@@ -99,9 +99,7 @@ const toErrorResponse = (error: unknown, status = 400) =>
     { status },
   )
 
-export const createAuthTokenRouteHandlers = (
-  service: NotesAppService = notesAppService,
-) => ({
+export const createAuthTokenRouteHandlers = (service: NotesAppService = notesAppService) => ({
   POST: async (request: Request) => {
     try {
       const result = await service.loginNotesAppUser(
@@ -109,10 +107,7 @@ export const createAuthTokenRouteHandlers = (
       )
 
       if (!result) {
-        return NextResponse.json(
-          { error: NOTES_APP_INVALID_CREDENTIALS_ERROR },
-          { status: 401 },
-        )
+        return NextResponse.json({ error: NOTES_APP_INVALID_CREDENTIALS_ERROR }, { status: 401 })
       }
 
       return NextResponse.json(result)
@@ -307,10 +302,7 @@ export const createTagsRouteHandlers = (
       )
 
       if (!result) {
-        return NextResponse.json(
-          { error: NOTES_APP_TAG_NOT_FOUND_ERROR },
-          { status: 404 },
-        )
+        return NextResponse.json({ error: NOTES_APP_TAG_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)
@@ -331,10 +323,7 @@ export const createTagsRouteHandlers = (
       )
 
       if (!result) {
-        return NextResponse.json(
-          { error: NOTES_APP_TAG_NOT_FOUND_ERROR },
-          { status: 404 },
-        )
+        return NextResponse.json({ error: NOTES_APP_TAG_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)
@@ -391,10 +380,7 @@ export const createCategoriesRouteHandlers = (
       )
 
       if (!result) {
-        return NextResponse.json(
-          { error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR },
-          { status: 404 },
-        )
+        return NextResponse.json({ error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)
@@ -415,10 +401,7 @@ export const createCategoriesRouteHandlers = (
       )
 
       if (!result) {
-        return NextResponse.json(
-          { error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR },
-          { status: 404 },
-        )
+        return NextResponse.json({ error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)
@@ -445,10 +428,7 @@ export const createDeleteCategoryWithNotesRouteHandlers = (
       )
 
       if (!result) {
-        return NextResponse.json(
-          { error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR },
-          { status: 404 },
-        )
+        return NextResponse.json({ error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)

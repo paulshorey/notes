@@ -2,11 +2,11 @@
  * Regression coverage for the anonymous → existing-account merge
  * (mergeAnonymousUserInto + the mergeAnonymousNotesAppSession service wrapper).
  *
- * The DB-backed tests only run when DB_MARKETING_TEST_URL is set, and they
- * connect to THAT database. This is a deliberate opt-in: MARKETING_DB_URL is
+ * The DB-backed tests only run when DB_NOTES_TEST_URL is set, and they
+ * connect to THAT database. This is a deliberate opt-in: DB_NOTES_URL is
  * not used, because in deployed/cloud environments it points at the real
  * Notes database and tests must never write there implicitly. CI's
- * verify-marketing job sets DB_MARKETING_TEST_URL to its throwaway migrated
+ * verify-notes job sets DB_NOTES_TEST_URL to its throwaway migrated
  * service container; locally point it at your local Postgres. Without it the
  * DB suite is skipped, so `turbo run test` stays green everywhere.
  */
@@ -15,10 +15,7 @@ import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
 import { getDb } from "../lib/db/postgres"
 import { mergeAnonymousNotesAppSession } from "../services/notes-app"
-import {
-  createAnonymousUser,
-  mergePreferenceObjects,
-} from "../sql/user/anonymous"
+import { createAnonymousUser, mergePreferenceObjects } from "../sql/user/anonymous"
 
 describe("mergePreferenceObjects", () => {
   test("anon leaf values win, real-only keys are preserved, objects merge recursively", () => {
@@ -37,14 +34,8 @@ describe("mergePreferenceObjects", () => {
   })
 
   test("non-object values are replaced, not merged", () => {
-    assert.deepEqual(
-      mergePreferenceObjects({ a: { nested: 1 } }, { a: "flat" }),
-      { a: "flat" },
-    )
-    assert.deepEqual(
-      mergePreferenceObjects({ a: [1, 2] }, { a: [3] }),
-      { a: [3] },
-    )
+    assert.deepEqual(mergePreferenceObjects({ a: { nested: 1 } }, { a: "flat" }), { a: "flat" })
+    assert.deepEqual(mergePreferenceObjects({ a: [1, 2] }, { a: [3] }), { a: [3] })
   })
 
   test("does not mutate its inputs", () => {
@@ -56,12 +47,12 @@ describe("mergePreferenceObjects", () => {
   })
 })
 
-const testDbUrl = process.env.DB_MARKETING_TEST_URL
+const testDbUrl = process.env.DB_NOTES_TEST_URL
 const hasDb = Boolean(testDbUrl)
 if (hasDb) {
-  // getDb() reads MARKETING_DB_URL lazily on first use; point it at the
+  // getDb() reads DB_NOTES_URL lazily on first use; point it at the
   // opted-in test database before any query runs.
-  process.env.MARKETING_DB_URL = testDbUrl
+  process.env.DB_NOTES_URL = testDbUrl
 }
 
 describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
@@ -89,10 +80,7 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
         `INSERT INTO public.user_v1 (username, is_anonymous, preferences)
          VALUES ($1, false, $2::jsonb)
          RETURNING id`,
-        [
-          realUsername,
-          JSON.stringify({ notesApp: { markdownEditorMode: "wysiwyg" } }),
-        ],
+        [realUsername, JSON.stringify({ notesApp: { markdownEditorMode: "wysiwyg" } })],
       )
       realUserId = realUser.rows[0]!.id
 
@@ -121,10 +109,10 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
       const anonUser = await createAnonymousUser()
       anonUserId = anonUser.id
 
-      await db.query(
-        `UPDATE public.user_v1 SET preferences = $2::jsonb WHERE id = $1`,
-        [anonUserId, JSON.stringify({ notesApp: { resultsColumnWidth: 321 } })],
-      )
+      await db.query(`UPDATE public.user_v1 SET preferences = $2::jsonb WHERE id = $1`, [
+        anonUserId,
+        JSON.stringify({ notesApp: { resultsColumnWidth: 321 } }),
+      ])
 
       const anonCategories = await db.query<{ id: number; label: string }>(
         `INSERT INTO public.user_note_category_v1 (user_id, label)
@@ -132,12 +120,8 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
          RETURNING id, label`,
         [anonUserId],
       )
-      const anonSharedCategoryId = anonCategories.rows.find(
-        (row) => row.label === "shared",
-      )!.id
-      const anonOnlyCategoryId = anonCategories.rows.find(
-        (row) => row.label === "anon-only",
-      )!.id
+      const anonSharedCategoryId = anonCategories.rows.find((row) => row.label === "shared")!.id
+      const anonOnlyCategoryId = anonCategories.rows.find((row) => row.label === "anon-only")!.id
 
       const anonImportantTag = await db.query<{ id: number }>(
         `SELECT id FROM public.user_note_tag_v1 WHERE user_id = $1 AND label = 'important'`,
@@ -155,10 +139,10 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
         (row) => row.description === "anon note in shared",
       )!.id
 
-      await db.query(
-        `INSERT INTO public.user_note_tag_link_v1 (note_id, tag_id) VALUES ($1, $2)`,
-        [anonSharedNoteId, anonImportantTagId],
-      )
+      await db.query(`INSERT INTO public.user_note_tag_link_v1 (note_id, tag_id) VALUES ($1, $2)`, [
+        anonSharedNoteId,
+        anonImportantTagId,
+      ])
 
       // --- Merge. ---
       const result = await mergeAnonymousNotesAppSession({
@@ -168,10 +152,7 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
       assert.equal(result.user.id, realUserId)
 
       // Anon row is gone (CASCADE removed its leftover categories/tags).
-      const anonRow = await db.query(
-        `SELECT id FROM public.user_v1 WHERE id = $1`,
-        [anonUserId],
-      )
+      const anonRow = await db.query(`SELECT id FROM public.user_v1 WHERE id = $1`, [anonUserId])
       assert.equal(anonRow.rows.length, 0)
       anonUserId = null
 
@@ -190,9 +171,7 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
         notes.rows.map((row) => row.description),
         ["anon note in anon-only", "anon note in shared", "pre-existing real note"],
       )
-      const mergedSharedNote = notes.rows.find(
-        (row) => row.description === "anon note in shared",
-      )!
+      const mergedSharedNote = notes.rows.find((row) => row.description === "anon note in shared")!
       assert.equal(mergedSharedNote.category_id, realSharedCategoryId)
 
       // Categories deduped by label: exactly one "shared", plus "anon-only".
@@ -213,7 +192,10 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
          WHERE user_id = $1 ORDER BY label`,
         [realUserId],
       )
-      assert.deepEqual(tags.rows.map((row) => row.label), ["important"])
+      assert.deepEqual(
+        tags.rows.map((row) => row.label),
+        ["important"],
+      )
       assert.equal(tags.rows[0]!.id, realImportantTagId)
 
       const links = await db.query<{ tag_id: number }>(
@@ -255,10 +237,7 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
         `INSERT INTO public.user_v1 (username, is_anonymous, preferences)
          VALUES ($1, false, $2::jsonb)
          RETURNING id`,
-        [
-          `merge-test-real-${suffix}`,
-          JSON.stringify({ notesApp: { resultsColumnWidth: 555 } }),
-        ],
+        [`merge-test-real-${suffix}`, JSON.stringify({ notesApp: { resultsColumnWidth: 555 } })],
       )
       realUserId = realUser.rows[0]!.id
 
