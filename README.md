@@ -7,6 +7,8 @@ Monorepo for two release targets:
 
 `lib/db-notes` is the source of truth for the Notes database schema, generated contracts, and shared Notes server workflows.
 
+`lib/atomic-editor` is the markdown editor package used by `notes-next`. It is vendored as regular files via **git subtree** (not a submodule), and can optionally be synced with the standalone fork [`paulshorey/atomic-editor`](https://github.com/paulshorey/atomic-editor).
+
 ## Script ownership
 
 All day-to-day developer workflows run from the repo root. Each command is a thin wrapper around the real work in the appropriate package, so you do not have to remember `pnpm --filter <pkg> ...` invocations.
@@ -104,6 +106,7 @@ See the app README files for package-specific setup:
 - `[apps/notes-next/README.md](apps/notes-next/README.md)`
 - `[apps/notes-android/README.md](apps/notes-android/README.md)`
 - `[lib/db-notes/README.md](lib/db-notes/README.md)`
+- `[lib/atomic-editor/README.md](lib/atomic-editor/README.md)`
 
 ## Daily development loop
 
@@ -125,6 +128,56 @@ pnpm run db:migrate                  # apply your new migration
 pnpm run db:verify                   # regenerate and diff contract artifacts
 git add lib/db-notes/generated   # commit regenerated artifacts with the migration
 ```
+
+## `lib/atomic-editor` (git subtree)
+
+`lib/atomic-editor` is a fork of [`kenforthewin/atomic-editor`](https://github.com/kenforthewin/atomic-editor), committed directly in this monorepo as normal files. It is linked to [`paulshorey/atomic-editor`](https://github.com/paulshorey/atomic-editor) with **git subtree** so you can sync on demand. Fresh clones, CI, and Railway need no submodule init step.
+
+### Day-to-day (no sync required)
+
+Edit `lib/atomic-editor/` like any other workspace package, commit on your monorepo branch, and push to `origin`. Nothing subtree-related happens unless you run the sync script.
+
+```bash
+# while editing editor source
+pnpm --filter @atomic-editor/editor exec tsc -w -p tsconfig.build.json
+pnpm --filter notes-next dev
+```
+
+Build output goes to `lib/atomic-editor/dist/` (gitignored). `notes-next` builds the editor first. Peer deps (`@codemirror/*`, `react`) resolve from `notes-next` — do not add duplicate copies in this package.
+
+Keep editor-focused commit messages if you might later push commits to the fork (those messages are preserved verbatim on the fork and in upstream PRs).
+
+### Sync with the fork (on demand)
+
+Use the wrapper script from the repo root. Do **not** pass `--squash`.
+
+| Command | Direction | Effect |
+| ------- | --------- | ------ |
+| `bash scripts/atomic-editor-sync.sh push <fork-branch>` | monorepo → fork | Creates/updates `<fork-branch>` on `paulshorey/atomic-editor`. **Does not change this monorepo.** Prefer a new feature branch name, not `main`. |
+| `bash scripts/atomic-editor-sync.sh pull` | fork `main` → monorepo | Merges fork changes into `lib/atomic-editor/` and creates a merge commit here. |
+| `bash scripts/atomic-editor-sync.sh pull <fork-branch>` | fork branch → monorepo | Same as pull, from a specific fork branch. |
+
+**Pull requires a clean working tree** (`git status` must show nothing to commit). Commit or stash local changes first, or you will get `fatal: working tree has modifications. Cannot add.`
+
+Push and pull are independent: you do not need to push monorepo editor work to the fork before pulling fork updates. Push when you want editor commits on the fork (for publishing or opening a PR to upstream). Pull when you want fork/upstream changes brought into this repo.
+
+Typical contribute-upstream flow:
+
+```bash
+# develop and commit under lib/atomic-editor/ in this monorepo, then:
+bash scripts/atomic-editor-sync.sh push my-editor-fix
+# open a PR from paulshorey/atomic-editor:my-editor-fix → kenforthewin/atomic-editor
+```
+
+Typical bring-fork-updates flow:
+
+```bash
+git status   # must be clean
+bash scripts/atomic-editor-sync.sh pull
+# resolve any merge conflicts under lib/atomic-editor/, then push origin
+```
+
+Full details (what each repo changes, non-squash rationale, troubleshooting): [`docs/atomic-editor/git-subtree.md`](docs/atomic-editor/git-subtree.md).
 
 ## Migrations
 
@@ -229,6 +282,7 @@ For a phone-side sideload, copy the APK to the device, then open the file and ac
 
 ## Troubleshooting
 
+- **`git subtree` / `atomic-editor-sync.sh pull` fails with `working tree has modifications. Cannot add.`** The working tree must be clean. Run `git status`, then commit or stash before pulling.
 - **"I set `DB_NOTES_URL` to prod and rebuilt the APK, but it still hits dev."** `DB_NOTES_URL` is a `notes-next` server variable. It does not affect the APK. Run `pnpm run build:android:dist:prod` to build an APK that calls the production `notes-next`.
 - `**pnpm run build:android:dist:prod` appears to succeed but the APK still hits dev.\*\* Check `apps/notes-android/local.properties` for a stale `NOTES_ANDROID_API_BASE_URL=...` line; `local.properties` wins over the shell. The Gradle configuration log line (`notes-android: API base URL = ...`) shows the value actually baked into the APK.
 - `**pnpm run db:verify` fails unexpectedly.\*\* `db:verify` is not read-only: it re-runs migrations, regenerates generated artifacts, and diffs them. Run it on a clean feature branch after schema changes, then commit the regenerated artifacts alongside the migration.
@@ -239,4 +293,5 @@ For a phone-side sideload, copy the APK to the device, then open the file and ac
 - Notes schema owner: `lib/db-notes`
 - Notes production app: `apps/notes-next` (Railway)
 - Android release artifact: `apps/notes-android/dist/notes-android.apk` (built via `build:android:dist:{dev,prod}`)
+- Editor package (git subtree): `lib/atomic-editor` — edit in place; sync with `bash scripts/atomic-editor-sync.sh push|pull` (see above)
 - Repo-wide pre-push gate: `pnpm run verify`
