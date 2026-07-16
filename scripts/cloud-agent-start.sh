@@ -29,6 +29,30 @@ if [[ -d "$pg17_bindir" ]]; then
   esac
 fi
 
+# Provision a local Postgres for notes-next dev and @lib/db-marketing tests.
+# The injected MARKETING_DB_URL points at a remote Railway DB, so local work
+# (db:migrate and tests via DB_MARKETING_TEST_URL) must run against this local
+# cluster. Idempotent: safe to re-run on every boot. postgresql-17 +
+# postgresql-17-pgvector are installed by scripts/cloud-agent-install.sh.
+if [[ -x "$pg17_bindir/postgres" ]]; then
+  if ! pg_lsclusters -h 2>/dev/null | awk '{print $1"/"$2}' | grep -qx "17/main"; then
+    sudo pg_createcluster 17 main >/dev/null 2>&1 || true
+  fi
+  cluster_status="$(pg_lsclusters -h 2>/dev/null | awk '$1=="17" && $2=="main" {print $4}')"
+  if [[ "$cluster_status" != "online" ]]; then
+    sudo pg_ctlcluster 17 main start >/dev/null 2>&1 || true
+  fi
+  if sudo -u postgres psql -tAc "SELECT 1" >/dev/null 2>&1; then
+    sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='notes'" | grep -q 1 \
+      || sudo -u postgres psql -c "CREATE ROLE notes LOGIN PASSWORD 'notes' SUPERUSER;" >/dev/null 2>&1 || true
+    for db in notes notes_test; do
+      sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1 \
+        || sudo -u postgres createdb -O notes "$db" >/dev/null 2>&1 || true
+    done
+    echo "Local Postgres ready on localhost:5432 (databases: notes, notes_test)."
+  fi
+fi
+
 expected_env_files=(
   "apps/notes-next/.env"
 )

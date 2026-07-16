@@ -101,12 +101,53 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 ## Cursor Cloud specific instructions
 
-Before running `notes-next` or any `db:*` command, start Postgres and add pg17 tools to PATH:
+The `MARKETING_DB_URL` secret injected into cloud VMs points at a **remote Railway
+Postgres**, not a local database. Do not run `db:migrate` / `db:verify` (or the
+note-writing UI) against it — per the db rules, remote migrations require an
+explicit request. For local development, run against a **local** Postgres and
+override `MARKETING_DB_URL` in the shell.
+
+Local Postgres is provisioned automatically:
+
+- `scripts/cloud-agent-install.sh` installs the PostgreSQL 17 server + `pgvector`
+  (migrations use `vector(1024)` HNSW indexes).
+- `scripts/cloud-agent-start.sh` starts the `17 main` cluster (port 5432) and
+  creates the `notes` role plus the `notes` (dev) and `notes_test` (test)
+  databases. All steps are idempotent.
+- `DB_MARKETING_TEST_URL` is preset (in `.cursor/environment.json`) to
+  `postgresql://notes:notes@localhost:5432/notes_test` for `@lib/db-marketing`
+  tests.
+
+So per session you only need to point `notes-next` at a local DB and run it:
 
 ```bash
-sudo pg_ctlcluster 17 main start
 export PATH="/usr/lib/postgresql/17/bin:$PATH"
+# override the remote secret for this shell (local dev only)
+export MARKETING_DB_URL="postgresql://notes:notes@localhost:5432/notes"  # pragma: allowlist secret
+export AUTH_SECRET="$(openssl rand -base64 32)" AUTH_TRUST_HOST=true
+pnpm run db:migrate                       # migrates the local 'notes' db
+pnpm --filter notes-next dev              # http://localhost:3000
 ```
+
+To migrate the test database instead, point `db:migrate` at `notes_test`:
+`MARKETING_DB_URL="$DB_MARKETING_TEST_URL" pnpm run db:migrate`.
+
+Non-obvious gotchas:
+
+- Next.js does not override an **already-exported** `MARKETING_DB_URL` with values
+  in `apps/notes-next/.env.local`, so the local URL must be exported in the same
+  shell that runs `db:migrate` and `dev` (as above). `.env.local` is only used for
+  vars not already in the environment (e.g. `AUTH_SECRET`).
+- If a cluster is not yet running (e.g. the start hook was skipped), bring it up
+  with `sudo pg_ctlcluster 17 main start` before any `db:*` command.
+- A new visitor gets an anonymous user automatically, but a note only **autosaves**
+  once a **category is selected** and the body is non-empty (there is no save
+  button; autosave fires ~3s after typing). Anonymous users start with no
+  categories, so create/select one first or the save is silently skipped.
+- If the Next.js dev server is restarted while a browser tab is open, stale chunk
+  hashes make the page hang on "Loading…". Hard-reload the tab (Ctrl+Shift+R).
+- Health check: `GET http://localhost:3000/api/health` returns
+  `{"database":"connected"}` when the DB wiring is correct.
 
 ## Maintenance
 
