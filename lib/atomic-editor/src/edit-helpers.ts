@@ -1,5 +1,53 @@
+import { syntaxTree } from '@codemirror/language';
 import { Prec } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import type { SyntaxNode } from '@lezer/common';
+
+// Resolve the ambiguity between an emphasis opener and an unordered-list
+// marker. A lone `*` still auto-pairs so italic/bold typing keeps its current
+// ergonomics. Once the next input is a space at a whitespace-only line
+// prefix, the intent is unambiguously a list marker: consume the auto-added
+// closer so `*|*` becomes `* |` before item text is entered.
+export const startAsteriskList = Prec.highest(
+  EditorView.inputHandler.of(startAsteriskListInput),
+);
+
+export function startAsteriskListInput(
+  view: EditorView,
+  from: number,
+  to: number,
+  text: string,
+): boolean {
+  if (text !== ' ' || from !== to) return false;
+
+  const { state } = view;
+  if (state.selection.ranges.length !== 1 || !state.selection.main.empty) {
+    return false;
+  }
+  const line = state.doc.lineAt(from);
+  const before = state.doc.sliceString(line.from, from);
+  // Besides plain/nested list indentation, allow one or more CommonMark
+  // blockquote prefixes (`> * `, `> > * `). Other prose before the star
+  // remains emphasis and falls through untouched.
+  if (!/^(?:[ \t]{0,3}>[ \t]?)*[ \t]*\*$/.test(before)) return false;
+  if (state.doc.sliceString(from, from + 1) !== '*') return false;
+
+  // Four-space indented and fenced code can legitimately begin with `* `.
+  // Do not reinterpret those literal characters as a Markdown list marker.
+  for (
+    let node: SyntaxNode | null = syntaxTree(state).resolveInner(from, -1);
+    node;
+    node = node.parent
+  ) {
+    if (node.name === 'CodeBlock' || node.name === 'FencedCode') return false;
+  }
+
+  view.dispatch({
+    changes: { from, to: from + 1, insert: ' ' },
+    selection: { anchor: from + 1 },
+  });
+  return true;
+}
 
 // Obsidian-style extension of emphasis pairs.
 //

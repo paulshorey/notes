@@ -1,0 +1,59 @@
+:root {
+  --atomic-editor-fg: #dcddde;
+  --atomic-editor-fg-muted: #888c94;
+  --atomic-editor-fg-faint: #5f636b;
+  --atomic-editor-bg: #1e1e20;
+  --atomic-editor-bg-panel: #141416;
+  --atomic-editor-bg-surface: #2a2a2c;
+  --atomic-editor-border: #34343a;
+  --atomic-editor-accent: #7c3aed;
+  --atomic-editor-accent-bright: #a78bfa;
+  --atomic-editor-accent-soft: #c4b5fd;
+  --atomic-editor-link: #818cf8;
+  --atomic-editor-link-hover: #a5b4fc;
+  --atomic-editor-code-bg: #242329;
+  --atomic-editor-font: Arial, sans-serif;
+}
+
+:root[data-theme='light'] {
+  --atomic-editor-fg: #24292f;
+  --atomic-editor-fg-muted: #57606a;
+  --atomic-editor-fg-faint: #8c959f;
+  --atomic-editor-bg: #ffffff;
+  --atomic-editor-bg-panel: #f7f6fb;
+  --atomic-editor-bg-surface: #eceaf5;
+  --atomic-editor-border: #d0d7de;
+  --atomic-editor-accent: #6639ba;
+  --atomic-editor-accent-bright: #8250df;
+  --atomic-editor-link: #6d28d9;
+  --atomic-editor-link-hover: #7c3aed;
+  --atomic-editor-code-bg: #f3f1fb;
+}
+
+html,
+body,
+#root,
+.harness-shell {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--atomic-editor-bg);
+  color: var(--atomic-editor-fg);
+}
+
+.harness-shell {
+  box-sizing: border-box;
+  padding: 24px;
+}
+
+.harness-editor {
+  width: 720px;
+  height: 640px;
+  margin: 0 auto;
+  border: 1px solid var(--atomic-editor-border);
+  background: var(--atomic-editor-bg-panel);
+}

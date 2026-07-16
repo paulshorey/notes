@@ -113,6 +113,21 @@ describe('parseCellInline', () => {
     ]);
   });
 
+  it('parses highlight spans', () => {
+    expect(parseCellInline('==glow==')).toEqual([
+      { type: 'highlight', children: [{ type: 'text', text: 'glow' }] },
+    ]);
+  });
+
+  it.each([
+    '===triple===',
+    'a == spaced == marker',
+    '== leading-space==',
+    '==trailing-space ==',
+  ])('leaves invalid highlight delimiters as text: %s', (source) => {
+    expect(parseCellInline(source)).toEqual([{ type: 'text', text: source }]);
+  });
+
   it('parses a link with its url', () => {
     expect(parseCellInline('[text](https://example.org)')).toEqual([
       {

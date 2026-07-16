@@ -347,19 +347,19 @@ export function generateSampleMarkdown(
     sections.push(
       'Tables render WYSIWYG. Click a cell to edit in place — inline markdown inside cells reveals its delimiters only when your cursor enters:',
       // Deterministic inline-marks table so probes can target a known
-      // bold / italic / strike / link cell. First row is the baseline
+      // bold / italic / strike / highlight / link cell. First row is the baseline
       // (probes target row 0); subsequent rows add variety so every
       // supported combination appears at a glance — delimiter
       // variants, nesting, escapes, and cases that should
       // deliberately NOT decorate.
       [
-        '| Plain | Bold | Italic | Strike | Link |',
-        '|---|---|---|---|---|',
-        '| plain text | **bold text** | *italic text* | ~~struck text~~ | [example](https://example.org) |',
-        '| alt delim | __also bold__ | _also italic_ | ~~gone gone~~ | [github](https://github.com) |',
-        '| nesting | **bold with _italic_ inside** | *italic with **bold** inside* | ~~strike with **bold**~~ | [text **bold** here](https://example.org) |',
-        '| escapes | \\*literal stars\\* | \\_literal underscores\\_ | \\~\\~not strike\\~\\~ | \\[not a link\\] |',
-        '| non-matches | snake_case_var | ident_with_underscores | `code stays raw` | https://example.org raw url |',
+        '| Plain | Bold | Italic | Strike | Highlight | Link |',
+        '|---|---|---|---|---|---|',
+        '| plain text | **bold text** | *italic text* | ~~struck text~~ | ==marked text== | [example](https://example.org) |',
+        '| alt delim | __also bold__ | _also italic_ | ~~gone gone~~ | ==also marked== | [github](https://github.com) |',
+        '| nesting | **bold with _italic_ inside** | *italic with **bold** inside* | ~~strike with **bold**~~ | ==highlight with **bold**== | [text **bold** here](https://example.org) |',
+        '| escapes | \\*literal stars\\* | \\_literal underscores\\_ | \\~\\~not strike\\~\\~ | \\=\\=not highlight\\=\\= | \\[not a link\\] |',
+        '| non-matches | snake_case_var | ident_with_underscores | `code stays raw` | a = b = c | https://example.org raw url |',
       ].join('\n'),
     );
   }
@@ -387,6 +387,7 @@ export function generateSampleMarkdown(
   // the hero trio. Sets context for what the editor can do with
   // ordinary text: headings, emphasis, escapes, collapsed links.
   sections.push('## And the usual markdown', paragraph(rng));
+  sections.push('And highlight syntax works with ==double equals== markers too.');
   if (includeSeparators) sections.push('---');
   if (includeLists) sections.push(list(rng));
   if (!imageless) {

@@ -108,6 +108,7 @@ function togglesToOptions(t: ContentToggles): SampleOptions {
 export function App() {
   const [sampleSize, setSampleSize] = useState<SampleSize>('1 page');
   const [theme, setTheme] = useState<ThemeMode>('dark');
+  const [readOnly, setReadOnly] = useState(false);
   const [toggles, setToggles] = useState<ContentToggles>(DEFAULT_TOGGLES);
   const [showSource, setShowSource] = useState(false);
   const [liveMarkdown, setLiveMarkdown] = useState('');
@@ -303,6 +304,15 @@ export function App() {
             </button>
             <button
               type="button"
+              className={`demo-btn${readOnly ? ' active' : ''}`}
+              onClick={() => setReadOnly((r) => !r)}
+              aria-pressed={readOnly}
+              title="Toggle read-only reading mode — links open instead of revealing source"
+            >
+              {readOnly ? 'Reading ✓' : 'Reading'}
+            </button>
+            <button
+              type="button"
               className={`demo-btn demo-disclosure${controlsOpen ? ' active' : ''}`}
               onClick={() => setControlsOpen((o) => !o)}
               aria-expanded={controlsOpen}
@@ -398,6 +408,7 @@ export function App() {
           <AtomicCodeMirrorEditor
             markdownSource={markdownSource}
             documentId={documentId}
+            readOnly={readOnly}
             codeLanguages={ATOMIC_CODE_LANGUAGES}
             initialRevealText={revealText}
             editorHandleRef={editorRef}

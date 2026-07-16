@@ -1,6 +1,6 @@
 import { describe, expect, it, afterEach } from 'vitest';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
 import { AtomicCodeMirrorEditor } from '../AtomicCodeMirrorEditor';
 
 type Mounted = { host: HTMLElement; root: Root };

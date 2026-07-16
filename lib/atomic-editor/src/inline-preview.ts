@@ -19,6 +19,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import { treeGrowthEffect, treeProgressPlugin } from './tree-progress';
+import { readOnlyFacet } from './read-only';
 
 // Inline preview — the Obsidian "Live Preview" model.
 //
@@ -96,6 +97,17 @@ function linkIconHitTarget(event: MouseEvent, root?: HTMLElement): HTMLElement |
   return onIcon ? linkEl : null;
 }
 
+// Whole-link hit test, used in read-only mode where the entire link
+// (text + icon) is the open affordance. Mirrors `linkIconHitTarget`'s
+// containment check but without the trailing-icon zone restriction.
+function linkElementFromEvent(event: MouseEvent, root?: HTMLElement): HTMLElement | null {
+  const target = event.target;
+  if (!(target instanceof Element)) return null;
+  const linkEl = target.closest<HTMLElement>('.cm-atomic-link');
+  if (!linkEl || (root && !root.contains(linkEl))) return null;
+  return linkEl;
+}
+
 // Tracks mouse state on the editor and drives the freeze flag. We listen
 // on the content DOM for pointerdown and on the window for pointerup —
 // users can release outside the editor after a drag, and we'd miss the
@@ -106,6 +118,9 @@ const freezeMousePlugin = ViewPlugin.fromClass(
     private releaseTimer: number | null = null;
     private readonly onDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      // Read-only never reveals, so there's nothing to freeze. Bail
+      // before any of the selection/icon plumbing runs.
+      if (this.view.state.facet(readOnlyFacet)) return;
       // Only freeze when the pointerdown lands inside the content. The
       // scrollbar (on the outer .cm-scroller) would otherwise engage the
       // freeze too — which keeps decorations stale for the whole drag
@@ -193,9 +208,9 @@ const HIDEABLE_SYNTAX = new Set([
   'CodeMark',
   'CodeInfo',
   'LinkMark',
-  'URL',
   'LinkTitle',
   'StrikethroughMark',
+  'HighlightMark',
   'QuoteMark',
 ]);
 
@@ -210,8 +225,25 @@ const INLINE_MARK_CLASS: Record<string, string> = {
   Emphasis: 'cm-atomic-em',
   InlineCode: 'cm-atomic-inline-code',
   Strikethrough: 'cm-atomic-strike',
+  Highlight: 'cm-atomic-highlight',
   Link: 'cm-atomic-link',
 };
+
+// A Link can contain two URL nodes when its visible label is itself a
+// URL: `[https://label](https://destination)`. Only the node after the
+// closing `]` is the destination syntax that should collapse. Treating
+// every URL under Link as a destination makes the visible label vanish.
+function linkDestinationUrl(link: SyntaxNode, doc: Text): SyntaxNode | null {
+  const labelClose = link
+    .getChildren('LinkMark')
+    .find((mark) => doc.sliceString(mark.from, mark.to) === ']');
+  if (!labelClose) return null;
+  return (
+    link
+      .getChildren('URL')
+      .find((url) => url.from >= labelClose.to) ?? null
+  );
+}
 
 class BulletWidget extends WidgetType {
   eq(): boolean {
@@ -318,13 +350,41 @@ function pushReplace(
   }
 }
 
+const LIST_BASE_EM = 0.8;
+const LIST_ALCOVE_EM = 1.2;
+const LIST_LEVEL_EM = 0.6;
+
+function nearestListItem(node: SyntaxNode | null): SyntaxNode | null {
+  for (let current = node; current; current = current.parent) {
+    if (current.name === 'ListItem') return current;
+  }
+  return null;
+}
+
+function listItemDepth(item: SyntaxNode): number {
+  let depth = 0;
+  for (let parent = item.parent; parent; parent = parent.parent) {
+    if (parent.name === 'ListItem') depth++;
+  }
+  return depth;
+}
+
+function sameListItem(a: SyntaxNode | null, b: SyntaxNode): boolean {
+  return a?.name === 'ListItem' && a.from === b.from && a.to === b.to;
+}
+
 function buildInlineDecorations(view: EditorView): DecorationSet {
   const { state } = view;
   const { doc } = state;
   const ranges: Range<Decoration>[] = [];
 
+  // In read-only mode no line is ever "active" — the whole doc stays
+  // rendered (no reveal). We skip the selection walk entirely rather
+  // than relying on `hasFocus` staying false, so a programmatic
+  // `.focus()` can't accidentally reveal source under reading mode.
+  const readOnly = state.facet(readOnlyFacet);
   const activeLines = new Set<number>();
-  if (view.hasFocus) {
+  if (view.hasFocus && !readOnly) {
     for (const r of state.selection.ranges) {
       const firstLine = doc.lineAt(r.from).number;
       const lastLine = doc.lineAt(r.to).number;
@@ -449,6 +509,33 @@ function buildInlineDecorations(view: EditorView): DecorationSet {
         }
       }
 
+      if (node.name === 'URL' && node.from < node.to) {
+        const parent = node.node.parent;
+        if (parent?.name === 'Link') {
+          // A URL in the label is visible content. A URL after the
+          // closing `]` is destination syntax and follows the existing
+          // cursor-inside-this-link reveal rule—not whole-line activity.
+          const destination = linkDestinationUrl(parent, doc);
+          if (
+            destination?.from === node.from &&
+            !activeLinkStarts.has(parent.from)
+          ) {
+            pushReplace(ranges, doc, node.from, node.to);
+          }
+        } else {
+          // Bare GFM URLs and `<https://...>` autolinks are visible
+          // content, not syntax. Give them the same styling and icon
+          // hit target as explicit links while leaving their text in
+          // the document flow on inactive lines.
+          ranges.push(
+            Decoration.mark({ class: 'cm-atomic-link' }).range(
+              node.from,
+              node.to,
+            ),
+          );
+        }
+      }
+
       // Backslash escapes: `\.`, `\*`, `\(`, etc. RSS-to-markdown
       // converters escape a lot of punctuation defensively, and the
       // backslashes show through as literal chars without preview.
@@ -474,34 +561,65 @@ function buildInlineDecorations(view: EditorView): DecorationSet {
         const taskFrom =
           taskLead != null ? line.from + taskLead[1].length : undefined;
 
-        // Hanging-indent every list item. Layout:
+        // Hanging-indent every physical line owned by this list item.
+        // Ownership and depth come from the parsed tree, not raw source
+        // indentation: CommonMark allows up to three leading spaces on a
+        // top-level item, and ordered-list children commonly use a
+        // marker-width indent rather than two spaces.
+        //
+        // Layout:
         //
         //   <--BASE--><--ALCOVE--> first-line text
         //             •            wrapped lines land at the
         //                          same column as the first-line
         //                          text, not back under the marker
         //
-        // ALCOVE_EM is a fixed 1.2em regardless of list kind.
+        // LIST_ALCOVE_EM is fixed regardless of list kind.
         // Every marker (bullet widget, checkbox widget, ordered
         // number via mark decoration) is forced into an
         // inline-block of exactly that width via CSS — so the
         // alignment math doesn't depend on per-font marker
         // widths. `padding-left` sets the content column;
         // negative `text-indent` of the same magnitude pulls the
-        // first line back so the marker lands in the alcove.
-        const rawIndent = node.from - line.from;
-        const depth = Math.max(0, Math.floor(rawIndent / 2));
-        const BASE_EM = 0.8;
-        const ALCOVE_EM = 1.2;
-        const LEVEL_EM = 0.6;
-        const padding = BASE_EM + ALCOVE_EM + depth * LEVEL_EM;
-        ranges.push(
-          Decoration.line({
-            attributes: {
-              style: `padding-left: ${padding}em; text-indent: -${ALCOVE_EM}em`,
-            },
-          }).range(line.from),
-        );
+        // first line back so the marker lands in the alcove. Structural
+        // leading spaces are replaced visually on every owned line;
+        // otherwise they would be added on top of the tree-derived
+        // padding and ordered/odd indentation would still drift.
+        const listItem = nearestListItem(node.node);
+        if (listItem) {
+          const depth = listItemDepth(listItem);
+          const padding =
+            LIST_BASE_EM + LIST_ALCOVE_EM + depth * LIST_LEVEL_EM;
+          const firstLine = doc.lineAt(listItem.from);
+          const lastLine = doc.lineAt(listItem.to);
+
+          for (
+            let number = firstLine.number;
+            number <= lastLine.number;
+            number++
+          ) {
+            const ownedLine = doc.line(number);
+            const contentOffset = ownedLine.text.search(/\S/);
+            if (contentOffset < 0) continue;
+            const contentFrom = ownedLine.from + contentOffset;
+            const owner = nearestListItem(tree.resolve(contentFrom, 1));
+            if (!sameListItem(owner, listItem)) continue;
+
+            const markerLine = ownedLine.number === line.number;
+            ranges.push(
+              Decoration.line({
+                attributes: {
+                  style: `padding-left: ${padding}em; text-indent: ${
+                    markerLine ? `-${LIST_ALCOVE_EM}` : '0'
+                  }em`,
+                },
+              }).range(ownedLine.from),
+            );
+            if (contentFrom > ownedLine.from) {
+              pushReplace(ranges, doc, ownedLine.from, contentFrom);
+            }
+          }
+        }
 
         // Figure out how far past node.to the mark's trailing
         // space lives. For tasks, CM6 pre-computed taskFrom as
@@ -653,6 +771,7 @@ const MID_TYPING_DELIMITERS: readonly {
   { delim: '**', contentCls: 'cm-atomic-strong', delimCls: 'cm-atomic-strong-mark' },
   { delim: '__', contentCls: 'cm-atomic-strong', delimCls: 'cm-atomic-strong-mark' },
   { delim: '~~', contentCls: 'cm-atomic-strike', delimCls: 'cm-atomic-strike-mark' },
+  { delim: '==', contentCls: 'cm-atomic-highlight', delimCls: 'cm-atomic-highlight-mark' },
   { delim: '*', contentCls: 'cm-atomic-em', delimCls: 'cm-atomic-em-mark' },
   { delim: '_', contentCls: 'cm-atomic-em', delimCls: 'cm-atomic-em-mark' },
 ];
@@ -802,12 +921,21 @@ const inlinePreviewPlugin = ViewPlugin.fromClass(
       // the whole parsed tree on the remaining triggers means
       // scroll-time cost is zero; the tree walk itself is
       // single-digit ms for typical atoms.
+      // A read-only toggle (compartment reconfigure) changes neither
+      // doc nor selection nor focus, so detect the facet flip directly
+      // — otherwise reading mode wouldn't repaint into / out of the
+      // fully-rendered state.
+      const readOnlyChanged =
+        update.startState.facet(readOnlyFacet) !==
+        update.state.facet(readOnlyFacet);
+
       if (
         justUnfroze ||
         update.docChanged ||
         update.selectionSet ||
         update.focusChanged ||
-        treeGrew
+        treeGrew ||
+        readOnlyChanged
       ) {
         this.decorations = buildInlineDecorations(update.view);
       }
@@ -815,6 +943,62 @@ const inlinePreviewPlugin = ViewPlugin.fromClass(
   },
   {
     decorations: (v) => v.decorations,
+  },
+);
+
+// CM6's drawSelection layer intentionally sits behind `.cm-content`. That is
+// normally ideal—the rectangle is behind the glyphs—but an opaque fenced-code
+// line background also sits between the layer and the glyphs, hiding the
+// selection completely. Mirror only the selected portions of FencedCode as
+// inline marks so their background paints above the block and below its text.
+// This plugin stays separate from inlinePreviewPlugin because mouse selection
+// must repaint live even while preview decorations are frozen for click-jitter
+// prevention.
+function fencedCodeSelectionDecorations(view: EditorView): DecorationSet {
+  const selections = view.state.selection.ranges.filter((range) => !range.empty);
+  if (selections.length === 0) return Decoration.none;
+
+  const ranges: Range<Decoration>[] = [];
+  const tree = syntaxTree(view.state);
+  for (const selection of selections) {
+    // Selection updates can arrive for every pointermove. Restrict the walk to
+    // the selected range so dragging within a short code sample stays O(range)
+    // instead of walking an entire long document on every event.
+    tree.iterate({
+      from: selection.from,
+      to: selection.to,
+      enter(node) {
+        if (node.name !== 'FencedCode') return;
+        const from = Math.max(node.from, selection.from);
+        const to = Math.min(node.to, selection.to);
+        if (from < to) {
+          ranges.push(
+            Decoration.mark({ class: 'cm-atomic-fenced-selection' }).range(from, to),
+          );
+        }
+        return false;
+      },
+    });
+  }
+  return Decoration.set(ranges, true);
+}
+
+const fencedCodeSelectionPlugin = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+
+    constructor(view: EditorView) {
+      this.decorations = fencedCodeSelectionDecorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.selectionSet) {
+        this.decorations = fencedCodeSelectionDecorations(update.view);
+      }
+    }
+  },
+  {
+    decorations: (plugin) => plugin.decorations,
   },
 );
 
@@ -891,7 +1075,13 @@ function makeLinkClickHandler(onLinkClick: (url: string) => void): Extension {
     click: (event, view) => {
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
       if (event.button !== 0) return false;
-      const linkEl = linkIconHitTarget(event, view.contentDOM);
+      // In read-only mode there's no editable link text to protect, so
+      // a click anywhere on the link opens it. In edit mode the open
+      // affordance stays scoped to the trailing icon hit-zone so the
+      // text itself remains clickable-to-edit.
+      const linkEl = view.state.facet(readOnlyFacet)
+        ? linkElementFromEvent(event, view.contentDOM)
+        : linkIconHitTarget(event, view.contentDOM);
       if (!linkEl) return false;
 
       const pos = view.posAtDOM(linkEl);
@@ -899,9 +1089,14 @@ function makeLinkClickHandler(onLinkClick: (url: string) => void): Extension {
 
       const tree = syntaxTree(view.state);
       let node: SyntaxNode | null = tree.resolveInner(pos, 1);
-      while (node && node.name !== 'Link') node = node.parent;
-      if (!node) return false;
-      const urlNode = node.getChild('URL');
+      let visibleUrl: SyntaxNode | null = null;
+      while (node && node.name !== 'Link') {
+        if (node.name === 'URL') visibleUrl = node;
+        node = node.parent;
+      }
+      const urlNode = node
+        ? linkDestinationUrl(node, view.state.doc)
+        : visibleUrl;
       if (!urlNode) return false;
 
       const url = view.state.doc.sliceString(urlNode.from, urlNode.to);
@@ -927,6 +1122,7 @@ export function inlinePreview(config: InlinePreviewConfig = {}): Extension {
   return [
     previewFrozenField,
     inlinePreviewPlugin,
+    fencedCodeSelectionPlugin,
     freezeMousePlugin,
     treeProgressPlugin,
     makeLinkClickHandler(onLinkClick),

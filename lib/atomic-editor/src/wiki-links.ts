@@ -1,6 +1,7 @@
 import { autocompletion, type Completion, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete';
 import { Prec, RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension, type Text } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from '@codemirror/view';
+import { readOnlyFacet } from './read-only';
 
 export type WikiLinkStatus = 'resolved' | 'loading' | 'missing' | 'unresolved';
 
@@ -99,7 +100,15 @@ class WikiLinkResolverPlugin {
   }
 
   update(update: ViewUpdate): void {
-    if (update.docChanged || update.viewportChanged || update.selectionSet) {
+    const readOnlyChanged =
+      update.startState.facet(readOnlyFacet) !==
+      update.state.facet(readOnlyFacet);
+    if (
+      update.docChanged ||
+      update.viewportChanged ||
+      update.selectionSet ||
+      readOnlyChanged
+    ) {
       this.resolveVisibleLinks();
     }
   }
@@ -112,10 +121,11 @@ class WikiLinkResolverPlugin {
     if (!this.config.resolve) return;
     const links = findWikiLinksInVisibleRanges(this.view.state.doc, this.view.visibleRanges);
     const resolved = this.view.state.field(this.decorationField).resolved;
+    const readOnly = this.view.state.facet(readOnlyFacet);
     for (const link of links) {
       if (
         link.label ||
-        isSelectionInsideLink(this.view.state, link) ||
+        (!readOnly && isSelectionInsideLink(this.view.state, link)) ||
         !shouldResolveWikiLink(this.config, link.target) ||
         this.pending.has(link.target) ||
         resolved.has(link.target)
@@ -174,7 +184,15 @@ export function wikiLinks(config: WikiLinksConfig = {}): Extension {
         }
       }
 
-      if (transaction.docChanged || transaction.selection || resolutionChanged) {
+      const readOnlyChanged =
+        transaction.startState.facet(readOnlyFacet) !==
+        transaction.state.facet(readOnlyFacet);
+      if (
+        transaction.docChanged ||
+        transaction.selection ||
+        resolutionChanged ||
+        readOnlyChanged
+      ) {
         return { resolved, decorations: buildDecorations(transaction.state, resolved, config) };
       }
 
@@ -324,11 +342,12 @@ function buildDecorations(
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const links = findWikiLinksInVisibleRanges(state.doc, [{ from: 0, to: state.doc.length }]);
+  const readOnly = state.facet(readOnlyFacet);
 
   for (const link of links) {
     if (!isSingleLineRange(state, link.from, link.to)) continue;
 
-    if (isSelectionInsideLink(state, link)) {
+    if (!readOnly && isSelectionInsideLink(state, link)) {
       builder.add(link.from, link.to, Decoration.mark({ class: 'cm-atomic-wiki-link-active' }));
       continue;
     }
@@ -378,6 +397,7 @@ function shouldResolveWikiLink(config: WikiLinksConfig, target: string): boolean
 }
 
 function revealWikiLinkBeforeCursor(view: EditorView): boolean {
+  if (view.state.facet(readOnlyFacet)) return false;
   const range = view.state.selection.main;
   if (!range.empty) return false;
 

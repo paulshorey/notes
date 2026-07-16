@@ -1,9 +1,15 @@
 import { describe, expect, it, afterEach, vi } from 'vitest';
+import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
-import { EditorState, type EditorStateConfig, type Extension } from '@codemirror/state';
+import {
+  Compartment,
+  EditorState,
+  type EditorStateConfig,
+  type Extension,
+} from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { AtomicCodeMirrorEditor } from '../AtomicCodeMirrorEditor';
+import { readOnlyExtension } from '../read-only';
 import { wikiLinks } from '../wiki-links';
 
 type Mounted = { host: HTMLElement; root: Root };
@@ -89,6 +95,27 @@ describe('wikiLinks', () => {
 
     host.querySelector<HTMLElement>('.cm-atomic-wiki-link')?.click();
     expect(onOpen).toHaveBeenCalledWith('atom-123');
+  });
+
+  it('collapses active wiki-link source when reading mode is enabled', () => {
+    const doc = 'Before [[atom-123|Project Atlas]] after';
+    const readOnly = new Compartment();
+    const view = makeView(
+      doc,
+      [wikiLinks(), readOnly.of(readOnlyExtension(false))],
+      { anchor: doc.indexOf('atom-123') + 2 },
+    );
+
+    expect(view.dom.querySelector('.cm-atomic-wiki-link-active')).not.toBeNull();
+
+    view.dispatch({
+      effects: readOnly.reconfigure(readOnlyExtension(true)),
+    });
+
+    expect(view.dom.querySelector('.cm-atomic-wiki-link-active')).toBeNull();
+    expect(
+      view.dom.querySelector<HTMLElement>('.cm-atomic-wiki-link')?.textContent,
+    ).toBe('Project Atlas');
   });
 
   it('can require modifier-click for opening', () => {

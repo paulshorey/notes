@@ -11,6 +11,7 @@ import {
   type Panel,
 } from '@codemirror/view';
 import {
+  Compartment,
   EditorState,
   StateEffect,
   StateField,
@@ -41,15 +42,29 @@ import {
 } from '@codemirror/search';
 
 import { atomicEditorTheme, atomicMarkdownSyntax } from './atomic-theme';
-import { autoCloseCodeFence, extendEmphasisPair } from './edit-helpers';
+import {
+  autoCloseCodeFence,
+  extendEmphasisPair,
+  startAsteriskList,
+} from './edit-helpers';
 import { imageBlocks } from './image-blocks';
+import { highlightMarkdown } from './highlight';
 import { inlinePreview } from './inline-preview';
+import { readOnlyExtension } from './read-only';
 import { tables } from './table-widget';
 
 // Stable references so consumers that don't pass `codeLanguages` or
 // `extensions` don't force-remount the editor on every render.
 const EMPTY_CODE_LANGUAGES: readonly LanguageDescription[] = [];
 const EMPTY_EXTENSIONS: readonly Extension[] = [];
+
+function defaultOpenLink(url: string): void {
+  try {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } catch {
+    // window.open can throw in sandboxed iframes etc.
+  }
+}
 
 export interface AtomicCodeMirrorEditorHandle {
   focus: () => void;
@@ -68,6 +83,14 @@ export interface AtomicCodeMirrorEditorHandle {
   isSearchOpen: () => boolean;
   getMarkdown: () => string;
   getContentDOM: () => HTMLElement | null;
+  /**
+   * Toggle read-only ("reading") mode imperatively. Equivalent to
+   * flipping the `readOnly` prop, but usable from outside React's
+   * render cycle (e.g. a toolbar button wired through the handle). The
+   * change is applied via a CM6 `Compartment` reconfigure — no remount,
+   * so scroll position and search state are preserved.
+   */
+  setReadOnly: (readOnly: boolean) => void;
 }
 
 export interface AtomicCodeMirrorEditorProps {
@@ -116,6 +139,20 @@ export interface AtomicCodeMirrorEditorProps {
    * a future extension or keymap does.
    */
   blurEditorOnMount?: boolean;
+
+  /**
+   * Render the editor in read-only ("reading") mode: the whole document
+   * stays rendered (no source ever reveals under a caret), typing /
+   * paste / table editing are disabled, and clicking a link opens it
+   * instead of placing a caret. Checkboxes remain toggleable, and
+   * find-in-document still works.
+   *
+   * Unlike `extensions`, this is NOT captured at mount — it's backed by
+   * a CM6 `Compartment`, so toggling it reconfigures the live view in
+   * place (scroll position preserved) rather than remounting. Defaults
+   * to `false`.
+   */
+  readOnly?: boolean;
 
   /**
    * Called on every doc change with the current markdown. Fires for
@@ -214,6 +251,7 @@ export function AtomicCodeMirrorEditor({
   initialSearchText,
   initialRevealText,
   blurEditorOnMount,
+  readOnly = false,
   onMarkdownChange,
   onLinkClick,
   editorHandleRef,
@@ -225,6 +263,23 @@ export function AtomicCodeMirrorEditor({
   const clearRevealTimerRef = useRef<number | null>(null);
   const onMarkdownChangeRef = useRef(onMarkdownChange);
   const onLinkClickRef = useRef(onLinkClick);
+  // The editor extensions are captured at mount, but the callback prop
+  // may change later. Route through the ref while preserving the
+  // documented window.open fallback when no callback is supplied.
+  const handleLinkClick = (url: string): void => {
+    const handler = onLinkClickRef.current;
+    if (handler) handler(url);
+    else defaultOpenLink(url);
+  };
+  // One compartment per component instance so read-only can be
+  // reconfigured live without remounting the view. Seeded with the
+  // current prop at mount; kept in sync by the effect below and the
+  // imperative `setReadOnly` handle.
+  const readOnlyCompartmentRef = useRef(new Compartment());
+  // Latest `readOnly` for the mount effect, which doesn't list it as a
+  // dependency (toggling must reconfigure, not remount).
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
 
   useEffect(() => {
     onMarkdownChangeRef.current = onMarkdownChange;
@@ -257,6 +312,7 @@ export function AtomicCodeMirrorEditor({
           highlightActiveLine(),
           // Obsidian-style bracket pairing.
           closeBrackets(),
+          startAsteriskList,
           extendEmphasisPair,
           autoCloseCodeFence,
           EditorView.lineWrapping,
@@ -276,7 +332,11 @@ export function AtomicCodeMirrorEditor({
           // GFM via base: markdownLanguage — tables, strikethrough,
           // task lists, autolinks. Without this, the parser is pure
           // CommonMark and inline-preview never sees Task / Table.
-          markdown({ base: markdownLanguage, codeLanguages: [...codeLanguages] }),
+          markdown({
+            base: markdownLanguage,
+            codeLanguages: [...codeLanguages],
+            extensions: highlightMarkdown,
+          }),
           // Extend closeBrackets to markdown's symmetric delimiters.
           markdownLanguage.data.of({
             closeBrackets: { brackets: ['(', '[', '{', "'", '"', '*', '_', '`'] },
@@ -292,17 +352,23 @@ export function AtomicCodeMirrorEditor({
             ...defaultKeymap,
           ]),
           tables({
-            onLinkClick: (url) => onLinkClickRef.current?.(url),
+            onLinkClick: handleLinkClick,
           }),
           imageBlocks(),
           inlinePreview({
-            onLinkClick: (url) => onLinkClickRef.current?.(url),
+            onLinkClick: handleLinkClick,
           }),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             onMarkdownChangeRef.current?.(update.state.doc.toString());
           }),
           initialRevealField,
+          // Read-only state lives in a compartment so it can toggle in
+          // place. Seeded from the prop at mount via the ref (the mount
+          // effect intentionally omits `readOnly` from its deps).
+          readOnlyCompartmentRef.current.of(
+            readOnlyExtension(readOnlyRef.current),
+          ),
           // Consumer extensions last so they compose on top of the
           // built-ins (e.g. a custom keymap wrapped in Prec.high will
           // beat the default keymap above). Extensions intentionally
@@ -353,6 +419,19 @@ export function AtomicCodeMirrorEditor({
     revealInitialMatch(viewRef, view, initialRevealText, clearRevealTimerRef);
   }, [editorIdentity, initialRevealText]);
 
+  // Reconfigure the read-only compartment when the prop changes. Runs
+  // in its own effect (not the mount effect) so toggling reading mode
+  // reconfigures the live view instead of tearing it down.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    view.dispatch({
+      effects: readOnlyCompartmentRef.current.reconfigure(
+        readOnlyExtension(readOnly),
+      ),
+    });
+  }, [readOnly]);
+
   // Publish the imperative handle. Lives in its own effect so changing
   // `editorHandleRef` identity doesn't rebuild the view.
   useEffect(() => {
@@ -392,6 +471,15 @@ export function AtomicCodeMirrorEditor({
       },
       getMarkdown: () => viewRef.current?.state.doc.toString() ?? '',
       getContentDOM: () => viewRef.current?.contentDOM ?? null,
+      setReadOnly: (next) => {
+        const view = viewRef.current;
+        if (!view) return;
+        view.dispatch({
+          effects: readOnlyCompartmentRef.current.reconfigure(
+            readOnlyExtension(next),
+          ),
+        });
+      },
     };
     return () => {
       if (editorHandleRef.current) editorHandleRef.current = null;

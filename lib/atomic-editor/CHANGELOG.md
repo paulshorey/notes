@@ -7,6 +7,102 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Until the package reaches `1.0.0`, minor versions may include breaking API
 changes as the public surface stabilizes.
 
+## [0.6.2]
+
+### Changed
+
+- Upgraded the development stack to React 19, TypeScript 7, Vite 8 with
+  Rolldown, Vitest 4, and current CodeMirror/Lezer releases. The published
+  editor retains its React 18/19 peer range and Node.js 18 runtime support.
+
+### Fixed
+
+- Clean package builds with `cpy-cli` 7 now preserve the exported
+  `dist/styles/inline-preview.css` path instead of treating `dist/styles` as a
+  file destination.
+- Added Vite's asset declarations for TypeScript 7 side-effect import checking
+  and migrated the remaining test utility to React 19's `act` API.
+
+## [0.6.1]
+
+### Added
+
+- Expanded the regression harness with a deterministic browser fixture,
+  shared Markdown rendering contracts, Chromium/Firefox/WebKit coverage, a
+  packed-package consumer build, dependency auditing, and automated dependency
+  updates.
+
+### Fixed
+
+- Dragged text selections inside fenced code blocks now remain visible above
+  the opaque code backdrop. Selection paint updates live during multi-line
+  drags without changing code-block layout or source content.
+
+## [0.6.0]
+
+### Added
+
+- **Highlight syntax.** `==highlighted text==` is now parsed as a
+  first-class Markdown extension and rendered consistently in prose and
+  WYSIWYG table cells. The `highlightMarkdown` extension is exported for
+  consumers composing a custom CodeMirror setup.
+
+### Changed
+
+- Task checkboxes use a larger, theme-aware square control with improved
+  baseline alignment, text spacing, keyboard focus visibility, and a stable
+  1.2em list-marker footprint.
+
+### Fixed
+
+- Physical continuation lines in list items now hang under their owning
+  content column. Nesting depth follows parsed `ListItem` ancestry, so lazy
+  continuations, ordered-list marker-width indentation, and odd-but-valid
+  CommonMark leading spaces render consistently without changing source bytes.
+- Typing `* ` at a list-marker position consumes the emphasis auto-pair's
+  generated closer, preventing a stray trailing `*` while retaining italic and
+  bold auto-pairing and leaving code blocks untouched.
+
+### Security
+
+- Updated the development toolchain to patched Vite, Vitest, Happy DOM,
+  Babel, and `ws` releases; `npm audit` now reports zero vulnerabilities.
+
+## [0.5.1]
+
+### Fixed
+
+- Bare GFM URLs and angle-bracket autolinks remain visible on inactive
+  lines and now use the same clickable styling and open behavior as
+  explicit Markdown links.
+- URL-shaped labels such as
+  `[https://label.example](https://destination.example)` keep their
+  visible label while the destination remains hidden until the cursor
+  enters that link; opening the link uses the actual destination.
+- Backslash-escaped URL slashes render cleanly without exposing partial
+  escape syntax.
+
+## [0.5.0]
+
+### Added
+
+- **Read-only ("reading") mode.** A new `readOnly` prop (and
+  `editorHandle.setReadOnly(...)`) renders the document as a reading
+  surface, like Obsidian's Reading view: the whole document stays
+  rendered (source never reveals under a caret), typing / paste / table
+  editing are disabled, and clicking a link — anywhere on it, not just
+  the trailing icon — opens it instead of placing a caret. Task
+  checkboxes stay toggleable and find-in-document still works. It's
+  backed by a CodeMirror `Compartment`, so toggling reconfigures the
+  live view in place (scroll position preserved, no remount). The
+  underlying `readOnlyFacet` / `readOnlyExtension` are exported for
+  custom-editor composition.
+
+### Fixed
+
+- Restore the React wrapper's documented `window.open` fallback when
+  `onLinkClick` is omitted.
+
 ## [0.4.3]
 
 Table-editing hardening. The WYSIWYG table widget is the most custom part

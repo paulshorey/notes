@@ -7,9 +7,10 @@
 
 A markdown editor where formatting renders as you type — headings, bold,
 tables, images, task lists — while the text underneath stays plain markdown.
-The document you read is the document you edit: no split preview, no mode
-toggle, and copy / save / round-trip behave exactly like a plain textarea
-full of markdown.
+The document you read is the document you edit: no split preview, and copy /
+save / round-trip behave exactly like a plain textarea full of markdown. An
+optional reading mode locks that same rendered surface without introducing a
+separate preview document.
 
 It's the writing surface behind
 [**Atomic**](https://github.com/kenforthewin/atomic), a personal knowledge
@@ -19,7 +20,7 @@ base — extracted to stand on its own, and hardened on real user documents.
 
 ## Features
 
-- **Live preview.** Headings, emphasis, links, images,
+- **Live preview.** Headings, emphasis, `==highlights==`, links, images,
   and tables render inline; the raw syntax appears only on the line your
   cursor is on, then tucks itself away when you move on.
 - **Raw markdown is the source of truth.** Every decoration is view-only, so
@@ -47,7 +48,7 @@ npm install @atomic-editor/editor \
   @codemirror/state @codemirror/view @codemirror/commands \
   @codemirror/autocomplete @codemirror/language @codemirror/search \
   @codemirror/lang-markdown \
-  @lezer/common @lezer/highlight \
+  @lezer/common @lezer/highlight @lezer/markdown \
   react react-dom
 ```
 
@@ -110,7 +111,30 @@ function App() {
 ```
 
 Methods: `focus`, `undo`, `redo`, `openSearch(query?)`, `closeSearch`,
-`revealText(query)`, `isSearchOpen`, `getMarkdown`, `getContentDOM`.
+`revealText(query)`, `isSearchOpen`, `getMarkdown`, `getContentDOM`,
+`setReadOnly(readOnly)`.
+
+### Read-only (reading) mode
+
+Pass `readOnly` to render the document as a reading surface, like
+Obsidian's Reading view:
+
+```tsx
+<AtomicCodeMirrorEditor markdownSource={'…'} readOnly />
+```
+
+In read-only mode the whole document stays rendered — source never
+reveals under a caret — typing / paste / table editing are disabled,
+and clicking a link (anywhere on it, not just the trailing icon) opens
+it instead of placing a caret. Task checkboxes stay toggleable and
+find-in-document still works.
+
+`readOnly` is backed by a CodeMirror `Compartment`, so flipping it
+reconfigures the live view in place — scroll position and search state
+are preserved, no remount. Drive it from a prop, or imperatively via
+`editorHandle.setReadOnly(true)` for a toolbar toggle outside React's
+render cycle. For consumers composing a custom editor, the underlying
+`readOnlyFacet` and `readOnlyExtension` are exported too.
 
 ### Arriving from a search result
 
@@ -347,6 +371,9 @@ rationale. Short version:
 
 ## Contributing
 
+Development requires Node.js 20.19+, 22.12+, or 24+. The published editor
+itself continues to support Node.js 18 and newer.
+
 ```bash
 git clone https://github.com/kenforthewin/atomic-editor
 cd atomic-editor
@@ -354,17 +381,15 @@ npm install
 npm run dev        # demo dev server at http://localhost:5173
 npm test           # vitest unit tests
 npm run build      # tsc emit to dist/
-npm run test:e2e   # Playwright probe suite against the demo
+npm run test:e2e   # legacy probes + deterministic browser suites
+npm run test:package  # pack and build a clean consumer app
 ```
 
-The Playwright suite (`scripts/test-editor.mjs`) is the primary
-regression-catching tool — around 50 probes covering CLS during idle /
-scroll / typing, click-freeze timing, every block-type decoration
-(headings, lists, tasks, tables, images, fences, HRs, wiki links),
-cursor-scoped link reveal, copy-as-raw-markdown, tight-list
-continuation, escape handling, and late-doc rendering via the
-parser-progress mechanic. Run after any change to the editor's
-extensions.
+The browser harness combines the broad legacy probe suite with focused,
+isolated Playwright Test specs. Chromium runs the full matrix; Firefox and
+WebKit run the compatibility smoke tests. See
+[docs/testing.md](./docs/testing.md) for the layers, commands, and the rule for
+turning a bug fix into a lasting regression test.
 
 Because the editor ships inside [Atomic](https://github.com/kenforthewin/atomic),
 real user documents are its de-facto fuzz corpus — odd inputs (multi-line

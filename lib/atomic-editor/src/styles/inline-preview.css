@@ -131,6 +131,16 @@
   padding-right: 0.75rem;
 }
 
+/* `drawSelection()` paints behind content, where the opaque code backdrop
+ * would cover it. A selection-only inline decoration mirrors the same token
+ * above the block background while leaving syntax-highlighted text on top. */
+.cm-atomic-fenced-selection {
+  background-color: var(
+    --atomic-editor-selection-bg,
+    color-mix(in srgb, #7c3aed 28%, #1e1e1e 72%)
+  );
+}
+
 /* Inline content marks — applied on the text inside **…**, *…*, `…`,
  * ~~…~~, [text](url). Styling only; no height changes. */
 .cm-atomic-strong {
@@ -157,6 +167,14 @@
   color: var(--atomic-editor-fg-muted, #888);
 }
 
+.cm-atomic-highlight {
+  background: color-mix(in srgb, var(--atomic-editor-accent-bright, #a78bfa) 20%, transparent 80%);
+  border-radius: 0.2em;
+  color: var(--atomic-editor-fg, #dcddde);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 /* Delimiter characters for emphasis marks we supplemented manually
  * (see `supplementMidTypingEmphasis` in inline-preview.ts). Each
  * class mirrors what an `EmphasisMark` token would pick up through
@@ -179,6 +197,11 @@
 .cm-atomic-strike-mark {
   color: var(--atomic-editor-fg-faint, #666);
   text-decoration: line-through;
+}
+
+.cm-atomic-highlight-mark {
+  color: var(--atomic-editor-fg-faint, #666);
+  background: transparent;
 }
 
 .cm-atomic-link {
@@ -312,8 +335,8 @@
 /* Shared marker alcove — forces bullet, task checkbox, and
  * ordered-list number into the same fixed horizontal width so the
  * inline-preview line padding / text-indent math is stable across
- * list kinds. Width here must match ALCOVE_EM in inline-preview.ts
- * (`ListMark` branch). Without the fixed width, wrapped-line
+ * list kinds. Width here must match LIST_ALCOVE_EM in
+ * inline-preview.ts. Without the fixed width, wrapped-line
  * indent lands in different places for each kind because the raw
  * marker widths differ per font. */
 .cm-atomic-list-marker {
@@ -330,20 +353,62 @@
 }
 
 /* GFM task-list checkbox widget — replaces `[ ]` / `[x]` in a task
- * item. Width matches the list-marker wrapper (0.9em); `margin-right:
- * 0.3em` adds the breathing room between the checkbox and the item
- * text. Total footprint = 1.2em, which is what ALCOVE_EM expects in
- * inline-preview.ts (bullets and checkboxes share the same alcove so
- * first-line content aligns with wrapped-line content consistently).
- * The trailing space after `[ ]` in the source is swallowed by the
- * replace decoration. */
+ * item. Styled as a small custom square rather than the platform's
+ * native checkbox so it reads closer to Obsidian across browsers.
+ * Width+margin still total 1.2em to match ALCOVE_EM in
+ * inline-preview.ts. The trailing space after `[ ]` in the source is
+ * swallowed by the replace decoration. */
 .cm-atomic-task-checkbox {
-  width: 0.9em;
-  height: 0.9em;
-  margin: 0 0.3em 0 0;
-  vertical-align: -0.15em;
-  accent-color: var(--atomic-editor-accent, #7c3aed);
+  width: 1.05em;
+  height: 1.05em;
+  margin: 0 0.31em 0 -0.16em;
+  font-size: inherit;
+  vertical-align: 0.1em;
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  border: 1.5px solid var(--atomic-editor-fg-muted, #888);
+  border-radius: 0.22em;
+  background: transparent;
   cursor: pointer;
+  position: relative;
+  display: inline-grid;
+  place-content: center;
+  transform: translateY(-0.04em);
+}
+
+.cm-atomic-task-checkbox::after {
+  content: "";
+  width: 0.26em;
+  height: 0.5em;
+  border-right: 0.12em solid #ffffff;
+  border-bottom: 0.12em solid #ffffff;
+  transform: rotate(45deg) translate(-0.03em, -0.04em);
+  opacity: 0;
+}
+
+.cm-atomic-task-checkbox:checked {
+  background: var(--atomic-editor-accent, #7c3aed);
+  border-color: var(--atomic-editor-accent, #7c3aed);
+}
+
+.cm-atomic-task-checkbox:checked::after {
+  opacity: 1;
+}
+
+.cm-atomic-task-checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--atomic-editor-accent, #7c3aed) 28%, transparent 72%);
+}
+
+/* Forced-colors mode removes box shadows, so retain a visible keyboard
+ * focus indicator using system colors instead. */
+@media (forced-colors: active) {
+  .cm-atomic-task-checkbox:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
 }
 
 /* Whole-line strike for completed task items. */
@@ -457,6 +522,7 @@
 .cm-atomic-table-cell-source .cm-atomic-strong-wrap.active > .cm-atomic-mark,
 .cm-atomic-table-cell-source .cm-atomic-em-wrap.active > .cm-atomic-mark,
 .cm-atomic-table-cell-source .cm-atomic-strike-wrap.active > .cm-atomic-mark,
+.cm-atomic-table-cell-source .cm-atomic-highlight-wrap.active > .cm-atomic-mark,
 .cm-atomic-table-cell-source .cm-atomic-link-wrap.active > .cm-atomic-mark {
   display: inline;
   color: var(--atomic-editor-fg-faint, #666);
@@ -470,6 +536,14 @@
 .cm-atomic-table-cell-source .cm-atomic-link-wrap.active > .cm-atomic-link-url {
   font-family: var(--atomic-editor-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 0.88em;
+}
+
+.cm-atomic-table-cell-source .cm-atomic-highlight {
+  background: color-mix(in srgb, var(--atomic-editor-accent-bright, #a78bfa) 20%, transparent 80%);
+  border-radius: 0.18em;
+  color: var(--atomic-editor-fg, #dcddde);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 /* Rendered image preview strip below the source text. Mirrors how
@@ -734,4 +808,23 @@
   --atomic-editor-hl-variable: #24292f;
   --atomic-editor-hl-operator: #cf222e;
   --atomic-editor-hl-invalid: #82071e;
+}
+
+/* Read-only ("reading") mode. The `cm-atomic-readonly` class is set on
+ * the editor wrapper by `readOnlyExtension` (src/read-only.ts). In this
+ * mode nothing reveals its source and the whole document is a reading
+ * surface, so interactive affordances change accordingly. */
+
+/* The entire link is the open target now (not just the trailing icon),
+ * so the text gets the pointer cursor too — for both inline links and
+ * links rendered inside table cells. */
+.cm-atomic-readonly .cm-atomic-link,
+.cm-atomic-readonly .cm-atomic-wiki-link,
+.cm-atomic-readonly .cm-atomic-link-wrap {
+  cursor: pointer;
+}
+
+/* Table cells are inert: no caret, no text cursor. */
+.cm-atomic-readonly .cm-atomic-table-cell-source {
+  cursor: default;
 }

@@ -9,34 +9,42 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=moderate
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
       - run: npm run build:demo
+      - run: npm run test:package
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
       - run: npm ci
-      # Chromium is enough — the probes don't exercise browser-specific
-      # behavior. --with-deps pulls the system libraries Playwright
-      # needs that aren't preinstalled on ubuntu-latest.
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      # The legacy suite stays on Chromium while the deterministic smoke
+      # suite covers Firefox/WebKit compatibility. --with-deps installs the
+      # browser system libraries absent from ubuntu-latest.
+      - run: npx playwright install --with-deps chromium firefox webkit
+      # Catch a harness that finishes its assertions but leaks a server or
+      # browser process. The job timeout remains a final outer safety net.
+      - run: timeout --signal=TERM --kill-after=15s 6m npm run test:e2e
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: harness-screenshots
-          path: .harness-screenshots
+          path: |
+            .harness-screenshots
+            test-results
+            playwright-report
           retention-days: 7

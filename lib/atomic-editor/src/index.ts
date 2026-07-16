@@ -11,6 +11,7 @@ export type {
 // recommended entry point.
 export { inlinePreview } from './inline-preview';
 export type { InlinePreviewConfig } from './inline-preview';
+export { highlightMarkdown } from './highlight';
 export { imageBlocks } from './image-blocks';
 export { tables } from './table-widget';
 export type { TablesConfig } from './table-widget';
@@ -22,4 +23,13 @@ export type {
   WikiLinksConfig,
 } from './wiki-links';
 export { atomicEditorTheme, atomicMarkdownSyntax } from './atomic-theme';
-export { autoCloseCodeFence, extendEmphasisPair } from './edit-helpers';
+export {
+  autoCloseCodeFence,
+  extendEmphasisPair,
+  startAsteriskList,
+} from './edit-helpers';
+// Read-only ("reading") mode. `AtomicCodeMirrorEditor` exposes this via
+// its `readOnly` prop / `setReadOnly` handle; these are for consumers
+// composing a custom editor who want to drive the mode through their
+// own `Compartment`.
+export { readOnlyExtension, readOnlyFacet } from './read-only';

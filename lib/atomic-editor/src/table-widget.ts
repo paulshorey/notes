@@ -17,7 +17,9 @@ import {
   type DecorationSet,
 } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
+import { matchHighlight } from './highlight';
 import { treeGrowthEffect, treeProgressPlugin } from './tree-progress';
+import { readOnlyFacet } from './read-only';
 
 // GFM tables as a WYSIWYG block widget.
 //
@@ -168,20 +170,21 @@ function getCellSource(cell: HTMLElement): HTMLElement | null {
 // ---- inline-mark parsing for cell source --------------------------------
 
 // Cells render a subset of inline markdown — bold, italic, strikethrough,
-// and links. No code spans (the `|` inside a backtick would silently
+// highlight, and links. No code spans (the `|` inside a backtick would silently
 // break row parsing), no lists/blocks (cells are single-line by
 // construction), no images (handled by the separate cell-preview strip).
 //
 // The parser is recursive so `**[text](url)**` nests cleanly, but each
-// mark is a straightforward delimiter pair — no CommonMark flanking
-// rules. The UX inside a cell is forgiving on purpose: if a pair
-// matches, it decorates.
+// mark is a straightforward delimiter pair. Highlights share their
+// delimiter/flanking rules with the main markdown parser so the same
+// source renders consistently inside and outside tables.
 
 type CellToken =
   | { type: 'text'; text: string }
   | { type: 'strong'; delim: '**' | '__'; children: CellToken[] }
   | { type: 'em'; delim: '*' | '_'; children: CellToken[] }
   | { type: 'strike'; children: CellToken[] }
+  | { type: 'highlight'; children: CellToken[] }
   | { type: 'link'; textChildren: CellToken[]; url: string };
 
 export function parseCellInline(raw: string): CellToken[] {
@@ -250,6 +253,21 @@ function matchCellMarkAt(
     return {
       token: { type: 'strike', children: parseCellInline(m[1]) },
       end: from + m[0].length,
+    };
+  }
+
+  // Highlight. Keep exact-delimiter and whitespace rules aligned with
+  // the main Lezer extension.
+  const highlight = matchHighlight(raw, from);
+  if (highlight) {
+    return {
+      token: {
+        type: 'highlight',
+        children: parseCellInline(
+          raw.slice(highlight.contentFrom, highlight.contentTo),
+        ),
+      },
+      end: highlight.end,
     };
   }
 
@@ -351,9 +369,23 @@ function renderCellToken(tok: CellToken): Node {
     return wrap;
   }
 
+  if (tok.type === 'highlight') {
+    const wrap = document.createElement('span');
+    wrap.className = 'cm-atomic-highlight-wrap';
+    wrap.appendChild(makeCellMark('=='));
+    const inner = document.createElement('span');
+    inner.className = 'cm-atomic-highlight';
+    inner.appendChild(renderTokensTo(tok.children));
+    wrap.appendChild(inner);
+    wrap.appendChild(makeCellMark('=='));
+    return wrap;
+  }
+
   // Link. Shape mirrors the outer-editor markup: `.cm-atomic-link` on
   // the visible text (picks up link color + external-link icon via
-  // `::after`), faint marks for `[`, `]`, `(`, URL, `)`. `data-url`
+  // `::after`), faint marks for `[`, `]`, `(`, URL, `)`, and highlight
+  // uses the same decorated wrapper pattern as the main editor.
+  // `data-url`
   // lets the cell-source click handler open the right URL without
   // re-parsing.
   const wrap = document.createElement('span');
@@ -621,7 +653,7 @@ function getAllCells(wrap: HTMLElement): HTMLElement[] {
 // ---- widget ---------------------------------------------------------
 
 class TableWidget extends WidgetType {
-  constructor(readonly model: TableModel) {
+  constructor(readonly model: TableModel, readonly readOnly: boolean) {
     super();
   }
 
@@ -630,7 +662,12 @@ class TableWidget extends WidgetType {
   // Returning true here means CM6 keeps the existing DOM instead of
   // calling `toDOM` again — which is what lets the caret survive
   // across the per-keystroke dispatch cycle.
+  //
+  // `readOnly` is part of the identity: cells are built editable or
+  // inert at `toDOM` time, so a reading-mode toggle must force a fresh
+  // DOM rather than reusing the stale (editable) one.
   eq(other: TableWidget): boolean {
+    if (other.readOnly !== this.readOnly) return false;
     if (other.model.header.length !== this.model.header.length) return false;
     if (other.model.rows.length !== this.model.rows.length) return false;
     return true;
@@ -685,10 +722,13 @@ function makeCell(
   // element is. This keeps the image preview strictly visual (no
   // phantom caret positions around images) while the source text
   // stays in a dedicated editable box above it.
+  const readOnly = view.state.facet(readOnlyFacet);
   const source = document.createElement('div');
   source.className = 'cm-atomic-table-cell-source';
-  source.contentEditable = 'true';
-  source.spellcheck = true;
+  // Read-only cells still show their decorated source but accept no
+  // edits — the editing listeners below are skipped entirely.
+  source.contentEditable = readOnly ? 'false' : 'true';
+  source.spellcheck = !readOnly;
   // Decorated DOM on mount. Delimiters (`.cm-atomic-mark`) are
   // `display: none` by default — the caret can't navigate into them,
   // the reader sees a clean rendered view. When the caret enters a
@@ -698,6 +738,63 @@ function makeCell(
   cell.appendChild(source);
   renderCellSourceDecorated(source);
 
+  // All write paths (typing, paste, IME, Tab/Enter navigation, the
+  // context menu, focus-routing) live in `attachCellEditing` and are
+  // wired only when the cell is editable. Read-only cells keep just the
+  // link-open handlers below.
+  if (!readOnly) attachCellEditing(view, cell, source);
+
+  // Link open. The external-link icon is rendered as a real
+  // `.cm-atomic-link-icon` element (see `renderCellToken`), not a CSS
+  // `::after` pseudo — a pseudo-element has no event target, so clicking
+  // its painted region dispatched no pointer event and the link never
+  // opened. We open on `click` (a proper popup-activation gesture, so
+  // `window.open` isn't blocked) and block the caret on `pointerdown`.
+  //
+  // In read-only mode there's no editable link text to protect, so the
+  // whole link (`.cm-atomic-link-wrap`) is the open target — matching
+  // the outer editor. In edit mode the open stays scoped to the
+  // trailing icon so the text itself remains clickable-to-edit.
+  const openTargetFromEvent = (event: Event): HTMLElement | null => {
+    const target = event.target;
+    if (!(target instanceof Element)) return null;
+    const selector = readOnly ? '.cm-atomic-link-wrap' : '.cm-atomic-link-icon';
+    return target.closest<HTMLElement>(selector);
+  };
+
+  source.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0) return;
+    // Block focus / caret placement when pressing the open target; the
+    // open happens on the following `click`.
+    if (openTargetFromEvent(event)) event.preventDefault();
+  });
+
+  source.addEventListener('click', (event) => {
+    const hit = openTargetFromEvent(event);
+    if (!hit) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const url = hit.closest<HTMLElement>('.cm-atomic-link-wrap')?.dataset.url;
+    if (!url) return;
+    event.preventDefault();
+    event.stopPropagation();
+    view.state.facet(tableLinkClickFacet)(url);
+  });
+
+  refreshCellPreview(cell);
+
+  return cell;
+}
+
+// Wire every write path for an editable cell: typing / paste / IME
+// commits, caret-driven mark reveal, Tab/Enter cell navigation, the
+// right-click context menu, and focus-routing for clicks that land
+// outside the inner source element. Skipped wholesale for read-only
+// cells, which keep only the link-open handlers in `makeCell`.
+function attachCellEditing(
+  view: EditorView,
+  cell: HTMLElement,
+  source: HTMLElement,
+): void {
   // Commit the cell's current DOM text to `dataset.raw`, re-render its
   // decorated form (so marks the user just typed — e.g. a new `**` pair
   // — decorate immediately), restore the caret across that rebuild, and
@@ -784,36 +881,6 @@ function makeCell(
     openCellMenu(view, cell, event.clientX, event.clientY);
   });
 
-  // Link-icon open. The external-link icon is rendered as a real
-  // `.cm-atomic-link-icon` element (see `renderCellToken`), not a CSS
-  // `::after` pseudo — a pseudo-element has no event target, so clicking
-  // its painted region dispatched no pointer event and the link never
-  // opened. We open on `click` (a proper popup-activation gesture, so
-  // `window.open` isn't blocked) and block the caret on `pointerdown`.
-  const linkIconFromEvent = (event: Event): HTMLElement | null => {
-    const target = event.target;
-    if (!(target instanceof Element)) return null;
-    return target.closest<HTMLElement>('.cm-atomic-link-icon');
-  };
-
-  source.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return;
-    // Block focus / caret placement when pressing the icon; the open
-    // happens on the following `click`.
-    if (linkIconFromEvent(event)) event.preventDefault();
-  });
-
-  source.addEventListener('click', (event) => {
-    const icon = linkIconFromEvent(event);
-    if (!icon) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const url = icon.closest<HTMLElement>('.cm-atomic-link-wrap')?.dataset.url;
-    if (!url) return;
-    event.preventDefault();
-    event.stopPropagation();
-    view.state.facet(tableLinkClickFacet)(url);
-  });
-
   // When the cell has an image and the source is visually hidden,
   // clicks land on the cell/image/empty space but not on the source
   // itself. Route every pointerdown inside the cell to a focus on
@@ -834,10 +901,6 @@ function makeCell(
     source.focus();
     placeCaretAtEnd(source);
   });
-
-  refreshCellPreview(cell);
-
-  return cell;
 }
 
 // ---- context menu -------------------------------------------------
@@ -862,6 +925,11 @@ function dispatchModel(
   wrap: HTMLElement,
   nextModel: TableModel,
 ): void {
+  // A menu can outlive the editable widget that created it when the
+  // host toggles reading mode. Guard before touching its now-detached
+  // DOM so a stale menu action cannot mutate a read-only document (or
+  // make posAtDOM throw on the detached table wrapper).
+  if (view.state.facet(readOnlyFacet)) return;
   const range = findCurrentTableRange(view, wrap);
   if (!range) return;
   const next = serializeTable(nextModel);
@@ -950,7 +1018,10 @@ function openCellMenu(
     },
   });
 
+  let dismissed = false;
   const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
     menu.remove();
     document.removeEventListener('mousedown', onDocDown, true);
     document.removeEventListener('keydown', onDocKey, true);
@@ -995,12 +1066,14 @@ function openCellMenu(
   // Deferred listener attach so the current contextmenu→document
   // mousedown cycle doesn't immediately dismiss us.
   setTimeout(() => {
+    if (dismissed) return;
     document.addEventListener('mousedown', onDocDown, true);
     document.addEventListener('keydown', onDocKey, true);
   }, 0);
 }
 
 function dispatchModelFromDom(view: EditorView, cell: HTMLElement): void {
+  if (view.state.facet(readOnlyFacet)) return;
   const wrap = cell.closest<HTMLElement>('.cm-atomic-table');
   if (!wrap) return;
   const range = findCurrentTableRange(view, wrap);
@@ -1050,6 +1123,7 @@ function moveCellFocus(view: EditorView, cell: HTMLElement, dir: 1 | -1): void {
 }
 
 function appendRow(view: EditorView, wrap: HTMLElement): void {
+  if (view.state.facet(readOnlyFacet)) return;
   const range = findCurrentTableRange(view, wrap);
   if (!range) return;
   const model = readModelFromDom(wrap);
@@ -1069,6 +1143,7 @@ function appendRow(view: EditorView, wrap: HTMLElement): void {
   const { from } = range;
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
+      if (view.state.facet(readOnlyFacet)) return;
       const tables = Array.from(
         view.dom.querySelectorAll<HTMLElement>('.cm-atomic-table'),
       );
@@ -1109,6 +1184,7 @@ function appendRow(view: EditorView, wrap: HTMLElement): void {
 // table.
 function backspaceAtTableBoundary(view: EditorView): boolean {
   const { state } = view;
+  if (state.facet(readOnlyFacet)) return false;
   const sel = state.selection.main;
   if (!sel.empty) return false;
   const pos = sel.head;
@@ -1146,6 +1222,7 @@ function backspaceAtTableBoundary(view: EditorView): boolean {
 
 function buildTableWidgets(state: EditorState): DecorationSet {
   const ranges: Range<Decoration>[] = [];
+  const readOnly = state.facet(readOnlyFacet);
   // Force full-doc parse so tables past the initial parsed region
   // also get the widget treatment. This StateField only rebuilds on
   // doc change; CM6's background parser advancing the tree later
@@ -1167,7 +1244,7 @@ function buildTableWidgets(state: EditorState): DecorationSet {
       const endLine = doc.lineAt(node.to);
       ranges.push(
         Decoration.replace({
-          widget: new TableWidget(model),
+          widget: new TableWidget(model, readOnly),
           block: true,
         }).range(startLine.from, endLine.to),
       );
@@ -1226,6 +1303,12 @@ const tableField = StateField.define<DecorationSet>({
     // newly-visible Table nodes get their widget.
     for (const effect of tr.effects) {
       if (effect.is(treeGrowthEffect)) return buildTableWidgets(tr.state);
+    }
+    // Reading-mode toggle: rebuild so cells re-render editable / inert.
+    if (
+      tr.startState.facet(readOnlyFacet) !== tr.state.facet(readOnlyFacet)
+    ) {
+      return buildTableWidgets(tr.state);
     }
     if (!tr.docChanged) return deco;
     const mapped = deco.map(tr.changes);
