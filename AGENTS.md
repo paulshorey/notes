@@ -2,7 +2,11 @@
 
 Monorepo using pnpm + Turborepo.
 
-## Products
+## Product
+
+This is a note-taking app. The main app is `apps/notes-next` - a full-stack NextJS web app. The Android app is an experiment which will later be updated after the web app is stable and has the required features. Database structure can be found in `lib/db-notes`.
+
+Goal is to expand this to be much more than a simple note app. It will be a personal productivity suite and eventually be used by multiple collaborators to manage all knowledgebase, tasks, and website content for all projects in a team. The start of that now is categories.
 
 ### Apps
 

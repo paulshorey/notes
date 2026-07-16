@@ -49,8 +49,8 @@
   "devDependencies": {
     "@lib/config": "workspace:*",
     "@types/node": "^22.15.3",
-    "@types/react": "19.2.2",
-    "@types/react-dom": "19.2.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
     "eslint": "^9.39.1",
     "tsx": "^4.20.6",
     "typescript": "5.9.2"
