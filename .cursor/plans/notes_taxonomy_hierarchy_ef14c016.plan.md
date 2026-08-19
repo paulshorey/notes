@@ -1,21 +1,24 @@
 ---
 name: Notes Taxonomy — Epic > Category > Group > Note hierarchy
-overview: Documents how notes are persisted today (flat single-category taxonomy plus many-to-many tags) and plans the extension to a four-level strict hierarchy — Epic > Category > Group > Note — where every child has exactly one parent, tags stay many-to-many on notes, every taxonomy level carries a label embedding for autocomplete, and semantic note search is simplified to compare the query against the note description embedding only. The recommended schema is a single self-referencing user_note_taxonomy_v1 table whose depth, parent level, and per-user ownership are enforced declaratively by composite foreign keys; the DDL, the backfill, and the search rewrite were prototyped and validated against a real PostgreSQL 17 + pgvector 0.8.6 cluster before this plan was written.
+overview: Documents how notes are persisted today (flat single-category taxonomy plus many-to-many tags) and plans the extension to a four-level strict hierarchy — Epic > Category > Group > Note — where every child has exactly one parent, tags stay many-to-many on notes, every taxonomy level carries a label embedding for autocomplete, and semantic note search is simplified to compare the query against the note description embedding only. The tier names themselves are per-user editable data, including the word Note, which is what lets the same app manage tasks or any other content. The program branches only on the level number while a separate user_taxonomy_level_v1 table holds each user's words for levels 1-4. The hierarchy lives in one self-referencing user_taxonomy_v1 table whose depth, parent level, per-user ownership, and tier-definition existence are all enforced declaratively by composite foreign keys with no triggers. The DDL, the backfill, the tier-rename layer, and the search rewrite were prototyped and validated against a real PostgreSQL 17 + pgvector 0.8.6 cluster before this plan was written.
 todos:
   - id: schema_migration_phase1
-    content: "Phase 1 (additive) migration: create user_note_taxonomy_v1 with composite-FK level/ownership enforcement and partial HNSW label indexes; backfill an epic + a category row per existing category + a group per category; add user_note_v1.group_id (+ pinned group_level) and backfill it from category_id. Leaves user_note_category_v1 and user_note_v1.category_id in place."
+    content: "Phase 1 (additive) migration: create user_taxonomy_level_v1 (per-user tier names for levels 1-4) and user_taxonomy_v1 (hierarchy, composite-FK level/ownership/tier-existence enforcement, partial HNSW label indexes); seed the Epic/Category/Group/Note vocabulary for every user FIRST; backfill an epic + a level-2 row per existing category + a group per category, all auto-created items labelled 'uncategorized'; add user_note_v1.group_id (+ pinned group_level) and backfill from category_id. Leaves user_note_category_v1 and user_note_v1.category_id in place."
     status: pending
   - id: verify_contract_phase1
-    content: Extend scripts/verify-contract.mjs with must-exist assertions for the new table, columns, constraints, indexes and trigger, plus the structural invariants (no level skew, no cross-user parenting, every user has an epic/category/group chain)
+    content: Extend scripts/verify-contract.mjs with must-exist assertions for both new tables, their columns, constraints, indexes and triggers, plus the structural invariants (every user has all four tier definitions, no duplicate tier names, no level skew, no cross-user parenting, every user has an epic/category/group chain, every note resolves to a level-3 row)
     status: pending
   - id: merge_registry
-    content: Register user_note_taxonomy_v1 in MERGE_TABLE_STRATEGIES and rewrite mergeAnonymousUserInto to remap a three-level subtree instead of a flat category list (db:verify fails until this is done)
+    content: Register BOTH user_taxonomy_v1 (dedup-remap) and user_taxonomy_level_v1 (drop) in MERGE_TABLE_STRATEGIES, and rewrite mergeAnonymousUserInto to remap a three-level subtree in level order instead of a flat category list (db:verify fails until this is done)
     status: pending
   - id: contract_types
-    content: "Replace CategoryRecord with TaxonomyRecord (id, userId, level, parentId, label, noteCount, directNoteCount, lastUsedAt) in contracts/notes-app.ts; change NoteInput.categoryId to groupId; add NoteRecord.group/category/epic refs; simplify SemanticSearchResult to { note, similarity }"
+    content: "Replace CategoryRecord with TaxonomyRecord (id, userId, level, parentId, label, noteCount, directNoteCount, lastUsedAt) in contracts/notes-app.ts; add TaxonomyLevelRecord plus level constants and default labels, delivered on the session payload; change NoteInput.categoryId to groupId; add NoteRecord.group/category/epic refs; simplify SemanticSearchResult to { note, similarity }"
     status: pending
   - id: sql_service_layer
-    content: Collapse sql/category.ts into sql/taxonomy.ts (level-parameterized CRUD, subtree note counts, per-level fallback resolution, move/reparent, delete-with-children and delete-with-notes) and update sql/note/* to read and write group_id
+    content: Collapse sql/category.ts into sql/taxonomy.ts (level-parameterized CRUD, subtree note counts, per-level fallback resolution, move/reparent, delete-with-children and delete-with-notes), add sql/taxonomy-level.ts with ensureTaxonomyLevelsForUser wired into user creation, and update sql/note/* to read and write group_id
+    status: pending
+  - id: tier_rename_ui
+    content: Make the four tier words data end to end — GET/PATCH /api/taxonomy/levels, a store selector for the vocabulary, a rename UI, and removal of the ~2 dozen hardcoded 'Categories'/'Notes' strings across 8 notes-next files. Never branch on a label; ids and level numbers only in URLs, cache keys and filters.
     status: pending
   - id: search_simplify
     content: Rewrite searchNotesByEmbedding as an exact per-user description-only scan (drop the 0.67/0.33 composite, the category join and the tag AVG subquery); do NOT switch to an index-ordered HNSW scan — it silently returns 0 rows for users holding a small share of the table
@@ -24,13 +27,13 @@ todos:
     content: Add level-scoped label autocomplete (literal prefix match first, embedding similarity as semantic fallback) backed by label_embedding, and extend embed-on-write plus embedding maintenance to all three taxonomy levels
     status: pending
   - id: api_routes
-    content: Replace /api/categories with /api/taxonomy (level-aware CRUD + move), add /api/taxonomy/suggest, update /api/notes payloads, update /api/embeddings/debug and /embeddings to drop composite scoring
+    content: Replace /api/categories with /api/taxonomy (level-aware CRUD + move), add /api/taxonomy/suggest and /api/taxonomy/levels, update /api/notes payloads, update /api/embeddings/debug and /embeddings to drop composite scoring
     status: pending
   - id: frontend
-    content: Rework NotesApp/ResultsColumn/NoteForm/notesAppStore/notesCache from two flat accordions into a hierarchy tree with a three-step picker and hierarchical URL state
+    content: Rework NotesApp/ResultsColumn/NoteForm/notesAppStore/notesCache from two flat accordions into a hierarchy tree with a three-step picker and id-based hierarchical URL state
     status: pending
   - id: android_contract
-    content: Update Android Models.kt/JsonCodec.kt/NotesApiClient.kt and the widget filters for the new contract, then run contracts:check and rebuild the APK
+    content: Update Android Models.kt/JsonCodec.kt/NotesApiClient.kt (adding TaxonomyLevelRecord and persisting the vocabulary in AppSnapshot so the widget can label itself offline) and the widget filters, then run contracts:check and rebuild the APK
     status: pending
   - id: schema_migration_phase2
     content: "Phase 2 (cutover) migration, only after the new code is deployed: drop user_note_v1.category_id, drop user_note_category_v1, and flip verify-contract assertions to must-be-absent"
@@ -329,6 +332,12 @@ Two guards will fire on this work and must be satisfied deliberately:
 5. Semantic note search compares the query **only** against the note text
    embedding. The category/tag terms and the `0.67 / 0.33` weighting are
    removed.
+6. **The level names are per-user data, not code.** "Epic", "Category", "Group"
+   are labels the user can rename, and so is "Note" — which is what lets the
+   same app manage tasks, or anything else, without a schema change. The program
+   branches only on the level _number_; the label is display text. Section 2.3.
+7. Auto-created placeholder items are labelled `uncategorized` at every level,
+   matching the existing flat-category default.
 
 ## 2.2 Two designs considered
 
@@ -345,7 +354,7 @@ Two guards will fire on this work and must be satisfied deliberately:
   fifth level later means doing it all a fourth time.
 
 **Option B (recommended) — one self-referencing table.** A single
-`user_note_taxonomy_v1` with `level smallint` (1=epic, 2=category, 3=group) and
+`user_taxonomy_v1` with `level smallint` (1=epic, 2=category, 3=group) and
 `parent_id`, and notes pointing at a level-3 row.
 
 - One table, one embedding column, one CRUD surface, one autocomplete endpoint,
@@ -357,9 +366,9 @@ Two guards will fire on this work and must be satisfied deliberately:
 - Adding or renaming a level later is a data/config change, which fits the
   stated product direction of growing well beyond notes.
 - The usual objection — "a `parent_id` column can't stop you from parenting an
-  epic under a category" — does not apply here. Section 2.3 makes depth,
+  epic under a category" — does not apply here. Section 2.4 makes depth,
   parent level, _and_ per-user ownership fully declarative, with no triggers.
-  Section 2.5 shows every violation being rejected by Postgres.
+  Section 2.6 shows every violation being rejected by Postgres.
 
 The remaining honest cost of Option B is that ancestor lookups need a join per
 level (or a recursive CTE for arbitrary-depth roll-ups) rather than a single
@@ -367,10 +376,128 @@ typed FK, and that the migration has to move the existing category rows into the
 new table instead of leaving them where they are. Both are handled below and
 neither showed up as a performance problem in the prototype.
 
-## 2.3 Recommended schema
+**Table naming.** The two new tables are `user_taxonomy_v1` and
+`user_taxonomy_level_v1` — deliberately without the `user_note_` prefix that
+every existing table carries. The hierarchy is content-agnostic by design: it is
+a tree of labels, and which content hangs off its leaves is the point of the
+renameable level-4 word. `user_note_v1` keeps its name as the notes content
+table, leaving room for a `user_task_v1` beside it later. These are new tables,
+so naming them right now costs nothing, whereas renaming later costs a
+migration. `user_note_tag_v1` is arguably in the same position but is not worth
+a rename on its own; leave it.
+
+**Fixed depth, renameable names.** The four tiers are renameable but their
+_count_ is fixed at three containers plus the leaf. That is deliberate: the
+`group_level = 3` pin in section 2.4 is what makes "a note attaches only to a
+group" a declarative guarantee rather than an application check. Variable depth
+would mean giving that up for a trigger or app-level validation. Renaming covers
+the stated requirement; if variable depth is wanted later it is a migration plus
+a conscious loss of that constraint.
+
+## 2.3 Tier vocabulary: the level names belong to the user
+
+There are **two different kinds of label** in this design, and keeping them
+apart is the whole point of this section:
+
+|                | What it names     | Example                         | Keyed by           | Where it lives           |
+| -------------- | ----------------- | ------------------------------- | ------------------ | ------------------------ |
+| **Tier label** | the tier itself   | "Epic", or "Project", or "Area" | `(user_id, level)` | `user_taxonomy_level_v1` |
+| **Item label** | one row in a tier | "work", "home", "uncategorized" | row id             | `user_taxonomy_v1.label` |
+
+Tier labels are per-user and renameable. `level` — a small integer — is the only
+thing the program ever branches on; the label is display text the user controls.
+That is what makes the same schema serve notes, tasks, or anything else: one
+person's levels read Epic / Category / Group / Note, another's read
+Portfolio / Project / Sprint / Task, and the code cannot tell the difference.
+
+Level 4 is included in the vocabulary because the **leaf content type is also a
+renameable word**. Level 4 has no rows in `user_taxonomy_v1` — it names the
+content in `user_note_v1`. That is how "Note" becomes "Task" without a schema
+change.
 
 ```sql
-CREATE TABLE public.user_note_taxonomy_v1 (
+CREATE TABLE public.user_taxonomy_level_v1 (
+    user_id integer NOT NULL,
+    level smallint NOT NULL,
+    label text NOT NULL,
+    time_created timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    time_modified timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    -- (user_id, level) is both the identity and the FK target used by the
+    -- hierarchy table in section 2.4
+    CONSTRAINT user_taxonomy_level_v1_pkey PRIMARY KEY (user_id, level),
+
+    CONSTRAINT user_taxonomy_level_v1_user_id_fkey
+      FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE,
+
+    -- 1..3 are containers; 4 names the leaf content type
+    CONSTRAINT user_taxonomy_level_v1_level_check
+      CHECK (level >= 1 AND level <= 4),
+
+    CONSTRAINT user_taxonomy_level_v1_label_not_blank_check
+      CHECK (label = btrim(label) AND label <> '')
+);
+
+-- two tiers must not share a name, or the UI becomes ambiguous
+CREATE UNIQUE INDEX user_taxonomy_level_v1_user_id_label_lower_idx
+  ON public.user_taxonomy_level_v1 (user_id, lower(label));
+
+CREATE TRIGGER user_taxonomy_level_v1_apply_row_timestamps_v1
+BEFORE INSERT OR UPDATE ON public.user_taxonomy_level_v1
+FOR EACH ROW EXECUTE FUNCTION public.apply_row_timestamps_v1();
+```
+
+**Defaults.** Tier labels seed to `Epic` / `Category` / `Group` / `Note`. Item
+labels for the rows the migration auto-creates all seed to `uncategorized`, at
+every level, matching the existing flat-category default.
+
+**Case handling deliberately differs between the two label kinds.** Item labels
+keep the existing `CHECK (label = lower(btrim(label)))`, because the
+upsert-by-label pattern depends on a deterministic form. Tier labels preserve
+the case the user typed, and are only checked for blankness — they are headings,
+and `user_taxonomy_level_v1` is keyed by `(user_id, level)`, so there is no
+upsert-by-label to keep deterministic. Uniqueness is enforced on `lower(label)`
+so "Group" and "group" cannot both exist as tier names.
+
+**No embeddings on tier labels.** Item labels get `label_embedding` for
+autocomplete because they are content the user searches through. Tier labels are
+four pieces of UI chrome renamed in settings; embedding them would serve nothing.
+
+**Referential integrity.** The hierarchy table carries a composite FK
+`(user_id, level)` → `user_taxonomy_level_v1 (user_id, level)`. This buys two
+guarantees, both verified: a taxonomy row cannot exist at a level the user has
+no name for, and a tier definition cannot be deleted while rows still sit at
+that tier. `ON DELETE RESTRICT` on that FK does **not** interfere with deleting
+a user, even though both tables cascade from `user_v1` — Postgres settles the
+whole cascade wave from one statement before evaluating the check. That was
+tested explicitly across `NO ACTION`, `RESTRICT` and `CASCADE`, and across both
+table-creation orders, because RI trigger firing order follows creation order;
+all six combinations left zero orphans.
+
+### The guardrail that matters most
+
+**Never branch on a tier label, only on `level`.** The label is user-editable
+free text, so any code that compares it, switches on it, or embeds it in a
+durable identifier breaks the moment someone renames a tier. Concretely:
+
+- API filters, query parameters and cache keys use `level` (and row ids), never
+  labels. The hierarchical URL state in section 6.1 must be
+  `?epic=<id>&category=<id>&group=<id>` — id-based, and it should keep those
+  parameter names regardless of what the user calls the tiers, or a rename
+  invalidates every bookmark.
+- The UI reads all four words from the API. Today they are hardcoded English
+  literals — `<div className={styles.accordionHeading}>Categories</div>`,
+  `aria-label="Notes by category"`, "Add note", and so on: roughly two dozen
+  such strings across eight files, listed in section 6.1.
+- Singular/plural: the table stores one word per tier. The UI needs "Category"
+  and "Categories". Recommendation for now is naive pluralization at the display
+  layer, with a `label_plural` column as the escape hatch if a user picks a word
+  it mangles. Adding that column later is additive and cheap.
+
+## 2.4 Recommended schema: the hierarchy table
+
+```sql
+CREATE TABLE public.user_taxonomy_v1 (
     id integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id integer NOT NULL,
     level smallint NOT NULL,                       -- 1 epic, 2 category, 3 group
@@ -383,31 +510,39 @@ CREATE TABLE public.user_note_taxonomy_v1 (
     time_created timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
     time_modified timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT user_note_taxonomy_v1_user_id_fkey
+    CONSTRAINT user_taxonomy_v1_user_id_fkey
       FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE,
 
-    CONSTRAINT user_note_taxonomy_v1_level_check
+    -- only container tiers live in this table; level 4 names the leaf content
+    CONSTRAINT user_taxonomy_v1_level_check
       CHECK (level >= 1 AND level <= 3),
 
-    CONSTRAINT user_note_taxonomy_v1_label_lowercase_check
+    -- a row may only exist at a tier this user has a name for, and a tier
+    -- definition cannot be dropped while rows still sit at it (see section 2.3)
+    CONSTRAINT user_taxonomy_v1_level_fkey
+      FOREIGN KEY (user_id, level)
+      REFERENCES public.user_taxonomy_level_v1 (user_id, level)
+      ON DELETE RESTRICT,
+
+    CONSTRAINT user_taxonomy_v1_label_lowercase_check
       CHECK (label = lower(btrim(label))),
 
     -- exactly the roots have no parent, and only roots may have none
-    CONSTRAINT user_note_taxonomy_v1_root_parent_check
+    CONSTRAINT user_taxonomy_v1_root_parent_check
       CHECK ((level = 1) = (parent_id IS NULL)),
 
     -- target of the self-referencing composite FK below; user_id is part of the
     -- key so "parent must belong to the same user" is declarative too
-    CONSTRAINT user_note_taxonomy_v1_id_level_user_key
+    CONSTRAINT user_taxonomy_v1_id_level_user_key
       UNIQUE (id, level, user_id),
 
-    CONSTRAINT user_note_taxonomy_v1_parent_fkey
+    CONSTRAINT user_taxonomy_v1_parent_fkey
       FOREIGN KEY (parent_id, parent_level, user_id)
-      REFERENCES public.user_note_taxonomy_v1 (id, level, user_id)
+      REFERENCES public.user_taxonomy_v1 (id, level, user_id)
       ON DELETE RESTRICT,
 
     -- NULLS NOT DISTINCT (PG15+) so the constraint also applies to level-1 rows
-    CONSTRAINT user_note_taxonomy_v1_sibling_label_key
+    CONSTRAINT user_taxonomy_v1_sibling_label_key
       UNIQUE NULLS NOT DISTINCT (user_id, level, parent_id, label)
 );
 ```
@@ -423,22 +558,22 @@ checks.
 Indexes:
 
 ```sql
-CREATE INDEX user_note_taxonomy_v1_user_id_level_idx
-  ON public.user_note_taxonomy_v1 (user_id, level);
+CREATE INDEX user_taxonomy_v1_user_id_level_idx
+  ON public.user_taxonomy_v1 (user_id, level);
 
-CREATE INDEX user_note_taxonomy_v1_parent_id_idx
-  ON public.user_note_taxonomy_v1 (parent_id);
+CREATE INDEX user_taxonomy_v1_parent_id_idx
+  ON public.user_taxonomy_v1 (parent_id);
 
 -- one partial HNSW index per level, so level-scoped autocomplete never has to
 -- post-filter a mixed-level index
-CREATE INDEX user_note_taxonomy_v1_epic_embedding_hnsw_idx
-  ON public.user_note_taxonomy_v1 USING hnsw (label_embedding public.vector_cosine_ops)
+CREATE INDEX user_taxonomy_v1_epic_embedding_hnsw_idx
+  ON public.user_taxonomy_v1 USING hnsw (label_embedding public.vector_cosine_ops)
   WHERE level = 1;
 -- …_category_embedding_hnsw_idx WHERE level = 2
 -- …_group_embedding_hnsw_idx    WHERE level = 3
 
-CREATE TRIGGER user_note_taxonomy_v1_apply_row_timestamps_v1
-BEFORE INSERT OR UPDATE ON public.user_note_taxonomy_v1
+CREATE TRIGGER user_taxonomy_v1_apply_row_timestamps_v1
+BEFORE INSERT OR UPDATE ON public.user_taxonomy_v1
 FOR EACH ROW EXECUTE FUNCTION public.apply_row_timestamps_v1();
 ```
 
@@ -447,7 +582,7 @@ correctly prefers a sequential scan (a user with a few thousand groups still
 sorts in well under a millisecond), so they buy nothing today. They are cheap
 (24 kB each in the prototype) and they are the right shape if a user ever grows
 a very large taxonomy. **If you prefer to keep the schema minimal, dropping all
-three and relying on `user_note_taxonomy_v1_user_id_level_idx` is a defensible
+three and relying on `user_taxonomy_v1_user_id_level_idx` is a defensible
 call** — just make the same choice in `verify-contract.mjs`.
 
 Notes attach to groups:
@@ -460,7 +595,7 @@ ALTER TABLE public.user_note_v1
 ALTER TABLE public.user_note_v1
   ADD CONSTRAINT user_note_v1_group_id_fkey
     FOREIGN KEY (group_id, group_level, user_id)
-    REFERENCES public.user_note_taxonomy_v1 (id, level, user_id)
+    REFERENCES public.user_taxonomy_v1 (id, level, user_id)
     ON DELETE RESTRICT;
 CREATE INDEX user_note_v1_group_id_idx ON public.user_note_v1 (group_id);
 ```
@@ -471,21 +606,23 @@ note's own user". That single constraint replaces
 `ensureCategoryIdForUser`'s application-side ownership check _and_ guarantees
 notes can never be attached to an epic or a category.
 
-## 2.4 Resulting relationships
+## 2.5 Resulting relationships
 
-| Relationship                | Cardinality      | Enforced by                          |
-| --------------------------- | ---------------- | ------------------------------------ |
-| user → taxonomy rows        | one-to-many      | `user_id` FK, `ON DELETE CASCADE`    |
-| epic → categories           | one-to-many      | composite parent FK, `level` 1→2     |
-| category → groups           | one-to-many      | composite parent FK, `level` 2→3     |
-| group → notes               | one-to-many      | `user_note_v1_group_id_fkey`         |
-| category → epic             | **exactly one**  | `parent_id` NOT NULL for `level > 1` |
-| group → category            | **exactly one**  | same                                 |
-| note → group                | **exactly one**  | `group_id` NOT NULL + FK             |
-| note ↔ tags                | **many-to-many** | `user_note_tag_link_v1`, unchanged   |
-| parent and child same owner | always           | `user_id` in the composite FK        |
+| Relationship                | Cardinality       | Enforced by                                    |
+| --------------------------- | ----------------- | ---------------------------------------------- |
+| user → tier definitions     | one per level 1–4 | `user_taxonomy_level_v1` PK `(user_id, level)` |
+| taxonomy row → its tier     | **exactly one**   | `user_taxonomy_v1_level_fkey`                  |
+| user → taxonomy rows        | one-to-many       | `user_id` FK, `ON DELETE CASCADE`              |
+| epic → categories           | one-to-many       | composite parent FK, `level` 1→2               |
+| category → groups           | one-to-many       | composite parent FK, `level` 2→3               |
+| group → notes               | one-to-many       | `user_note_v1_group_id_fkey`                   |
+| category → epic             | **exactly one**   | `parent_id` NOT NULL for `level > 1`           |
+| group → category            | **exactly one**   | same                                           |
+| note → group                | **exactly one**   | `group_id` NOT NULL + FK                       |
+| note ↔ tags                | **many-to-many**  | `user_note_tag_link_v1`, unchanged             |
+| parent and child same owner | always            | `user_id` in the composite FK                  |
 
-## 2.5 Verified constraint behavior
+## 2.6 Verified constraint behavior
 
 Every case below was executed against PostgreSQL 17.11 + pgvector 0.8.6 on the
 prototype schema with seeded data. "Rejected by" names the constraint that
@@ -506,13 +643,34 @@ actually fired.
 | Note with hand-tampered `group_level = 1`          | rejected                       | `group_level_check`                               |
 | Re-parenting a category to another user's epic     | rejected                       | `parent_fkey`                                     |
 | Deleting a category that still has groups          | rejected                       | `parent_fkey` (RESTRICT)                          |
-| Uppercase label                                    | rejected                       | `label_lowercase_check`                           |
+| Uppercase item label                               | rejected                       | `label_lowercase_check`                           |
 | Deleting the user                                  | **cascades** the whole subtree | `user_id` FK                                      |
 
-`pg_dump` round-trips all of it — the generated column, both composite FKs and
-`UNIQUE NULLS NOT DISTINCT` reappear verbatim — so `snapshot-schema.sh` and the
-`db:verify` artifact diff work unchanged. `generate-types.mjs` already maps
-`int2` to `number`, so `level` and `parent_level` need no generator change.
+And for the tier vocabulary of section 2.3:
+
+| Attempt                                                                                                   | Result                                                   | Rejected by                          |
+| --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------ |
+| Taxonomy row at a tier the user has no name for                                                           | rejected                                                 | `user_taxonomy_v1_level_fkey`        |
+| Deleting a tier definition that still has rows at it                                                      | rejected                                                 | `user_taxonomy_v1_level_fkey`        |
+| Tier outside 1..4                                                                                         | rejected                                                 | `user_taxonomy_level_v1_level_check` |
+| Two definitions for the same `(user_id, level)`                                                           | rejected                                                 | `user_taxonomy_level_v1_pkey`        |
+| Two tiers named the same, case-insensitively                                                              | rejected                                                 | `user_id_label_lower_idx`            |
+| Blank or untrimmed tier name                                                                              | rejected                                                 | `label_not_blank_check`              |
+| Renaming a tier (levels 1 and 4)                                                                          | **accepted**, one `UPDATE`, taxonomy row count unchanged | —                                    |
+| Two users with different vocabularies over identical data                                                 | **accepted**                                             | —                                    |
+| Deleting a user, with `NO ACTION` / `RESTRICT` / `CASCADE` on the level FK, in both table-creation orders | **cascades cleanly, 0 orphans in all 6 combinations**    | —                                    |
+
+That last row is why the FK action could be chosen on intent rather than
+mechanics. The initial assumption was that `RESTRICT` would fire mid-cascade when
+a user was deleted and that `NO ACTION` was therefore required; testing showed
+all three actions work, in both creation orders, so `RESTRICT` was chosen to
+match the rest of the schema and to give an immediate, clearer error.
+
+`pg_dump` round-trips all of it — the generated column, all three composite FKs,
+`UNIQUE NULLS NOT DISTINCT`, and the functional unique index on `lower(label)`
+reappear verbatim — so `snapshot-schema.sh` and the `db:verify` artifact diff
+work unchanged. `generate-types.mjs` already maps `int2` to `number`, so `level`
+and `parent_level` need no generator change.
 
 ---
 
@@ -526,38 +684,48 @@ the app deploy, so phase 1 must leave the currently-deployed code working.
 
 `migrations/<stamp>__note_taxonomy_hierarchy.sql`:
 
-1. Create `user_note_taxonomy_v1` with all constraints, indexes, and the
-   timestamp trigger (section 2.3).
-2. **One epic per user**, for _every_ row in `user_v1` — not only users who
+1. Create `user_taxonomy_level_v1` (section 2.3) and `user_taxonomy_v1`
+   (section 2.4) with all constraints, indexes, and timestamp triggers.
+2. **Seed the tier vocabulary for every user** — `Epic` / `Category` / `Group` /
+   `Note` at levels 1–4. This must come before any hierarchy row, because the
+   composite level FK will reject a taxonomy row at an unnamed tier.
+3. **One epic per user**, for _every_ row in `user_v1` — not only users who
    already have categories. This is what finally guarantees the fallback chain
    always resolves, removing the `ensureFallbackCategoryId` "should never
    happen" throw. It follows the precedent of
    `202606101200__seed_default_important_tag.sql`.
-3. **Every existing category becomes a level-2 row** under that user's epic,
+4. **Every existing category becomes a level-2 row** under that user's epic,
    preserving the label. The old table's `UNIQUE (user_id, label)` makes a label
    join a safe 1:1 mapping, so no temporary id-mapping column is needed.
-4. **Backstop**: any epic with no categories gets a `general` category, so users
-   with zero categories are also complete.
-5. **One `general` group under every category**, giving existing notes a home.
-6. Add `user_note_v1.group_id` (nullable) and `group_level` (default 3, pinned
+5. **Backstop**: any epic with no categories gets an `uncategorized` category, so
+   users with zero categories are also complete.
+6. **One `uncategorized` group under every category**, giving existing notes a
+   home.
+7. Add `user_note_v1.group_id` (nullable) and `group_level` (default 3, pinned
    by `CHECK`), backfill `group_id` by joining old category → new level-2 row →
-   its `general` group, then `SET NOT NULL`, add the composite FK, add the
+   its `uncategorized` group, then `SET NOT NULL`, add the composite FK, add the
    index.
 
 The old `user_note_category_v1` table and `user_note_v1.category_id` are
 untouched, so the currently-deployed app keeps working against them.
 
+New users need the same vocabulary seed at creation time — add it to
+`createAnonymousUser` and any other user-insert path, in the same transaction,
+or the first taxonomy write for that user will fail the level FK.
+
 **Verified on seeded data**: 2 users, 4 categories, 6 notes including one with a
 `NULL` description and one anonymous user's note. The migration applied in a
 single transaction and backfilled all 6 notes with no nulls left; the resulting
-tree read back correctly through a three-level join.
+tree read back correctly through a three-level join with every auto-created item
+labelled `uncategorized`.
 
-**Label choice for the auto-created rows.** The prototype used `general` for the
-default epic and the per-category group. `general` is sibling-scoped so it is
-free of collisions, but it will be visible in the UI for every existing note —
-confirm the wording (`general` vs `default` vs repeating the category label)
-before running this in production. Note that whatever is chosen must satisfy
-`label = lower(btrim(label))`.
+**Item label for the auto-created rows: `uncategorized` at every level**
+(decided). It matches the current flat-category default, and sibling-scoped
+uniqueness means an `uncategorized` epic, an `uncategorized` category beneath it
+and an `uncategorized` group beneath that coexist without conflict — including
+for the users who already own a category literally named `uncategorized`, which
+was verified. Note this is the _item_ default; the _tier_ defaults are the words
+Epic / Category / Group / Note per section 2.3.
 
 ## 3.2 Phase 2 — cutover (only after the new code is live)
 
@@ -579,20 +747,28 @@ with the group's parent once writes go through `group_id`.
 The script is 654 lines of explicit assertions and is the most common cause of a
 failing `db:verify`. Additions needed, following the existing block styles:
 
-- `user_note_taxonomy_v1` added to the expected-tables `IN` list.
+- `user_taxonomy_v1` and `user_taxonomy_level_v1` added to the expected-tables
+  `IN` list.
 - Column type and nullability assertions for `level`, `parent_id`,
   `parent_level`, `label`, `label_embedding`, `embedding_model`,
-  `embedding_updated_at`.
+  `embedding_updated_at`, and for the level table's `user_id`, `level`, `label`.
 - Named-constraint counts (`pg_constraint`) for `user_id_fkey`, `level_check`,
   `label_lowercase_check`, `root_parent_check`, `id_level_user_key`,
-  `parent_fkey`, `sibling_label_key`, plus `user_note_v1_group_id_fkey` and
-  `user_note_v1_group_level_check`.
+  `parent_fkey`, `sibling_label_key`, `user_taxonomy_v1_level_fkey`, the level
+  table's `pkey`, `level_check`, `label_not_blank_check` and `user_id_fkey`, plus
+  `user_note_v1_group_id_fkey` and `user_note_v1_group_level_check`.
 - Named-index counts (`pg_indexes`) for `user_id_level_idx`, `parent_id_idx`,
-  the three partial HNSW indexes (if kept), and `user_note_v1_group_id_idx`.
-- Trigger name added to the existing `tgname IN (…)` list.
+  the three partial HNSW indexes (if kept),
+  `user_taxonomy_level_v1_user_id_label_lower_idx`, and
+  `user_note_v1_group_id_idx`.
+- Both new trigger names added to the existing `tgname IN (…)` list.
 - **Structural data invariants**, in the spirit of the existing "every user must
   have the default important tag" check. These catch a broken backfill, which
   named-object assertions cannot:
+  - **every user has all four tier definitions** (levels 1–4) — the direct
+    analogue of the existing important-tag invariant, and the one that catches a
+    user-creation path that forgot to seed the vocabulary;
+  - no two tier definitions for one user share a `lower(label)`;
   - no row where `level > 1 AND parent_id IS NULL`, and none where
     `level = 1 AND parent_id IS NOT NULL`;
   - no row whose parent has a `level` other than `level - 1`;
@@ -606,8 +782,10 @@ failing `db:verify`. Additions needed, following the existing block styles:
 
 ## 3.4 Anonymous merge
 
-`db:verify` will fail until `user_note_taxonomy_v1` is added to
-`MERGE_TABLE_STRATEGIES`. The strategy is `dedup-remap`, but the merge SQL in
+`db:verify` will fail until **both** new tables are added to
+`MERGE_TABLE_STRATEGIES`, since both carry an FK to `user_v1`.
+
+`user_taxonomy_v1` is `dedup-remap`, but the merge SQL in
 `mergeAnonymousUserInto` needs real work: today it dedupes one flat category list
 by label in a single pass. It now has to walk **three levels in order**, because
 a level-2 row cannot be inserted until its parent's real id is known:
@@ -624,9 +802,26 @@ that serialize a merge against a concurrent claim, and the hard-won rule that
 the inlined `VALUES` remap statements must not be passed unused bind parameters
 (that bug aborted every merge in production once).
 
+`user_taxonomy_level_v1` is `drop` — **recommended, and a deliberate divergence
+from the preferences precedent.** Preferences carry anon values over because
+"key present means the visitor customized it", and the same test is available
+here (a tier label differing from the seeded default means it was renamed). The
+reason not to is product, not technical: silently renaming every tier in an
+established account because a visitor relabelled theirs before signing in is a
+far bigger surprise than inheriting a column width. The destination account's
+vocabulary should win. Flag this for the product owner, since it contradicts the
+earlier "anon wins" decision on preferences; carrying it over is a small change
+if they prefer consistency.
+
+Note that the merge order now matters for a new reason: the destination user
+already has tier definitions, so no level rows need creating, but the level FK
+means any taxonomy row inserted for the destination user must find a definition
+— which it will. Worth an assertion in the test rather than an assumption.
+
 `testing/anonymous-merge.test.ts` needs cases for a multi-level subtree, for
-same-label groups under different categories, and for a partial-overlap tree
-(shared epic, new category).
+same-label groups under different categories, for a partial-overlap tree
+(shared epic, new category), and for an anonymous user who renamed a tier
+(asserting the destination account's vocabulary survives).
 
 ---
 
@@ -635,9 +830,24 @@ same-label groups under different categories, and for a partial-overlap tree
 ## 4.1 `contracts/notes-app.ts`
 
 ```ts
+// The only stable identity of a tier. Names are user data; these are not.
 export const TAXONOMY_LEVEL_EPIC = 1
 export const TAXONOMY_LEVEL_CATEGORY = 2
 export const TAXONOMY_LEVEL_GROUP = 3
+export const TAXONOMY_LEVEL_CONTENT = 4 // names the leaf content type
+
+export const DEFAULT_TAXONOMY_LEVEL_LABELS = {
+  1: "Epic",
+  2: "Category",
+  3: "Group",
+  4: "Note",
+} as const
+
+export interface TaxonomyLevelRecord {
+  userId: number
+  level: number // 1..4
+  label: string // display text, user-editable; never branch on this
+}
 
 export interface TaxonomyRecord {
   id: number
@@ -689,7 +899,16 @@ second lookup" property, which every list view depends on.
 
 Two `noteCount` fields are needed because the UI wants both: a rolled-up count
 for tree nodes (an epic showing the total beneath it) and a direct count for the
-group actually holding the notes. Section 2.5's recursive CTE computes both.
+group actually holding the notes. Section 2.6's recursive CTE computes both.
+
+`TaxonomyLevelRecord` is what lets every client render the user's own words. It
+must be delivered on the initial load rather than fetched lazily, or the UI
+flashes default English before correcting itself. The natural home is the session
+payload — `SessionResponse` already carries `UserSummary`, so adding
+`taxonomyLevels: TaxonomyLevelRecord[]` there gets the vocabulary to the client
+in a request that already happens. Note that `notes-app.json` is generated from
+these interfaces, and the Android validator checks field order, so add fields at
+the end of existing interfaces rather than in the middle.
 
 ## 4.2 Routes
 
@@ -700,6 +919,8 @@ group actually holding the notes. Section 2.5's recursive CTE computes both.
 | `PATCH /api/taxonomy`                    | new; rename (`{ id, label }`) **and** move (`{ id, parentId }`)                                               |
 | `DELETE /api/taxonomy`                   | new; needs an explicit child/note disposition — see 4.4                                                       |
 | `POST /api/taxonomy/suggest`             | new; level-scoped label autocomplete                                                                          |
+| `GET /api/taxonomy/levels`               | new; the user's tier vocabulary (also folded into the session payload)                                        |
+| `PATCH /api/taxonomy/levels`             | new; rename a tier — `{ level, label }`. 409 on a duplicate name                                              |
 | `GET/POST/PATCH/DELETE /api/categories`  | removed at phase 2; see the compatibility note below                                                          |
 | `DELETE /api/categories/with-notes`      | folded into `DELETE /api/taxonomy`                                                                            |
 | `POST /api/notes`, `PATCH /api/notes`    | `note.categoryId` → `note.groupId`                                                                            |
@@ -742,6 +963,13 @@ until the APK is rebuilt.
   categories and tags separately.
 - **`ensureFallbackCategoryId`** becomes a per-level fallback resolver. With the
   phase-1 backfill guaranteeing a full chain per user, it can stop throwing.
+- **New: `sql/taxonomy-level.ts`** — `listTaxonomyLevelsForUser`,
+  `updateTaxonomyLevelLabelForUser(level, label)`, and
+  `ensureTaxonomyLevelsForUser(client, userId)`. The last one is the analogue of
+  the existing `ensureDefaultTagForUser`: call it from user creation and,
+  defensively, from the taxonomy list path, so a user can never be left without
+  a vocabulary. Renaming must map the unique-violation on
+  `user_id_label_lower_idx` to a 409, not a 500.
 
 ## 4.4 Open product decisions
 
@@ -762,14 +990,27 @@ API surface:
    decisions per note.
 3. **Is `lastUsedAt` rolled up too?** Recommendation: yes — `MAX` over the
    subtree, matching `noteCount`, so tree ordering is consistent at every level.
-4. **Are labels still globally lowercased?** Recommendation: keep it. It is
+4. **Are item labels still globally lowercased?** Recommendation: keep it. It is
    already enforced by `CHECK` at every level and is what makes the upsert-by-
-   label pattern deterministic.
+   label pattern deterministic. Tier labels are the exception and preserve case —
+   see section 2.3.
 5. **Moving a subtree.** Re-parenting a category moves all its groups and notes
    implicitly, since children reference the parent by id. No cascade logic is
    needed — but the sibling-label unique constraint can reject a move into a
    parent that already has that label, and the API must surface that as a
    conflict rather than a 500.
+6. **Does an anonymous visitor's tier rename survive a merge?** Recommended
+   `drop` (the destination account's vocabulary wins), which diverges from the
+   earlier "anon wins" decision on preferences. Reasoning in section 3.4.
+7. **Singular vs plural tier names.** The table stores one word; the UI needs
+   both ("Category" / "Categories"). Recommendation: naive pluralization at the
+   display layer now, with an additive `label_plural` column as the escape hatch.
+8. **Are tier names per user, or per user _and_ content type?** Today one user
+   has exactly one vocabulary. If notes and tasks should eventually have
+   _different_ tier names, this table needs a content-type dimension and the
+   whole hierarchy needs to be scoped by it. That is a much larger change and is
+   deliberately out of scope; the current shape does not block it, because
+   `(user_id, level)` can gain a third key column additively.
 
 ---
 
@@ -785,9 +1026,9 @@ notes on the description vector alone:
 SELECT <noteColumns>,
        1 - (n.description_embedding <=> $2::vector) AS similarity
 FROM public.user_note_v1 n
-JOIN public.user_note_taxonomy_v1 g ON g.id = n.group_id
-JOIN public.user_note_taxonomy_v1 c ON c.id = g.parent_id
-JOIN public.user_note_taxonomy_v1 e ON e.id = c.parent_id
+JOIN public.user_taxonomy_v1 g ON g.id = n.group_id
+JOIN public.user_taxonomy_v1 c ON c.id = g.parent_id
+JOIN public.user_taxonomy_v1 e ON e.id = c.parent_id
 WHERE n.user_id = $1
   AND n.description_embedding IS NOT NULL
 ORDER BY similarity DESC, n.time_modified DESC
@@ -805,7 +1046,7 @@ score at all, so excluding it is both cheaper and more honest. This is a visible
 behavior change: searches will no longer pad results with unrelated notes.
 
 Taxonomy embeddings are **not** removed — they move to
-`user_note_taxonomy_v1.label_embedding` and serve autocomplete (section 5.3).
+`user_taxonomy_v1.label_embedding` and serve autocomplete (section 5.3).
 
 ## 5.2 A measured trap: do not switch to an index-ordered HNSW scan
 
@@ -882,7 +1123,7 @@ in one round trip:
 3. De-duplicate, cap at `limit`.
 
 Scope every query by `user_id` and `level`, and by `parent_id` when the caller
-already picked a parent. Section 2.3's measurement applies here too: at
+already picked a parent. Section 2.4's measurement applies here too: at
 realistic taxonomy sizes this is a sub-millisecond sequential scan, so the
 embedding step's cost is the Jina round trip, not the SQL. Debounce it in the
 client and skip it for queries under ~3 characters.
@@ -891,7 +1132,7 @@ client and skip it for queries under ~3 characters.
 
 - Embed-on-write on taxonomy create and rename, at all three levels (reuse the
   existing create/update label paths).
-- `maintainNoteEmbeddingsForNotesApp` walks `user_note_taxonomy_v1` for
+- `maintainNoteEmbeddingsForNotesApp` walks `user_taxonomy_v1` for
   `missing` / `stale` instead of categories and tags separately.
   `EmbeddingMaintenanceResponse` needs a field shape covering three levels
   (for example replace `categoriesUpdated` with `taxonomyUpdated`, or report
@@ -932,10 +1173,11 @@ files:
   `selectedGroupId` plus the in-progress epic/category selection;
   `categoryInputValue` becomes per-level input state.
 - **`src/lib/notesCache.ts`** — `NotesCacheSnapshot` swaps `categories` for
-  `taxonomy`. Bump the cache key so stale snapshots are discarded rather than
-  mis-parsed.
+  `taxonomy` and gains `taxonomyLevels`. Bump the cache key so stale snapshots
+  are discarded rather than mis-parsed.
 - **`src/components/notes/modals/*`** — the four category/tag modals become
-  level-aware; the delete modal needs the 4.4-1 disposition options.
+  level-aware; the delete modal needs the 4.4-1 disposition options. A new modal
+  or settings panel is needed for renaming the four tier names.
 - **`src/types/notes.ts`** — `NoteFormState`, `noteToFormState`.
 - **`src/components/notes/NoteResultsList.tsx`** — the similarity badge still
   reads `similarity`; only the removed sibling fields matter.
@@ -948,8 +1190,37 @@ files:
   pin the new hierarchy rules.
 
 Per repo convention, app-wide UI state belongs in the Zustand store rather than
-being prop-drilled — the tree expansion state and the multi-step picker
-selection both qualify.
+being prop-drilled — the tree expansion state, the multi-step picker selection,
+and the tier vocabulary all qualify. The vocabulary in particular should be a
+store selector (something like `useTierLabel(level)`) rather than a prop threaded
+through the tree, since nearly every component needs it.
+
+### Hardcoded tier words that must become data
+
+Making the four tier names user-editable means no user-facing string may name a
+tier literally. Today they do, in roughly two dozen places across eight files —
+counted with `rg` over JSX text, `aria-label`, `placeholder`, `title` and `alt`:
+
+| File                                                  | `categor*` | `note*` | `tag*` |
+| ----------------------------------------------------- | ---------- | ------- | ------ |
+| `src/components/notes/ResultsColumn.tsx`              | 4          | 2       | 2      |
+| `src/components/notes/NotesApp.tsx`                   | 4          | 1       | —      |
+| `src/components/notes/NoteForm.tsx`                   | 1          | 3       | 1      |
+| `src/components/notes/modals/EditCategoryModal.tsx`   | 2          | —       | —      |
+| `src/components/notes/modals/DeleteCategoryModal.tsx` | 1          | —       | —      |
+| `src/components/notes/modals/EditTagModal.tsx`        | —          | —       | 2      |
+| `src/components/notes/NotesHeader.tsx`                | —          | 2       | —      |
+| `app/embeddings/page.tsx`                             | —          | 1       | 3      |
+
+Representative examples: `<div className={styles.accordionHeading}>Categories</div>`
+and `aria-label="Notes by category"` in `ResultsColumn.tsx`. Note that
+`.accordionHeading` applies `text-transform: uppercase` in CSS, so the sidebar
+headings render fine whatever case the user types — but buttons and prose
+elsewhere show the label as stored, which is why tier labels preserve case
+(section 2.3).
+
+The tag strings are listed for completeness but are **not** in scope: tags are
+not a tier and keep their fixed name. Only the four tier words become data.
 
 ## 6.2 `apps/notes-android`
 
@@ -957,9 +1228,10 @@ Gated by `apps/notes-android/tools/validate-notes-contract.mjs`, which checks
 field _order_ and Kotlin types, so these edits are mandatory, not optional:
 
 - `app/.../model/Models.kt` — replace `CategoryRecord`/`NoteCategoryRef` with
-  `TaxonomyRecord`/`TaxonomyRef`; update `NoteRecord`, `NoteDraft`
-  (`selectedCategoryId` → `selectedGroupId`), `SemanticSearchResult`,
-  `AppSnapshot`.
+  `TaxonomyRecord`/`TaxonomyRef`; add `TaxonomyLevelRecord`; update `NoteRecord`,
+  `NoteDraft` (`selectedCategoryId` → `selectedGroupId`),
+  `SemanticSearchResult`, `AppSnapshot` (which must persist the tier vocabulary
+  so the widget can label itself offline).
 - `app/.../data/JsonCodec.kt` — decoders in matching field order.
 - `app/.../data/NotesApiClient.kt` — `/api/taxonomy` calls; `groupId` in the
   note payload.
@@ -977,8 +1249,9 @@ the only real gate on the Android side.
 
 # Part 7 — Rollout order
 
-1. Land the phase-1 migration, `verify-contract.mjs` additions, the
-   `MERGE_TABLE_STRATEGIES` entry and the rewritten merge SQL. Run
+1. Land the phase-1 migration (both new tables, the vocabulary seed, the
+   backfill), `verify-contract.mjs` additions, the two
+   `MERGE_TABLE_STRATEGIES` entries and the rewritten merge SQL. Run
    `pnpm run db:migrate` then `pnpm run db:verify` on the branch — `db:verify`
    also regenerates and diffs `schema/current.sql`, `db-types.ts`,
    `db-schema.json` and `notes-app.json`, so commit those artifacts with the
@@ -1025,16 +1298,19 @@ the real Notes database.
 | Released APK breaks when `/api/categories` disappears                                                                                                                                                                   | Keep a read-only level-2 alias until the APK is rebuilt (4.2)                                                                                                                 |
 | Autocomplete returns nothing after rollout                                                                                                                                                                              | Embeddings are NULL until step 6 runs; the literal prefix half of the hybrid still works, which is why hybrid is recommended                                                  |
 | Phase 2 runs before the new code deploys                                                                                                                                                                                | Two separate migrations; phase 1 is additive and leaves the old table readable                                                                                                |
+| Code branches on a tier _label_ instead of `level`, so a rename breaks filtering, routing or cached state                                                                                                               | The guardrail in 2.3: ids and `level` in every URL, cache key and API filter; labels are render-time only                                                                     |
+| A new user is created without tier definitions, so their first taxonomy write fails the level FK                                                                                                                        | `ensureTaxonomyLevelsForUser` on the user-creation path (4.3), plus the "every user has all four tier definitions" invariant in `db:verify` (3.3)                             |
+| A user renames a tier to a word the naive pluralizer mangles                                                                                                                                                            | Cosmetic only; additive `label_plural` column is the escape hatch (4.4-7)                                                                                                     |
 
 ---
 
 # Appendix — Verification transcript
 
-Environment: PostgreSQL 17.11 + pgvector 0.8.6. Both runs start from a dropped
-database and load the real `lib/db-notes/schema/current.sql`, so they reproduce
+Environment: PostgreSQL 17.11 + pgvector 0.8.6. Every run starts from a dropped
+database and loads the real `lib/db-notes/schema/current.sql`, so they reproduce
 from scratch.
 
-Two transcripts were captured:
+Three transcripts were captured:
 
 **`taxonomy_schema_verification.log`** — schema, constraints and migration.
 Seeded with 2 users / 4 categories / 6 notes, deliberately including a
@@ -1069,44 +1345,75 @@ links on a third of the notes.
   both tenants — 0.17 ms for the small one, 49–72 ms for the 17,143-note one.
 - `user_note_v1_description_embedding_hnsw_idx` measured 139 MB.
 
+**`taxonomy_level_vocabulary_verification.log`** — the per-user renameable tier
+vocabulary, on the same seeded data.
+
+- Both new tables plus the vocabulary seed, the `uncategorized` backfill, and the
+  note→group move applied in a single transaction. All 6 notes backfilled; every
+  auto-created item label is `uncategorized` at all three levels, including for
+  the user who already owned a category named `uncategorized`.
+- 11 vocabulary cases behaved as intended: 7 rejections (row at an unnamed tier,
+  deleting an in-use tier definition, tier outside 1..4, duplicate
+  `(user_id, level)`, case-insensitively duplicate tier name, blank tier name,
+  row for a user with no vocabulary at all) and 4 positive cases — renaming
+  levels 1 and 4 with the taxonomy row count unchanged at 10, two users holding
+  independent vocabularies, the same data rendering under each owner's words, and
+  a user delete leaving 0 orphans in both tables.
+- The six-way `ON DELETE` matrix (`NO ACTION` / `RESTRICT` / `CASCADE` × both
+  table-creation orders) all cascaded cleanly with 0 orphans, which is what
+  allowed `RESTRICT` to be chosen on intent.
+- The hierarchy constraints from the first transcript were re-checked on top of
+  the vocabulary layer and behaved identically.
+- `pg_dump --schema-only` round-tripped the composite level FK and the functional
+  unique index on `lower(label)`.
+
 ## Validated phase-1 backfill SQL
 
 The exact statements that were executed and verified, to be lifted into
 `migrations/<stamp>__note_taxonomy_hierarchy.sql` after the table DDL from
-section 2.3. Confirm the `general` label choice (section 3.1) first.
+sections 2.3 and 2.4. Order matters: the vocabulary seed must precede any
+hierarchy row, or the level FK rejects it.
 
 ```sql
+-- 0. tier vocabulary for every user. This must come first.
+INSERT INTO public.user_taxonomy_level_v1 (user_id, level, label)
+SELECT u.id, v.level, v.label
+FROM public.user_v1 u
+CROSS JOIN (VALUES (1, 'Epic'), (2, 'Category'), (3, 'Group'), (4, 'Note'))
+  AS v(level, label)
+ON CONFLICT DO NOTHING;
+
 -- 1. one epic per user, for every user
-INSERT INTO public.user_note_taxonomy_v1 (user_id, level, parent_id, label)
-SELECT u.id, 1, NULL, 'general'
+INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+SELECT u.id, 1, NULL, 'uncategorized'
 FROM public.user_v1 u
 ON CONFLICT DO NOTHING;
 
 -- 2. every existing category becomes a level-2 row under that user's epic.
 --    The old table's UNIQUE (user_id, label) makes this label join 1:1.
-INSERT INTO public.user_note_taxonomy_v1 (user_id, level, parent_id, label)
+INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
 SELECT c.user_id, 2, e.id, c.label
 FROM public.user_note_category_v1 c
-JOIN public.user_note_taxonomy_v1 e
+JOIN public.user_taxonomy_v1 e
   ON e.user_id = c.user_id AND e.level = 1
 ON CONFLICT DO NOTHING;
 
 -- 3. backstop: an epic with no categories gets one, so users with zero
 --    categories also end up with a complete chain
-INSERT INTO public.user_note_taxonomy_v1 (user_id, level, parent_id, label)
-SELECT e.user_id, 2, e.id, 'general'
-FROM public.user_note_taxonomy_v1 e
+INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+SELECT e.user_id, 2, e.id, 'uncategorized'
+FROM public.user_taxonomy_v1 e
 WHERE e.level = 1
   AND NOT EXISTS (
-    SELECT 1 FROM public.user_note_taxonomy_v1 c
+    SELECT 1 FROM public.user_taxonomy_v1 c
     WHERE c.parent_id = e.id AND c.level = 2
   )
 ON CONFLICT DO NOTHING;
 
 -- 4. one group under every category, so existing notes have a home
-INSERT INTO public.user_note_taxonomy_v1 (user_id, level, parent_id, label)
-SELECT c.user_id, 3, c.id, 'general'
-FROM public.user_note_taxonomy_v1 c
+INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+SELECT c.user_id, 3, c.id, 'uncategorized'
+FROM public.user_taxonomy_v1 c
 WHERE c.level = 2
 ON CONFLICT DO NOTHING;
 
@@ -1119,10 +1426,10 @@ ALTER TABLE public.user_note_v1
 UPDATE public.user_note_v1 n
 SET group_id = g.id
 FROM public.user_note_category_v1 oldcat
-JOIN public.user_note_taxonomy_v1 c
+JOIN public.user_taxonomy_v1 c
   ON c.user_id = oldcat.user_id AND c.level = 2 AND c.label = oldcat.label
-JOIN public.user_note_taxonomy_v1 g
-  ON g.parent_id = c.id AND g.level = 3 AND g.label = 'general'
+JOIN public.user_taxonomy_v1 g
+  ON g.parent_id = c.id AND g.level = 3 AND g.label = 'uncategorized'
 WHERE oldcat.id = n.category_id
   AND n.group_id IS NULL;
 
@@ -1130,7 +1437,7 @@ ALTER TABLE public.user_note_v1 ALTER COLUMN group_id SET NOT NULL;
 ALTER TABLE public.user_note_v1
   ADD CONSTRAINT user_note_v1_group_id_fkey
     FOREIGN KEY (group_id, group_level, user_id)
-    REFERENCES public.user_note_taxonomy_v1 (id, level, user_id)
+    REFERENCES public.user_taxonomy_v1 (id, level, user_id)
     ON DELETE RESTRICT;
 CREATE INDEX user_note_v1_group_id_idx ON public.user_note_v1 (group_id);
 ```
