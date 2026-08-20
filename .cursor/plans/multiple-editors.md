@@ -9,7 +9,7 @@ todos:
     content: "Move the seven per-note fields out of the flat `notesAppStore` into an `openNotes` entry list plus `activeKey`, `backStack`, and `nextDraftSequence`; replace the two bulk `useNotesAppStore()` destructures in `NotesApp` and `ResultsColumn` with selector subscriptions"
     status: pending
   - id: keyed_save_engine
-    content: "Rework `saveCurrentNote` into `saveEntry(key, mode)` — in-flight promises and queued autosaves keyed by entry, concurrent across notes, serialized per note, status write-back by key instead of by \"is this still the open note\""
+    content: 'Rework `saveCurrentNote` into `saveEntry(key, mode)` — in-flight promises and queued autosaves keyed by entry, concurrent across notes, serialized per note, status write-back by key instead of by "is this still the open note"'
     status: pending
   - id: save_latency_client
     content: "Remove `refreshResults()` (three full list refetches) from the save path; merge the returned `NoteRecord` into `notes` in place, derive category and tag `noteCount` client-side, and relocate the category-fallback remap to where categories actually change"
@@ -45,7 +45,7 @@ todos:
     content: "Unit tests for the pure ring, back-stack, eviction, persistence-reconciliation, and headline helpers; manual verification of the switch-while-saving, evict-while-dirty, and reload-with-dirty-drafts races"
     status: pending
   - id: docs
-    content: "Rewrite the \"Note saving lifecycle\" section of `apps/notes-next/AGENTS.md` for the multi-entry model, document the persistence key and the preference, and remove the stale `FilterBanners.tsx` reference"
+    content: 'Rewrite the "Note saving lifecycle" section of `apps/notes-next/AGENTS.md` for the multi-entry model, document the persistence key and the preference, and remove the stale `FilterBanners.tsx` reference'
     status: pending
 isProject: true
 ---
@@ -70,17 +70,17 @@ a save.
 
 Confirmed product requirements:
 
-| # | Requirement | Section |
-| --- | --- | --- |
-| R1 | Multiple notes live in memory and state simultaneously; opening a note adds to the list rather than replacing | §3 |
-| R2 | Switching notes does not wait for the previous note to save | §4.3 |
-| R3 | The list is bounded; adding past the limit drops the least recently used entry | §3.4 |
-| R4 | No tab bar. A **back** button and a **recent** dropdown instead | §8.1, §8.2 |
-| R5 | Selecting from the recent dropdown opens that note and promotes it to the top | §8.2 |
-| R6 | The open list survives a page reload | §6 |
-| R7 | The limit is a user preference, defaulting to 10 | §7 |
-| R8 | The recent dropdown offers an explicit per-row close | §8.3 |
-| R9 | The URL keeps carrying the active note id and category so links stay shareable | §9 |
+| #   | Requirement                                                                                                   | Section    |
+| --- | ------------------------------------------------------------------------------------------------------------- | ---------- |
+| R1  | Multiple notes live in memory and state simultaneously; opening a note adds to the list rather than replacing | §3         |
+| R2  | Switching notes does not wait for the previous note to save                                                   | §4.4       |
+| R3  | The list is bounded; adding past the limit drops the least recently used entry                                | §3.4       |
+| R4  | No tab bar. A **back** button and a **recent** dropdown instead                                               | §8.1, §8.2 |
+| R5  | Selecting from the recent dropdown opens that note and promotes it to the top                                 | §8.2       |
+| R6  | The open list survives a page reload                                                                          | §6         |
+| R7  | The limit is a user preference, defaulting to 10                                                              | §7         |
+| R8  | The recent dropdown offers an explicit per-row close                                                          | §8.3       |
+| R9  | The URL keeps carrying the active note id and category so links stay shareable                                | §9         |
 
 ### 1.2 Explicitly out of scope
 
@@ -128,7 +128,7 @@ Two compounding costs:
 categories, and all tags. A note switch therefore costs four HTTP round-trips.
 
 **A blocking embeddings call before the write.** Both create and update await a
-Jina HTTP round-trip *before* Postgres is touched:
+Jina HTTP round-trip _before_ Postgres is touched:
 
 ```ts
 // lib/db-notes/services/notes-app.ts:792
@@ -235,26 +235,42 @@ loop.
 
 All pure, all in `openNotes.ts`, all unit-tested. Every reducer that can remove
 an entry returns `{ state, removed: OpenNoteEntry[] }` so the caller can route
-dirty removals to the detached-save path (§4.4).
+dirty removals to the detached-save path (§4.5).
 
 The cap is passed in as an argument rather than read from a module constant,
 because it is a user preference (§6) and the reducers must stay pure.
 `MAX_OPEN_NOTES_DEFAULT = 10`.
 
-| Operation | Behavior |
-| --- | --- |
-| `openExistingNote(state, note, cap)` | If an entry for `note.id` exists, activate and promote it to index 0 and **keep its in-memory draft** — do not reload from the server record. Otherwise create an entry from `noteToFormState(note)`, insert at index 0, evict down to `cap`. |
-| `openNewDraft(state, { categoryId, tagIds }, cap)` | Mint `draft:${nextDraftSequence}`, insert at index 0, evict down to `cap`. |
-| `activate(state, key)` | Push the outgoing `activeKey` onto `backStack`, set `activeKey`, promote the entry to index 0, bump `lastActivatedAt`. |
-| `goBack(state)` | Pop keys off `backStack` until one still exists in `openNotes`, then activate it **without** pushing the outgoing key back on. |
-| `closeEntry(state, key)` | Remove from `openNotes`, purge every occurrence from `backStack`. If it was active, activate the back target, else the new index 0, else open a fresh draft. Returns the removed entry. |
-| `evictToCap(state, cap)` | While `openNotes.length > cap`, drop the last entry that is not the active one. Returns all dropped entries. |
-| `patchEntry(state, key, patch)` | The single write path for form, status, and signature updates, used by both the UI and save completions. No-op if the key is gone. |
+| Operation                                          | Behavior                                                                                                                                                                                                                                          |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openExistingNote(state, note, cap)`               | If an entry for `note.id` exists, activate and promote it to index 0 and **keep its in-memory draft** — do not reload from the server record. Otherwise create an entry from `noteToFormState(note)`, then insert → activate → evict (see below). |
+| `openNewDraft(state, { categoryId, tagIds }, cap)` | If the active entry is already an empty draft, no-op — see below. Otherwise mint `draft:${nextDraftSequence}`, then insert → activate → evict.                                                                                                    |
+| `activate(state, key)`                             | Push the outgoing `activeKey` onto `backStack`, set `activeKey`, promote the entry to index 0, bump `lastActivatedAt`.                                                                                                                            |
+| `goBack(state)`                                    | Pop keys off `backStack` until one still exists in `openNotes`, then activate it **without** pushing the outgoing key back on.                                                                                                                    |
+| `closeEntry(state, key)`                           | Remove from `openNotes`, purge every occurrence from `backStack`. If it was active, activate the back target, else the new index 0, else open a fresh draft. Returns the removed entry.                                                           |
+| `evictToCap(state, cap)`                           | While `openNotes.length > cap`, drop the last entry that is not the active one. Returns all dropped entries.                                                                                                                                      |
+| `patchEntry(state, key, patch)`                    | The single write path for form, status, and signature updates, used by both the UI and save completions. No-op if the key is gone.                                                                                                                |
 
 **Eviction protects only the active entry.** Also protecting the current back
-target is tempting but can make the cap unenforceable when the back target *is*
+target is tempting but can make the cap unenforceable when the back target _is_
 the LRU candidate. It is unnecessary anyway: `goBack` pops until it finds a
 surviving key, so the stack self-heals over evictions, closes, and deletions.
+
+**The open sequence is insert → activate → evict, in that order, and the order
+is load-bearing.** Because eviction protects the active entry, evicting before
+activating protects the _outgoing_ entry instead of the incoming one. At
+`cap === 1` that deadlocks the cap outright: the list holds two entries, the
+only eviction candidate is the still-active outgoing entry, so nothing can be
+dropped and the cap is silently violated. Activating first makes the incoming
+entry the protected one and the outgoing entry the candidate, which is what we
+want at every cap. Test this at `cap === 1` specifically — larger caps hide it.
+
+**Opening a new draft while the active entry is already an empty draft is a
+no-op.** Otherwise pressing `+` repeatedly mints throwaway entries that push
+real notes out of the ring. "Empty" is the existing `newNoteHasUserInput`
+predicate in `NoteForm`, inverted. This pairs with the deactivate-time cleanup
+in §14: one rule stops empty drafts being created, the other stops them
+lingering.
 
 **Back is a visit stack, not "MRU index 1".** Those differ. With MRU-index-1
 semantics, pressing back twice returns you to where you started, because the
@@ -275,7 +291,7 @@ grow it without limit.
   snapshots **that entry**, not `noteFormRef.current`.
 - `noteSavePromiseRef: Promise<void> | null` becomes
   `saveInFlight: Map<OpenNoteKey, Promise<void>>`. Saves for different entries
-  run concurrently; a second save for the *same* entry keeps today's rules — an
+  run concurrently; a second save for the _same_ entry keeps today's rules — an
   `autosave` marks itself queued and returns, a `flush` awaits the in-flight
   save then re-checks the signature.
 - `queuedAutosaveRef: boolean` becomes `Set<OpenNoteKey>`.
@@ -290,10 +306,50 @@ grow it without limit.
   — exists only because state is global. With per-entry state it collapses to
   `patchEntry(key, { savedSignature, saveStatus, noteId })`, which is correct
   whether or not the user has moved on.
-- Modes become `manual | autosave | flush | detached`. A `detached` save persists
-  an entry that has already left the ring (§4.4) and never touches store state.
 
-### 4.2 Autosave fan-out
+- Modes become `manual | autosave | flush | detached`. A `detached` save persists
+  an entry that has already left the ring (§4.5) and never touches store state.
+- `notePending` is today a single `useState` boolean that gates the autosave
+  effect (`NotesApp.tsx:1324`) and is set during manual saves and sidebar moves.
+  It must become per-entry, or a sidebar move on one note suppresses autosave on
+  every other open note. Derive it from the entry rather than adding a parallel
+  map. Note also that `notePending` is declared in `NoteFormProps` but never
+  destructured or used inside `NoteForm` — delete the dead prop while you are
+  there.
+
+### 4.2 Decide what `manual` mode means before preserving it
+
+Worth settling early, because the current behavior would be actively wrong in
+the ring model.
+
+`saveCurrentNote("manual")` ends by calling `resetNoteForm(...)`, which clears
+the editor to a fresh blank draft. Carried over literally, a manual save would
+wipe the entry the user just saved — the opposite of what a ring implies.
+
+Before designing around that, check whether the path is reachable at all.
+**There is no submit button in `NoteForm`.** The `<form>` carries
+`onSubmit={handleSaveNote}`, but no descendant has `type="submit"` — the only
+submit buttons in `src/` are in the sign-in and create-account forms in
+`NotesHeader`. The description field is CodeMirror, where Enter inserts a
+newline, and both picker inputs call `preventDefault()` on Enter. That leaves
+implicit submission from an expanded `datetime-local` field as the sole
+remaining trigger, which is an accident rather than a feature.
+
+So `manual` is effectively dead code today. Pick one, deliberately:
+
+- **Preferred — redefine it.** Keep the mode as "persist this entry now and
+  leave it open", dropping the `resetNoteForm` call and the "Note created." /
+  "Note updated." status message. If a Save button is ever added, that is the
+  behavior it should have. This is a one-line simplification of the save engine.
+- **Alternative — delete it.** Remove the mode, `handleSaveNote`, and the
+  form's `onSubmit`, leaving `autosave`, `flush`, and `detached`. Smaller
+  surface, but it forecloses adding a Save button without re-adding the mode.
+
+Do not simply carry the reset-to-fresh-draft behavior forward. Whichever option
+is chosen, the choice belongs in Phase 1, since Phases 1 and 2 would otherwise
+spend effort preserving semantics no user can reach.
+
+### 4.3 Autosave fan-out
 
 The single debounce effect becomes one debounce **per dirty entry**, in a new
 `src/hooks/useOpenNotesAutosave.ts` holding a `Map<OpenNoteKey, timeoutId>`. On
@@ -305,7 +361,7 @@ clean or disappeared.
 Only the active entry receives keystrokes, so in practice at most one timer is
 ever repeatedly re-armed. Background entries fire once and go clean.
 
-### 4.3 Non-blocking switching
+### 4.4 Non-blocking switching
 
 ```ts
 const activateEntry = (key: OpenNoteKey) => {
@@ -319,7 +375,7 @@ The outgoing draft is safe because it is still in `openNotes`. If its request
 fails, its entry shows `error` in the recent dropdown and the autosave hook
 retries on the next change.
 
-### 4.4 Removal of a dirty entry
+### 4.5 Removal of a dirty entry
 
 Removal — by eviction (§3.4), by explicit close (§8.3), or by lowering the cap
 (§7.4) — is the one place a draft genuinely leaves memory, so all three route
@@ -333,7 +389,28 @@ entry that is dirty, `NotesApp` moves `{ noteId, form, signature }` into a
 - The `pagehide` / `visibilitychange` keepalive iterates `detachedSaves` **and**
   `openNotes`, so an abrupt tab close still persists both.
 
-### 4.5 Flushes that must stay awaited
+**Duplicate-note hazard.** A never-saved entry (`noteId === null`) saves with
+`POST`, so two overlapping saves for the same key create two notes. Two guards,
+both required:
+
+- A detached save must not start while `saveInFlight` already holds that key.
+  Chain onto the in-flight promise instead, then re-check the signature — the
+  in-flight save may already have persisted the snapshot, and it is the one that
+  learns the new `noteId`.
+- A queued autosave must not be dispatched until the completing save has written
+  `noteId` back to the entry, or the queued run still sees `null` and `POST`s a
+  second note. Today's ordering already does this — the write-back happens
+  inside the save promise and the queued run is dispatched after it — so the
+  requirement is to preserve that ordering, not to invent it. It is easy to lose
+  when the write-back moves from `setEditingNoteId` to `patchEntry`.
+
+Because a detached entry has no store slot, the `noteId` a detached `POST`
+returns has nowhere to go. That is fine — nothing will reference it again — but
+it does mean a detached save must never be retried, or it creates a second note.
+Delete the map entry on completion whether it succeeded or failed, and rely on
+the keepalive for the failure case.
+
+### 4.6 Flushes that must stay awaited
 
 Non-blocking switching does not mean deleting `flush`. These paths still await,
 now over **all dirty entries** via `Promise.allSettled`:
@@ -366,7 +443,9 @@ needed to update the list:
 setNotes((prev) => [...prev.filter((n) => n.id !== data.note.id), data.note])
 ```
 
-Two things `refreshResults` was silently providing must be replaced:
+Four things `refreshResults` was silently providing must be replaced. The last
+two are the easy ones to miss, because nothing fails loudly when they go —
+the UI just shows stale text later.
 
 - **`CategoryRecord.noteCount` and `TagRecord.noteCount`.** These come from
   correlated `COUNT(*)` subqueries in `lib/db-notes/sql/category.ts` and
@@ -386,6 +465,21 @@ Two things `refreshResults` was silently providing must be replaced:
   path. Extract it as `remapEntriesAfterCategoryChange(categories)` and reuse it
   from the delete, rename, and rehydrate paths (§6.4).
 
+- **The search-results refresh.** `refreshResults` ends with
+  `if (trimmedSearchQuery) await runSearch(...)`. The standalone search effect
+  cannot cover this, because it is keyed on `[notes.length, trimmedSearchQuery, user]`
+  and editing a note does not change `notes.length` — so with a search active,
+  an edited note would keep showing its pre-edit text in the results list. Do
+  **not** re-run the search on every save; that costs an embedding call for the
+  query plus a vector scan. Patch the matching entry inside `searchResults` in
+  place, the same way `notes` is patched, and leave the similarity score alone.
+
+- **The `notesCache` notes-list write.** `updateNotesCacheList(userId, "notes", …)`
+  lives inside `loadNotes`, so dropping the refetch also stops the local snapshot
+  being refreshed after a save. The next cold start would paint pre-edit text
+  until the background revalidate lands. Call `updateNotesCacheList` with the
+  merged array after the in-place merge.
+
 ### 5.2 Server — do not re-embed an unchanged description
 
 The largest single component of save latency, and contained.
@@ -393,19 +487,47 @@ The largest single component of save latency, and contained.
 category, tags, or a date changed — which is exactly what a sidebar move or a
 due-date edit does.
 
-- Read the stored description first: a local Postgres round-trip, cheap next to
-  an external embeddings call.
-- If the normalized description is unchanged, skip `createNoteEmbeddingInput`
-  and pass a sentinel meaning "leave the embedding columns alone".
+- Read the stored row first: a local Postgres round-trip, cheap next to an
+  external embeddings call. Fetch `description`, `description_embedding IS NULL`,
+  and `embedding_model`.
+- Skip `createNoteEmbeddingInput` and pass a sentinel meaning "leave the
+  embedding columns alone" only when **all three** hold:
+  1. the normalized description is unchanged;
+  2. `description_embedding IS NOT NULL`;
+  3. `embedding_model` equals `CURRENT_NOTE_EMBEDDING_MODEL`.
 - Widen `updateNoteForUser` (`lib/db-notes/sql/note/update.ts:10`) to accept
   `NoteEmbeddingWriteInput | null` and omit `description_embedding`,
   `embedding_model`, and `embedding_updated_at` from the `SET` list when null.
 
+**Why all three conditions, not just the first.** Skipping on an unchanged
+description alone would strand two populations of notes that ordinary editing
+currently repairs as a side effect. Notes with a null embedding — a create whose
+Jina call failed, or a row inserted by the anonymous-merge SQL, which bypasses
+embed-on-write — would stay unsearchable no matter how much the user edited
+their category or tags. Notes embedded with a superseded model would stop
+migrating when `CURRENT_NOTE_EMBEDDING_MODEL` is bumped. Conditions 2 and 3
+mirror exactly what `listNotesStaleEmbeddingsByUser` treats as needing work
+(`embedding_model IS DISTINCT FROM $2 OR description_embedding IS NULL`), so the
+skip fires only when the stored embedding is already correct and current.
+
+**Checked and clear:** staleness detection does _not_ compare
+`embedding_updated_at` against `time_modified` (`lib/db-notes/sql/note/gets.ts:49`).
+So leaving `embedding_updated_at` behind while `time_modified` advances does not
+create phantom stale rows for the maintenance job. Had the query used a
+timestamp comparison, this optimization would have quietly created work rather
+than saving it.
+
+**Also preserved:** clearing an embedding still works. When a description is
+edited to empty, `createNoteEmbeddingInput` returns `emptyEmbeddingInput()` and
+the three columns are nulled. That path is a description _change_, so condition
+1 fails and the skip correctly does not apply.
+
 This touches no table definition and no contract, so per the repo database rules
 it needs no migration and no `verify-contract.mjs` change. Run `pnpm run db:verify`
 deliberately before merge anyway, and extend the DB-backed suite
-(`pnpm --filter @lib/db-notes test` against `DB_NOTES_TEST_URL`) to cover both
-branches.
+(`pnpm --filter @lib/db-notes test` against `DB_NOTES_TEST_URL`) to cover the
+skip, the re-embed, the null-embedding repair, the model-mismatch repair, and
+the edit-to-empty clear.
 
 ---
 
@@ -418,8 +540,8 @@ The ring is persisted under `notes-open-notes-v1`, **separate** from the existin
 which would otherwise cause data loss or a hot-path regression:
 
 1. **Different durability class.** `notesCache` is a discardable
-   stale-while-revalidate cache of server data. Open notes contain *unsaved user
-   text*. `notesCache` discards itself wholesale once
+   stale-while-revalidate cache of server data. Open notes contain _unsaved user
+   text_. `notesCache` discards itself wholesale once
    `CACHE_MAX_AGE_MS` (14 days) has passed, and `clearNotesCache()` is called on
    the `restoreSession` failure path (`NotesApp.tsx:980`). Either would silently
    destroy unsaved drafts.
@@ -473,21 +595,47 @@ Validation on read mirrors the defensive `isSnapshot` style already in
 
 ### 6.4 Rehydration and reconciliation
 
-Runs inside `restoreSession` once notes are available, guarded by a ref so it
-cannot run twice.
+Runs inside `restoreSession` once notes are available. It has to run **twice**,
+because `restoreSession` has two branches that both produce notes.
+
+On a warm start the cache-first branch paints from `readNotesCache` and only
+then awaits `fetchFreshSession`, which replaces `notes` without re-running
+`applyNotesUrlSelection`. Reconciling only against the cached list would judge
+entries against a snapshot up to 14 days old — a note deleted server-side last
+week would still look present, and a note edited on another device would look
+current. Reconciling only after the fresh fetch would throw away the fast paint
+that the cache exists to provide.
+
+So: reconcile once against the cached list for the immediate paint, then again
+after the fresh load. The second pass is safe to repeat because the rules are
+idempotent and dirty entries are never touched by either pass — only the clean
+refresh and the record-missing cases can change anything, and both converge on
+the fresh data. Guard the _first_ pass with a ref so it cannot run twice within
+a branch; the second pass is a deliberate re-run, not a duplicate.
 
 Per entry with a `noteId`:
 
-| Server state | Entry clean | Entry dirty |
-| --- | --- | --- |
-| Record present, unchanged | Keep as-is | Keep the local draft |
-| Record present, server is newer | Refresh the form from the record and reset `editorSessionId` | **Keep the local draft** — the user's unsaved text always wins, matching today's last-write-wins on save |
-| Record missing (deleted elsewhere) | Drop silently — nothing is lost | Keep the text by converting to a `draft:` entry (`noteId → null`) and show a status message naming the count, so the next save re-creates it |
+| Server state                       | Entry clean                                                                                       | Entry dirty                                                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Record present, unchanged          | Keep as-is                                                                                        | Keep the local draft                                                                                                                         |
+| Record present, server is newer    | Refresh the form from the record, recompute `savedSignature` from it, and reset `editorSessionId` | **Keep the local draft** — the user's unsaved text always wins, matching today's last-write-wins on save                                     |
+| Record missing (deleted elsewhere) | Drop silently — nothing is lost                                                                   | Keep the text by converting to a `draft:` entry (`noteId → null`) and show a status message naming the count, so the next save re-creates it |
 
 The dirty-and-deleted rule deserves its rationale: it can resurrect a note the
 user deliberately deleted in another tab. That is the lesser evil, because the
 alternative is destroying text the user typed and never saw saved. The status
 message makes it visible rather than silent.
+
+**Any write to an entry's form during reconciliation must recompute
+`savedSignature` alongside it.** This is the same failure as the draft-key
+signature issue in §3.3, and it shows up in three places here: refreshing a
+clean entry from a newer server record, remapping dead category and tag ids, and
+re-keying after an anonymous merge. Leave the old signature in place and the
+entry reads as dirty the instant it loads, so the autosave hook immediately
+PATCHes the server with what the server just told us — harmless in the simple
+case, but on the merge path it would push anonymous-side ids back over the
+merged ones. The rule to hold: a form change the _user_ did not make is never
+allowed to make an entry dirty.
 
 Other rules:
 
@@ -520,7 +668,7 @@ Other rules:
   - **The user id changes**, so the `userId` gate in §6.2 rejects the
     anon-keyed snapshot on read by default. That is safe — `handleLogin`
     already awaits a full flush before capturing the merge token, so no text is
-    lost — but it silently discards the *list* of which notes were open.
+    lost — but it silently discards the _list_ of which notes were open.
 
   Recommended behavior: after a successful merge, re-key the snapshot's `userId`
   to the real user id instead of clearing it, then let the §6.4 reconciliation
@@ -577,7 +725,7 @@ the existing "Paste URLs as markdown links" checkbox. Label it for what it does
 ### 7.4 Lowering the cap must evict immediately
 
 Easy to miss. When the preference drops from 10 to 3, call `evictToCap` at once
-and route any dirty removals through the detached-save path (§4.4). Do not wait
+and route any dirty removals through the detached-save path (§4.5). Do not wait
 for the next note to be opened.
 
 ---
@@ -635,7 +783,7 @@ close button must `stopPropagation` — the existing `noteAction` wrapper in
 
 Behavior:
 
-- Closing a **dirty** entry routes through the detached-save path (§4.4), so the
+- Closing a **dirty** entry routes through the detached-save path (§4.5), so the
   text is still persisted after the row disappears. Closing is not discarding.
 - Closing the **active** entry activates the back target, else the new index 0,
   else opens a fresh empty draft. This is already `closeEntry`'s contract.
@@ -747,21 +895,24 @@ time.
 
 This is the bulk of the diff surface in `NotesApp.tsx`.
 
-| Location | Required change |
-| --- | --- |
-| `handleStartEdit` / `handleOpenNoteFromResults` | Drop the awaited flush; call `openExistingNote` then `activateEntry`. |
-| `handleCancelEdit`, `handleAddNoteForCategory`, `handleAddNoteForTag` | Open a **new draft entry** instead of resetting the one global form. Behavior change — see §14. |
-| `handleDeleteNote` | `closeEntry` for that note whether or not it is active, rather than only calling `resetNoteForm` when it happens to be the open one, and purge it from `backStack`. |
-| `handleMoveNoteCategory` / `handleMoveNoteTag` | These currently patch `noteForm` when `editingNoteId === note.id`; they must patch the entry for that note if it is open, active or not. |
-| `refreshResults` category remap | Fan out across all entries and relocate off the save path (§5.1). |
-| `performDeleteCategory*`, `performDeleteTag`, `handleSaveCategory`, `handleSaveTag` | Remap or clear affected `selectedCategoryId`, `selectedTagIds`, and `categoryInputValue` across all entries. |
-| `handleLogout`, `resetDefaultState`, the `restoreSession` error path | Clear `openNotes`, `activeKey`, `backStack`, `detachedSaves`, and the persisted snapshot. |
-| `applyNotesUrlSelection` | Follow the §9.2 load order; never clobber a restored or in-memory draft when the URL points at an already-open note. |
-| `popstate` handler | No flush; activate the entry named by the URL (§9.3). |
-| `pagehide` / `visibilitychange` keepalive | Iterate all dirty entries plus `detachedSaves`, and write the persistence snapshot (§6.3). |
-| `ResultsColumn` `activeNoteId` / `activeCategoryId` / `activeTagIds` | Read from the active entry; add the open-note set (§8.4). |
-| `NoteForm` props | `form`, `setForm`, `editingNoteId`, `descriptionEditorSessionId`, `categoryInputValue`, and `pendingTagLabels` all become active-entry-derived. |
-| `useNotesAppStore()` bulk destructures — `NotesApp.tsx:396` and `ResultsColumn.tsx:132` | Both subscribe to the entire store, so any `openNotes` write would re-render the whole app including the editor. Convert to selector subscriptions. Mandatory, not a nicety. |
+| Location                                                                                | Required change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `handleStartEdit` / `handleOpenNoteFromResults`                                         | Drop the awaited flush; call `openExistingNote` then `activateEntry`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `handleCancelEdit`, `handleAddNoteForCategory`, `handleAddNoteForTag`                   | Open a **new draft entry** instead of resetting the one global form. Behavior change — see §14.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `handleDeleteNote`                                                                      | `closeEntry` for that note whether or not it is active, rather than only calling `resetNoteForm` when it happens to be the open one, and purge it from `backStack`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `handleMoveNoteCategory` / `handleMoveNoteTag`                                          | These currently patch `noteForm` when `editingNoteId === note.id`; they must patch the entry for that note if it is open, active or not.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `handleCreateTag` / `handleCreateCategory`                                              | **Capture the entry key before the `await`.** Both `POST`, then on response call `setNoteForm` / `setPendingTagLabels` / `setCategoryInputValue` against whatever is current. Non-blocking switching makes "whatever is current" a different note: type a new tag in note A, switch to B while the request is in flight, and the tag lands on B. Resolve the target key up front and complete through `patchEntry(key, …)`. `creatingTagLabelsRef` stays global — deduping concurrent creates of the same label across entries is exactly what it is for — but `pendingTagLabelsRef` becomes per-entry, so the `shouldKeepSelected` check must read the captured entry. |
+| `refreshResults` category remap                                                         | Fan out across all entries and relocate off the save path (§5.1).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `performDeleteCategory*`, `performDeleteTag`, `handleSaveCategory`, `handleSaveTag`     | Remap or clear affected `selectedCategoryId`, `selectedTagIds`, and `categoryInputValue` across all entries.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `handleLogout`, `resetDefaultState`, the `restoreSession` error path                    | Clear `openNotes`, `activeKey`, `backStack`, `detachedSaves`, and the persisted snapshot.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `applyNotesUrlSelection`                                                                | Follow the §9.2 load order; never clobber a restored or in-memory draft when the URL points at an already-open note.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `popstate` handler                                                                      | No flush; activate the entry named by the URL (§9.3).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `pagehide` / `visibilitychange` keepalive                                               | Iterate all dirty entries plus `detachedSaves`, and write the persistence snapshot (§6.3).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `ResultsColumn` `activeNoteId` / `activeCategoryId` / `activeTagIds`                    | Read from the active entry; add the open-note set (§8.4).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `NoteForm` props                                                                        | `form`, `setForm`, `editingNoteId`, `descriptionEditorSessionId`, `categoryInputValue`, and `pendingTagLabels` all become active-entry-derived. `notePending` is declared in `NoteFormProps` but never destructured — delete it.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `notePending` (`NotesApp.tsx:403`)                                                      | A single boolean gating the autosave effect and set by manual saves and sidebar moves. Must become per-entry (§4.1), or one note's sidebar move suppresses autosave on every other open note.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `handleSaveNote` and the form's `onSubmit`                                              | Resolve the `manual`-mode decision in §4.2 before Phase 1 rather than porting the reset-to-fresh-draft behavior.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `useNotesAppStore()` bulk destructures — `NotesApp.tsx:396` and `ResultsColumn.tsx:132` | Both subscribe to the entire store, so any `openNotes` write would re-render the whole app including the editor. Convert to selector subscriptions. Mandatory, not a nicety.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ---
 
@@ -775,9 +926,12 @@ Six phases, each independently reviewable, each leaving the app working.
 slice; `NotesApp`, `NoteForm`, and `NotesHeader` reading through the active
 entry; selector subscriptions replacing the two bulk destructures.
 
+**Decide first.** The `manual`-mode question in §4.2. It changes what Phase 1
+ports, and getting it wrong means carrying dead complexity through two phases.
+
 **Acceptance.** No user-visible behavior change at all. `pnpm --filter notes-next verify`
-passes. A manual pass covers open, edit, autosave, manual save, cancel, delete,
-switch, and reload.
+passes. A manual pass covers open, edit, autosave, cancel, delete, switch, and
+reload.
 
 **Why first.** This is the risky mechanical refactor, isolated from every
 behavior change so a regression here is unambiguous.
@@ -855,7 +1009,12 @@ why the ring logic goes in a pure module.
 - deleting a note closes its entry and purges it from the stack;
 - a `draft:` entry keeps its key across the `noteId: null` → real id transition,
   and its signature is recomputed with the new id;
-- lowering the cap evicts down to it and returns every dropped entry.
+- lowering the cap evicts down to it and returns every dropped entry;
+- **`cap === 1`: opening a second note leaves exactly one entry.** This is the
+  case that catches an insert → evict → activate ordering mistake; every larger
+  cap passes even with the order wrong (§3.4);
+- `openNewDraft` while the active entry is an already-empty draft is a no-op and
+  does not consume a draft sequence number.
 
 `test/open-notes-storage.test.ts` — serialization and reconciliation, as a pure
 function over `(snapshot, notes)`:
@@ -866,13 +1025,24 @@ function over `(snapshot, notes)`:
 - a clean entry whose record is gone is dropped;
 - a dirty entry whose record is gone becomes a `draft:` entry and is reported;
 - an empty never-saved draft is dropped, a non-empty one is kept;
-- a form referencing a deleted category is remapped to the default.
+- a form referencing a deleted category is remapped to the default;
+- **no reconciliation outcome leaves a clean entry dirty.** Assert it as a
+  blanket invariant over every case above rather than one case at a time: for
+  any entry the user did not edit, the returned `savedSignature` matches the
+  returned `form`. This is the cheapest guard against the §6.4 signature bug,
+  and it keeps holding as new reconciliation rules are added;
+- reconciling twice in a row produces the same result as reconciling once,
+  which is what makes the cached-then-fresh double pass safe.
 
 `test/note-headline.test.ts` — the promoted `noteHeadline`: heading markers,
 punctuation, empty and whitespace-only documents, the truncation boundary.
 
-In `lib/db-notes`, extend the DB-backed suite so a category-only PATCH leaves
-`embedding_updated_at` untouched while a description change refreshes it.
+In `lib/db-notes`, extend the DB-backed suite to cover all five branches of the
+re-embed skip (§5.2): a category-only PATCH on a correctly-embedded note skips
+and leaves `embedding_updated_at` untouched; a description change re-embeds; a
+note with a null embedding is repaired even when the description is unchanged; a
+note whose `embedding_model` is superseded is re-embedded; and editing a
+description to empty still nulls all three columns.
 
 ### Manual verification
 
@@ -903,18 +1073,31 @@ These are races unit tests will not catch:
     one note opens and is active.
 12. Rename and delete a category while notes in it are open. Every affected entry
     updates.
+13. Start typing a brand-new note, then switch away before its first save
+    returns, then switch back and keep typing. Exactly one note exists at the
+    end — this is the duplicate-`POST` hazard in §4.5.
+14. Type a new tag name in note A, switch to B before the tag request returns.
+    The tag lands on A, not B. Repeat for a newly created category.
+15. Reload as a returning user with a warm `notesCache`, having edited one of the
+    open notes on another device since. The cached paint appears immediately and
+    the entry updates to the newer server text once the fresh load lands, without
+    the entry ever showing as unsaved (§6.4).
+16. With a search query active, edit an open note that appears in the results.
+    The results row updates rather than showing pre-edit text (§5.1).
 
 ---
 
 ## 14. Risks and mitigations
 
-| Risk | Mitigation |
-| --- | --- |
-| **Phase 1 is the real risk.** `NotesApp.tsx` is roughly 2,500 lines and the save lifecycle is subtle — the synchronous pre-`await` snapshot, the `lastSavedNoteDraftRef` dedupe, the `editingNoteIdRef` write-back, and the keepalive path all interlock. | Phase 1 ships at a cap of 1 with zero behavior change, so any regression is unambiguous. The existing correctness comments in that file are load-bearing documentation — read them before moving anything and carry them across. |
-| **Silent data loss.** Every eviction, close, non-awaited switch, and reload is a place a draft can vanish. | One removal path through `detachedSaves` (§4.4); a widened keepalive; a persistence layer that never drops a dirty entry (§6.3); the dirty-and-deleted resurrect rule (§6.4). Manual checks 1–5 are not optional. |
-| **`jot.new` and `+` change meaning** from "replace the open note" to "add a draft alongside it", making abandoned empty drafts easy to accumulate. | Close a draft entry that is deactivated while still empty, reusing the existing `newNoteHasUserInput` predicate in `NoteForm`. |
-| **Autosave storms.** Several entries on a 3-second debounce could in principle fire concurrent requests. | Only the active entry receives edits, so background entries fire once and go clean. Phase 3 cuts per-save cost from four round-trips plus an embedding call to one round-trip. Watch it during Phase 4 anyway. |
-| **Re-render cost.** The two bulk `useNotesAppStore()` destructures mean every `openNotes` write would re-render the whole app, editor included. | Selector subscriptions in Phase 1, listed as a deliverable rather than a cleanup. |
-| **localStorage quota.** Many long notes plus the existing full-notes cache could exceed the budget. | Debounced writes, a dirty-only retry, then a description-blanking fallback for clean entries, and an error surfaced rather than a silent drop (§6.3). |
-| **Two tabs share one storage key** and will overwrite each other's ring. | Out of scope by decision (§1.2). Last-writer-wins matches the existing behavior for note content. Each tab's in-memory ring stays correct for that tab; only the persisted copy races. |
-| **The contract change gates the build.** `app:contract:check` runs in `notes-next`'s `check-types` and `build`. | §7.1 makes regenerating `generated/contracts/notes-app.json` an explicit Phase 5 deliverable, and confirms no Android change is needed. |
+| Risk                                                                                                                                                                                                                                                                                                                                                              | Mitigation                                                                                                                                                                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 1 is the real risk.** `NotesApp.tsx` is roughly 2,500 lines and the save lifecycle is subtle — the synchronous pre-`await` snapshot, the `lastSavedNoteDraftRef` dedupe, the `editingNoteIdRef` write-back, and the keepalive path all interlock.                                                                                                         | Phase 1 ships at a cap of 1 with zero behavior change, so any regression is unambiguous. The existing correctness comments in that file are load-bearing documentation — read them before moving anything and carry them across.        |
+| **Silent data loss.** Every eviction, close, non-awaited switch, and reload is a place a draft can vanish.                                                                                                                                                                                                                                                        | One removal path through `detachedSaves` (§4.5); a widened keepalive; a persistence layer that never drops a dirty entry (§6.3); the dirty-and-deleted resurrect rule (§6.4). Manual checks 1–5 are not optional.                       |
+| **`jot.new` and `+` change meaning** from "replace the open note" to "add a draft alongside it", making abandoned empty drafts easy to accumulate.                                                                                                                                                                                                                | Close a draft entry that is deactivated while still empty, reusing the existing `newNoteHasUserInput` predicate in `NoteForm`.                                                                                                          |
+| **Async handlers completing against the wrong entry.** A whole class of bug that does not exist today: any handler that `await`s and then writes "the current form" will write to whichever note is active when the response lands. `handleCreateTag` and `handleCreateCategory` are the two known cases, and the save engine's completion write-back is a third. | Capture the entry key before the first `await` and complete through `patchEntry(key, …)`. Treat "reads or writes the active entry after an await" as a review checklist item for this whole change, not just for the three known sites. |
+| **A non-user form change silently making an entry dirty**, causing an immediate autosave that pushes stale data back to the server. Most dangerous on the merge path, where it would overwrite merged category and tag ids with anonymous-side ones.                                                                                                              | Recompute `savedSignature` on every non-user write (§6.4), and assert the invariant across all reconciliation cases in `test/open-notes-storage.test.ts` rather than case by case.                                                      |
+| **Autosave storms.** Several entries on a 3-second debounce could in principle fire concurrent requests.                                                                                                                                                                                                                                                          | Only the active entry receives edits, so background entries fire once and go clean. Phase 3 cuts per-save cost from four round-trips plus an embedding call to one round-trip. Watch it during Phase 4 anyway.                          |
+| **Re-render cost.** The two bulk `useNotesAppStore()` destructures mean every `openNotes` write would re-render the whole app, editor included.                                                                                                                                                                                                                   | Selector subscriptions in Phase 1, listed as a deliverable rather than a cleanup.                                                                                                                                                       |
+| **localStorage quota.** Many long notes plus the existing full-notes cache could exceed the budget.                                                                                                                                                                                                                                                               | Debounced writes, a dirty-only retry, then a description-blanking fallback for clean entries, and an error surfaced rather than a silent drop (§6.3).                                                                                   |
+| **Two tabs share one storage key** and will overwrite each other's ring.                                                                                                                                                                                                                                                                                          | Out of scope by decision (§1.2). Last-writer-wins matches the existing behavior for note content. Each tab's in-memory ring stays correct for that tab; only the persisted copy races.                                                  |
+| **The contract change gates the build.** `app:contract:check` runs in `notes-next`'s `check-types` and `build`.                                                                                                                                                                                                                                                   | §7.1 makes regenerating `generated/contracts/notes-app.json` an explicit Phase 5 deliverable, and confirms no Android change is needed.                                                                                                 |
