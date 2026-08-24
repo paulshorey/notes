@@ -71,9 +71,10 @@ src/                        — non-route code (import with "@/..." alias)
 
 ## Note saving lifecycle
 
-The note editor persists through `saveCurrentNote(mode)` in `NotesApp.tsx`, with three modes:
+The editor has **no submit control** — notes only ever save in the background. `NoteForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so that pressing Enter in an expanded date field cannot implicitly submit and reload the page. Do not reintroduce a save mode that resets the editor after saving: with autosave already running, clearing the editor on save would only throw away whatever the user typed while the request was in flight.
 
-- `manual` — explicit submit; shows pending UI and resets to a fresh draft.
+The note editor persists through `saveCurrentNote(mode)` in `NotesApp.tsx`, with two modes:
+
 - `autosave` — trailing debounce (`NOTE_AUTOSAVE_DEBOUNCE_MS`, 3s) while the note stays open. The debounce and `saveCurrentNote` both compare a draft signature against `lastSavedNoteDraftRef`, so an unchanged note never hits the network.
 - `flush` — forced save of the *outgoing* note right before the editor is replaced. `saveCurrentNote` snapshots the editor synchronously before any `await`, so a flush captures the note being left, not the one being opened.
 

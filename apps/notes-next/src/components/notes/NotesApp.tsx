@@ -326,17 +326,17 @@ interface ResetNoteFormOptions {
 }
 
 /**
- * How a save was triggered.
+ * How a save was triggered. Both modes are silent — the editor has no submit
+ * control, so every save is a background save.
  *
- * - `manual`   — explicit submit; shows pending UI and resets to a fresh draft.
  * - `autosave` — debounced background save while the note stays open.
  * - `flush`    — forced save of the current note right before the editor is
  *   about to be replaced (navigating to another note, starting a new note,
- *   browser back/forward, leaving the page). Behaves silently like autosave but
- *   is awaited by the caller so the outgoing note is persisted before its draft
+ *   browser back/forward, leaving the page). Behaves like autosave but is
+ *   awaited by the caller so the outgoing note is persisted before its draft
  *   is discarded.
  */
-type NoteSaveMode = "manual" | "autosave" | "flush"
+type NoteSaveMode = "autosave" | "flush"
 
 const snapshotNoteForm = (form: NoteFormState): NoteFormState => ({
   ...form,
@@ -1175,21 +1175,12 @@ export default function NotesApp() {
       const noteId = editingNoteIdRef.current
       const draftSignature = serializeNoteDraft(noteId, formSnapshot)
 
-      if (!currentUser) {
-        if (mode === "manual") setErrorMessage("Sign in before editing notes.")
-        return
-      }
+      if (!currentUser) return
+      if (formSnapshot.selectedCategoryId === null) return
 
-      if (formSnapshot.selectedCategoryId === null) {
-        if (mode === "manual") setErrorMessage("Choose a category before saving the note.")
-        return
-      }
-
-      if (mode !== "manual") {
-        // Nothing worth persisting, or the snapshot already matches the server.
-        if (formSnapshot.description.trim() === "") return
-        if (draftSignature === lastSavedNoteDraftRef.current) return
-      }
+      // Nothing worth persisting, or the snapshot already matches the server.
+      if (formSnapshot.description.trim() === "") return
+      if (draftSignature === lastSavedNoteDraftRef.current) return
 
       // Serialize saves. A `flush` must wait for the in-flight save and then run
       // (its captured snapshot may be newer); a background `autosave` can simply
@@ -1204,11 +1195,6 @@ export default function NotesApp() {
 
         // The in-flight save may have already persisted this exact snapshot.
         if (mode === "flush" && draftSignature === lastSavedNoteDraftRef.current) return
-      }
-
-      if (mode === "manual") {
-        clearMessages()
-        setNotePending(true)
       }
 
       noteSaveInFlightRef.current = true
@@ -1235,20 +1221,13 @@ export default function NotesApp() {
 
         if (userRef.current?.id !== currentUser.id) return
 
-        const { latestCategories } = await refreshResults(currentUser.id)
+        await refreshResults(currentUser.id)
 
         const savedNoteId = data.note.id
 
-        if (mode === "manual") {
-          lastSavedNoteDraftRef.current = serializeNoteDraft(savedNoteId, formSnapshot)
-          resetNoteForm({ categoryList: latestCategories })
-          setStatusMessage(noteId === null ? "Note created." : "Note updated.")
-          return
-        }
-
-        // Autosave / flush. Only touch the live editor state when it still
-        // refers to the note we just saved — a flush may have run while the user
-        // was already moving on to a different note.
+        // Only touch the live editor state when it still refers to the note we
+        // just saved — a flush may have run while the user was already moving on
+        // to a different note.
         const stillEditingSavedNote =
           editingNoteIdRef.current === noteId ||
           (noteId === null && editingNoteIdRef.current === null)
@@ -1288,7 +1267,6 @@ export default function NotesApp() {
           noteSavePromiseRef.current = null
           noteSaveInFlightRef.current = false
         }
-        if (mode === "manual") setNotePending(false)
       }
 
       if (queuedAutosaveRef.current) {
@@ -1304,7 +1282,7 @@ export default function NotesApp() {
         }
       }
     },
-    [clearMessages, refreshResults, resetNoteForm, setEditingNoteId, setNoteSaveStatus],
+    [refreshResults, setEditingNoteId, setNoteSaveStatus],
   )
 
   // Persist the current note immediately, used right before the editor is about
@@ -1931,11 +1909,6 @@ export default function NotesApp() {
     }
   }
 
-  const handleSaveNote = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    void saveCurrentNote("manual")
-  }
-
   const resolveCategoryForSidebarMove = async (
     rawLabel: string,
   ): Promise<CategoryRecord | null> => {
@@ -2396,7 +2369,6 @@ export default function NotesApp() {
           form={noteForm}
           setForm={setNoteForm}
           editingNoteId={editingNoteId}
-          notePending={notePending}
           userPresent={Boolean(user)}
           pasteUrlAsMarkdown={pasteUrlAsMarkdown}
           categories={categories}
@@ -2412,7 +2384,6 @@ export default function NotesApp() {
           onSelectCategoryId={handleSelectCategory}
           onCreateCategory={handleCreateCategory}
           onTagValuesChange={handleTagValuesChange}
-          onSubmit={handleSaveNote}
           onCancelEdit={handleCancelEdit}
           onAddNote={() => void handleCancelEdit()}
           onDeleteEditingNote={() => {
