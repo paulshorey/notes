@@ -105,12 +105,29 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 ## Cursor Cloud specific instructions
 
-Before running `notes-next` or any `db:*` command, start Postgres and add pg17 tools to PATH:
+`scripts/cloud-agent-install.sh` installs PostgreSQL 17 **server**, client tools (`psql`, `pg_dump`, `pg_isready`), and `postgresql-17-pgvector`. Client-only images do not create a cluster — `sudo pg_ctlcluster 17 main start` fails with "cluster does not exist" until the server package is installed.
+
+`scripts/cloud-agent-start.sh` starts the `17/main` cluster with `pg_ctlcluster` (systemd is often offline in these VMs) and creates local throwaway databases. Use those for schema work, `db:verify`, and `notes-next` — not a deployed Notes database.
+
+Before running `notes-next` or any `db:*` command:
 
 ```bash
-sudo pg_ctlcluster 17 main start
 export PATH="/usr/lib/postgresql/17/bin:$PATH"
+export DB_NOTES_URL='postgres:///notes?host=/var/run/postgresql'
+export DB_NOTES_TEST_URL='postgres:///notes_test?host=/var/run/postgresql'
+pnpm run db:migrate
 ```
+
+If the cluster is down: `sudo pg_ctlcluster 17 main start`.
+
+If packages or the cluster are missing (install did not run):
+
+```bash
+bash scripts/cloud-agent-postgres.sh install
+bash scripts/cloud-agent-postgres.sh start
+```
+
+`psql notes` works over the local unix socket as the workspace user. `pnpm --filter @lib/db-notes test` needs `DB_NOTES_TEST_URL` pointed at the local `notes_test` database.
 
 ## Maintenance
 
