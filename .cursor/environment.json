@@ -15,6 +15,8 @@
     "ANDROID_USER_HOME": "/workspace/.android-user-home",
     "CI": "true",
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
+    "DB_NOTES_TEST_URL": "postgres:///notes_test?host=/var/run/postgresql",
+    "DB_NOTES_URL": "postgres:///notes?host=/var/run/postgresql",
     "GRADLE_USER_HOME": "/workspace/.gradle",
     "HUSKY": "0",
     "JAVA_HOME": "/workspace/.jdk/current",

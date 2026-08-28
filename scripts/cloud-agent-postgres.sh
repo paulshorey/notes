@@ -16,8 +16,6 @@ PG_MAJOR=17
 PG_CLUSTER=main
 PG17_BINDIR="/usr/lib/postgresql/${PG_MAJOR}/bin"
 LOCAL_DB_OWNER="postgres"
-LOCAL_DB_HOST="127.0.0.1"
-LOCAL_DB_PORT="5432"
 NOTES_DB="notes"
 NOTES_TEST_DB="notes_test"
 
@@ -143,14 +141,26 @@ psql_as_postgres() {
   sudo -u postgres env PATH="${PG17_BINDIR}:$PATH" psql -v ON_ERROR_STOP=1 "$@"
 }
 
-ensure_workspace_role() {
-  local os_user
-  os_user="$(id -un)"
-  if [[ "$os_user" =~ ^[a-z_][a-z0-9_-]*$ && "$os_user" != "postgres" ]]; then
-    psql_as_postgres -Atqc \
-      "SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '${os_user}'" | grep -q 1 \
-      || psql_as_postgres -c "CREATE ROLE ${os_user} WITH SUPERUSER LOGIN;"
+ensure_role() {
+  local os_user="$1"
+  if [[ ! "$os_user" =~ ^[a-z_][a-z0-9_-]*$ || "$os_user" == "postgres" ]]; then
+    return 0
   fi
+  if ! id -u "$os_user" >/dev/null 2>&1; then
+    return 0
+  fi
+  psql_as_postgres -Atqc \
+    "SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '${os_user}'" | grep -q 1 \
+    || psql_as_postgres -c "CREATE ROLE ${os_user} WITH SUPERUSER LOGIN;"
+}
+
+ensure_workspace_roles() {
+  # This script may run as root while the agent's shell runs as ubuntu (or the
+  # reverse), and peer auth needs a role named after whoever opens the socket.
+  local os_user
+  for os_user in "$(id -un)" root ubuntu; do
+    ensure_role "$os_user"
+  done
 }
 
 ensure_database() {
@@ -170,10 +180,15 @@ start_postgres() {
     exit 1
   fi
 
+  if ! has_pgvector; then
+    echo "postgresql-${PG_MAJOR}-pgvector is not installed. Run: bash scripts/cloud-agent-postgres.sh install" >&2
+    exit 1
+  fi
+
   add_pg17_to_path
   ensure_cluster
   wait_for_ready
-  ensure_workspace_role
+  ensure_workspace_roles
   ensure_database "$NOTES_DB"
   ensure_database "$NOTES_TEST_DB"
 
@@ -207,7 +222,7 @@ print_status() {
   pg_lsclusters || true
 
   if [[ "$(cluster_status)" == "online" ]]; then
-    echo "pg_isready: $(${PG17_BINDIR}/pg_isready -h "$LOCAL_DB_HOST" -p "$LOCAL_DB_PORT" || true)"
+    echo "pg_isready: $(sudo -u postgres "${PG17_BINDIR}/pg_isready" || true)"
     echo "vector extension (notes):"
     psql_as_postgres -d "$NOTES_DB" -Atqc \
       "SELECT extversion FROM pg_extension WHERE extname = 'vector'" \
