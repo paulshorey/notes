@@ -224,6 +224,10 @@ therefore its editor `documentId`, remounting CodeMirror mid-typing. A
 the same trick the current code performs inline with `editingNoteIdRef` inside
 `saveCurrentNote`, generalized and made explicit.
 
+Two small choices at this point are worth making with §15 in mind, since they
+are free now and awkward later: typing the address rather than hardcoding
+`number`, and storing the loaded record's `timeModified` on the entry.
+
 **Carry over one subtlety.** `serializeNoteDraft(noteId, form)` includes the note
 id, so an entry's `savedSignature` must be recomputed with the newly assigned id
 when the first save lands, exactly as
@@ -1081,3 +1085,103 @@ These are races unit tests will not catch:
 | **localStorage quota.** Many long notes plus the existing full-notes cache could exceed the budget.                                                                                                                                                                                                                                                               | Debounced writes, a dirty-only retry, then a description-blanking fallback for clean entries, and an error surfaced rather than a silent drop (§6.3).                                                                                   |
 | **Two tabs share one storage key** and will overwrite each other's ring.                                                                                                                                                                                                                                                                                          | Out of scope by decision (§1.2). Last-writer-wins matches the existing behavior for note content. Each tab's in-memory ring stays correct for that tab; only the persisted copy races.                                                  |
 | **The contract change gates the build.** `app:contract:check` runs in `notes-next`'s `check-types` and `build`.                                                                                                                                                                                                                                                   | §7.1 makes regenerating `generated/contracts/notes-app.json` an explicit Phase 5 deliverable, and confirms no Android change is needed.                                                                                                 |
+
+---
+
+## 15. Forward look: a future move from database records to files
+
+Recorded because it may happen later, not because it is being designed now.
+Nothing below changes the scope of this plan. The question it answers is narrow:
+does anything here make a later switch from "a note is a row" to "a note is a
+file in a repository" significantly harder? Short answer, no — and two parts of
+this design actively help.
+
+### 15.1 What already points the right way
+
+- **The key/address split (§3.3).** `OpenNoteKey` is opaque and stable while
+  `noteId` is a mutable field on the entry. That split exists because a new
+  note's id changes from `null` to a real value on first save, but it
+  generalizes exactly: a file's identity is its path, and paths change on rename
+  and move. The ring slot is already built to survive its address changing.
+- **The `draft:` versus `note:` distinction.** An entry with no address is
+  precisely an editor's unsaved untitled buffer. That is the same model a
+  file-backed editor needs, arrived at for unrelated reasons.
+- **Reconcile-on-activate (§6.4).** Pull-based today, but it is the natural seam
+  for a file watcher to push into later. External change handling has somewhere
+  to live.
+- **A bounded ring itself.** A codebase has thousands of files and cannot be held
+  in memory. "A small set of open documents, everything else addressed lazily" is
+  the shape a file-backed editor requires, and this plan moves toward it.
+
+### 15.2 Storage-agnostic either way
+
+Persistence (§6) is hot-exit and becomes _more_ valuable with files; the
+mechanism is unchanged. Detached saves, the keepalive, the back stack, the
+recent dropdown, and the size preference care nothing about the backing store.
+The §5 latency work becomes less necessary — a local write has no network and no
+embedding call — but the in-place record merge matters more, not less, since
+re-reading a tree after every save is worse than re-reading a table.
+
+### 15.3 Cheap now, annoying later
+
+- **Reconciliation should take a lookup, not the corpus.** Specify it as
+  `(ref) => Record | undefined` rather than a `notes` array. Equivalent today,
+  and it keeps the whole-corpus assumption out of a pure, unit-tested module.
+- **§5.1's client-derived `noteCount` cuts against this.** Deriving counts from
+  the full in-memory `notes` array deepens the assumption that every note is
+  loaded — `listNotesByUser` has no `LIMIT` and `notesCache` stores all of
+  them. The coalesced background refresh listed there as the fallback is the more
+  portable option. Worth choosing with eyes open rather than by default.
+- **Type the address, don't hardcode its shape.** `noteId: number | null`
+  encodes "integer minted by a server". A `NoteRef` alias costs nothing.
+
+### 15.4 Rules that are database-specific and must be revisited
+
+- **The dirty-and-deleted resurrect rule (§6.4).** With a database, a record only
+  disappears because someone deliberately deleted it, so keeping the user's
+  unsaved text as a new note is the kind choice. With files, things disappear
+  constantly and impersonally — `git checkout`, a branch switch, a stash, a
+  rebase. Recreating a file there means fighting version control and restoring
+  exactly what the user just checked away from. This rule inverts under files.
+- **Silent autosave of an addressless draft (§4.2).** Against a database this is
+  free: the server mints an id and nothing is visible until the user looks.
+  Against a filesystem, creating means choosing a path, and background-writing
+  derived filenames would litter the working tree and `git status`. The guard
+  would likely become "do not autosave an entry with no address".
+
+### 15.5 The one genuinely expensive gap
+
+**There is no optimistic concurrency anywhere in this app today.**
+`updateNoteForUser` is `UPDATE … WHERE id = $1 AND user_id = $2` with no
+version predicate, and no route sends or checks an `If-Match`. Every write is
+last-write-wins. This plan does not make that worse in kind, but it does multiply
+the number of concurrent background writers from one to the cap.
+
+Against a database the blast radius is bounded: you can only clobber your own
+note, usually with your own slightly older text. Against files it is not. A
+background save firing seconds after you switched away can overwrite a file that
+git, a formatter, or another agent just rewrote — destroying work this app never
+authored.
+
+Retrofitting is expensive not because of the plumbing (a base revision on
+`UpdateNoteRequest`, a `time_modified` predicate in the `WHERE`, a 409 in the
+route) but because of the UX: with several notes open, a conflict can land on an
+entry the user is not looking at, and "what does a background conflict look
+like" is a design problem rather than a wiring problem.
+
+Do not build it now. Do the free half: when an entry is created or refreshed from
+a record, store that record's `timeModified` on the entry as its base revision.
+`NoteRecord` already carries the field, so it costs one property and no contract
+change. It makes the §6.4 "server is newer" comparison explicit instead of
+implied, and the day `If-Match` arrives the client already holds the value to
+send.
+
+### 15.6 The real obstacle is elsewhere
+
+The largest barrier to a file-backed version is not in this plan: the app assumes
+the entire corpus is in memory. `listNotesByUser` has no pagination, `notesCache`
+persists every note, and search is a server-side vector scan over all rows.
+Category and tag ids as foreign keys would also have to become folders and
+frontmatter, which reaches `NoteFormState`, the URL parameters, and the sidebar
+grouping. All of that is pre-existing. This plan neither worsens it nor fixes it,
+with the single exception noted in §15.3.
