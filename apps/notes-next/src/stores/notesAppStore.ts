@@ -172,6 +172,11 @@ export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
   },
 }))
 
+// Every selector below returns an existing reference or a primitive. A
+// selector that builds a new object or array each call hands
+// useSyncExternalStore a fresh snapshot on every render and loops forever —
+// derive that kind of value with useMemo in the component instead.
+
 export const selectActiveEntry = (state: NotesAppStore): OpenNoteEntry | null =>
   getActiveEntry(state)
 
@@ -180,10 +185,6 @@ export const selectActiveSaveStatus = (state: NotesAppStore): NoteSaveStatus =>
 
 export const selectBackTarget = (state: NotesAppStore): OpenNoteEntry | null =>
   getBackTarget(state)
-
-/** Note ids with an open entry, so the sidebar can mark them. */
-export const selectOpenNoteIds = (state: NotesAppStore): number[] =>
-  state.openNotes.flatMap((entry) => (entry.noteId === null ? [] : [entry.noteId]))
 
 /**
  * True when a note the user is not looking at is mid-save or failed to save,

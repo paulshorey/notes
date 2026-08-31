@@ -73,11 +73,7 @@ import {
   type OpenNoteEntry,
   type OpenNoteKey,
 } from "@/stores/openNotes"
-import {
-  selectActiveEntry,
-  selectOpenNoteIds,
-  useNotesAppStore,
-} from "@/stores/notesAppStore"
+import { selectActiveEntry, useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
@@ -419,7 +415,6 @@ export default function NotesApp() {
   const openNotes = useNotesAppStore((state) => state.openNotes)
   const activeKey = useNotesAppStore((state) => state.activeKey)
   const activeEntry = useNotesAppStore(selectActiveEntry)
-  const openNoteIds = useNotesAppStore(selectOpenNoteIds)
   const maxOpenNotes = useNotesAppStore((state) => state.maxOpenNotes)
   const setMaxOpenNotesInStore = useNotesAppStore((state) => state.setMaxOpenNotes)
   const openExistingNoteInStore = useNotesAppStore((state) => state.openExistingNote)
@@ -464,6 +459,7 @@ export default function NotesApp() {
   const [mobileResultsOverlayMounted, setMobileResultsOverlayMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const userRef = useRef<UserSummary | null>(null)
+  const userPreferencesRef = useRef<UserPreferences>({})
   const notesRef = useRef<NoteRecord[]>(notes)
   const categoriesRef = useRef<CategoryRecord[]>(categories)
   const tagsRef = useRef<TagRecord[]>(tags)
@@ -668,6 +664,10 @@ export default function NotesApp() {
   useEffect(() => {
     tagsRef.current = tags
   }, [tags])
+
+  useEffect(() => {
+    userPreferencesRef.current = userPreferences
+  }, [userPreferences])
 
   useEffect(() => {
     const handleWindowResize = () => {
@@ -932,15 +932,31 @@ export default function NotesApp() {
       })
       const sessionData = await readJson<SessionResponse>(sessionResponse)
 
+      // On the cache-first path the in-memory preferences came from a snapshot
+      // that can be arbitrarily old. Whether the fresh server copy may replace
+      // them turns on one question: has the user changed a preference that the
+      // debounced PATCH has not saved yet?
+      const hasUnsavedPreferenceEdit =
+        serializeUserPreferences(userPreferencesRef.current) !==
+        lastSavedPreferencesRef.current
+
+      let userForCache = sessionData.user
+
       if (applyUser) {
         applyLoadedUser(sessionData.user)
       } else if (userRef.current?.id === sessionData.user.id) {
-        // Background refresh path: keep the in-memory user/preferences so we
-        // don't clobber any change the user just made before the debounce
-        // saves it. We still refresh the cached snapshot below so the next
-        // launch sees the latest server-side preferences (if no local edits
-        // happen first).
-        updateNotesCacheUser(sessionData.user.id, sessionData.user)
+        if (hasUnsavedPreferenceEdit) {
+          // Keep the local edit and cache it, so a reload before the PATCH
+          // lands does not silently undo what the user just set.
+          userForCache = { ...sessionData.user, preferences: userPreferencesRef.current }
+        } else {
+          // Nothing local to protect, so adopt the server copy now. Without
+          // this the stale cached preferences survive the whole session and a
+          // change made in another tab (or just before the last reload) takes
+          // two reloads to appear.
+          applyLoadedUser(sessionData.user)
+        }
+        updateNotesCacheUser(sessionData.user.id, userForCache)
       }
 
       const [loadedNotes, loadedCategories, loadedTags] = await Promise.all([
@@ -951,7 +967,7 @@ export default function NotesApp() {
 
       writeNotesCache({
         userId: sessionData.user.id,
-        user: sessionData.user,
+        user: userForCache,
         notes: loadedNotes,
         categories: loadedCategories,
         tags: loadedTags,
@@ -1160,6 +1176,10 @@ export default function NotesApp() {
           lastSavedPreferencesRef.current = serializeUserPreferences(nextPreferences)
           setUser({ ...data.user, preferences: nextPreferences })
           setUserPreferences(nextPreferences)
+          // Also refresh the cached snapshot. The next launch paints from that
+          // cache and its background refresh runs with applyUser: false, so a
+          // stale copy here would show the old preference for a whole session.
+          updateNotesCacheUser(data.user.id, { ...data.user, preferences: nextPreferences })
           setPreferredResultsColumnWidth(nextPreferredResultsColumnWidth)
           setResultsColumnWidth(clampResultsColumnWidth(nextPreferredResultsColumnWidth))
         })
@@ -1317,6 +1337,14 @@ export default function NotesApp() {
    * being built, so `NoteForm` never has to handle a null form.
    */
   const activeForm = activeEntry?.form ?? EMPTY_NOTE_FORM
+
+  // Derived here rather than through a store selector: a selector that builds a
+  // new array each call gives useSyncExternalStore a different snapshot every
+  // time and spins forever.
+  const openNoteIds = useMemo(
+    () => openNotes.flatMap((entry) => (entry.noteId === null ? [] : [entry.noteId])),
+    [openNotes],
+  )
 
   const setActiveForm = useCallback<Dispatch<SetStateAction<NoteFormState>>>(
     (value) => {
