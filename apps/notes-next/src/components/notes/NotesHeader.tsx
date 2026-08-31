@@ -2,7 +2,7 @@
 
 import type { FormEvent, KeyboardEvent } from "react"
 import { useEffect, useRef, useState } from "react"
-import { Button, Checkbox, Popup, Spin, Text, TextInput } from "@gravity-ui/uikit"
+import { Button, Checkbox, Popup, Select, Spin, Text, TextInput } from "@gravity-ui/uikit"
 import { Notification } from "@mantine/core"
 import {
   ArrowLeft,
@@ -23,13 +23,11 @@ import {
   selectHasBackgroundSaveActivity,
   useNotesAppStore,
 } from "@/stores/notesAppStore"
-import {
-  MAX_OPEN_NOTES_MAX,
-  MAX_OPEN_NOTES_MIN,
-  type OpenNoteKey,
-} from "@/stores/openNotes"
+import type { OpenNoteKey } from "@/stores/openNotes"
 import type { EmbeddingMaintenanceMode, NoteSaveStatus } from "@/types/notes"
 import styles from "./NotesHeader.module.css"
+
+const OPEN_NOTES_CHOICES = [1, 3, 5, 10, 15, 20, 25]
 
 const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
   idle: "",
@@ -320,18 +318,25 @@ export function NotesHeader({
     </Checkbox>
   )
 
+  // A fixed set of choices rather than a free number field. Lowering the cap
+  // evicts immediately, so a text input would apply every intermediate value
+  // as you type — typing "15" would pass through 1 and close notes on the way.
   const openNotesPreference = (
-    <label className={styles.userMenuPreference}>
-      <span>Keep open notes</span>
-      <input
-        type="number"
-        min={MAX_OPEN_NOTES_MIN}
-        max={MAX_OPEN_NOTES_MAX}
-        value={maxOpenNotes}
-        onChange={(event) => onMaxOpenNotesChange(Number(event.target.value))}
-        className={styles.userMenuNumberInput}
+    <div className={styles.userMenuSelectPreference}>
+      <Text variant="body-2">Keep open notes</Text>
+      <Select
+        size="s"
+        value={[String(maxOpenNotes)]}
+        onUpdate={([next]) => {
+          if (next !== undefined) onMaxOpenNotesChange(Number(next))
+        }}
+        options={OPEN_NOTES_CHOICES.map((count) => ({
+          value: String(count),
+          content: String(count),
+        }))}
+        width="max"
       />
-    </label>
+    </div>
   )
 
   return (
