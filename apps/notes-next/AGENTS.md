@@ -39,9 +39,9 @@ src/                        — non-route code (import with "@/..." alias)
     notes/                  — notes-feature UI (NotesApp and sub-components)
       NotesApp.tsx          — top-level notes page container
       NotesApp.module.css   — shared notes CSS module
-      NotesHeader.tsx       — app-wide header (logo, search, user menu, results toggle)
+      NotesHeader.tsx       — app-wide header (logo, search, back, recent notes, user menu)
       FeedbackNotifications.tsx
-      FilterBanners.tsx
+      ResultsColumn.tsx     — notes sidebar (categories, tags, note actions)
       NoteResultsList.tsx
       NoteForm.tsx
       modals/
@@ -51,8 +51,12 @@ src/                        — non-route code (import with "@/..." alias)
         DeleteTagModal.tsx
     ui/
       icons/                — small inline SVG icons
-  hooks/                    — shared React hooks (useSidebarDrawer, useAutoDismissStatus)
-  lib/                      — shared utilities (api, dates, strings)
+  hooks/                    — shared React hooks (useSidebarDrawer, useAutoDismissStatus,
+                              useOpenNotesAutosave)
+  lib/                      — shared utilities (api, dates, strings, noteDraft,
+                              notesCache, openNotesStorage)
+  stores/                   — Zustand store (notesAppStore) and the pure open-note ring
+                              reducers (openNotes)
   types/                    — shared types (NoteFormState, EmbeddingMaintenanceMode, ...)
   constants/                — shared constants
 ```
@@ -71,14 +75,35 @@ src/                        — non-route code (import with "@/..." alias)
 
 ## Note saving lifecycle
 
-The editor has **no submit control** — notes only ever save in the background. `NoteForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so that pressing Enter in an expanded date field cannot implicitly submit and reload the page. Do not reintroduce a save mode that resets the editor after saving: with autosave already running, clearing the editor on save would only throw away whatever the user typed while the request was in flight.
+Several notes are open at once, in a bounded most-recently-used **ring**. Opening a note adds an entry rather than replacing one, so switching never waits for a save.
 
-The note editor persists through `saveCurrentNote(mode)` in `NotesApp.tsx`, with two modes:
+- `src/stores/openNotes.ts` — pure, React-free reducers over the ring. The open sequence is **insert → activate → evict**, and the order is load-bearing: eviction protects the active entry, so evicting first protects the *outgoing* note and at a cap of 1 leaves nothing droppable. There is a unit test pinned at `cap === 1`; larger caps hide the bug.
+- `src/lib/openNotesStorage.ts` — persists the ring under its own key, `notes-open-notes-v1`. Deliberately **not** part of `notesCache`, which expires after 14 days and is wiped on session-restore failure; either would destroy unsaved text. `reconcileOpenNotes` is pure and takes a lookup rather than the note array.
+- `src/hooks/useOpenNotesAutosave.ts` — one debounce per dirty entry, re-armed only when that entry's own signature changes so typing in one note cannot starve a background save.
 
-- `autosave` — trailing debounce (`NOTE_AUTOSAVE_DEBOUNCE_MS`, 3s) while the note stays open. The debounce and `saveCurrentNote` both compare a draft signature against `lastSavedNoteDraftRef`, so an unchanged note never hits the network.
-- `flush` — forced save of the *outgoing* note right before the editor is replaced. `saveCurrentNote` snapshots the editor synchronously before any `await`, so a flush captures the note being left, not the one being opened.
+The editor has **no submit control** — notes only ever save in the background. `NoteForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so Enter in an expanded date field cannot implicitly submit and reload the page. Do not reintroduce a save mode that resets the editor after saving: it would recycle the ring slot holding the just-saved note, and throw away anything typed while the request was in flight.
 
-Anything that replaces the editor awaits `flushPendingNoteSave()` first: opening another note, starting a new note (header `+`/`jot.new`, cancel button, sidebar `+`), browser back/forward (`popstate`), signing in or creating an account (`handleLogin`/`handleSignup`), and sign-out. `pagehide`/`visibilitychange` fire a best-effort `keepalive` request to cover abrupt tab closes inside the debounce window.
+Notes persist through `saveEntry(key, mode)` in `NotesApp.tsx`, keyed by entry:
+
+- `autosave` — trailing debounce (`NOTE_AUTOSAVE_DEBOUNCE_MS`, 3s). Saves for different entries run concurrently; a second save of the *same* entry queues behind the first.
+- `flush` — awaited save, used only where the session itself changes (`handleLogin`, `handleSignup`, `handleLogout`) via `flushAllPendingSaves()`. Ordinary note switching no longer flushes.
+- `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is never retried, because a repeated `POST` for a never-saved draft would create a second note.
+
+`pagehide`/`visibilitychange` fire best-effort `keepalive` requests for every dirty entry **and** everything in `detachedSaves`, and write the persistence snapshot.
+
+**Invariant worth protecting:** a form change the *user* did not make must never leave an entry dirty. Reconciliation, the category remap, and the sidebar move handlers all recompute `savedSignature` alongside the form — otherwise autosave immediately pushes the change back to the server, which on the anonymous-merge path would overwrite merged category and tag ids with anonymous-side ones.
+
+**Async handlers must capture the entry key before awaiting.** `handleCreateTag` and `handleCreateCategory` take a `targetKey`; without it a tag created in one note lands in whichever note is active when the response returns.
+
+## Store selectors
+
+Selectors passed to `useNotesAppStore` must return an existing reference or a primitive. One that builds a new object or array each call hands `useSyncExternalStore` a fresh snapshot on every render and hangs the app in an infinite loop. Derive that kind of value with `useMemo` in the component instead.
+
+## User preferences
+
+`notesApp.*` in `user_v1.preferences` (JSONB). Adding a key means editing `NotesAppPreferences` in `lib/db-notes/contracts/notes-app.ts` and regenerating `generated/contracts/notes-app.json` with `pnpm --filter @lib/db-notes app:contract:generate` — `app:contract:check` gates both `check-types` and `build`. No migration is needed, and the Android contract validator only checks `UserSummary`, `TagRecord`, `NoteRecord`, and `SemanticSearchResult`, so an added optional preference does not affect the APK.
+
+Writes go through a 500ms debounced `PATCH /api/session`. Its response must also call `updateNotesCacheUser`, and the background session refresh only keeps the in-memory copy when there is genuinely an unsaved edit — otherwise a changed preference takes two reloads to appear, because the next launch paints from the cached snapshot.
 
 ## Anonymous → permanent account (claim or merge, single load path)
 
