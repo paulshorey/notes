@@ -7,21 +7,33 @@ import {
 } from "./shared";
 import type { NoteEmbeddingWriteInput, NoteInput } from "./types";
 
+/**
+ * `embeddings: null` means "leave the embedding columns exactly as they are",
+ * used when the description did not change and the stored vector is already
+ * current. See `updateNoteForNotesApp`, which decides that.
+ */
 export const updateNoteForUser = async (
   noteId: number,
   userId: number,
   note: NoteInput,
-  embeddings: NoteEmbeddingWriteInput
+  embeddings: NoteEmbeddingWriteInput | null
 ) => {
-  const embeddingUpdatedAt = embeddings.embeddingModel
-    ? new Date().toISOString()
-    : null;
+  const embeddingUpdatedAt =
+    embeddings && embeddings.embeddingModel ? new Date().toISOString() : null;
   const client = await getDb().connect();
 
   try {
     await client.query("BEGIN");
 
     await ensureCategoryIdForUser(client, userId, note.categoryId);
+
+    const embeddingAssignments =
+      embeddings === null
+        ? ""
+        : `
+          description_embedding = $7::vector,
+          embedding_model = $8,
+          embedding_updated_at = $9,`;
 
     const { rowCount } = await client.query(
       `
@@ -30,10 +42,7 @@ export const updateNoteForUser = async (
           category_id = $3,
           description = $4,
           time_due = $5,
-          time_remind = $6,
-          description_embedding = $7::vector,
-          embedding_model = $8,
-          embedding_updated_at = $9,
+          time_remind = $6,${embeddingAssignments}
           time_modified = CURRENT_TIMESTAMP
         WHERE id = $1
           AND user_id = $2
@@ -45,9 +54,13 @@ export const updateNoteForUser = async (
         toNullableText(note.description),
         note.timeDue,
         note.timeRemind,
-        embeddings.descriptionEmbedding,
-        embeddings.embeddingModel,
-        embeddingUpdatedAt,
+        ...(embeddings === null
+          ? []
+          : [
+              embeddings.descriptionEmbedding,
+              embeddings.embeddingModel,
+              embeddingUpdatedAt,
+            ]),
       ]
     );
 

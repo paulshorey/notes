@@ -26,6 +26,34 @@ export const listNotesByUser = async (userId: number) => {
   return rows.map(mapNote);
 };
 
+/**
+ * Just enough of a note to decide whether its embedding still needs rewriting.
+ * Cheap next to the external embeddings call it can avoid.
+ */
+export const selectNoteEmbeddingStateById = async (
+  noteId: number,
+  userId: number
+) => {
+  const { rows } = await getDb().query<{
+    description: string | null;
+    has_embedding: boolean;
+    embedding_model: string | null;
+  }>(
+    `
+      SELECT
+        n.description,
+        (n.description_embedding IS NOT NULL) AS has_embedding,
+        n.embedding_model
+      FROM public.user_note_v1 n
+      WHERE n.id = $1
+        AND n.user_id = $2
+    `,
+    [noteId, userId]
+  );
+
+  return rows[0] ?? null;
+};
+
 export const listNotesMissingEmbeddingsByUser = async (
   userId: number,
   limit: number
