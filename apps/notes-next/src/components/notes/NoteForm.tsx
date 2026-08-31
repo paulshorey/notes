@@ -36,7 +36,7 @@ interface NoteFormProps {
   categories: CategoryRecord[]
   tags: TagRecord[]
   pendingTagLabels: string[]
-  descriptionEditorSessionId: number
+  descriptionEditorSessionId: string | number
   editorAutofocus: boolean
   editorRevealText?: string | null
   categoryInputValue: string

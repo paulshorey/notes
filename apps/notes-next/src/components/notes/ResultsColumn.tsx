@@ -72,6 +72,8 @@ interface ResultsColumnProps {
   allTagItems: DisplayNoteItem[]
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
+  /** Notes with an open entry, marked distinctly from the active one. */
+  openNoteIds: number[]
   activeCategoryId: number | null
   activeTagIds: number[]
   onEditNote: (note: NoteRecord) => void
@@ -106,6 +108,7 @@ export function ResultsColumn({
   allTagItems,
   tagNoteGroups,
   activeNoteId,
+  openNoteIds,
   activeCategoryId,
   activeTagIds,
   onEditNote,
@@ -328,6 +331,7 @@ export function ResultsColumn({
               <NoteResultsList
                 items={searchItems}
                 activeNoteId={activeNoteId}
+                openNoteIds={openNoteIds}
                 loading={searchLoading || notesLoading}
                 emptyMessage={
                   selectedTag
@@ -398,6 +402,7 @@ export function ResultsColumn({
                           <NoteResultsList
                             items={items}
                             activeNoteId={activeNoteId}
+                openNoteIds={openNoteIds}
                             loading={false}
                             emptyMessage=""
                             onEdit={handleResultEdit}
@@ -462,6 +467,7 @@ export function ResultsColumn({
                         <NoteResultsList
                           items={items}
                           activeNoteId={activeNoteId}
+                openNoteIds={openNoteIds}
                           loading={false}
                           emptyMessage=""
                           onEdit={handleResultEdit}

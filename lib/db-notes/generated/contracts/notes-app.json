@@ -40,6 +40,13 @@
           "kind": "scalar",
           "type": "boolean",
           "nullable": false
+        },
+        {
+          "name": "maxOpenNotes",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
         }
       ]
     },

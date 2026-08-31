@@ -23,8 +23,10 @@ import type {
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-notes/notes-search-constants"
 import {
   type CSSProperties,
+  type Dispatch,
   type FormEvent,
   type PointerEvent,
+  type SetStateAction,
   useCallback,
   useEffect,
   useMemo,
@@ -43,6 +45,13 @@ import {
   type NoteFormState,
 } from "@/types/notes"
 import { useAutoDismissStatus } from "@/hooks/useAutoDismissStatus"
+import { useOpenNotesAutosave } from "@/hooks/useOpenNotesAutosave"
+import {
+  isSaveableForm,
+  noteRequestBody,
+  serializeNoteDraft,
+  snapshotNoteForm,
+} from "@/lib/noteDraft"
 import {
   clearNotesCache,
   readNotesCache,
@@ -50,7 +59,25 @@ import {
   updateNotesCacheUser,
   writeNotesCache,
 } from "@/lib/notesCache"
-import { useNotesAppStore } from "@/stores/notesAppStore"
+import {
+  clearOpenNotesSnapshot,
+  readOpenNotesSnapshot,
+  readOpenNotesSnapshotForAnyUser,
+  reconcileOpenNotes,
+  writeOpenNotesSnapshot,
+} from "@/lib/openNotesStorage"
+import {
+  clampMaxOpenNotes,
+  MAX_OPEN_NOTES_DEFAULT,
+  noteEntryKey,
+  type OpenNoteEntry,
+  type OpenNoteKey,
+} from "@/stores/openNotes"
+import {
+  selectActiveEntry,
+  selectOpenNoteIds,
+  useNotesAppStore,
+} from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
@@ -70,8 +97,8 @@ const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
 const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
 const MOBILE_RESULTS_TRANSITION_MS = 400
-const NOTE_AUTOSAVE_DEBOUNCE_MS = 3000
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
+const OPEN_NOTES_PERSIST_DEBOUNCE_MS = 1000
 const NOTE_URL_ID_PARAM = "id"
 const NOTE_URL_CATEGORY_PARAM = "category"
 const NOTE_URL_TAGS_PARAM = "tags"
@@ -260,6 +287,29 @@ const withPasteUrlAsMarkdownPreference = (
   },
 })
 
+const getMaxOpenNotesPreference = (preferences: UserPreferences) => {
+  const notesAppPreferences = preferences.notesApp
+  if (!isPreferencesObject(notesAppPreferences)) return MAX_OPEN_NOTES_DEFAULT
+
+  const value = notesAppPreferences.maxOpenNotes
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return MAX_OPEN_NOTES_DEFAULT
+  }
+
+  return clampMaxOpenNotes(value)
+}
+
+const withMaxOpenNotesPreference = (
+  preferences: UserPreferences,
+  value: number,
+): UserPreferences => ({
+  ...preferences,
+  notesApp: {
+    ...(isPreferencesObject(preferences.notesApp) ? preferences.notesApp : {}),
+    maxOpenNotes: clampMaxOpenNotes(value),
+  },
+})
+
 const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
   categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
 
@@ -319,47 +369,32 @@ const compareCategoryNoteGroups = (
   return compareNoteGroups(left, right)
 }
 
-interface ResetNoteFormOptions {
-  categoryList?: CategoryRecord[]
-  selectedCategoryId?: number | null
-  selectedTagIds?: number[]
-}
-
 /**
- * How a save was triggered. Both modes are silent — the editor has no submit
+ * How a save was triggered. All three are silent — the editor has no submit
  * control, so every save is a background save.
  *
  * - `autosave` — debounced background save while the note stays open.
- * - `flush`    — forced save of the current note right before the editor is
- *   about to be replaced (navigating to another note, starting a new note,
- *   browser back/forward, leaving the page). Behaves like autosave but is
- *   awaited by the caller so the outgoing note is persisted before its draft
- *   is discarded.
+ * - `flush`    — forced save awaited by the caller, used before the session
+ *   is torn down (sign-in, sign-up, sign-out) so nothing is lost in transit.
+ * - `detached` — save of an entry that has already left the ring, by eviction,
+ *   close, or a lowered cap. Never touches store state, since there is no
+ *   longer a slot to write back to.
  */
-type NoteSaveMode = "autosave" | "flush"
+type NoteSaveMode = "autosave" | "flush" | "detached"
 
-const snapshotNoteForm = (form: NoteFormState): NoteFormState => ({
-  ...form,
-  selectedTagIds: [...form.selectedTagIds],
-})
+/** A dirty entry that left the ring but whose text still has to reach the server. */
+interface DetachedSave {
+  noteId: number | null
+  form: NoteFormState
+}
 
-const serializeNoteDraft = (noteId: number | null, form: NoteFormState) =>
-  JSON.stringify({
-    noteId,
-    categoryId: form.selectedCategoryId,
-    tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
-    description: form.description,
-    timeDue: form.dueExpanded ? form.timeDue : null,
-    timeRemind: form.remindExpanded ? form.timeRemind : null,
-  })
+const entrySignature = (entry: OpenNoteEntry) => serializeNoteDraft(entry.noteId, entry.form)
 
-const noteRequestBody = (form: NoteFormState) => ({
-  categoryId: form.selectedCategoryId,
-  tagIds: form.selectedTagIds,
-  description: form.description,
-  timeDue: form.dueExpanded ? form.timeDue : null,
-  timeRemind: form.remindExpanded ? form.timeRemind : null,
-})
+// Stable identities so an empty ring does not remount the editor every render.
+const EMPTY_NOTE_FORM: NoteFormState = createDefaultNoteForm()
+const EMPTY_PENDING_TAG_LABELS: string[] = []
+
+const isEntryDirty = (entry: OpenNoteEntry) => entrySignature(entry) !== entry.savedSignature
 
 export default function NotesApp() {
   const { data: authSession, status: authStatus } = useSession()
@@ -372,35 +407,37 @@ export default function NotesApp() {
   const [tags, setTags] = useState<TagRecord[]>([])
   const fallbackCategoryId = getDefaultCategoryId(categories)
   const fallbackTagId = getDefaultTagId(tags)
-  const {
-    resultsListVisible,
-    setResultsListVisible,
-    selectedTagId,
-    setSelectedTagId,
-    searchQuery,
-    setSearchQuery,
-    noteForm,
-    setNoteForm,
-    editingNoteId,
-    setEditingNoteId,
-    setNoteSaveStatus,
-    descriptionEditorSessionId,
-    bumpDescriptionEditorSessionId,
-    pendingTagLabels,
-    setPendingTagLabels,
-    categoryInputValue,
-    setCategoryInputValue,
-    editorAutofocus,
-    setEditorAutofocus,
-    resetDefaultState: resetNotesAppStore,
-  } = useNotesAppStore()
+  // Selector subscriptions rather than a bulk destructure: with a ring of open
+  // notes, subscribing to the whole store would re-render the entire app —
+  // editor included — on every keystroke in any entry.
+  const resultsListVisible = useNotesAppStore((state) => state.resultsListVisible)
+  const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
+  const selectedTagId = useNotesAppStore((state) => state.selectedTagId)
+  const setSelectedTagId = useNotesAppStore((state) => state.setSelectedTagId)
+  const searchQuery = useNotesAppStore((state) => state.searchQuery)
+  const setSearchQuery = useNotesAppStore((state) => state.setSearchQuery)
+  const openNotes = useNotesAppStore((state) => state.openNotes)
+  const activeKey = useNotesAppStore((state) => state.activeKey)
+  const activeEntry = useNotesAppStore(selectActiveEntry)
+  const openNoteIds = useNotesAppStore(selectOpenNoteIds)
+  const maxOpenNotes = useNotesAppStore((state) => state.maxOpenNotes)
+  const setMaxOpenNotesInStore = useNotesAppStore((state) => state.setMaxOpenNotes)
+  const openExistingNoteInStore = useNotesAppStore((state) => state.openExistingNote)
+  const openNewDraftInStore = useNotesAppStore((state) => state.openNewDraft)
+  const activateEntryInStore = useNotesAppStore((state) => state.activateEntry)
+  const closeEntryInStore = useNotesAppStore((state) => state.closeEntry)
+  const closeEntriesForNoteInStore = useNotesAppStore((state) => state.closeEntriesForNote)
+  const patchEntry = useNotesAppStore((state) => state.patchEntry)
+  const patchEntryForm = useNotesAppStore((state) => state.patchEntryForm)
+  const patchEveryEntry = useNotesAppStore((state) => state.patchEveryEntry)
+  const replaceOpenNotes = useNotesAppStore((state) => state.replaceOpenNotes)
+  const resetNotesAppStore = useNotesAppStore((state) => state.resetDefaultState)
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [sessionLoading, setSessionLoading] = useState(true)
   const [notesUrlSelectionReady, setNotesUrlSelectionReady] = useState(false)
   const [notesLoading, setNotesLoading] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
   const [authPending, setAuthPending] = useState(false)
-  const [notePending, setNotePending] = useState(false)
   const [embeddingMaintenancePending, setEmbeddingMaintenancePending] =
     useState<EmbeddingMaintenanceMode | null>(null)
   const [createCategoryPending, setCreateCategoryPending] = useState(false)
@@ -423,7 +460,6 @@ export default function NotesApp() {
   const [preferredResultsColumnWidth, setPreferredResultsColumnWidth] = useState(
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
-  const [editorRevealText, setEditorRevealText] = useState<string | null>(null)
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
   const [mobileResultsOverlayMounted, setMobileResultsOverlayMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -431,21 +467,25 @@ export default function NotesApp() {
   const notesRef = useRef<NoteRecord[]>(notes)
   const categoriesRef = useRef<CategoryRecord[]>(categories)
   const tagsRef = useRef<TagRecord[]>(tags)
-  const noteFormRef = useRef<NoteFormState>(noteForm)
-  const editingNoteIdRef = useRef<number | null>(editingNoteId)
-  const noteSavePromiseRef = useRef<Promise<void> | null>(null)
-  const queuedAutosaveRef = useRef(false)
-  const noteSaveInFlightRef = useRef(false)
+  // Saves are keyed by entry, so two notes can be in flight at once while a
+  // second save of the *same* note still queues behind the first.
+  const saveInFlightRef = useRef(new Map<OpenNoteKey, Promise<void>>())
+  const queuedAutosaveKeysRef = useRef(new Set<OpenNoteKey>())
+  // Entries that left the ring while dirty. Their request still has to land,
+  // and the exit keepalive has to know about them.
+  const detachedSavesRef = useRef(new Map<OpenNoteKey, DetachedSave>())
   // Guards the anonymous→real merge so a re-render mid-request cannot fire it
   // twice. The sessionStorage token removal is the primary idempotency guard;
   // this ref covers the in-flight window before that removal is observed.
   const mergeInFlightRef = useRef(false)
-  const lastSavedNoteDraftRef = useRef<string | null>(null)
+  const didRehydrateOpenNotesRef = useRef(false)
+  const openNotesPersistTimeoutRef = useRef<number | null>(null)
   // Stable handle to the latest flush implementation so handlers declared
-  // before it (e.g. handleCancelEdit) can trigger a save without dependency or
-  // declaration-order gymnastics.
-  const flushPendingNoteSaveRef = useRef<() => Promise<void>>(() => Promise.resolve())
-  const pendingTagLabelsRef = useRef<string[]>([])
+  // before it can trigger a save without declaration-order gymnastics.
+  const flushAllPendingSavesRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const saveEntryRef = useRef<(key: OpenNoteKey, mode: NoteSaveMode) => Promise<void>>(() =>
+    Promise.resolve(),
+  )
   const creatingTagLabelsRef = useRef(new Set<string>())
   const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
   const preferenceSaveRequestIdRef = useRef(0)
@@ -481,6 +521,14 @@ export default function NotesApp() {
   )
 
   const pasteUrlAsMarkdown = getPasteUrlAsMarkdownPreference(userPreferences)
+  const preferredMaxOpenNotes = getMaxOpenNotesPreference(userPreferences)
+
+  // Mirror the saved preference into the store so the ring actions can enforce
+  // it without it being threaded through every call site.
+  useEffect(() => {
+    if (preferredMaxOpenNotes === useNotesAppStore.getState().maxOpenNotes) return
+    detachRemovedEntriesRef.current(setMaxOpenNotesInStore(preferredMaxOpenNotes))
+  }, [preferredMaxOpenNotes, setMaxOpenNotesInStore])
 
   const handlePasteUrlAsMarkdownChange = useCallback((enabled: boolean) => {
     setUserPreferences((current) =>
@@ -622,14 +670,6 @@ export default function NotesApp() {
   }, [tags])
 
   useEffect(() => {
-    noteFormRef.current = noteForm
-  }, [noteForm])
-
-  useEffect(() => {
-    editingNoteIdRef.current = editingNoteId
-  }, [editingNoteId])
-
-  useEffect(() => {
     const handleWindowResize = () => {
       setResultsColumnWidth(clampResultsColumnWidth(preferredResultsColumnWidth))
     }
@@ -637,10 +677,6 @@ export default function NotesApp() {
     window.addEventListener("resize", handleWindowResize)
     return () => window.removeEventListener("resize", handleWindowResize)
   }, [clampResultsColumnWidth, preferredResultsColumnWidth])
-
-  useEffect(() => {
-    pendingTagLabelsRef.current = pendingTagLabels
-  }, [pendingTagLabels])
 
   const clearStatusMessage = useCallback(() => setStatusMessage(null), [])
   useAutoDismissStatus(statusMessage, clearStatusMessage)
@@ -667,39 +703,112 @@ export default function NotesApp() {
     [clampResultsColumnWidth],
   )
 
-  const resetNoteForm = useCallback(
-    (options: ResetNoteFormOptions = {}) => {
-      const categoryList = options.categoryList ?? categories
-      const selectedCategoryId: number | null =
-        "selectedCategoryId" in options
-          ? (options.selectedCategoryId ?? null)
-          : getDefaultCategoryId(categoryList)
-      const selectedTagIds = options.selectedTagIds ?? []
-      const nextForm = {
-        ...createDefaultNoteForm(),
-        selectedCategoryId,
-        selectedTagIds,
-      }
+  /**
+   * Send a dirty entry that has left the ring off to the server anyway. Used by
+   * eviction, explicit close, and a lowered cap — the three ways a draft can
+   * stop being visible while still holding unsaved text.
+   */
+  const detachRemovedEntries = useCallback<(removed: OpenNoteEntry[]) => void>((removed) => {
+    for (const entry of removed) {
+      if (!isEntryDirty(entry) || !isSaveableForm(entry.form)) continue
 
-      noteFormRef.current = nextForm
-      editingNoteIdRef.current = null
-      lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
-      setNoteForm(nextForm)
-      setEditingNoteId(null)
-      setEditorAutofocus(true)
-      bumpDescriptionEditorSessionId()
-      setPendingTagLabels([])
+      detachedSavesRef.current.set(entry.key, {
+        noteId: entry.noteId,
+        form: snapshotNoteForm(entry.form),
+      })
+      void saveEntryRef.current(entry.key, "detached")
+    }
+  }, [])
+
+  const detachRemovedEntriesRef = useRef(detachRemovedEntries)
+  detachRemovedEntriesRef.current = detachRemovedEntries
+
+  const openNoteEntry = useCallback(
+    (note: NoteRecord) => {
+      detachRemovedEntries(openExistingNoteInStore(note))
     },
-    [
-      bumpDescriptionEditorSessionId,
-      categories,
-      setEditorAutofocus,
-      setEditingNoteId,
-      setNoteForm,
-      setPendingTagLabels,
-    ],
+    [detachRemovedEntries, openExistingNoteInStore],
   )
 
+  const openDraftEntry = useCallback(
+    (options: { categoryId?: number | null; tagIds?: number[]; categoryLabel?: string } = {}) => {
+      detachRemovedEntries(openNewDraftInStore(options))
+    },
+    [detachRemovedEntries, openNewDraftInStore],
+  )
+
+  /**
+   * Rebuild the ring from the persisted snapshot, reconciled against the notes
+   * that actually exist. Safe to run twice — see the two-pass call in
+   * `restoreSession`.
+   */
+  const rehydrateOpenNotes = useCallback(
+    (
+      userId: number,
+      {
+        noteList,
+        categoryList,
+        tagList,
+        pendingMerge,
+        force = false,
+      }: {
+        noteList: NoteRecord[]
+        categoryList: CategoryRecord[]
+        tagList: TagRecord[]
+        pendingMerge: boolean
+        force?: boolean
+      },
+    ) => {
+      if (didRehydrateOpenNotesRef.current && !force) return
+
+      const snapshot = readOpenNotesSnapshot(userId)
+
+      // A merge changes the acting user id, so the snapshot is keyed to the old
+      // anonymous account. Note rows are reparented and keep their ids, but
+      // categories and tags are dedup-remapped, so re-key the snapshot and let
+      // reconciliation repair the references. `handleLogin` already flushed
+      // everything, so nothing here is unsaved.
+      const usable =
+        snapshot ?? (pendingMerge ? readOpenNotesSnapshotForAnyUser(userId) : null)
+
+      didRehydrateOpenNotesRef.current = true
+
+      if (!usable) return
+
+      const notesById = new Map(noteList.map((note) => [note.id, note]))
+      const categoryIds = new Set(categoryList.map((category) => category.id))
+      const tagIds = new Set(tagList.map((tag) => tag.id))
+
+      const { state, orphanedDraftCount } = reconcileOpenNotes(
+        usable,
+        (noteId) => notesById.get(noteId),
+        {
+          categoryExists: (categoryId) => categoryIds.has(categoryId),
+          tagExists: (tagId) => tagIds.has(tagId),
+          fallbackCategoryId: getDefaultCategoryId(categoryList),
+        },
+      )
+
+      if (state.openNotes.length === 0) return
+
+      replaceOpenNotes(state)
+
+      if (orphanedDraftCount > 0) {
+        setStatusMessage(
+          orphanedDraftCount === 1
+            ? "A note you were editing was deleted elsewhere. Your unsaved text was kept as a new note."
+            : `${orphanedDraftCount} notes you were editing were deleted elsewhere. Your unsaved text was kept as new notes.`,
+        )
+      }
+    },
+    [replaceOpenNotes],
+  )
+
+  /**
+   * Apply `?id=`, `?category=`, and `?tags=` on top of whatever the ring
+   * already holds. The URL decides which entry is *active*; it never replaces
+   * an entry's content, so a restored draft survives a reload that names it.
+   */
   const applyNotesUrlSelection = useCallback(
     ({
       categoryList = categoriesRef.current,
@@ -711,74 +820,57 @@ export default function NotesApp() {
       tagList?: TagRecord[]
     } = {}) => {
       const selection = readNotesUrlSelection()
-      const validTagIds = selection.tagIds.filter((tagId) =>
-        tagList.some((tag) => tag.id === tagId),
-      )
+      const store = useNotesAppStore.getState()
 
       if (selection.noteId !== null) {
         const note = noteList.find((item) => item.id === selection.noteId)
         if (note) {
-          const nextForm = noteToFormState(note)
-          const shouldResetDescriptionEditor = editingNoteIdRef.current !== note.id
-          editingNoteIdRef.current = note.id
-          noteFormRef.current = nextForm
-          lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
-          setEditingNoteId(note.id)
-          if (shouldResetDescriptionEditor) {
-            setEditorAutofocus(true)
-            bumpDescriptionEditorSessionId()
-          }
-          setPendingTagLabels([])
-          setNoteForm(nextForm)
-          setCategoryInputValue(note.category.label)
+          // openExistingNote keeps the in-memory draft when the note is already
+          // open, so this activates without clobbering unsaved text.
+          openNoteEntry(note)
           setNotesUrlSelectionReady(true)
           return
         }
       }
 
+      if (store.activeKey !== null) {
+        setNotesUrlSelectionReady(true)
+        return
+      }
+
+      const validTagIds = selection.tagIds.filter((tagId) =>
+        tagList.some((tag) => tag.id === tagId),
+      )
       const categoryId =
         selection.categoryId !== null &&
         categoryList.some((category) => category.id === selection.categoryId)
           ? selection.categoryId
           : getDefaultCategoryId(categoryList)
-      const nextForm = {
-        ...createDefaultNoteForm(),
-        selectedCategoryId: categoryId,
-        selectedTagIds: validTagIds,
-      }
-      const categoryLabel =
-        categoryId === null
-          ? ""
-          : (categoryList.find((category) => category.id === categoryId)?.label ?? "")
 
-      noteFormRef.current = nextForm
-      editingNoteIdRef.current = null
-      lastSavedNoteDraftRef.current = serializeNoteDraft(null, nextForm)
-      setEditingNoteId(null)
-      setEditorAutofocus(true)
-      bumpDescriptionEditorSessionId()
-      setPendingTagLabels([])
-      setNoteForm(nextForm)
-      setCategoryInputValue(categoryLabel)
+      openDraftEntry({
+        categoryId,
+        tagIds: validTagIds,
+        categoryLabel:
+          categoryId === null
+            ? ""
+            : (categoryList.find((category) => category.id === categoryId)?.label ?? ""),
+      })
       setNotesUrlSelectionReady(true)
     },
-    [
-      bumpDescriptionEditorSessionId,
-      setCategoryInputValue,
-      setEditorAutofocus,
-      setEditingNoteId,
-      setNoteForm,
-      setNotesUrlSelectionReady,
-      setPendingTagLabels,
-    ],
+    [openDraftEntry, openNoteEntry],
   )
 
-  const handleCancelEdit = useCallback(async () => {
-    // Leaving the current draft (header "+", "jot.new", or the cancel button)
-    // must persist any unsaved edits before the editor is reset.
-    await flushPendingNoteSaveRef.current()
-    resetNoteForm({ selectedCategoryId: noteFormRef.current.selectedCategoryId })
-  }, [resetNoteForm])
+  const handleCancelEdit = useCallback(() => {
+    // Adds a draft alongside the open notes rather than replacing one. The
+    // outgoing entry keeps autosaving in the background, so there is nothing
+    // to await here.
+    clearMessages()
+    openDraftEntry({
+      categoryId:
+        useNotesAppStore.getState().openNotes.find((entry) => entry.key === activeKey)?.form
+          .selectedCategoryId ?? getDefaultCategoryId(categoriesRef.current),
+    })
+  }, [activeKey, clearMessages, openDraftEntry])
 
   const loadNotes = useCallback(async (userId: number) => {
     // Only show the blocking "Loading…" indicator on the cold path, when we
@@ -947,6 +1039,13 @@ export default function NotesApp() {
         setNotes(cachedSnapshot.notes)
         setCategories(cachedSnapshot.categories)
         setTags(cachedSnapshot.tags)
+        // Reconcile against the cached list so the ring paints immediately…
+        rehydrateOpenNotes(cachedSnapshot.userId, {
+          noteList: cachedSnapshot.notes,
+          categoryList: cachedSnapshot.categories,
+          tagList: cachedSnapshot.tags,
+          pendingMerge: Boolean(pendingMergeToken),
+        })
         applyNotesUrlSelection({
           categoryList: cachedSnapshot.categories,
           noteList: cachedSnapshot.notes,
@@ -955,7 +1054,19 @@ export default function NotesApp() {
         setSessionLoading(false)
 
         try {
-          await fetchFreshSession(cachedSnapshot.userId, { applyUser: false })
+          const refreshed = await fetchFreshSession(cachedSnapshot.userId, { applyUser: false })
+          if (!active) return
+          // …then again once the real data lands. The cached list can be up to
+          // two weeks old, so it cannot be trusted to say whether a note still
+          // exists. Reconciling is idempotent and never touches a dirty entry,
+          // so the second pass only corrects clean ones.
+          rehydrateOpenNotes(cachedSnapshot.userId, {
+            noteList: refreshed.loadedNotes,
+            categoryList: refreshed.loadedCategories,
+            tagList: refreshed.loadedTags,
+            pendingMerge: false,
+            force: true,
+          })
         } catch {
           // Background refresh failure - user keeps the cached view. We do
           // NOT sign them out here, because the cause is most often a flaky
@@ -969,6 +1080,12 @@ export default function NotesApp() {
         const result = await fetchFreshSession(storedUserId, { applyUser: true })
         if (!active) return
 
+        rehydrateOpenNotes(result.sessionData.user.id, {
+          noteList: result.loadedNotes,
+          categoryList: result.loadedCategories,
+          tagList: result.loadedTags,
+          pendingMerge: Boolean(pendingMergeToken),
+        })
         applyNotesUrlSelection({
           categoryList: result.loadedCategories,
           noteList: result.loadedNotes,
@@ -985,6 +1102,8 @@ export default function NotesApp() {
         setCategories([])
         setTags([])
         setNotes([])
+        clearOpenNotesSnapshot()
+        detachedSavesRef.current.clear()
         resetNotesAppStore()
         setResultsListVisible(!isMobileResultsLayout())
         setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
@@ -1008,6 +1127,7 @@ export default function NotesApp() {
     loadTags,
     loadNotes,
     applyNotesUrlSelection,
+    rehydrateOpenNotes,
     resetNotesAppStore,
     setResultsListVisible,
   ])
@@ -1056,15 +1176,16 @@ export default function NotesApp() {
     if (!user) return
     if (!notesUrlSelectionReady) return
 
+    // Mirrors the *active* entry so the address bar stays copy-pasteable.
     writeNotesUrlSelection({
-      noteId: editingNoteId,
-      categoryId: noteForm.selectedCategoryId,
-      tagIds: noteForm.selectedTagIds,
+      noteId: activeEntry?.noteId ?? null,
+      categoryId: activeEntry?.form.selectedCategoryId ?? null,
+      tagIds: activeEntry?.form.selectedTagIds ?? [],
     })
   }, [
-    editingNoteId,
-    noteForm.selectedCategoryId,
-    noteForm.selectedTagIds,
+    activeEntry?.noteId,
+    activeEntry?.form.selectedCategoryId,
+    activeEntry?.form.selectedTagIds,
     notesUrlSelectionReady,
     user,
   ])
@@ -1073,11 +1194,9 @@ export default function NotesApp() {
     if (!user) return
 
     const handlePopState = () => {
-      // Back/forward navigation swaps the open note via the URL, so flush the
-      // current draft before the selection is applied.
-      void flushPendingNoteSaveRef.current().finally(() => {
-        applyNotesUrlSelection()
-      })
+      // No flush needed: the target note is already in memory with its own
+      // draft, so applying the URL selection is non-destructive.
+      applyNotesUrlSelection()
     }
 
     window.addEventListener("popstate", handlePopState)
@@ -1136,6 +1255,136 @@ export default function NotesApp() {
     }
   }, [notes.length, trimmedSearchQuery, user])
 
+  /**
+   * Point every open entry at a category that still exists. Runs where
+   * categories actually change rather than on the save path.
+   *
+   * A change made here is not a user edit, so a clean entry has to stay clean:
+   * its signature moves with the form, otherwise autosave would immediately
+   * push the remap back to the server as if the user had made it.
+   */
+  const remapEntriesAfterCategoryChange = useCallback(
+    (categoryList: CategoryRecord[]) => {
+      const fallback = getDefaultCategoryId(categoryList)
+
+      patchEveryEntry((entry) => {
+        const categoryId = entry.form.selectedCategoryId
+        if (categoryId !== null && categoryList.some((category) => category.id === categoryId)) {
+          return {}
+        }
+
+        const form = { ...entry.form, selectedCategoryId: fallback }
+        return {
+          form,
+          savedSignature: isEntryDirty(entry)
+            ? entry.savedSignature
+            : serializeNoteDraft(entry.noteId, form),
+          categoryInputValue:
+            categoryList.find((category) => category.id === fallback)?.label ?? "",
+        }
+      })
+    },
+    [patchEveryEntry],
+  )
+
+  /**
+   * Adopt a server-side change to a note into its open entry, if it has one.
+   * Used by the sidebar move actions, which change a note the user may not be
+   * looking at. The signature moves with the form so the entry does not read as
+   * dirty and autosave the change straight back.
+   */
+  const applyServerNoteToEntry = useCallback(
+    (note: NoteRecord) => {
+      const entry = useNotesAppStore
+        .getState()
+        .openNotes.find((item) => item.noteId === note.id)
+      if (!entry) return
+
+      const form = noteToFormState(note)
+      patchEntry(entry.key, {
+        form,
+        baseTimeModified: note.timeModified,
+        savedSignature: serializeNoteDraft(note.id, form),
+        categoryInputValue: note.category.label,
+        pendingTagLabels: [],
+      })
+    },
+    [patchEntry],
+  )
+
+  /**
+   * The active entry's form, or a stable empty draft while the ring is still
+   * being built, so `NoteForm` never has to handle a null form.
+   */
+  const activeForm = activeEntry?.form ?? EMPTY_NOTE_FORM
+
+  const setActiveForm = useCallback<Dispatch<SetStateAction<NoteFormState>>>(
+    (value) => {
+      const key = useNotesAppStore.getState().activeKey
+      if (key === null) return
+      patchEntryForm(key, (current) =>
+        typeof value === "function" ? (value as (f: NoteFormState) => NoteFormState)(current) : value,
+      )
+    },
+    [patchEntryForm],
+  )
+
+  const categoryLabelById = useCallback(
+    (categoryId: number | null) =>
+      categoryId === null
+        ? "uncategorized"
+        : (categories.find((category) => category.id === categoryId)?.label ?? "uncategorized"),
+    [categories],
+  )
+
+  /** Closing is not discarding: a dirty entry still finishes its save. */
+  const handleCloseOpenNote = useCallback(
+    (key: OpenNoteKey) => {
+      detachRemovedEntries(closeEntryInStore(key))
+    },
+    [closeEntryInStore, detachRemovedEntries],
+  )
+
+  const handleMaxOpenNotesChange = useCallback(
+    (value: number) => {
+      const next = clampMaxOpenNotes(value)
+      // Lowering the cap evicts right away rather than waiting for the next
+      // note to be opened, and the dropped entries still get saved.
+      detachRemovedEntries(setMaxOpenNotesInStore(next))
+      setUserPreferences((current) =>
+        getMaxOpenNotesPreference(current) === next
+          ? current
+          : withMaxOpenNotesPreference(current, next),
+      )
+    },
+    [detachRemovedEntries, setMaxOpenNotesInStore],
+  )
+
+  const handleCategoryInputValueChange = useCallback(
+    (value: string) => {
+      const key = useNotesAppStore.getState().activeKey
+      if (key === null) return
+      patchEntry(key, { categoryInputValue: value })
+    },
+    [patchEntry],
+  )
+
+  /** Merge a saved record into the lists in place, instead of refetching them. */
+  const mergeSavedNote = useCallback((userId: number, note: NoteRecord) => {
+    setNotes((prev) => {
+      const next = [...prev.filter((item) => item.id !== note.id), note]
+      updateNotesCacheList(userId, "notes", next)
+      return next
+    })
+    // The search effect only re-runs when `notes.length` changes, so an edit to
+    // an already-listed note would otherwise leave stale text in the results.
+    setSearchResults((prev) =>
+      prev.some((result) => result.note.id === note.id)
+        ? prev.map((result) => (result.note.id === note.id ? { ...result, note } : result))
+        : prev,
+    )
+  }, [])
+
   const refreshResults = useCallback(
     async (userId: number) => {
       const [latestNotes, latestCategories, latestTags] = await Promise.all([
@@ -1143,75 +1392,72 @@ export default function NotesApp() {
         loadCategories(userId),
         loadTags(userId),
       ])
-      setNoteForm((prev) => {
-        if (
-          prev.selectedCategoryId !== null &&
-          latestCategories.some((category) => category.id === prev.selectedCategoryId)
-        ) {
-          return prev
-        }
-
-        return {
-          ...prev,
-          selectedCategoryId: getDefaultCategoryId(latestCategories),
-        }
-      })
+      remapEntriesAfterCategoryChange(latestCategories)
       if (trimmedSearchQuery) {
         await runSearch(userId, trimmedSearchQuery, NOTES_APP_SEARCH_MAX_RESULTS)
       }
       return { latestNotes, latestCategories, latestTags }
     },
-    [loadCategories, loadTags, loadNotes, runSearch, trimmedSearchQuery],
+    [
+      loadCategories,
+      loadTags,
+      loadNotes,
+      remapEntriesAfterCategoryChange,
+      runSearch,
+      trimmedSearchQuery,
+    ],
   )
 
-  const saveCurrentNote = useCallback(
-    async function saveCurrentNote(mode: NoteSaveMode): Promise<void> {
-      // Snapshot the editor *before* awaiting anything. Navigation flushes call
-      // this synchronously right before they replace the editor state, so the
-      // snapshot has to capture the outgoing note rather than whatever the refs
-      // hold once control returns from an await.
+  /**
+   * Persist one entry. Saves for different entries run concurrently; saves for
+   * the same entry stay serialized, so a note can never race itself into two
+   * rows.
+   */
+  const saveEntry = useCallback(
+    async function saveEntry(key: OpenNoteKey, mode: NoteSaveMode): Promise<void> {
       const currentUser = userRef.current
-      const formSnapshot = snapshotNoteForm(noteFormRef.current)
-      const noteId = editingNoteIdRef.current
+      if (!currentUser) return
+
+      // Snapshot before awaiting anything. For a detached entry the snapshot is
+      // all that is left of it; for a live one this pins the version being sent
+      // so later keystrokes belong to the next save, not this one.
+      const detached = detachedSavesRef.current.get(key)
+      const entry = useNotesAppStore.getState().openNotes.find((item) => item.key === key)
+
+      const source = detached ?? entry
+      if (!source) return
+
+      const formSnapshot = snapshotNoteForm(source.form)
+      const noteId = source.noteId
       const draftSignature = serializeNoteDraft(noteId, formSnapshot)
 
-      if (!currentUser) return
-      if (formSnapshot.selectedCategoryId === null) return
+      if (!isSaveableForm(formSnapshot)) return
+      if (entry && !detached && draftSignature === entry.savedSignature) return
 
-      // Nothing worth persisting, or the snapshot already matches the server.
-      if (formSnapshot.description.trim() === "") return
-      if (draftSignature === lastSavedNoteDraftRef.current) return
-
-      // Serialize saves. A `flush` must wait for the in-flight save and then run
-      // (its captured snapshot may be newer); a background `autosave` can simply
-      // mark itself queued and let the in-flight save re-trigger it on completion.
-      if (noteSavePromiseRef.current) {
+      const inFlight = saveInFlightRef.current.get(key)
+      if (inFlight) {
         if (mode === "autosave") {
-          queuedAutosaveRef.current = true
+          queuedAutosaveKeysRef.current.add(key)
           return
         }
 
-        await noteSavePromiseRef.current.catch(() => undefined)
+        // A second POST for a never-saved entry would create a second note, so
+        // even a detached save has to wait for the in-flight one — which is
+        // also the save that learns the new note id.
+        await inFlight.catch(() => undefined)
 
-        // The in-flight save may have already persisted this exact snapshot.
-        if (mode === "flush" && draftSignature === lastSavedNoteDraftRef.current) return
+        const settled = useNotesAppStore.getState().openNotes.find((item) => item.key === key)
+        if (settled && draftSignature === settled.savedSignature) return
       }
 
-      noteSaveInFlightRef.current = true
-      setNoteSaveStatus("saving")
+      if (!detached) patchEntry(key, { saveStatus: "saving" })
 
       const savePromise = (async () => {
         const requestBody =
           noteId === null
-            ? {
-                userId: currentUser.id,
-                note: noteRequestBody(formSnapshot),
-              }
-            : {
-                userId: currentUser.id,
-                noteId,
-                note: noteRequestBody(formSnapshot),
-              }
+            ? { userId: currentUser.id, note: noteRequestBody(formSnapshot) }
+            : { userId: currentUser.id, noteId, note: noteRequestBody(formSnapshot) }
+
         const response = await fetch("/api/notes", {
           method: noteId === null ? "POST" : "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -1221,117 +1467,96 @@ export default function NotesApp() {
 
         if (userRef.current?.id !== currentUser.id) return
 
-        await refreshResults(currentUser.id)
+        mergeSavedNote(currentUser.id, data.note)
 
-        const savedNoteId = data.note.id
-
-        // Only touch the live editor state when it still refers to the note we
-        // just saved — a flush may have run while the user was already moving on
-        // to a different note.
-        const stillEditingSavedNote =
-          editingNoteIdRef.current === noteId ||
-          (noteId === null && editingNoteIdRef.current === null)
-
-        if (stillEditingSavedNote) {
-          lastSavedNoteDraftRef.current = serializeNoteDraft(savedNoteId, formSnapshot)
-
-          const currentForm = noteFormRef.current
-          if (
-            noteId === null &&
-            editingNoteIdRef.current === null &&
-            currentForm.description.trim() !== ""
-          ) {
-            editingNoteIdRef.current = savedNoteId
-            setEditingNoteId(savedNoteId)
-          }
-        }
+        // Write back by key. The old "is this still the note on screen" guard
+        // existed only because there was one editor slot; with per-entry state
+        // this is correct whether or not the user has moved on.
+        patchEntry(key, {
+          noteId: data.note.id,
+          baseTimeModified: data.note.timeModified,
+          savedSignature: serializeNoteDraft(data.note.id, formSnapshot),
+        })
       })()
 
-      noteSavePromiseRef.current = savePromise
+      saveInFlightRef.current.set(key, savePromise)
 
       try {
         await savePromise
-        if (userRef.current?.id === currentUser.id) {
-          // Reflect whatever the editor holds now: typing during the request may
-          // have made it dirty again (a queued autosave will follow).
-          const liveSignature = serializeNoteDraft(editingNoteIdRef.current, noteFormRef.current)
-          setNoteSaveStatus(liveSignature === lastSavedNoteDraftRef.current ? "saved" : "unsaved")
+        if (userRef.current?.id === currentUser.id && !detached) {
+          const live = useNotesAppStore.getState().openNotes.find((item) => item.key === key)
+          if (live) {
+            patchEntry(key, { saveStatus: isEntryDirty(live) ? "unsaved" : "saved" })
+          }
         }
       } catch (error) {
         if (userRef.current?.id === currentUser.id) {
           setErrorMessage(getErrorMessage(error))
-          setNoteSaveStatus("error")
+          if (!detached) patchEntry(key, { saveStatus: "error" })
         }
       } finally {
-        if (noteSavePromiseRef.current === savePromise) {
-          noteSavePromiseRef.current = null
-          noteSaveInFlightRef.current = false
+        if (saveInFlightRef.current.get(key) === savePromise) {
+          saveInFlightRef.current.delete(key)
         }
+        // A detached save is never retried: it has no slot to write a new note
+        // id back to, so a retry after a POST would create a duplicate note.
+        // The exit keepalive covers the failure case.
+        detachedSavesRef.current.delete(key)
       }
 
-      if (queuedAutosaveRef.current) {
-        queuedAutosaveRef.current = false
-        const latestForm = noteFormRef.current
-        const latestSignature = serializeNoteDraft(editingNoteIdRef.current, latestForm)
-        if (
-          latestForm.description.trim() !== "" &&
-          latestForm.selectedCategoryId !== null &&
-          latestSignature !== lastSavedNoteDraftRef.current
-        ) {
-          void saveCurrentNote("autosave")
+      if (queuedAutosaveKeysRef.current.delete(key)) {
+        const latest = useNotesAppStore.getState().openNotes.find((item) => item.key === key)
+        if (latest && isSaveableForm(latest.form) && isEntryDirty(latest)) {
+          void saveEntry(key, "autosave")
         }
       }
     },
-    [refreshResults, setEditingNoteId, setNoteSaveStatus],
+    [mergeSavedNote, patchEntry],
   )
 
-  // Persist the current note immediately, used right before the editor is about
-  // to be replaced. Resolves once the outgoing note is safely saved (or there
-  // was nothing to save), so callers can await it before swapping in new state.
-  const flushPendingNoteSave = useCallback(async () => {
-    await saveCurrentNote("flush")
-  }, [saveCurrentNote])
+  saveEntryRef.current = saveEntry
 
-  flushPendingNoteSaveRef.current = flushPendingNoteSave
+  /**
+   * Persist every dirty entry and wait for all of them. Used only where the
+   * session itself is about to change — sign-in, sign-up, sign-out — since
+   * ordinary note switching no longer needs to block on a save.
+   */
+  const flushAllPendingSaves = useCallback(async () => {
+    const entries = useNotesAppStore.getState().openNotes.filter(isEntryDirty)
+    await Promise.allSettled(entries.map((entry) => saveEntry(entry.key, "flush")))
+  }, [saveEntry])
 
-  // Debounced background autosave while the note stays open. Trailing debounce:
-  // it only fires once the user pauses for NOTE_AUTOSAVE_DEBOUNCE_MS, and the
-  // signature check below skips the request entirely when nothing changed.
+  flushAllPendingSavesRef.current = flushAllPendingSaves
+
+  useOpenNotesAutosave({
+    entries: openNotes,
+    enabled: Boolean(user),
+    saveEntry,
+  })
+
+  // Keep each entry's indicator in sync whenever a save is not running for it
+  // (the save routine owns the status while its request is in flight).
   useEffect(() => {
     if (!user) return
-    if (notePending) return
-    if (noteForm.description.trim() === "") return
-    if (noteForm.selectedCategoryId === null) return
 
-    const draftSignature = serializeNoteDraft(editingNoteId, noteForm)
-    if (draftSignature === lastSavedNoteDraftRef.current) return
+    for (const entry of openNotes) {
+      if (saveInFlightRef.current.has(entry.key)) continue
 
-    const timeoutId = window.setTimeout(() => {
-      void saveCurrentNote("autosave")
-    }, NOTE_AUTOSAVE_DEBOUNCE_MS)
+      const next =
+        entry.form.description.trim() === "" && entry.noteId === null
+          ? "idle"
+          : isEntryDirty(entry)
+            ? "unsaved"
+            : "saved"
 
-    return () => window.clearTimeout(timeoutId)
-  }, [editingNoteId, noteForm, notePending, saveCurrentNote, user])
-
-  // Keep the save indicator in sync with the editor whenever a save is not
-  // actively running (the save routine owns the status while in flight).
-  useEffect(() => {
-    if (!user) return
-    if (noteSaveInFlightRef.current) return
-
-    if (noteForm.description.trim() === "" && editingNoteId === null) {
-      setNoteSaveStatus("idle")
-      return
+      if (entry.saveStatus !== next) patchEntry(entry.key, { saveStatus: next })
     }
-
-    const draftSignature = serializeNoteDraft(editingNoteId, noteForm)
-    setNoteSaveStatus(draftSignature === lastSavedNoteDraftRef.current ? "saved" : "unsaved")
-  }, [editingNoteId, noteForm, setNoteSaveStatus, user])
+  }, [openNotes, patchEntry, user])
 
   // Best-effort save when the tab is being hidden or torn down. The awaited
-  // flushes above cannot run during an unload, so we fire a keepalive request
-  // (which the browser allows to outlive the page) for any unsaved draft. This
-  // closes the gap where an abrupt close happens inside the autosave debounce.
+  // flushes cannot run during an unload, so fire keepalive requests (which the
+  // browser allows to outlive the page) for every unsaved entry — including
+  // ones that already left the ring but whose request never landed.
   useEffect(() => {
     if (!user) return
 
@@ -1339,32 +1564,43 @@ export default function NotesApp() {
       const currentUser = userRef.current
       if (!currentUser) return
 
-      const form = noteFormRef.current
-      if (form.description.trim() === "") return
-      if (form.selectedCategoryId === null) return
+      const store = useNotesAppStore.getState()
 
-      const noteId = editingNoteIdRef.current
-      const draftSignature = serializeNoteDraft(noteId, form)
-      if (draftSignature === lastSavedNoteDraftRef.current) return
+      const pending: { key: OpenNoteKey; noteId: number | null; form: NoteFormState }[] = [
+        ...store.openNotes
+          .filter((entry) => isSaveableForm(entry.form) && isEntryDirty(entry))
+          .map((entry) => ({ key: entry.key, noteId: entry.noteId, form: entry.form })),
+        ...[...detachedSavesRef.current.entries()].map(([key, save]) => ({
+          key,
+          noteId: save.noteId,
+          form: save.form,
+        })),
+      ]
 
-      // Mark as persisted optimistically so we don't fire duplicate requests if
-      // multiple exit events fire in a row.
-      lastSavedNoteDraftRef.current = draftSignature
-      const requestBody =
-        noteId === null
-          ? { userId: currentUser.id, note: noteRequestBody(form) }
-          : { userId: currentUser.id, noteId, note: noteRequestBody(form) }
+      for (const { key, noteId, form } of pending) {
+        // Mark as persisted optimistically so repeated exit events (pagehide
+        // after visibilitychange) do not fire the same write twice.
+        patchEntry(key, { savedSignature: serializeNoteDraft(noteId, form) })
+        detachedSavesRef.current.delete(key)
 
-      try {
-        void fetch("/api/notes", {
-          method: noteId === null ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-          keepalive: true,
-        }).catch(() => undefined)
-      } catch {
-        // Ignore — this is a best-effort save during teardown.
+        const requestBody =
+          noteId === null
+            ? { userId: currentUser.id, note: noteRequestBody(form) }
+            : { userId: currentUser.id, noteId, note: noteRequestBody(form) }
+
+        try {
+          void fetch("/api/notes", {
+            method: noteId === null ? "POST" : "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+            keepalive: true,
+          }).catch(() => undefined)
+        } catch {
+          // Ignore — this is a best-effort save during teardown.
+        }
       }
+
+      persistOpenNotesRef.current()
     }
 
     const handleVisibilityChange = () => {
@@ -1379,7 +1615,56 @@ export default function NotesApp() {
       window.removeEventListener("pagehide", flushOnExit)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
-  }, [user])
+  }, [patchEntry, user])
+
+  // Persist the ring so a reload keeps the open notes and their unsaved text.
+  // Debounced: this must never run on a keystroke, since JSON.stringify plus a
+  // synchronous localStorage write on the main thread is exactly the jank this
+  // whole change exists to remove.
+  const persistOpenNotes = useCallback(() => {
+    const currentUser = userRef.current
+    if (!currentUser) return
+
+    const ok = writeOpenNotesSnapshot(
+      currentUser.id,
+      useNotesAppStore.getState(),
+      isEntryDirty,
+    )
+    if (!ok) {
+      setErrorMessage("Running low on browser storage — some unsaved notes may not survive a reload.")
+    }
+  }, [])
+
+  const persistOpenNotesRef = useRef(persistOpenNotes)
+  persistOpenNotesRef.current = persistOpenNotes
+
+  useEffect(() => {
+    if (!user) return
+    if (!didRehydrateOpenNotesRef.current) return
+
+    if (openNotesPersistTimeoutRef.current !== null) {
+      window.clearTimeout(openNotesPersistTimeoutRef.current)
+    }
+
+    openNotesPersistTimeoutRef.current = window.setTimeout(() => {
+      openNotesPersistTimeoutRef.current = null
+      persistOpenNotes()
+    }, OPEN_NOTES_PERSIST_DEBOUNCE_MS)
+
+    return () => {
+      if (openNotesPersistTimeoutRef.current === null) return
+      window.clearTimeout(openNotesPersistTimeoutRef.current)
+      openNotesPersistTimeoutRef.current = null
+    }
+  }, [activeKey, openNotes, persistOpenNotes, user])
+
+  // The reveal highlight is a one-shot: the editor consumes it at mount, so
+  // clear it once handed over. Otherwise coming back to a note opened from a
+  // search result would re-scroll and re-highlight every time.
+  useEffect(() => {
+    if (!activeEntry?.revealText) return
+    patchEntry(activeEntry.key, { revealText: null })
+  }, [activeEntry?.key, activeEntry?.revealText, patchEntry])
 
   const matchesSelectedTag = useCallback(
     (note: NoteRecord) =>
@@ -1498,13 +1783,14 @@ export default function NotesApp() {
       (value) => !tags.some((tag) => normalizeLabel(tag.label) === normalizeLabel(value)),
     )
 
-    setNoteForm((prev) => ({
-      ...prev,
-      selectedTagIds: nextSelectedTagIds,
+    if (activeKey === null) return
+
+    patchEntry(activeKey, (entry) => ({
+      form: { ...entry.form, selectedTagIds: nextSelectedTagIds },
+      pendingTagLabels: nextPendingLabels,
     }))
-    setPendingTagLabels(nextPendingLabels)
     nextPendingLabels.forEach((label) => {
-      void handleCreateTag(label)
+      void handleCreateTag(label, activeKey)
     })
   }
 
@@ -1548,10 +1834,10 @@ export default function NotesApp() {
     clearMessages()
     setAuthPending(true)
     try {
-      // Persist any unsaved edits to the anonymous account before the session
-      // changes, otherwise the outgoing draft never reaches the DB and the
-      // merge below cannot move it.
-      await flushPendingNoteSave()
+      // Persist every unsaved entry to the anonymous account before the
+      // session changes, otherwise those drafts never reach the DB and the
+      // merge below cannot move them.
+      await flushAllPendingSaves()
 
       // While still anonymous, capture a signed merge token and stash it across
       // the sign-in transition. The single post-login loader (restoreSession)
@@ -1634,9 +1920,9 @@ export default function NotesApp() {
 
     setAuthPending(true)
     try {
-      // Persist any unsaved edits before the claim. The data stays on the same
-      // user row, but the debounced autosave must not fire mid-transition.
-      await flushPendingNoteSave()
+      // Persist every unsaved entry before the claim. The data stays on the
+      // same user row, but the debounced autosaves must not fire mid-transition.
+      await flushAllPendingSaves()
 
       // Claim the anonymous row in place: same user_id, identity + password set,
       // is_anonymous flipped to false. Nothing moves between users, so there is
@@ -1697,9 +1983,9 @@ export default function NotesApp() {
   }
 
   const handleLogout = async () => {
-    // Persist any unsaved edits for the current user before tearing down the
+    // Persist every unsaved entry for the current user before tearing down the
     // session.
-    await flushPendingNoteSave()
+    await flushAllPendingSaves()
     await signOut({ redirect: false })
     window.localStorage.removeItem(STORAGE_KEY)
     clearNotesCache()
@@ -1713,33 +1999,14 @@ export default function NotesApp() {
     setSearchQuery("")
     setSearchResults([])
     setSearchErrorMessage(null)
+    clearOpenNotesSnapshot()
+    detachedSavesRef.current.clear()
+    didRehydrateOpenNotesRef.current = false
     resetNotesAppStore()
     setResultsListVisible(!isMobileResultsLayout())
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-    setEditorRevealText(null)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-    resetNoteForm({ categoryList: [] })
     clearMessages()
-  }
-
-  const handleStartEdit = async (note: NoteRecord) => {
-    // Opening a different note replaces the editor, so persist the outgoing
-    // note's unsaved edits first.
-    if (editingNoteIdRef.current !== note.id) {
-      await flushPendingNoteSave()
-    }
-    clearMessages()
-    const nextForm = noteToFormState(note)
-    const shouldResetDescriptionEditor = editingNoteIdRef.current !== note.id
-    editingNoteIdRef.current = note.id
-    noteFormRef.current = nextForm
-    lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
-    setEditingNoteId(note.id)
-    if (shouldResetDescriptionEditor) {
-      bumpDescriptionEditorSessionId()
-    }
-    setPendingTagLabels([])
-    setNoteForm(nextForm)
   }
 
   const closeResultsListOnMobile = () => {
@@ -1748,35 +2015,45 @@ export default function NotesApp() {
     }
   }
 
+  /**
+   * Opening a note no longer waits for anything. The outgoing entry keeps its
+   * draft in memory and its own autosave, so there is nothing to lose by
+   * switching immediately.
+   */
   const handleOpenNoteFromResults = (note: NoteRecord) => {
-    setEditorAutofocus(!isMobileResultsLayout())
-    setEditorRevealText(searchMode ? trimmedSearchQuery : null)
-    void handleStartEdit(note)
+    clearMessages()
+    openNoteEntry(note)
+
+    const key = noteEntryKey(note.id)
+    patchEntry(key, {
+      autofocus: !isMobileResultsLayout(),
+      revealText: searchMode ? trimmedSearchQuery : null,
+    })
     closeResultsListOnMobile()
   }
 
-  const handleAddNoteForCategory = async (category: CategoryRecord) => {
-    await flushPendingNoteSave()
+  const handleAddNoteForCategory = (category: CategoryRecord) => {
     clearMessages()
-    resetNoteForm({ selectedCategoryId: category.id })
-    setCategoryInputValue(category.label)
+    openDraftEntry({ categoryId: category.id, categoryLabel: category.label })
     closeResultsListOnMobile()
   }
 
-  const handleAddNoteForTag = async (tag: TagRecord) => {
-    await flushPendingNoteSave()
+  const handleAddNoteForTag = (tag: TagRecord) => {
     clearMessages()
-    const currentCategoryId = noteFormRef.current.selectedCategoryId
+    const currentCategoryId = activeEntry?.form.selectedCategoryId ?? null
     const selectedCategoryId =
       currentCategoryId !== null && categories.some((category) => category.id === currentCategoryId)
         ? currentCategoryId
         : getDefaultCategoryId(categories)
-    resetNoteForm({ selectedCategoryId, selectedTagIds: [tag.id] })
-    const categoryLabel =
-      selectedCategoryId === null
-        ? ""
-        : (categories.find((category) => category.id === selectedCategoryId)?.label ?? "")
-    setCategoryInputValue(categoryLabel)
+
+    openDraftEntry({
+      categoryId: selectedCategoryId,
+      tagIds: [tag.id],
+      categoryLabel:
+        selectedCategoryId === null
+          ? ""
+          : (categories.find((category) => category.id === selectedCategoryId)?.label ?? ""),
+    })
     closeResultsListOnMobile()
   }
 
@@ -1792,34 +2069,53 @@ export default function NotesApp() {
     if (!category) {
       return
     }
-    setNoteForm((prev) => ({
-      ...prev,
-      selectedCategoryId: category.id,
+    if (activeKey === null) return
+    patchEntry(activeKey, (entry) => ({
+      form: { ...entry.form, selectedCategoryId: category.id },
+      categoryInputValue: category.label,
     }))
-    setCategoryInputValue(category.label)
   }
 
-  const handleCreateTag = async (rawLabel: string) => {
+  // `targetKey` is captured by the caller before this awaits. Without it, a tag
+  // created in one note would land on whichever note happens to be active when
+  // the request returns — which is now a different note, since switching no
+  // longer blocks.
+  const handleCreateTag = async (rawLabel: string, targetKey: OpenNoteKey | null = activeKey) => {
     if (!user) {
       setErrorMessage("Sign in before adding tags.")
       return
     }
     const label = rawLabel.trim()
-    if (label === "") {
+    if (label === "" || targetKey === null) {
       return
     }
+
+    const dropPendingLabel = (normalized: string) =>
+      patchEntry(targetKey, (entry) => ({
+        pendingTagLabels: entry.pendingTagLabels.filter(
+          (item) => normalizeLabel(item) !== normalized,
+        ),
+      }))
+
+    const selectTag = (tagId: number) =>
+      patchEntry(targetKey, (entry) => ({
+        form: {
+          ...entry.form,
+          selectedTagIds: entry.form.selectedTagIds.includes(tagId)
+            ? entry.form.selectedTagIds
+            : [...entry.form.selectedTagIds, tagId],
+        },
+      }))
+
     const normalizedLabel = normalizeLabel(label)
     const existingTag = tags.find((tag) => normalizeLabel(tag.label) === normalizedLabel)
     if (existingTag) {
-      setPendingTagLabels((prev) => prev.filter((item) => normalizeLabel(item) !== normalizedLabel))
-      setNoteForm((prev) => ({
-        ...prev,
-        selectedTagIds: prev.selectedTagIds.includes(existingTag.id)
-          ? prev.selectedTagIds
-          : [...prev.selectedTagIds, existingTag.id],
-      }))
+      dropPendingLabel(normalizedLabel)
+      selectTag(existingTag.id)
       return
     }
+    // Deliberately global: two entries asking for the same new label should
+    // still only create one tag.
     if (creatingTagLabelsRef.current.has(normalizedLabel)) {
       return
     }
@@ -1839,21 +2135,16 @@ export default function NotesApp() {
           a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
         )
       })
-      const shouldKeepSelected = pendingTagLabelsRef.current.some(
-        (item) => normalizeLabel(item) === normalizedLabel,
-      )
-      setPendingTagLabels((prev) => prev.filter((item) => normalizeLabel(item) !== normalizedLabel))
-      if (shouldKeepSelected) {
-        setNoteForm((prev) => ({
-          ...prev,
-          selectedTagIds: prev.selectedTagIds.includes(data.tag.id)
-            ? prev.selectedTagIds
-            : [...prev.selectedTagIds, data.tag.id],
-        }))
-      }
+      const shouldKeepSelected = useNotesAppStore
+        .getState()
+        .openNotes.find((entry) => entry.key === targetKey)
+        ?.pendingTagLabels.some((item) => normalizeLabel(item) === normalizedLabel)
+
+      dropPendingLabel(normalizedLabel)
+      if (shouldKeepSelected) selectTag(data.tag.id)
       setStatusMessage(`Tag “${data.tag.label}” added.`)
     } catch (error) {
-      setPendingTagLabels((prev) => prev.filter((item) => normalizeLabel(item) !== normalizedLabel))
+      dropPendingLabel(normalizedLabel)
       setErrorMessage(getErrorMessage(error))
     } finally {
       creatingTagLabelsRef.current.delete(normalizedLabel)
@@ -1861,24 +2152,26 @@ export default function NotesApp() {
     }
   }
 
-  const handleCreateCategory = async (rawLabel: string) => {
+  const handleCreateCategory = async (
+    rawLabel: string,
+    targetKey: OpenNoteKey | null = activeKey,
+  ) => {
     if (!user) {
       setErrorMessage("Sign in before adding categories.")
       return
     }
     const label = rawLabel.trim()
-    if (label === "") {
+    if (label === "" || targetKey === null) {
       return
     }
     const existingCategory = categories.find(
       (category) => normalizeLabel(category.label) === normalizeLabel(label),
     )
     if (existingCategory) {
-      setNoteForm((prev) => ({
-        ...prev,
-        selectedCategoryId: existingCategory.id,
+      patchEntry(targetKey, (entry) => ({
+        form: { ...entry.form, selectedCategoryId: existingCategory.id },
+        categoryInputValue: existingCategory.label,
       }))
-      setCategoryInputValue(existingCategory.label)
       return
     }
     clearMessages()
@@ -1896,11 +2189,10 @@ export default function NotesApp() {
           a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
         )
       })
-      setNoteForm((prev) => ({
-        ...prev,
-        selectedCategoryId: data.category.id,
+      patchEntry(targetKey, (entry) => ({
+        form: { ...entry.form, selectedCategoryId: data.category.id },
+        categoryInputValue: data.category.label,
       }))
-      setCategoryInputValue(data.category.label)
       setStatusMessage(`Category “${data.category.label}” added.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -1978,22 +2270,49 @@ export default function NotesApp() {
   ) => {
     if (!user) return null
 
-    const response = await fetch("/api/notes", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: user.id,
-        noteId: note.id,
-        note: {
-          categoryId: nextCategoryId,
-          tagIds: nextTagIds,
-          description: note.description ?? "",
-          timeDue: note.timeDue,
-          timeRemind: note.timeRemind,
-        },
-      }),
-    })
-    const data = await readJson<{ note: NoteRecord }>(response)
+    const request = (async () => {
+      const response = await fetch("/api/notes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          noteId: note.id,
+          note: {
+            categoryId: nextCategoryId,
+            tagIds: nextTagIds,
+            description: note.description ?? "",
+            timeDue: note.timeDue,
+            timeRemind: note.timeRemind,
+          },
+        }),
+      })
+      return readJson<{ note: NoteRecord }>(response)
+    })()
+
+    // Register under the entry's key so an autosave for the same note queues
+    // behind this write instead of racing it. Without this, moving an open,
+    // dirty note from the sidebar could land in either order.
+    const openKey = useNotesAppStore
+      .getState()
+      .openNotes.find((entry) => entry.noteId === note.id)?.key
+    if (openKey) {
+      saveInFlightRef.current.set(
+        openKey,
+        request.then(
+          () => undefined,
+          () => undefined,
+        ),
+      )
+    }
+
+    let data: { note: NoteRecord }
+    try {
+      data = await request
+    } finally {
+      if (openKey && saveInFlightRef.current.has(openKey)) {
+        saveInFlightRef.current.delete(openKey)
+      }
+    }
     await refreshResults(user.id)
     return data.note
   }
@@ -2001,7 +2320,6 @@ export default function NotesApp() {
   const handleMoveNoteCategory = async (note: NoteRecord, categoryLabel: string) => {
     if (!user) return
     clearMessages()
-    setNotePending(true)
     try {
       const category = await resolveCategoryForSidebarMove(categoryLabel)
       if (!category) return
@@ -2012,25 +2330,16 @@ export default function NotesApp() {
         category.id,
         note.tags.map((tag) => tag.id),
       )
-      if (updatedNote && editingNoteId === note.id) {
-        const nextForm = noteToFormState(updatedNote)
-        noteFormRef.current = nextForm
-        lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
-        setPendingTagLabels([])
-        setNoteForm(nextForm)
-      }
+      if (updatedNote) applyServerNoteToEntry(updatedNote)
       setStatusMessage(`Note moved to “${category.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
-    } finally {
-      setNotePending(false)
     }
   }
 
   const handleMoveNoteTag = async (note: NoteRecord, fromTagId: number, tagLabel: string) => {
     if (!user) return
     clearMessages()
-    setNotePending(true)
     try {
       const tag = await resolveTagForSidebarMove(tagLabel)
       if (!tag) return
@@ -2041,18 +2350,10 @@ export default function NotesApp() {
       nextTagIds.push(tag.id)
 
       const updatedNote = await patchNoteFromSidebar(note, note.category.id, nextTagIds)
-      if (updatedNote && editingNoteId === note.id) {
-        const nextForm = noteToFormState(updatedNote)
-        noteFormRef.current = nextForm
-        lastSavedNoteDraftRef.current = serializeNoteDraft(note.id, nextForm)
-        setPendingTagLabels([])
-        setNoteForm(nextForm)
-      }
+      if (updatedNote) applyServerNoteToEntry(updatedNote)
       setStatusMessage(`Note tag changed to “${tag.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
-    } finally {
-      setNotePending(false)
     }
   }
 
@@ -2296,15 +2597,12 @@ export default function NotesApp() {
         body: JSON.stringify({ userId: user.id, noteId }),
       })
       await readJson<{ ok: true }>(response)
-      const { latestNotes, latestCategories } = await refreshResults(user.id)
-      // Use the ref so we read the live editor note after the async delete, not the
-      // stale closure value from when delete started (user may have switched notes).
-      if (editingNoteIdRef.current === noteId) {
-        resetNoteForm({
-          categoryList: latestCategories,
-          selectedCategoryId: noteFormRef.current.selectedCategoryId,
-        })
-      }
+      await refreshResults(user.id)
+      // Close the entry wherever it sits, not only when it happens to be the
+      // one on screen — otherwise a deleted note lingers in the recent list.
+      // Its text is gone by the user's own request, so this removal is the one
+      // that does not route through a detached save.
+      closeEntriesForNoteInStore(noteId)
       setStatusMessage("Note deleted.")
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -2350,6 +2648,11 @@ export default function NotesApp() {
           onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
           onAddNote={handleCancelEdit}
           onLogout={handleLogout}
+          maxOpenNotes={maxOpenNotes}
+          onMaxOpenNotesChange={handleMaxOpenNotesChange}
+          categoryLabelById={categoryLabelById}
+          onSelectOpenNote={activateEntryInStore}
+          onCloseOpenNote={handleCloseOpenNote}
           embeddingMaintenancePending={embeddingMaintenancePending}
           onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
           identifier={identifier}
@@ -2366,29 +2669,31 @@ export default function NotesApp() {
 
       <div className={styles.content} ref={contentRef}>
         <NoteForm
-          form={noteForm}
-          setForm={setNoteForm}
-          editingNoteId={editingNoteId}
+          form={activeForm}
+          setForm={setActiveForm}
+          editingNoteId={activeEntry?.noteId ?? null}
           userPresent={Boolean(user)}
           pasteUrlAsMarkdown={pasteUrlAsMarkdown}
           categories={categories}
           tags={tags}
-          pendingTagLabels={pendingTagLabels}
-          descriptionEditorSessionId={descriptionEditorSessionId}
-          editorAutofocus={editorAutofocus}
-          editorRevealText={editorRevealText}
-          categoryInputValue={categoryInputValue}
-          onCategoryInputValueChange={setCategoryInputValue}
+          pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
+          // Keying the editor on the entry as well as the session id is what
+          // makes switching notes swap documents: same entry, same document.
+          descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
+          editorAutofocus={activeEntry?.autofocus ?? false}
+          editorRevealText={activeEntry?.revealText ?? null}
+          categoryInputValue={activeEntry?.categoryInputValue ?? ""}
+          onCategoryInputValueChange={handleCategoryInputValueChange}
           createCategoryPending={createCategoryPending}
           createTagPending={createTagPending}
           onSelectCategoryId={handleSelectCategory}
           onCreateCategory={handleCreateCategory}
           onTagValuesChange={handleTagValuesChange}
           onCancelEdit={handleCancelEdit}
-          onAddNote={() => void handleCancelEdit()}
+          onAddNote={handleCancelEdit}
           onDeleteEditingNote={() => {
-            if (editingNoteId !== null) {
-              void handleDeleteNote(editingNoteId)
+            if (activeEntry?.noteId != null) {
+              void handleDeleteNote(activeEntry.noteId)
             }
           }}
         />
@@ -2444,9 +2749,10 @@ export default function NotesApp() {
           categoryNoteGroups={categoryNoteGroups}
           allTagItems={allNoteItems}
           tagNoteGroups={tagNoteGroups}
-          activeNoteId={editingNoteId}
-          activeCategoryId={noteForm.selectedCategoryId}
-          activeTagIds={noteForm.selectedTagIds}
+          activeNoteId={activeEntry?.noteId ?? null}
+          openNoteIds={openNoteIds}
+          activeCategoryId={activeForm.selectedCategoryId}
+          activeTagIds={activeForm.selectedTagIds}
           onEditNote={handleOpenNoteFromResults}
           onAddNoteForCategory={handleAddNoteForCategory}
           onAddNoteForTag={handleAddNoteForTag}

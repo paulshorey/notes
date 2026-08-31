@@ -7,6 +7,8 @@ export interface NotesAppPreferences {
   markdownEditorMode?: string;
   resultsColumnWidth?: number;
   pasteUrlAsMarkdown?: boolean;
+  /** How many notes stay open at once in the web editor. */
+  maxOpenNotes?: number;
 }
 
 export interface UserPreferences {
