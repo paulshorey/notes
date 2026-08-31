@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bootstrap a Cursor cloud workspace: pnpm deps, app toolchains, PostgreSQL.
+# Bootstrap a Cursor cloud workspace: PostgreSQL 17 + pgvector, pnpm deps, app toolchains.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -28,38 +28,12 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 
-# 1. Install workspace dependencies (corepack, pnpm fetch + install)
+# 1. PostgreSQL 17 server, client tools (psql, pg_dump), and pgvector.
+#    The postmaster is started later by cloud-agent-start.sh.
+bash scripts/cloud-agent-postgres.sh install
+
+# 2. Install workspace dependencies (corepack, pnpm fetch + install)
 bash scripts/install-workspace-deps.sh "$@"
 
-# 2. Provision app-specific toolchains
+# 3. Provision app-specific toolchains
 bash apps/notes-android/tools/cloud-provision.sh
-
-# 3. Install PostgreSQL 17 client tools (psql, pg_dump) for db:migrate and db:verify
-PG17_BINDIR="/usr/lib/postgresql/17/bin"
-
-has_pg17_clients() {
-  if [[ -x "${PG17_BINDIR}/psql" && -x "${PG17_BINDIR}/pg_dump" ]]; then
-    return 0
-  fi
-
-  if ! command -v psql >/dev/null 2>&1 || ! command -v pg_dump >/dev/null 2>&1; then
-    return 1
-  fi
-
-  psql --version | grep -qE '\b17(\.|[[:space:]])' \
-    && pg_dump --version | grep -qE '\b17(\.|[[:space:]])'
-}
-
-if ! has_pg17_clients; then
-  echo "Installing PostgreSQL 17 client tools..."
-  sudo apt-get update -qq
-  sudo apt-get install -y postgresql-common ca-certificates
-  sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-  sudo apt-get install -y postgresql-client-17
-fi
-
-if [[ -x "${PG17_BINDIR}/pg_dump" ]]; then
-  echo "PostgreSQL client tools ready: $("${PG17_BINDIR}/pg_dump" --version)"
-elif command -v pg_dump >/dev/null 2>&1; then
-  echo "PostgreSQL client tools ready: $(pg_dump --version)"
-fi
