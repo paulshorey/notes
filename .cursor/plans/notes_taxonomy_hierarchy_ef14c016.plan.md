@@ -4,55 +4,55 @@ overview: Documents how notes are persisted today (flat single-category taxonomy
 todos:
   - id: fix_sidebar_move_clobber
     content: "Fix live data loss found reviewing the ring (6.7a): patchNoteFromSidebar sends the last-saved description rather than the live draft, and applyServerNoteToEntry then overwrites the entry's form and marks it clean, so moving an open note within the 3s autosave window silently discards the user's typing. When the note is open, make a sidebar move a draft edit on the entry and let autosave carry it; keep the direct PATCH only for notes that are not open."
-    status: pending
+    status: completed
   - id: merge_returns_taxonomy_remap
     content: "Have the anonymous merge return the id remap it already computes and apply it to ring entries and detachedSavesRef before reconciliation, recomputing savedSignature for entries that were clean (6.7b). Without it, a dirty open note whose pre-merge flush failed is silently relocated to the fallback group, losing its whole path."
-    status: pending
+    status: completed
   - id: schema_migration_phase1
     content: "Phase 1 (additive) migration: create user_taxonomy_level_v1 (per-user tier names for levels 1-4) and user_taxonomy_v1 (hierarchy, composite-FK level/ownership/tier-existence enforcement, partial HNSW label indexes); seed the Epic/Category/Group/Note vocabulary for every user FIRST; backfill an epic + a level-2 row per existing category + a group per category, all auto-created items labelled 'uncategorized'; add user_note_v1.group_id (+ pinned group_level) and backfill from category_id. Leaves user_note_category_v1 and user_note_v1.category_id in place."
-    status: pending
+    status: completed
   - id: verify_contract_phase1
     content: Extend scripts/verify-contract.mjs with must-exist assertions for both new tables, their columns, constraints, indexes and triggers, plus the structural invariants (every user has all four tier definitions, no duplicate tier names, no level skew, no cross-user parenting, every user has an epic/category/group chain, every note resolves to a level-3 row)
-    status: pending
+    status: completed
   - id: merge_registry
     content: Register BOTH user_taxonomy_v1 (dedup-remap) and user_taxonomy_level_v1 (drop) in MERGE_TABLE_STRATEGIES, and rewrite mergeAnonymousUserInto to remap a three-level subtree in level order instead of a flat category list (db:verify fails until this is done)
-    status: pending
+    status: completed
   - id: contract_types
     content: "Replace CategoryRecord with TaxonomyRecord (id, userId, level, parentId, label, noteCount, directNoteCount, lastUsedAt) in contracts/notes-app.ts; add TaxonomyLevelRecord plus level constants and default labels, delivered on the session payload; change NoteInput.categoryId to groupId; change NoteRecord.category to a bare groupId with NO embedded group/category/epic labels (section 6.2 — one source of truth, and 34% of the notes payload); simplify SemanticSearchResult to { note, similarity }"
-    status: pending
+    status: completed
   - id: sql_service_layer
     content: Collapse sql/category.ts into sql/taxonomy.ts (level-parameterized CRUD, subtree note counts, per-level fallback resolution, move/reparent, delete-with-children and delete-with-notes), carry ensureDefaultCategoryForUser forward as ensureDefaultTaxonomyChainForUser on the GET /api/taxonomy path, add sql/taxonomy-level.ts with ensureTaxonomyLevelsForUser wired into user creation, and update sql/note/* to read and write group_id while leaving PR #69's embedding-skip and expectedDescription guard intact
-    status: pending
+    status: completed
   - id: upsert_race_and_rollup_shape
     content: "Two measured server-side fixes (6.7c, 6.7d): change the label-resolve upsert from ON CONFLICT DO NOTHING + UNION ALL SELECT to ON CONFLICT DO UPDATE ... RETURNING id, which returns zero rows under concurrent creation of the same label and makes the service throw (reproduced on PG 17.11) — apply to tags too; and implement listTaxonomyByUser's subtree counts as fixed-depth aggregates rather than a recursive CTE, 5.5 ms vs 26-31 ms at 20k notes, keeping the recursive form in tests as the oracle. Also add the transactional POST /api/taxonomy/path (6.7e)."
-    status: pending
+    status: completed
   - id: search_simplify
     content: Rewrite searchNotesByEmbedding as an exact per-user description-only scan (drop the 0.67/0.33 composite, the category join and the tag AVG subquery); do NOT switch to an index-ordered HNSW scan — it silently returns 0 rows for users holding a small share of the table
-    status: pending
+    status: completed
   - id: autocomplete_endpoint
     content: Add level-scoped label autocomplete (literal prefix match first, embedding similarity as semantic fallback) backed by label_embedding, and extend embed-on-write plus embedding maintenance to all three taxonomy levels
-    status: pending
+    status: completed
   - id: taxonomy_index
     content: "Add src/lib/taxonomyIndex.ts — buildTaxonomyIndex returning byId, childrenOf and a precomputed pathByGroupId whose entries keep stable identity until the tree changes, so the sidebar tree, the picker and the recent-notes breadcrumbs all read a Map.get instead of walking parents per render. Build it with useMemo in NotesApp and pass it as one prop; it is derived server data, not UI state, and all three consumers are direct children. Test that a group id absent from the tree yields undefined rather than throwing."
-    status: pending
+    status: completed
   - id: open_notes_draft_layer
     content: "Land the open-note draft layer on its own, before any UI work, because a mistake here silently destroys unsaved drafts. NoteFormState.selectedCategoryId becomes selectedGroupId and nothing else (epic/category are derived from the tree, never stored, never in the signature); serializeNoteDraft/noteRequestBody/isSaveableForm move to groupId; openNotesStorage UPGRADES v1 snapshots to v2 by mapping each old categoryId to that category's seeded group and recomputing savedSignature — do NOT just bump schemaVersion, isSnapshot rejects unknown versions and the caller reads null as 'nothing to restore'."
-    status: pending
+    status: completed
   - id: taxonomy_remap_and_blocked_state
     content: "Make taxonomy edits safe against N concurrent background writers: rename remapEntriesAfterCategoryChange to remapEntriesAfterTaxonomyChange, handle a group dying because an ancestor was deleted, remap detachedSavesRef as well as the ring (a gap that exists today), always remap before issuing the delete, and add a 'blocked' NoteSaveStatus so an unsaveable entry stops failing silently"
-    status: pending
+    status: completed
   - id: api_routes
     content: Replace /api/categories with /api/taxonomy (level-aware CRUD + move), add /api/taxonomy/suggest and /api/taxonomy/levels, update /api/notes payloads, update /api/embeddings/debug and /embeddings to drop composite scoring
-    status: pending
+    status: completed
   - id: tier_rename_ui
     content: Make the four tier words data end to end — GET/PATCH /api/taxonomy/levels, a store selector for the vocabulary, a rename UI, and removal of the ~2 dozen hardcoded 'Categories'/'Notes' strings across 8 notes-next files. Never branch on a label; ids and level numbers only in URLs, cache keys and filters.
-    status: pending
+    status: completed
   - id: frontend
     content: Rework NotesApp/ResultsColumn/NoteForm/NotesHeader/notesAppStore/notesCache from two flat accordions into a hierarchy tree with a three-step picker (picker navigation state on the entry, not the form) and id-based hierarchical URL state
-    status: pending
+    status: completed
   - id: android_contract
     content: Update Android Models.kt/JsonCodec.kt/NotesApiClient.kt (adding TaxonomyLevelRecord and persisting the vocabulary in AppSnapshot so the widget can label itself offline) and the widget filters, then run contracts:check and rebuild the APK
-    status: pending
+    status: completed
   - id: regenerate_embeddings
     content: Extend scripts/regenerate-embeddings.mjs to cover all three taxonomy levels (it currently embeds tags and notes but never categories) and run it after the rollout
     status: pending
@@ -100,6 +100,32 @@ verification transcripts are in the appendix.
 ---
 
 # Part 1 — How notes are saved today
+
+## 0. Status
+
+Implemented and merged on `cursor/implement-notes-taxonomy-hierarchy-b3c3`. Seventeen
+of the nineteen todos are done; the two that remain are deliberately deferred and
+**must not** run before the new code is live:
+
+- `regenerate_embeddings` — a one-off backfill of `user_taxonomy_v1.label_embedding`
+  via the embedding-maintenance endpoint. Until it runs, autocomplete is
+  literal-substring only, which is a quality gap and not a failure.
+- `schema_migration_phase2` — drops `user_note_category_v1` and
+  `user_note_v1.category_id`. Phase 1 deliberately left both in place so the
+  previously deployed app keeps working during the rollback window. Running
+  phase 2 before the new code is deployed everywhere breaks the old one.
+
+One thing changed shape during implementation. Phase 1 also has to relax
+`user_note_v1.category_id` to nullable: the column stays for the rollback window,
+but the new code writes `group_id` alone, and a `NOT NULL` there rejects every
+note it creates. Notes created after the deploy are therefore invisible to an
+older app version — the accepted cost of the window.
+
+The note-form picker is a single searchable list of groups showing the full
+`epic → category → group` path, rather than the three chained selects sketched in
+section 7. The path is what disambiguates two groups that share a name, matching
+on it finds a group by any level, and it is materially less UI. The sidebar is a
+real three-level tree, as planned.
 
 ## 1.1 Tables
 
