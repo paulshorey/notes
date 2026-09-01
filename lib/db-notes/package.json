@@ -38,6 +38,7 @@
   "devDependencies": {
     "@lib/config": "workspace:*",
     "@types/pg": "^8.11.10",
+    "prettier": "^3.6.2",
     "tsx": "^4.20.6",
     "typescript": "5.9.2"
   }

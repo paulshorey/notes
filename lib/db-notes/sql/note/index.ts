@@ -5,6 +5,7 @@ export {
   listNotesMissingEmbeddingsByUser,
   listNotesStaleEmbeddingsByUser,
   searchNotesByEmbedding,
+  selectNoteEmbeddingStateById,
 } from "./gets";
 export { parseNoteInput } from "./parse";
 export {
