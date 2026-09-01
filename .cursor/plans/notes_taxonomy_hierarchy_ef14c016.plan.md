@@ -1,6 +1,6 @@
 ---
 name: Notes Taxonomy — Epic > Category > Group > Note hierarchy
-overview: Documents how notes are persisted today (flat single-category taxonomy plus many-to-many tags) and plans the extension to a four-level strict hierarchy — Epic > Category > Group > Note — where every child has exactly one parent, tags stay many-to-many on notes, every taxonomy level carries a label embedding for autocomplete, and semantic note search is simplified to compare the query against the note description embedding only. The tier names themselves are per-user editable data, including the word Note, which is what lets the same app manage tasks or any other content. The program branches only on the level number while a separate user_taxonomy_level_v1 table holds each user's words for levels 1-4. The hierarchy lives in one self-referencing user_taxonomy_v1 table whose depth, parent level, per-user ownership, and tier-definition existence are all enforced declaratively by composite foreign keys with no triggers. The DDL, the backfill, the tier-rename layer, and the search rewrite were prototyped and validated against a real PostgreSQL 17 + pgvector 0.8.6 cluster before this plan was written.
+overview: Documents how notes are persisted today (flat single-category taxonomy plus many-to-many tags, saved asynchronously from a bounded ring of simultaneously open notes) and plans the extension to a four-level strict hierarchy — Epic > Category > Group > Note — where every child has exactly one parent, tags stay many-to-many on notes, every taxonomy level carries a label embedding for autocomplete, and semantic note search is simplified to compare the query against the note description embedding only. The tier names themselves are per-user editable data, including the word Note, which is what lets the same app manage tasks or any other content. The program branches only on the level number while a separate user_taxonomy_level_v1 table holds each user's words for levels 1-4. The hierarchy lives in one self-referencing user_taxonomy_v1 table whose depth, parent level, per-user ownership, and tier-definition existence are all enforced declaratively by composite foreign keys with no triggers. Rebased onto the merged multi-note editor (PR #69), Part 6 works through how the hierarchy fits the open-note ring — the note draft holds exactly one taxonomy id and it is the leaf group, which keeps the dirty-check signature honest and makes a taxonomy move cost zero note writes, and the localStorage snapshot must be upgraded rather than version-bumped or every unsaved draft is silently discarded. The DDL, the backfill, the tier-rename layer, and the search rewrite were prototyped and validated against a real PostgreSQL 17 + pgvector 0.8.6 cluster before this plan was written.
 todos:
   - id: schema_migration_phase1
     content: "Phase 1 (additive) migration: create user_taxonomy_level_v1 (per-user tier names for levels 1-4) and user_taxonomy_v1 (hierarchy, composite-FK level/ownership/tier-existence enforcement, partial HNSW label indexes); seed the Epic/Category/Group/Note vocabulary for every user FIRST; backfill an epic + a level-2 row per existing category + a group per category, all auto-created items labelled 'uncategorized'; add user_note_v1.group_id (+ pinned group_level) and backfill from category_id. Leaves user_note_category_v1 and user_note_v1.category_id in place."
@@ -15,7 +15,7 @@ todos:
     content: "Replace CategoryRecord with TaxonomyRecord (id, userId, level, parentId, label, noteCount, directNoteCount, lastUsedAt) in contracts/notes-app.ts; add TaxonomyLevelRecord plus level constants and default labels, delivered on the session payload; change NoteInput.categoryId to groupId; add NoteRecord.group/category/epic refs; simplify SemanticSearchResult to { note, similarity }"
     status: pending
   - id: sql_service_layer
-    content: Collapse sql/category.ts into sql/taxonomy.ts (level-parameterized CRUD, subtree note counts, per-level fallback resolution, move/reparent, delete-with-children and delete-with-notes), add sql/taxonomy-level.ts with ensureTaxonomyLevelsForUser wired into user creation, and update sql/note/* to read and write group_id
+    content: Collapse sql/category.ts into sql/taxonomy.ts (level-parameterized CRUD, subtree note counts, per-level fallback resolution, move/reparent, delete-with-children and delete-with-notes), carry ensureDefaultCategoryForUser forward as ensureDefaultTaxonomyChainForUser on the GET /api/taxonomy path, add sql/taxonomy-level.ts with ensureTaxonomyLevelsForUser wired into user creation, and update sql/note/* to read and write group_id while leaving PR #69's embedding-skip and expectedDescription guard intact
     status: pending
   - id: tier_rename_ui
     content: Make the four tier words data end to end — GET/PATCH /api/taxonomy/levels, a store selector for the vocabulary, a rename UI, and removal of the ~2 dozen hardcoded 'Categories'/'Notes' strings across 8 notes-next files. Never branch on a label; ids and level numbers only in URLs, cache keys and filters.
@@ -29,8 +29,14 @@ todos:
   - id: api_routes
     content: Replace /api/categories with /api/taxonomy (level-aware CRUD + move), add /api/taxonomy/suggest and /api/taxonomy/levels, update /api/notes payloads, update /api/embeddings/debug and /embeddings to drop composite scoring
     status: pending
+  - id: open_notes_draft_layer
+    content: "Land the open-note draft layer on its own, before any UI work, because a mistake here silently destroys unsaved drafts. NoteFormState.selectedCategoryId becomes selectedGroupId and nothing else (epic/category are derived from the tree, never stored, never in the signature); serializeNoteDraft/noteRequestBody/isSaveableForm move to groupId; openNotesStorage UPGRADES v1 snapshots to v2 by mapping each old categoryId to that category's seeded group and recomputing savedSignature — do NOT just bump schemaVersion, isSnapshot rejects unknown versions and the caller reads null as 'nothing to restore'."
+    status: pending
+  - id: taxonomy_remap_and_blocked_state
+    content: "Make taxonomy edits safe against N concurrent background writers: rename remapEntriesAfterCategoryChange to remapEntriesAfterTaxonomyChange, handle a group dying because an ancestor was deleted, remap detachedSavesRef as well as the ring (a gap that exists today), always remap before issuing the delete, and add a 'blocked' NoteSaveStatus so an unsaveable entry stops failing silently"
+    status: pending
   - id: frontend
-    content: Rework NotesApp/ResultsColumn/NoteForm/notesAppStore/notesCache from two flat accordions into a hierarchy tree with a three-step picker and id-based hierarchical URL state
+    content: Rework NotesApp/ResultsColumn/NoteForm/NotesHeader/notesAppStore/notesCache from two flat accordions into a hierarchy tree with a three-step picker (picker navigation state on the entry, not the form) and id-based hierarchical URL state
     status: pending
   - id: android_contract
     content: Update Android Models.kt/JsonCodec.kt/NotesApiClient.kt (adding TaxonomyLevelRecord and persisting the vocabulary in AppSnapshot so the widget can label itself offline) and the widget filters, then run contracts:check and rebuild the APK
@@ -48,8 +54,20 @@ isProject: true
 
 ## Status: plan only — no implementation in this branch
 
+Rebased onto `main` after the multi-note editor merged
+([PR #69](https://github.com/paulshorey/notes/pull/69)), which put several notes
+in a bounded ring saving asynchronously in the background.
+
 This document has two halves. **Part 1** documents the current persistence
-architecture as it actually exists. **Part 2** onward is the plan to extend it.
+architecture as it actually exists, including the new ring (section 1.3a).
+**Part 2** onward is the plan to extend it.
+
+The database design is unaffected by the ring: the schema, the migration and the
+search rewrite stand as validated. What the ring changes is the client contract
+for a note's taxonomy field, and **Part 6** is devoted to it. Read Part 6 before
+touching anything under `apps/notes-next` — two of its findings (the signature
+field in 6.1 and the localStorage version trap in 6.3) are silent-data-loss
+bugs if missed.
 
 Every schema statement, constraint and query plan in Part 2 was prototyped
 against a real PostgreSQL 17.11 + pgvector 0.8.6 cluster before this plan was
@@ -144,10 +162,15 @@ calls Jina directly and never touches the database.
 
 ## 1.3 The save path, end to end
 
+Since PR #69 the client keeps **several notes open at once** in a bounded
+most-recently-used ring and saves them in the background, so this path is now
+asynchronous and per-entry. Section 1.3a describes the ring; this section
+follows one save from the client to the row.
+
 Creating or updating a note (`POST` / `PATCH /api/notes`):
 
-1. **Client** — `NotesApp.tsx` builds the payload from the Zustand note-form
-   state:
+1. **Client** — `saveEntry(key, mode)` in `NotesApp.tsx` snapshots the entry's
+   form and builds the payload with `noteRequestBody` (`src/lib/noteDraft.ts`):
 
    ```ts
    {
@@ -159,6 +182,9 @@ Creating or updating a note (`POST` / `PATCH /api/notes`):
    }
    ```
 
+   The form is snapshotted **before** any `await`, so later keystrokes belong to
+   the next save rather than this one.
+
 2. **Auth** — the route derives the acting user from the NextAuth session cookie
    or an `Authorization: Bearer` token. Any client-supplied `userId` is
    overwritten server-side in `readAuthorizedJsonObject`.
@@ -167,13 +193,24 @@ Creating or updating a note (`POST` / `PATCH /api/notes`):
    coerces `categoryId` to a positive integer, de-duplicates `tagIds`, and
    normalizes `timeDue` / `timeRemind` to ISO strings or `null`.
 
-4. **Embed before write** — `createNoteForNotesApp` calls
-   `createNoteEmbeddingInput`, which sends the trimmed description to Jina with
-   `task: "retrieval.passage"` and returns a `vector(1024)` literal plus the
+4. **Embed before write, unless the text is unchanged** — `createNoteForNotesApp`
+   calls `createNoteEmbeddingInput`, which sends the trimmed description to Jina
+   with `task: "retrieval.passage"` and returns a `vector(1024)` literal plus the
    model tag `jina-embeddings-v5-text-small:notes-v3`. An empty description
    yields `{ descriptionEmbedding: null, embeddingModel: null }`. **A Jina
    outage fails the note save** — the embedding call is not deferred or
    best-effort.
+
+   On update there is now a fast path. `canReuseStoredEmbedding`
+   (`services/notes-app.ts`) reads the stored description and embedding state
+   with `selectNoteEmbeddingStateById` and skips Jina entirely when the
+   normalized description is unchanged and the stored vector is present and
+   current-model. `updateNoteForUser` then omits the embedding columns from the
+   `UPDATE` and adds `AND description IS NOT DISTINCT FROM $n` as a race guard;
+   if that guard fails, the service falls back to a full re-embed. This matters
+   for the taxonomy work: **a save that only moves a note in the taxonomy costs
+   no Jina call**, which is exactly what the ring's background saves produce
+   most of.
 
 5. **Transaction** — `createNoteForUser` (`sql/note/add.ts`) opens an explicit
    transaction and:
@@ -188,6 +225,77 @@ Creating or updating a note (`POST` / `PATCH /api/notes`):
 `updateNoteForUser` is the same shape with an `UPDATE` whose `WHERE` includes
 `user_id`; `rowCount !== 1` rolls back and returns `null`, which the route maps
 to a 404.
+
+There is **no optimistic locking**: no version column, no `If-Match`. Every save
+is a full-document replacement and the last writer wins. With N notes open and
+saving independently, that is now N concurrent writers rather than one.
+
+## 1.3a The open-note ring
+
+The client-side model that PR #69 introduced, because the taxonomy work has to
+fit inside it. All of this lives in `apps/notes-next`.
+
+**Entries, not a single form.** `src/stores/openNotes.ts` holds an MRU-ordered
+array of `OpenNoteEntry`, each with its own `form`, `savedSignature`,
+`saveStatus`, `categoryInputValue`, `pendingTagLabels` and `editorSessionId`.
+The old flat `noteForm` / `editingNoteId` / `noteSaveStatus` fields are gone
+from `notesAppStore`; what remains app-wide there is `resultsListVisible`,
+`manuallyExpandedCategoryId`, `selectedTagId`, `searchQuery` and
+`maxOpenNotes`.
+
+**Identity is a key, not a note id.** `OpenNoteKey` is `note:${id}` once
+persisted and `draft:${n}` before that. The key is deliberately stable across
+the first save — the editor is keyed on it, and remounting CodeMirror
+mid-typing would lose the cursor. `entry.noteId` goes from `null` to a real id
+while the key stays put.
+
+**Dirty is a signature comparison.** `serializeNoteDraft(noteId, form)` in
+`src/lib/noteDraft.ts` produces a stable JSON string of exactly what would be
+persisted; an entry is dirty when it differs from `entry.savedSignature`. The
+note id is part of the signature, so the saved signature has to be recomputed
+when a draft's first save assigns one.
+
+**Saveable is a separate predicate.** `isSaveableForm` requires a non-empty
+description **and** a non-null `selectedCategoryId`. An entry that is dirty but
+not saveable is silently skipped by autosave.
+
+**The save engine.** `src/hooks/useOpenNotesAutosave.ts` arms one trailing
+3-second debounce per dirty entry, re-armed only when that entry's own
+signature changes, so typing in one note cannot starve another's save.
+`saveEntry(key, mode)` runs in three modes — `autosave` (debounced; a second
+save of the same key queues behind the first, different keys run in parallel),
+`flush` (awaited, only for session changes), and `detached` (an entry that left
+the ring while dirty; its snapshot moves to `detachedSavesRef` so the request
+still lands, and it is never retried because a repeated `POST` would create a
+second note).
+
+**Persistence.** `src/lib/openNotesStorage.ts` mirrors the ring to
+`localStorage` under `notes-open-notes-v1`, deliberately separate from
+`notesCache` because that cache expires and is wiped on session-restore
+failure, either of which would destroy unsaved text. On load,
+`reconcileOpenNotes` merges the snapshot against the server's notes: clean
+entries adopt the server record, dirty entries keep the local draft, entries
+whose note was deleted elsewhere become new drafts, and **references to
+categories or tags that no longer exist are repaired to a fallback**.
+
+**The invariant that governs all of it**, quoted from
+`apps/notes-next/AGENTS.md`:
+
+> a form change the _user_ did not make must never leave an entry dirty.
+> Reconciliation, the category remap, and the sidebar move handlers all
+> recompute `savedSignature` alongside the form — otherwise autosave
+> immediately pushes the change back to the server.
+
+**A failure mode already paid for.** Also from `AGENTS.md`: the ring was
+manually tested across several sessions, demos included, while `user_note_v1`
+was empty the entire time. Every session ran as a fresh anonymous user, a new
+account had no category, so `isSaveableForm` was false and every autosave
+returned before reaching the network. `localStorage` reproduced the notes
+perfectly on reload and nothing looked wrong. The fix was
+`ensureDefaultCategoryForUser`, called at the top of `listCategoriesForNotesApp`
+so any user with zero categories gets `uncategorized` on their first
+`GET /api/categories`. Section 6.4 explains why a three-level chain makes this
+trap materially worse and what the plan does about it.
 
 ## 1.4 The read path
 
@@ -225,8 +333,14 @@ These are _not_ in the schema — they live in `services/notes-app.ts`:
   `202606101200__seed_default_important_tag.sql`, re-asserted by
   `ensureDefaultTagForUser` on every tag list, and asserted as a data invariant
   by `db:verify`.
+- **Every user gets an `uncategorized` category.** Added by PR #69:
+  `ensureDefaultCategoryForUser` (`sql/category.ts`) inserts it at the top of
+  `listCategoriesForNotesApp`, but only when the user has no categories at all,
+  so existing accounts are untouched. This is a lazy repair on a read path, not
+  a migration — the pattern the taxonomy work should copy.
 - **"Default" category/tag = lowest numeric id** (`getFirstCategoryForUser`
-  orders by `id ASC LIMIT 1`).
+  orders by `id ASC LIMIT 1`). The client mirrors this in
+  `getDefaultCategoryId`, which reduces the loaded list to the smallest id.
 - **The fallback category cannot be deleted.** `deleteCategoryForUser` reassigns
   the category's notes to the fallback category, then deletes it;
   `deleteCategoryWithNotesForUser` deletes the notes instead. Both refuse when
@@ -481,14 +595,14 @@ free text, so any code that compares it, switches on it, or embeds it in a
 durable identifier breaks the moment someone renames a tier. Concretely:
 
 - API filters, query parameters and cache keys use `level` (and row ids), never
-  labels. The hierarchical URL state in section 6.1 must be
+  labels. The hierarchical URL state in section 7.1 must be
   `?epic=<id>&category=<id>&group=<id>` — id-based, and it should keep those
   parameter names regardless of what the user calls the tiers, or a rename
   invalidates every bookmark.
 - The UI reads all four words from the API. Today they are hardcoded English
   literals — `<div className={styles.accordionHeading}>Categories</div>`,
   `aria-label="Notes by category"`, "Add note", and so on: roughly two dozen
-  such strings across eight files, listed in section 6.1.
+  such strings across eight files, listed in section 7.1.
 - Singular/plural: the table stores one word per tier. The UI needs "Category"
   and "Categories". Recommendation for now is naive pluralization at the display
   layer, with a `label_plural` column as the escape hatch if a user picks a word
@@ -953,7 +1067,16 @@ until the APK is rebuilt.
   grandparent, emitting three `json_build_object`s. `ensureCategoryIdForUser`
   can be **deleted**: the composite FK now enforces exactly what it checked.
 - **`sql/note/{add,update}.ts`** — write `group_id` instead of `category_id`.
+  `updateNoteForUser` gained the optional `embeddings === null` path and the
+  `expectedDescription` race guard in PR #69; both are orthogonal to the
+  taxonomy column and should survive the edit untouched.
+- **`sql/note/gets.ts`** — `selectNoteEmbeddingStateById` reads only the
+  description and embedding state, so it needs no change.
 - **`sql/note/parse.ts`** — `parseCategoryId` → `parseGroupId`.
+- **`sql/category.ts`** — `ensureDefaultCategoryForUser` becomes
+  `ensureDefaultTaxonomyChainForUser` in `sql/taxonomy.ts`, creating the whole
+  epic → category → group chain when a user has none, and called from the
+  `GET /api/taxonomy` service the same way (section 6.4).
 - **`services/notes-app.ts`** — `createLabeledEntityForNotesApp` and
   `updateLabeledEntityForNotesApp` already take a `tableName` and an embedding
   column name; they collapse to a single taxonomy path with a `level` argument.
@@ -1146,48 +1269,369 @@ client and skip it for queries under ~3 characters.
 
 ---
 
-# Part 6 — Client changes
+# Part 6 — The hierarchy and the open-note ring
 
-## 6.1 `apps/notes-next`
+The database design in Part 2 is unaffected by PR #69 — the schema, the
+migration and the search rewrite all stand as validated. What the ring changes
+is the **client contract for a note's taxonomy field**, and it changes it in a
+way that makes the hierarchy _easier_ to land, provided one decision is made
+correctly. This Part is the decision and its consequences.
+
+## 6.1 The form holds one id, and it is the leaf
+
+`NoteFormState` gains exactly one field change:
+
+```diff
+ export interface NoteFormState {
+-  selectedCategoryId: number | null
++  selectedGroupId: number | null
+   selectedTagIds: number[]
+   description: string
+   timeDue: string | null
+   timeRemind: string | null
+   dueExpanded: boolean
+   remindExpanded: boolean
+ }
+```
+
+No `selectedEpicId`, no `selectedCategoryId` alongside it. The epic and category
+are **derived** by walking up from the group in the taxonomy tree, never stored
+on the entry and never sent to the server.
+
+This is not a stylistic preference; four separate properties of the ring depend
+on it.
+
+**The dirty check stays honest.** `serializeNoteDraft` is the signature that
+decides whether an entry autosaves. Every field in the form is in the signature.
+If the picker's in-progress epic and category selections lived in the form, then
+merely _browsing_ the picker would change the signature, mark the entry dirty,
+and fire a background save of a note the user only looked at. Keeping the form
+to the one persisted field means the signature keeps meaning "what would be
+written".
+
+The converse is the failure to avoid, and it was measured against the shipped
+`serializeNoteDraft`:
+
+```
+-> shipped signature changes on a category move: dirty detected
+-> signature omitting it: identical, so the move never autosaves
+```
+
+Autosave skips clean entries silently, so dropping the taxonomy id from the
+signature produces a move that appears to work, survives a reload from
+`localStorage`, and never reaches Postgres.
+
+**A taxonomy move costs zero note writes.** Because a note references only its
+group, re-parenting a group from one category to another is a single
+`user_taxonomy_v1` row update. Every open entry's breadcrumb re-renders from the
+tree on the next paint, and not one of the N notes in the ring becomes dirty. If
+ancestors were denormalized onto the note — or onto the form — a move would have
+to rewrite every affected note, and each rewrite would race the background saves
+already in flight for those same notes. **This is the strongest argument against
+denormalizing `epic_id` / `category_id` onto `user_note_v1`,** and it is worth
+recording because that denormalization is otherwise tempting for query
+convenience. Section 2.4's fixed-depth joins already make it unnecessary.
+
+**The persisted snapshot stays small and stable.** `PersistedEntry.form` goes to
+`localStorage` on a 1-second debounce while the user types. One integer per
+entry is the whole taxonomy footprint.
+
+**Reconciliation has one reference to repair, not three.** Section 6.3.
+
+`NoteRecord` still carries `group`, `category` and `epic` refs for display
+(section 4.1) — those are server-computed on read and are what
+`noteToFormState` and the sidebar render from. The distinction is between the
+**writable** field (one group id) and the **readable** projection (the resolved
+path).
+
+Consequences elsewhere, all mechanical:
+
+| Site                                     | Change                                                           |
+| ---------------------------------------- | ---------------------------------------------------------------- |
+| `types/notes.ts` `createDefaultNoteForm` | `selectedGroupId: null`                                          |
+| `types/notes.ts` `noteToFormState`       | `selectedGroupId: note.group.id`                                 |
+| `lib/noteDraft.ts` `serializeNoteDraft`  | `groupId: form.selectedGroupId`                                  |
+| `lib/noteDraft.ts` `noteRequestBody`     | `groupId: form.selectedGroupId`                                  |
+| `lib/noteDraft.ts` `isSaveableForm`      | `form.selectedGroupId !== null`                                  |
+| `stores/openNotes.ts` `isEmptyDraft`     | unchanged — it does not look at the category                     |
+| `stores/openNotes.ts` `openExistingNote` | `categoryInputValue: note.group.label`                           |
+| `stores/openNotes.ts` `openNewDraft`     | `options.categoryId` → `groupId`, `categoryLabel` → `groupLabel` |
+
+## 6.2 Where the picker's in-progress state lives
+
+The three-step Epic → Category → Group picker needs somewhere to hold "the user
+has chosen an epic and is now choosing a category". That state is per-entry — two
+open notes can each be mid-selection — but it is **not** part of the form.
+
+Put it on `OpenNoteEntry` beside the fields that already work this way.
+`categoryInputValue` and `pendingTagLabels` are the existing precedent: per-entry,
+persisted, and deliberately outside `form` so they never reach the signature.
+
+```diff
+ export interface OpenNoteEntry {
+   key: OpenNoteKey
+   noteId: NoteRef | null
+   baseTimeModified: string | null
+   form: NoteFormState
+   savedSignature: string | null
+   saveStatus: NoteSaveStatus
+   editorSessionId: number
+-  categoryInputValue: string
++  /** Free text in the group picker's filter box. */
++  groupInputValue: string
++  /** Picker navigation only. Never part of the signature. */
++  pickerEpicId: number | null
++  pickerCategoryId: number | null
+   pendingTagLabels: string[]
+   …
+ }
+```
+
+On open, seed `pickerEpicId` / `pickerCategoryId` from the group's ancestors so
+reopening a note shows the picker already positioned.
+
+## 6.3 Reconciliation, and the localStorage version trap
+
+`reconcileOpenNotes` repairs references that died while the tab was closed. Its
+current options are `categoryExists`, `tagExists`, `fallbackCategoryId`; they
+become `groupExists`, `tagExists`, `fallbackGroupId`. The repair branch already
+recomputes `savedSignature` for clean entries, which is the behavior to
+preserve verbatim.
+
+One thing genuinely gets simpler: a dead group is the **only** taxonomy failure
+a persisted draft can have. A deleted epic or category cannot leave a dangling
+half-reference, because the entry never stored one.
+
+**The trap.** `isSnapshot` rejects anything whose `schemaVersion !== 1`:
+
+```ts
+const isSnapshot = (value: unknown): value is OpenNotesSnapshot => {
+  if (!isObject(value)) return false
+  if (value.schemaVersion !== 1) return false
+  …
+}
+```
+
+`readOpenNotesSnapshot` returns `null` on rejection, and `rehydrateOpenNotes`
+treats `null` as "nothing to restore". So **bumping the version to 2 silently
+discards every unsaved draft in every user's browser** on the first load after
+deploy. Nothing errors; the notes are simply gone. This is precisely the loss
+the storage module was separated from `notesCache` to prevent.
+
+Verified against the shipped module rather than assumed — a snapshot holding
+`"unsaved text"`, rewritten with `schemaVersion: 2` and read back:
+
+```
+-> v2 snapshot read back as: null (unsaved text discarded, no error)
+-> same payload at v1 restores: unsaved text
+```
+
+The same probe confirms the signature half of the problem, which is why step 3
+below is not optional:
+
+```
+-> v1: {"noteId":1,"categoryId":7,"tagIds":[],"description":"hello", ...}
+-> v2: {"noteId":1,"groupId":42,"tagIds":[],"description":"hello", ...}
+-> carrying a v1 savedSignature into v2 marks every restored note dirty
+```
+
+The plan is therefore to **upgrade, not reject**:
+
+1. Accept `schemaVersion` 1 or 2 in `isSnapshot`.
+2. When reading a v1 snapshot, map each entry's `form.selectedCategoryId` to
+   that category's default group. The phase-1 migration creates exactly one
+   `uncategorized` group under every category, so the mapping is total and
+   deterministic — this is a second reason the migration seeds a group per
+   category rather than only where notes exist.
+3. Recompute `savedSignature` for entries that were clean, per the invariant.
+   A v1 signature has `categoryId` in it and will never match a v2 signature, so
+   skipping this marks every restored note dirty and fires a save storm on load.
+4. Write back as v2.
+
+Give the upgrade its own unit test in `test/open-notes-storage.test.ts`, which
+already covers the analogous cases. `reconcileOpenNotes` is pure and takes
+lookups, so this is testable without a DOM.
+
+## 6.4 The silent-no-save trap, three levels deep
+
+`isSaveableForm` returning false makes autosave skip an entry **without any
+user-visible signal**. `AGENTS.md` records what that cost last time: a whole
+manual test campaign, demos included, against an empty `user_note_v1`, because
+new accounts had no category.
+
+A three-level chain has more ways to produce no valid group, so the plan carries
+three defenses:
+
+1. **The migration seeds the full chain** for every user, not only users with
+   categories (section 3.1, steps 2–6). This is the primary fix.
+2. **A lazy repair on the read path**, mirroring the shipped
+   `ensureDefaultCategoryForUser`: `ensureDefaultTaxonomyChainForUser` at the top
+   of the `GET /api/taxonomy` handler, creating the epic → category → group chain
+   only when the user has none. This is what catches a user-creation path that
+   forgot to seed, which is otherwise invisible until someone's notes quietly
+   stop saving.
+3. **Make the skip visible.** Autosave should not silently do nothing. The
+   detached path already surfaces this — "A note was closed before it could be
+   saved because it has no category." — but an entry sitting in the ring dirty
+   and unsaveable shows nothing. Recommendation: give `NoteSaveStatus` a
+   `blocked` state, surfaced on the save indicator and the recent-notes row, so
+   "this note cannot save yet" is distinguishable from "saved".
+
+Point 3 is a small addition beyond the taxonomy work proper, but this is the
+change that triples the number of ways to enter the state, and the failure is
+silent data loss that a reload does not reveal.
+
+## 6.5 Taxonomy edits versus in-flight saves
+
+Deleting or moving taxonomy while N notes are open and saving is the genuinely
+new concurrency surface. Three cases:
+
+**Move (re-parent a group or category).** Safe by construction — section 6.1. No
+note row changes, no entry becomes dirty, no in-flight save carries anything
+stale. The only visible effect is breadcrumbs re-rendering.
+
+**Delete a node whose subtree holds open notes.** Today
+`remapEntriesAfterCategoryChange` walks every ring entry, repoints dead category
+ids at the fallback, and recomputes `savedSignature` for clean entries. It
+becomes `remapEntriesAfterTaxonomyChange` and must additionally resolve deaths
+caused by an _ancestor_ going away, since deleting a category takes its groups
+with it under the chosen disposition (decision 4.4-1).
+
+**It must also remap `detachedSavesRef`, which it does not do today.**
+`remapEntriesAfterCategoryChange` uses `patchEveryEntry`, which only touches the
+ring. A detached save is a snapshot of an evicted-but-dirty entry with a request
+still to fire; if its group was just deleted, that request lands as a 400 for a
+note the user cannot see. The window is narrow and it exists today with flat
+categories, but `ON DELETE RESTRICT` plus three levels widens it. Closing it is
+a few lines in the same handler and belongs in this work.
+
+Ordering rule for the delete flow: **remap the ring and the detached map first,
+then issue the delete.** The reverse order guarantees a spray of background save
+errors.
+
+**Concurrent last-write-wins across N writers** is unchanged in kind but larger
+in degree. `baseTimeModified` is already recorded on every entry and still unused;
+the plan does not propose using it, but the field is there when conflict
+detection is wanted, and the taxonomy work does not make the situation worse
+because it does not add any new client-writable taxonomy field to the note.
+
+## 6.6 What does not change
+
+Worth stating so the implementer does not go looking:
+
+- **The ring reducers** (`openExistingNote`, `activate`, `evictToCap`, `goBack`,
+  `closeEntry`) are taxonomy-agnostic apart from the two `openNewDraft` option
+  names in 6.1. The insert → activate → evict ordering and the `cap === 1` test
+  are untouched.
+- **The save engine** — debounce, per-key queueing, detached mode, keepalive
+  exit — needs no structural change. Payload shape changes; control flow does
+  not.
+- **The embedding-skip fast path** already makes taxonomy-only saves free of
+  Jina calls, which is most of what the ring generates. It compares descriptions
+  only, so it needs no taxonomy awareness.
+- **Search** (Part 5) is untouched by the ring. Results are keyed by note id and
+  `mergeSavedNote` patches them in place from the server record.
+
+# Part 7 — Client changes
+
+## 7.1 `apps/notes-next`
 
 The current UI encodes "flat categories + flat tags" everywhere. Highest-impact
-files:
+files, updated for the post-#69 architecture:
 
+- **`src/types/notes.ts`** — `NoteFormState.selectedCategoryId` →
+  `selectedGroupId`; `createDefaultNoteForm`; `noteToFormState` reads
+  `note.group.id`. Per section 6.1 this is the _only_ form field that changes.
+- **`src/lib/noteDraft.ts`** — `serializeNoteDraft`, `noteRequestBody` and
+  `isSaveableForm` all move from `categoryId` to `groupId`. Getting
+  `serializeNoteDraft` wrong is the highest-consequence mistake in the whole
+  client change: omit the field and moving a note between groups never
+  autosaves, with no error.
+- **`src/stores/openNotes.ts`** — only `openExistingNote`
+  (`categoryInputValue: note.group.label`) and the `openNewDraft` option names.
+  The reducers are otherwise taxonomy-agnostic. Add the picker-navigation
+  fields from section 6.2.
+- **`src/lib/openNotesStorage.ts`** — the v1 → v2 snapshot upgrade of section
+  6.3, and `categoryExists` / `fallbackCategoryId` → `groupExists` /
+  `fallbackGroupId`. Do not simply bump the version.
 - **`src/components/notes/NotesApp.tsx`** — the orchestrator. Loads
-  `categories`/`tags`/`notes` into local state, groups notes by flat category and
-  flat tag, syncs `?id=`, `?category=`, `?tags=` to the URL, and owns every CRUD
-  call. Needs: a taxonomy fetch, tree-shaped grouping, hierarchical URL state
-  (`?epic=&category=&group=`), and `groupId` in the note payload.
+  `categories`/`tags`/`notes` into React state (not Zustand) and owns every CRUD
+  call. Needs: a taxonomy fetch replacing `loadCategories`, tree-shaped
+  grouping in `categoryNoteGroups`, hierarchical id-based URL state
+  (`?epic=&category=&group=`), `groupId` in `saveEntry`'s payload,
+  `remapEntriesAfterCategoryChange` → `remapEntriesAfterTaxonomyChange`
+  including the detached map (section 6.5), `getDefaultCategoryId` → a
+  chain-aware default resolver, and `applyServerNoteToEntry` reading the new
+  refs. The delete-category-with-notes flow at the bottom of the file filters
+  `notesRef.current` by `note.category.id` and must become subtree-aware.
 - **`src/components/notes/ResultsColumn.tsx`** — today two flat accordions
   (Categories, Tags) plus a search-results section, with per-note "Move" and
   per-category edit/delete actions. Becomes an expand/collapse tree with
-  per-level actions; roll-up counts come from `TaxonomyRecord.noteCount`.
+  per-level actions; roll-up counts come from `TaxonomyRecord.noteCount`. It
+  already receives `openNoteIds` and `activeNoteId` to mark open entries — that
+  keeps working unchanged, but the tree must not collapse or re-order as
+  background saves land, or the sidebar will jump under the user while several
+  notes autosave.
 - **`src/components/notes/NoteForm.tsx`** — the single category combobox becomes
   a three-step Epic → Category → Group picker where each step scopes the next.
   Per decision 4.4-2, the group step should be able to auto-create a default.
+  The form has no submit control and must not gain one.
+- **`src/components/notes/NotesHeader.tsx`** — recent-notes rows currently show
+  `categoryLabelById(entry.form.selectedCategoryId)`. With a hierarchy this
+  needs a decision: group label alone, or an abbreviated breadcrumb. Recommend
+  the group label with the full path as the row's `title`, since the row is
+  already dense with a headline, a save-status dot and a close control.
 - **`src/components/ui/FilterablePickerPopup.tsx`** — generic filter/select/
   create popup, already used for both categories and tags. Extend it with an
   async suggestion source so it can call `/api/taxonomy/suggest`.
 - **`src/stores/notesAppStore.ts`** — `manuallyExpandedCategoryId: number | null`
-  becomes a set of expanded node ids; `noteForm.selectedCategoryId` becomes
-  `selectedGroupId` plus the in-progress epic/category selection;
-  `categoryInputValue` becomes per-level input state.
+  becomes a set of expanded node ids. Note the store now spreads `OpenNotesState`
+  into its own state, and **selectors must return an existing reference or a
+  primitive** — a tier-label or breadcrumb selector that builds a new object per
+  call will hang the app in an infinite `useSyncExternalStore` loop. Derive
+  those with `useMemo` in the component.
 - **`src/lib/notesCache.ts`** — `NotesCacheSnapshot` swaps `categories` for
   `taxonomy` and gains `taxonomyLevels`. Bump the cache key so stale snapshots
-  are discarded rather than mis-parsed.
+  are discarded rather than mis-parsed. This one _is_ safe to discard on version
+  change — unlike `notes-open-notes-v1`, it holds only server data.
 - **`src/components/notes/modals/*`** — the four category/tag modals become
   level-aware; the delete modal needs the 4.4-1 disposition options. A new modal
   or settings panel is needed for renaming the four tier names.
-- **`src/types/notes.ts`** — `NoteFormState`, `noteToFormState`.
 - **`src/components/notes/NoteResultsList.tsx`** — the similarity badge still
   reads `similarity`; only the removed sibling fields matter.
 - **`app/embeddings/page.tsx`** — drop the tag inputs and the composite score
   readout; optionally add a taxonomy-autocomplete probe.
+- **`src/hooks/useOpenNotesAutosave.ts`** — no change unless `NoteSaveStatus`
+  gains the `blocked` state from section 6.4.
+
+Tests, which are now a real safety net rather than an afterthought:
+
+- **`test/open-notes-storage.test.ts`** — add the v1 → v2 upgrade cases from
+  section 6.3: a v1 snapshot with a clean entry restores clean under v2, a v1
+  dirty entry keeps its text, and a v1 entry whose category is gone lands on the
+  fallback group. The existing "no unedited entry loads dirty" invariant test is
+  the one that would have caught the signature mistake; keep it and make sure it
+  runs against v2.
+- **`test/open-notes.test.ts`** — the ring tests barely touch the category, so
+  most need only the renamed `openNewDraft` options. The `cap === 1` ordering
+  test must not be disturbed.
 - **`test/notes-api-adapter.test.ts`** and
   **`lib/db-notes/testing/notes-api-adapter-suite.ts`** — the shared suite is
   where category CRUD, note CRUD, search and embedding maintenance are asserted;
   it must be rewritten alongside the contract, and it is the cheapest place to
   pin the new hierarchy rules.
+- **`lib/db-notes/testing/note-embedding-skip.test.ts`** — already pins
+  "category-only change reuses the embedding". Rename to the group equivalent
+  and keep it; it is the test that proves a taxonomy move costs no Jina call.
+- **`lib/db-notes/testing/default-category.test.ts`** — becomes the
+  default-chain test for `ensureDefaultTaxonomyChainForUser` (section 6.4):
+  a new user gets a full epic → category → group chain on first taxonomy list,
+  it is idempotent on a second call, and a user with existing taxonomy is
+  untouched.
+
+Per `apps/notes-next/AGENTS.md`, check that each new test fails without its fix —
+two tests in PR #69 initially passed either way, and the `cap === 1` test exists
+precisely because every larger cap hid the bug it guards.
 
 Per repo convention, app-wide UI state belongs in the Zustand store rather than
 being prop-drilled — the tree expansion state, the multi-step picker selection,
@@ -1222,7 +1666,7 @@ elsewhere show the label as stored, which is why tier labels preserve case
 The tag strings are listed for completeness but are **not** in scope: tags are
 not a tier and keep their fixed name. Only the four tier words become data.
 
-## 6.2 `apps/notes-android`
+## 7.2 `apps/notes-android`
 
 Gated by `apps/notes-android/tools/validate-notes-contract.mjs`, which checks
 field _order_ and Kotlin types, so these edits are mandatory, not optional:
@@ -1247,7 +1691,7 @@ the only real gate on the Android side.
 
 ---
 
-# Part 7 — Rollout order
+# Part 8 — Rollout order
 
 1. Land the phase-1 migration (both new tables, the vocabulary seed, the
    backfill), `verify-contract.mjs` additions, the two
@@ -1259,25 +1703,31 @@ the only real gate on the Android side.
 2. Land the contract change plus the `@lib/db-notes` SQL/service rewrite,
    including the simplified search. Update the shared adapter suite in the same
    commit — it is the contract's executable specification.
-3. Land the `notes-next` API routes, then the UI.
-4. Land the Android contract updates; `contracts:check`; build the APK.
-5. Deploy: `pnpm run release:notes:prepare`, run `db:migrate` against the target
+3. Land the `notes-next` draft layer **before** the UI: `NoteFormState`,
+   `noteDraft.ts`, the `openNotes.ts` option renames, and the
+   `openNotesStorage.ts` v1 → v2 upgrade, with their tests. This is the step
+   where a mistake silently destroys user drafts, so it is worth landing and
+   reviewing on its own rather than buried in a UI diff.
+4. Land the `notes-next` API routes, then the UI.
+5. Land the Android contract updates; `contracts:check`; build the APK.
+6. Deploy: `pnpm run release:notes:prepare`, run `db:migrate` against the target
    Notes DB, deploy `notes-next` on Railway.
-6. Run embedding maintenance (`mode: "missing"`) or the extended
+7. Run embedding maintenance (`mode: "missing"`) or the extended
    `db:embeddings:regenerate` so the backfilled taxonomy rows get label vectors —
    the migration inserts them with `label_embedding` NULL and autocomplete stays
    empty until this runs.
-7. Only then land phase 2 (drop `category_id` and `user_note_category_v1`, flip
+8. Only then land phase 2 (drop `category_id` and `user_note_category_v1`, flip
    the verify assertions to must-be-absent, optionally drop the note HNSW
    index).
 
 Local verification for each step, per repo conventions:
 
 ```bash
-sudo pg_ctlcluster 17 main start
+bash scripts/cloud-agent-postgres.sh start   # or: sudo pg_ctlcluster 17 main start
 export PATH="/usr/lib/postgresql/17/bin:$PATH"
 pnpm run db:migrate && pnpm run db:verify
 pnpm --filter @lib/db-notes test          # set DB_NOTES_TEST_URL for the DB suite
+pnpm --filter notes-next test             # ring, storage and exit suites
 pnpm run verify                            # db contracts + notes-web + android
 ```
 
@@ -1285,22 +1735,33 @@ pnpm run verify                            # db contracts + notes-web + android
 deliberately never connects to `DB_NOTES_URL`, which in cloud environments is
 the real Notes database.
 
+**Verify persistence at a layer the UI cannot fake.** `apps/notes-next/AGENTS.md`
+is emphatic about this and it applies doubly here, because the ring will happily
+render a full hierarchy from `localStorage` while nothing has reached Postgres.
+Clear `localStorage`, reload, and check `user_note_v1.group_id` and
+`user_taxonomy_v1` directly with `psql` — not the sidebar.
+
 ---
 
-# Part 8 — Risks
+# Part 9 — Risks
 
-| Risk                                                                                                                                                                                                                    | Mitigation                                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Silent search-recall regression if someone "optimizes" the simplified query onto the HNSW index — it passes review and passes a manual test on a well-populated account, then returns nothing for the smallest accounts | Documented in 5.2 with a reproduction; add an adapter-suite test that seeds one user with many notes and another with a handful and asserts _both_ get a full page of results |
-| Backfill leaves notes without a group                                                                                                                                                                                   | `SET NOT NULL` in the same migration fails the transaction; plus the 3.3 structural invariants in `db:verify`                                                                 |
-| `db:verify` fails after merge because `verify-contract.mjs` was not updated                                                                                                                                             | Called out as the known top cause; update it in the same commit as the migration                                                                                              |
-| Anonymous merge loses data on the three-level remap                                                                                                                                                                     | Level-ordered remap (3.4), `FOR UPDATE` locks preserved, expanded DB-backed regression tests                                                                                  |
-| Released APK breaks when `/api/categories` disappears                                                                                                                                                                   | Keep a read-only level-2 alias until the APK is rebuilt (4.2)                                                                                                                 |
-| Autocomplete returns nothing after rollout                                                                                                                                                                              | Embeddings are NULL until step 6 runs; the literal prefix half of the hybrid still works, which is why hybrid is recommended                                                  |
-| Phase 2 runs before the new code deploys                                                                                                                                                                                | Two separate migrations; phase 1 is additive and leaves the old table readable                                                                                                |
-| Code branches on a tier _label_ instead of `level`, so a rename breaks filtering, routing or cached state                                                                                                               | The guardrail in 2.3: ids and `level` in every URL, cache key and API filter; labels are render-time only                                                                     |
-| A new user is created without tier definitions, so their first taxonomy write fails the level FK                                                                                                                        | `ensureTaxonomyLevelsForUser` on the user-creation path (4.3), plus the "every user has all four tier definitions" invariant in `db:verify` (3.3)                             |
-| A user renames a tier to a word the naive pluralizer mangles                                                                                                                                                            | Cosmetic only; additive `label_plural` column is the escape hatch (4.4-7)                                                                                                     |
+| Risk                                                                                                                                                                                                                    | Mitigation                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Silent search-recall regression if someone "optimizes" the simplified query onto the HNSW index — it passes review and passes a manual test on a well-populated account, then returns nothing for the smallest accounts | Documented in 5.2 with a reproduction; add an adapter-suite test that seeds one user with many notes and another with a handful and asserts _both_ get a full page of results                 |
+| Backfill leaves notes without a group                                                                                                                                                                                   | `SET NOT NULL` in the same migration fails the transaction; plus the 3.3 structural invariants in `db:verify`                                                                                 |
+| `db:verify` fails after merge because `verify-contract.mjs` was not updated                                                                                                                                             | Called out as the known top cause; update it in the same commit as the migration                                                                                                              |
+| Anonymous merge loses data on the three-level remap                                                                                                                                                                     | Level-ordered remap (3.4), `FOR UPDATE` locks preserved, expanded DB-backed regression tests                                                                                                  |
+| Released APK breaks when `/api/categories` disappears                                                                                                                                                                   | Keep a read-only level-2 alias until the APK is rebuilt (4.2)                                                                                                                                 |
+| Autocomplete returns nothing after rollout                                                                                                                                                                              | Embeddings are NULL until step 6 runs; the literal prefix half of the hybrid still works, which is why hybrid is recommended                                                                  |
+| Phase 2 runs before the new code deploys                                                                                                                                                                                | Two separate migrations; phase 1 is additive and leaves the old table readable                                                                                                                |
+| Code branches on a tier _label_ instead of `level`, so a rename breaks filtering, routing or cached state                                                                                                               | The guardrail in 2.3: ids and `level` in every URL, cache key and API filter; labels are render-time only                                                                                     |
+| A new user is created without tier definitions, so their first taxonomy write fails the level FK                                                                                                                        | `ensureTaxonomyLevelsForUser` on the user-creation path (4.3), plus the "every user has all four tier definitions" invariant in `db:verify` (3.3)                                             |
+| A user renames a tier to a word the naive pluralizer mangles                                                                                                                                                            | Cosmetic only; additive `label_plural` column is the escape hatch (4.4-7)                                                                                                                     |
+| **Bumping `notes-open-notes-v1` to v2 silently discards every unsaved draft in every browser** — `isSnapshot` rejects an unknown version and the caller reads `null` as "nothing to restore"                            | Upgrade the snapshot instead of rejecting it, mapping each v1 `categoryId` to that category's seeded group, and recompute `savedSignature`; unit-tested in `open-notes-storage.test.ts` (6.3) |
+| A restored draft loads dirty because its v1 signature can never match a v2 signature, firing a save storm on first load after deploy                                                                                    | The upgrade recomputes `savedSignature` for entries that were clean; the existing "no unedited entry loads dirty" test covers exactly this                                                    |
+| `serializeNoteDraft` omits `groupId`, so moving a note between groups never autosaves and shows no error                                                                                                                | Called out in 6.1 and 7.1 as the highest-consequence line in the client change; add a test that a group change alone marks an entry dirty                                                     |
+| Notes silently never save because no valid group exists — the failure that made a whole manual test campaign write to an empty table                                                                                    | Three defenses in 6.4: migration seeds the chain, `ensureDefaultTaxonomyChainForUser` repairs lazily on read, and a `blocked` save status makes the skip visible                              |
+| A taxonomy delete leaves a detached save pointing at a dead group, so a background request 400s for a note the user cannot see                                                                                          | Remap the ring **and** `detachedSavesRef` before issuing the delete (6.5); this closes a gap that exists today                                                                                |
 
 ---
 
@@ -1366,6 +1827,26 @@ vocabulary, on the same seeded data.
   the vocabulary layer and behaved identically.
 - `pg_dump --schema-only` round-tripped the composite level FK and the functional
   unique index on `lower(label)`.
+
+**`open_notes_plan_claim_probe.log`** — the two silent-data-loss claims in Part
+6, exercised against the shipped post-#69 modules in `apps/notes-next` with a
+minimal `localStorage` stub.
+
+- A snapshot rewritten with `schemaVersion: 2` reads back as `null`; the same
+  payload at v1 restores its unsaved text. This is the version trap in 6.3.
+- The shipped `serializeNoteDraft` marks a taxonomy move dirty; a signature
+  omitting the taxonomy id is byte-identical before and after the move, so the
+  move would never autosave. This is the signature trap in 6.1.
+- A v1 signature and its v2 equivalent never match, so an upgrade that does not
+  recompute `savedSignature` marks every restored note dirty.
+
+That probe was a throwaway — the second half of each claim exercises
+hypothetical v2 code rather than shipped behavior, so it is a demonstration, not
+a regression test. The regression tests that _should_ be committed with the
+implementation are listed in section 7.1.
+
+The existing suites were also run after merging `main` into this branch:
+`pnpm --filter notes-next test` passes 72/72.
 
 ## Validated phase-1 backfill SQL
 
