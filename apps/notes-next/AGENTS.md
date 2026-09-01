@@ -159,6 +159,47 @@ pnpm --filter notes-next verify
 pnpm --filter notes-next test
 ```
 
+### Verify at a layer the UI cannot fake
+
+This app keeps notes in memory and mirrors them to `localStorage`, so the
+sidebar, the recent list, and even a page reload will faithfully show a note
+that was never stored on the server. Confirming a note "is there" in the
+browser proves nothing about persistence.
+
+This is not hypothetical. The open-note ring was manually tested across several
+sessions — including recorded demos — while `user_note_v1` was empty the whole
+time. Every session ran as a fresh anonymous user, and a brand-new account had
+no category, so every autosave returned before reaching the network. The local
+snapshot reproduced the notes perfectly on reload and nothing looked wrong.
+
+So when testing anything that claims to save:
+
+- **Clear `localStorage` and reload.** Whatever comes back came from the server.
+- **Check the database**, not the screen:
+  `PGPASSWORD=… psql -h localhost -U postgres -d notes_dev -tAc "SELECT id, left(description,40) FROM public.user_note_v1 ORDER BY id DESC LIMIT 10;"`
+- **Watch the network tab** for the request and its status. Silence is the
+  failure mode to look for — a save that never fires looks identical to one
+  that succeeded.
+- Prefer an assertion the feature under test cannot satisfy on its own. A save
+  path should be checked against Postgres; a cache should be checked with the
+  cache cleared.
+
+### When adding automated tests
+
+- Pure logic goes in a module with no React or DOM import so it can be tested
+  by the node runner (`src/stores/openNotes.ts` is the pattern). There is no
+  DOM or React testing setup here and none should be added casually.
+- Anything touching persistence belongs in `lib/db-notes`' DB-backed suite,
+  which runs against `DB_NOTES_TEST_URL` only.
+- **Check that a new test fails without its fix.** Two tests in this change
+  initially passed either way; one was rewritten after that check, and the
+  `cap === 1` ring test exists precisely because every larger cap hides the bug
+  it guards.
+- Never weaken or delete a failing test to get a green run — no `test.skip`,
+  no `.only`, no downgrading an assertion, no fixed timeouts to paper over a
+  race. If a test fails, either the code is wrong or the test's intent changed
+  and that change needs saying out loud.
+
 ## Release rules
 
 - Notes DB migration commands belong in `lib/db-notes/package.json`, with root-level wrappers in the repo `package.json`.
