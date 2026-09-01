@@ -177,6 +177,100 @@
       "column": "category_id",
       "nullable": false,
       "type": "number"
+    },
+    {
+      "column": "group_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "group_level",
+      "nullable": false,
+      "type": "number"
+    }
+  ],
+  "user_taxonomy_level_v1": [
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "level",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    }
+  ],
+  "user_taxonomy_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "level",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "parent_id",
+      "nullable": true,
+      "type": "number"
+    },
+    {
+      "column": "parent_level",
+      "nullable": true,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "label_embedding",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_model",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_updated_at",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
     }
   ],
   "user_v1": [
