@@ -95,6 +95,7 @@ const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
 const MOBILE_RESULTS_TRANSITION_MS = 400
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 const OPEN_NOTES_PERSIST_DEBOUNCE_MS = 1000
+const TAXONOMY_REFRESH_DEBOUNCE_MS = 4000
 const NOTE_URL_ID_PARAM = "id"
 const NOTE_URL_CATEGORY_PARAM = "category"
 const NOTE_URL_TAGS_PARAM = "tags"
@@ -378,10 +379,15 @@ const compareCategoryNoteGroups = (
  */
 type NoteSaveMode = "autosave" | "flush" | "detached"
 
-/** A dirty entry that left the ring but whose text still has to reach the server. */
+/**
+ * A dirty entry that left the ring but whose text still has to reach the
+ * server. `savedSignature` tracks what has already landed for it, because a
+ * save that completes after the entry is gone has no store slot to write to.
+ */
 interface DetachedSave {
   noteId: number | null
   form: NoteFormState
+  savedSignature: string | null
 }
 
 const entrySignature = (entry: OpenNoteEntry) => serializeNoteDraft(entry.noteId, entry.form)
@@ -476,11 +482,12 @@ export default function NotesApp() {
   const mergeInFlightRef = useRef(false)
   const didRehydrateOpenNotesRef = useRef(false)
   const openNotesPersistTimeoutRef = useRef<number | null>(null)
+  const taxonomyRefreshTimeoutRef = useRef<number | null>(null)
   // Stable handle to the latest flush implementation so handlers declared
   // before it can trigger a save without declaration-order gymnastics.
-  const flushAllPendingSavesRef = useRef<() => Promise<void>>(() => Promise.resolve())
-  const saveEntryRef = useRef<(key: OpenNoteKey, mode: NoteSaveMode) => Promise<void>>(() =>
-    Promise.resolve(),
+  const flushAllPendingSavesRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true))
+  const saveEntryRef = useRef<(key: OpenNoteKey, mode: NoteSaveMode) => Promise<boolean>>(() =>
+    Promise.resolve(true),
   )
   const creatingTagLabelsRef = useRef(new Set<string>())
   const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
@@ -715,6 +722,7 @@ export default function NotesApp() {
       detachedSavesRef.current.set(entry.key, {
         noteId: entry.noteId,
         form: snapshotNoteForm(entry.form),
+        savedSignature: entry.savedSignature,
       })
       void saveEntryRef.current(entry.key, "detached")
     }
@@ -725,9 +733,27 @@ export default function NotesApp() {
 
   const openNoteEntry = useCallback(
     (note: NoteRecord) => {
+      // A detached record for this key means the note was evicted while dirty
+      // and its save has not landed. The record holds newer text than the
+      // server copy `note` carries, so the reopened entry must adopt it —
+      // otherwise the editor shows stale text and the next keystroke saves
+      // over what the user wrote.
+      const key = noteEntryKey(note.id)
+      const detached = detachedSavesRef.current.get(key)
+
       detachRemovedEntries(openExistingNoteInStore(note))
+
+      if (!detached) return
+
+      // Ownership returns to the ring. Any still in-flight save is keyed the
+      // same way, so it writes its result back into this entry.
+      detachedSavesRef.current.delete(key)
+      patchEntry(key, {
+        form: detached.form,
+        savedSignature: detached.savedSignature,
+      })
     },
-    [detachRemovedEntries, openExistingNoteInStore],
+    [detachRemovedEntries, openExistingNoteInStore, patchEntry],
   )
 
   const openDraftEntry = useCallback(
@@ -1397,6 +1423,28 @@ export default function NotesApp() {
     [patchEntry],
   )
 
+  /**
+   * Refresh category and tag records after saves, coalesced across all of them
+   * so a burst of autosaves costs one round-trip rather than one each.
+   *
+   * These carry `noteCount`, which is not only sidebar decoration: `openDeleteTag`
+   * skips the confirmation dialog when a tag reads zero notes. Leaving counts
+   * stale after a save would let a tag that was just applied to a note be
+   * deleted without the warning that it will be removed from it.
+   */
+  const scheduleTaxonomyRefresh = useCallback(
+    (userId: number) => {
+      if (taxonomyRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(taxonomyRefreshTimeoutRef.current)
+      }
+      taxonomyRefreshTimeoutRef.current = window.setTimeout(() => {
+        taxonomyRefreshTimeoutRef.current = null
+        void Promise.all([loadCategories(userId), loadTags(userId)]).catch(() => undefined)
+      }, TAXONOMY_REFRESH_DEBOUNCE_MS)
+    },
+    [loadCategories, loadTags],
+  )
+
   /** Merge a saved record into the lists in place, instead of refetching them. */
   const mergeSavedNote = useCallback((userId: number, note: NoteRecord) => {
     setNotes((prev) => {
@@ -1442,9 +1490,11 @@ export default function NotesApp() {
    * rows.
    */
   const saveEntry = useCallback(
-    async function saveEntry(key: OpenNoteKey, mode: NoteSaveMode): Promise<void> {
+    async function saveEntry(key: OpenNoteKey, mode: NoteSaveMode): Promise<boolean> {
       const currentUser = userRef.current
-      if (!currentUser) return
+      // No session to save into. Not a failure the caller can act on, but not
+      // a success either — a sign-in flush must not read this as "all stored".
+      if (!currentUser) return false
 
       // Snapshot before awaiting anything. For a detached entry the snapshot is
       // all that is left of it; for a live one this pins the version being sent
@@ -1453,20 +1503,21 @@ export default function NotesApp() {
       const entry = useNotesAppStore.getState().openNotes.find((item) => item.key === key)
 
       const source = detached ?? entry
-      if (!source) return
+      // Nothing left to save: the entry was closed and its work already landed.
+      if (!source) return true
 
       const formSnapshot = snapshotNoteForm(source.form)
-      const noteId = source.noteId
-      const draftSignature = serializeNoteDraft(noteId, formSnapshot)
+      let noteId = source.noteId
+      let draftSignature = serializeNoteDraft(noteId, formSnapshot)
 
-      if (!isSaveableForm(formSnapshot)) return
-      if (entry && !detached && draftSignature === entry.savedSignature) return
+      if (!isSaveableForm(formSnapshot)) return false
+      if (entry && !detached && draftSignature === entry.savedSignature) return true
 
       const inFlight = saveInFlightRef.current.get(key)
       if (inFlight) {
         if (mode === "autosave") {
           queuedAutosaveKeysRef.current.add(key)
-          return
+          return true
         }
 
         // A second POST for a never-saved entry would create a second note, so
@@ -1474,8 +1525,18 @@ export default function NotesApp() {
         // also the save that learns the new note id.
         await inFlight.catch(() => undefined)
 
-        const settled = useNotesAppStore.getState().openNotes.find((item) => item.key === key)
-        if (settled && draftSignature === settled.savedSignature) return
+        // Re-read the address afterwards. If that save created the row, this
+        // one has to PATCH it; carrying the original `noteId: null` through
+        // would POST a second copy. The detached record is checked first
+        // because an evicted entry has no store slot to have been written to.
+        const settled =
+          detachedSavesRef.current.get(key) ??
+          useNotesAppStore.getState().openNotes.find((item) => item.key === key)
+        if (!settled) return true
+
+        noteId = settled.noteId
+        draftSignature = serializeNoteDraft(noteId, formSnapshot)
+        if (draftSignature === settled.savedSignature) return true
       }
 
       if (!detached) patchEntry(key, { saveStatus: "saving" })
@@ -1496,21 +1557,38 @@ export default function NotesApp() {
         if (userRef.current?.id !== currentUser.id) return
 
         mergeSavedNote(currentUser.id, data.note)
+        scheduleTaxonomyRefresh(currentUser.id)
 
         // Write back by key. The old "is this still the note on screen" guard
         // existed only because there was one editor slot; with per-entry state
         // this is correct whether or not the user has moved on.
+        const landedSignature = serializeNoteDraft(data.note.id, formSnapshot)
         patchEntry(key, {
           noteId: data.note.id,
           baseTimeModified: data.note.timeModified,
-          savedSignature: serializeNoteDraft(data.note.id, formSnapshot),
+          savedSignature: landedSignature,
         })
+
+        // Keep any detached record for this key in step. Without this, an entry
+        // evicted mid-create keeps `noteId: null` and the next detached save or
+        // exit keepalive POSTs a second copy of the same note.
+        const pendingDetached = detachedSavesRef.current.get(key)
+        if (pendingDetached) {
+          detachedSavesRef.current.set(key, {
+            ...pendingDetached,
+            noteId: data.note.id,
+            savedSignature: landedSignature,
+          })
+        }
       })()
 
       saveInFlightRef.current.set(key, savePromise)
 
+      let persisted = false
+
       try {
         await savePromise
+        persisted = true
         if (userRef.current?.id === currentUser.id && !detached) {
           const live = useNotesAppStore.getState().openNotes.find((item) => item.key === key)
           if (live) {
@@ -1526,10 +1604,10 @@ export default function NotesApp() {
         if (saveInFlightRef.current.get(key) === savePromise) {
           saveInFlightRef.current.delete(key)
         }
-        // A detached save is never retried: it has no slot to write a new note
-        // id back to, so a retry after a POST would create a duplicate note.
-        // The exit keepalive covers the failure case.
-        detachedSavesRef.current.delete(key)
+        // Drop the detached record only once its text is actually stored.
+        // Keeping it on failure is what lets the exit keepalive and the
+        // pre-sign-out flush still find the words that left the ring.
+        if (persisted) detachedSavesRef.current.delete(key)
       }
 
       if (queuedAutosaveKeysRef.current.delete(key)) {
@@ -1538,8 +1616,10 @@ export default function NotesApp() {
           void saveEntry(key, "autosave")
         }
       }
+
+      return persisted
     },
-    [mergeSavedNote, patchEntry],
+    [mergeSavedNote, patchEntry, scheduleTaxonomyRefresh],
   )
 
   saveEntryRef.current = saveEntry
@@ -1551,7 +1631,19 @@ export default function NotesApp() {
    */
   const flushAllPendingSaves = useCallback(async () => {
     const entries = useNotesAppStore.getState().openNotes.filter(isEntryDirty)
-    await Promise.allSettled(entries.map((entry) => saveEntry(entry.key, "flush")))
+    // Detached work counts too: text that left the ring is exactly the text
+    // nobody is looking at, so it is the easiest to lose in a session change.
+    const detachedKeys = [...detachedSavesRef.current.keys()]
+
+    const results = await Promise.allSettled([
+      ...entries.map((entry) => saveEntry(entry.key, "flush")),
+      ...detachedKeys.map((key) => saveEntry(key, "detached")),
+    ])
+
+    // Reports failure rather than swallowing it. Callers are about to tear down
+    // or replace the session, so proceeding past a failed save destroys the
+    // draft it was carrying.
+    return results.every((result) => result.status === "fulfilled" && result.value)
   }, [saveEntry])
 
   flushAllPendingSavesRef.current = flushAllPendingSaves
@@ -1590,7 +1682,9 @@ export default function NotesApp() {
 
     const flushOnExit = () => {
       const currentUser = userRef.current
-      if (!currentUser) return
+      // No session to save into. Not a failure the caller can act on, but not
+      // a success either — a sign-in flush must not read this as "all stored".
+      if (!currentUser) return false
 
       const store = useNotesAppStore.getState()
 
@@ -1864,8 +1958,15 @@ export default function NotesApp() {
     try {
       // Persist every unsaved entry to the anonymous account before the
       // session changes, otherwise those drafts never reach the DB and the
-      // merge below cannot move them.
-      await flushAllPendingSaves()
+      // merge below cannot move them. Aborting on failure mirrors the
+      // merge-token rule below: stay anonymous and retry rather than sign in
+      // and strand the notes on a row nobody will look at again.
+      if (!(await flushAllPendingSaves())) {
+        setErrorMessage(
+          "Couldn't save all your notes before signing in. Check your connection and try again.",
+        )
+        return false
+      }
 
       // While still anonymous, capture a signed merge token and stash it across
       // the sign-in transition. The single post-login loader (restoreSession)
@@ -1950,7 +2051,12 @@ export default function NotesApp() {
     try {
       // Persist every unsaved entry before the claim. The data stays on the
       // same user row, but the debounced autosaves must not fire mid-transition.
-      await flushAllPendingSaves()
+      if (!(await flushAllPendingSaves())) {
+        setErrorMessage(
+          "Couldn't save all your notes before creating the account. Check your connection and try again.",
+        )
+        return false
+      }
 
       // Claim the anonymous row in place: same user_id, identity + password set,
       // is_anonymous flipped to false. Nothing moves between users, so there is
@@ -2011,9 +2117,15 @@ export default function NotesApp() {
   }
 
   const handleLogout = async () => {
-    // Persist every unsaved entry for the current user before tearing down the
-    // session.
-    await flushAllPendingSaves()
+    // Signing out clears the ring and the local snapshot, so an unsaved note
+    // that failed to persist would be gone for good. Refuse rather than
+    // destroy it; the user can retry once the network recovers.
+    if (!(await flushAllPendingSaves())) {
+      setErrorMessage(
+        "Couldn't save all your notes, so you're still signed in. Check your connection and try again.",
+      )
+      return
+    }
     await signOut({ redirect: false })
     window.localStorage.removeItem(STORAGE_KEY)
     clearNotesCache()
@@ -2469,6 +2581,23 @@ export default function NotesApp() {
         }),
       })
       const result = await readJson<DeleteCategoryWithNotesResponse>(response)
+
+      // Every note in the category is gone server-side. Any that were open
+      // would otherwise stay in the ring pointing at dead ids, so the user
+      // could keep typing into a zombie entry whose next autosave 404s. These
+      // are the one removal that must NOT route through a detached save — the
+      // rows they would write to no longer exist.
+      const deletedNoteIds = new Set(
+        notesRef.current
+          .filter((note) => note.category.id === category.id)
+          .map((note) => note.id),
+      )
+      for (const entry of useNotesAppStore.getState().openNotes) {
+        if (entry.noteId === null || !deletedNoteIds.has(entry.noteId)) continue
+        detachedSavesRef.current.delete(entry.key)
+        closeEntryInStore(entry.key)
+      }
+
       await refreshResults(user.id)
       const deletedNotes = result.deletedNotes
       setStatusMessage(

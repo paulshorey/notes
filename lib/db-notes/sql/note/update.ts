@@ -11,12 +11,21 @@ import type { NoteEmbeddingWriteInput, NoteInput } from "./types";
  * `embeddings: null` means "leave the embedding columns exactly as they are",
  * used when the description did not change and the stored vector is already
  * current. See `updateNoteForNotesApp`, which decides that.
+ *
+ * That decision is made from a read taken before this transaction, so it can
+ * go stale: another client may change the description in between, and writing
+ * the old text back while keeping the newer embedding would leave the note and
+ * its vector describing different things. `expectedDescription` guards against
+ * that — when supplied, the row only updates if its description still matches,
+ * and a caller seeing `null` back should re-read and retry with real
+ * embeddings rather than assume the note is gone.
  */
 export const updateNoteForUser = async (
   noteId: number,
   userId: number,
   note: NoteInput,
-  embeddings: NoteEmbeddingWriteInput | null
+  embeddings: NoteEmbeddingWriteInput | null,
+  expectedDescription?: string | null
 ) => {
   const embeddingUpdatedAt =
     embeddings && embeddings.embeddingModel ? new Date().toISOString() : null;
@@ -27,6 +36,15 @@ export const updateNoteForUser = async (
 
     await ensureCategoryIdForUser(client, userId, note.categoryId);
 
+    const embeddingValues =
+      embeddings === null
+        ? []
+        : [
+            embeddings.descriptionEmbedding,
+            embeddings.embeddingModel,
+            embeddingUpdatedAt,
+          ];
+
     const embeddingAssignments =
       embeddings === null
         ? ""
@@ -34,6 +52,13 @@ export const updateNoteForUser = async (
           description_embedding = $7::vector,
           embedding_model = $8,
           embedding_updated_at = $9,`;
+
+    // Only guard when reusing the stored embedding; a real re-embed is
+    // self-consistent whatever the previous description was.
+    const guardDescription = embeddings === null && expectedDescription !== undefined;
+    const guardClause = guardDescription
+      ? `AND description IS NOT DISTINCT FROM $${7 + embeddingValues.length}::text`
+      : "";
 
     const { rowCount } = await client.query(
       `
@@ -46,6 +71,7 @@ export const updateNoteForUser = async (
           time_modified = CURRENT_TIMESTAMP
         WHERE id = $1
           AND user_id = $2
+          ${guardClause}
       `,
       [
         noteId,
@@ -54,13 +80,8 @@ export const updateNoteForUser = async (
         toNullableText(note.description),
         note.timeDue,
         note.timeRemind,
-        ...(embeddings === null
-          ? []
-          : [
-              embeddings.descriptionEmbedding,
-              embeddings.embeddingModel,
-              embeddingUpdatedAt,
-            ]),
+        ...embeddingValues,
+        ...(guardDescription ? [toNullableText(expectedDescription ?? "")] : []),
       ]
     );
 

@@ -15,6 +15,7 @@ import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
 import { getDb } from "../lib/db/postgres"
 import { updateNoteForNotesApp } from "../services/notes-app"
+import { updateNoteForUser } from "../sql/note"
 import { CURRENT_NOTE_EMBEDDING_MODEL } from "../services/notes-embeddings"
 
 const testDbUrl = process.env.DB_NOTES_TEST_URL
@@ -236,6 +237,76 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
       assert.equal(after.embedding_updated_at, null)
     } finally {
       if (savedJinaKey !== undefined) process.env.JINA_API_KEY = savedJinaKey
+      await cleanup(userId)
+    }
+  })
+
+  // The skip is decided from a read taken before the write, so a concurrent
+  // description change can invalidate it in between. `expectedDescription` is
+  // the guard against that, and it has to be exercised directly: going through
+  // updateNoteForNotesApp cannot reproduce the interleaving, because its own
+  // read would already see the other client's write.
+  test("reusing a stored embedding refuses to write over a description that moved", async () => {
+    const { userId, categoryId, noteId, suffix } = await seedNote({
+      description: "original text",
+      embeddingModel: CURRENT_NOTE_EMBEDDING_MODEL,
+      withEmbedding: true,
+    })
+
+    try {
+      const { rows: otherCategory } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_note_category_v1 (user_id, label)
+         VALUES ($1, $2) RETURNING id`,
+        [userId, `race-${suffix}`],
+      )
+
+      // Another client wins the race after our read was taken.
+      await getDb().query(`UPDATE public.user_note_v1 SET description = $2 WHERE id = $1`, [
+        noteId,
+        "changed by another client",
+      ])
+
+      // A category-only write still carrying the description we read earlier,
+      // reusing the stored vector. It must not land.
+      const stale = await updateNoteForUser(
+        noteId,
+        userId,
+        {
+          categoryId: otherCategory[0]!.id,
+          tagIds: [],
+          description: "original text",
+          timeDue: null,
+          timeRemind: null,
+        },
+        null,
+        "original text",
+      )
+
+      assert.equal(stale, null, "a stale description-preserving update was allowed through")
+
+      const after = await readEmbeddingState(noteId)
+      assert.equal(after.description, "changed by another client")
+
+      // The same call with the description the row actually holds succeeds, so
+      // the guard blocks staleness rather than blocking everything.
+      const fresh = await updateNoteForUser(
+        noteId,
+        userId,
+        {
+          categoryId: otherCategory[0]!.id,
+          tagIds: [],
+          description: "changed by another client",
+          timeDue: null,
+          timeRemind: null,
+        },
+        null,
+        "changed by another client",
+      )
+
+      assert.ok(fresh)
+      assert.equal(fresh.category.id, otherCategory[0]!.id)
+      assert.notEqual(categoryId, otherCategory[0]!.id)
+    } finally {
       await cleanup(userId)
     }
   })

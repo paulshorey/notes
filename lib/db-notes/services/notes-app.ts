@@ -842,10 +842,31 @@ export const updateNoteForNotesApp = async (
 
   // Sidebar moves and due-date edits are description-preserving, and they were
   // previously paying for a full re-embed.
-  const embeddings = canReuseStoredEmbedding(stored, request.note.description)
-    ? null
-    : await createNoteEmbeddingInput({ description: request.note.description });
+  const reuseStored = canReuseStoredEmbedding(stored, request.note.description);
 
+  if (reuseStored) {
+    const note = await updateNoteForUser(
+      request.noteId,
+      request.userId,
+      request.note,
+      null,
+      stored?.description ?? null
+    );
+
+    // The row still matched the description the skip was decided from, so the
+    // stored vector genuinely describes the stored text.
+    if (note) return { note };
+
+    // Either the note is gone or another client changed its description
+    // between the read above and this write. Falling through re-embeds, which
+    // is correct in the first case (it simply finds nothing) and required in
+    // the second, where reusing the old vector would leave the note and its
+    // embedding describing different text.
+  }
+
+  const embeddings = await createNoteEmbeddingInput({
+    description: request.note.description,
+  });
   const note = await updateNoteForUser(
     request.noteId,
     request.userId,
