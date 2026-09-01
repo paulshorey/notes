@@ -150,7 +150,7 @@ export const createNoteEmbeddingInput = async (
   };
 };
 
-export const createTagLabelEmbedding = async (label: string) => {
+export const createLabelEmbedding = async (label: string) => {
   const trimmed = normalizeText(label);
 
   if (trimmed === "") {
@@ -164,7 +164,7 @@ export const createTagLabelEmbedding = async (label: string) => {
   const embedding = embeddings[0];
 
   if (!embedding) {
-    throw new EmbeddingRequestError("Jina returned no embedding for the tag label.");
+    throw new EmbeddingRequestError("Jina returned no embedding for the label.");
   }
 
   return {
@@ -190,16 +190,16 @@ export const createQueryEmbedding = async (query: string) => {
   return toVectorLiteral(embedding);
 };
 
-export interface TagEmbeddingJob {
-  tagId: number;
+export interface LabelEmbeddingJob {
+  id: number;
   vectorLiteral: string | null;
   embeddingModel: string | null;
 }
 
-export const createBackfillTagEmbeddings = async (
-  tags: Array<{ id: number; label: string }>
-): Promise<TagEmbeddingJob[]> => {
-  const trimmed = tags.map((c) => ({
+export const createBackfillLabelEmbeddings = async (
+  labels: Array<{ id: number; label: string }>
+): Promise<LabelEmbeddingJob[]> => {
+  const trimmed = labels.map((c) => ({
     id: c.id,
     text: normalizeText(c.label),
   }));
@@ -207,8 +207,8 @@ export const createBackfillTagEmbeddings = async (
   const nonEmpty = trimmed.filter((c) => c.text !== "");
 
   if (nonEmpty.length === 0) {
-    return tags.map((c) => ({
-      tagId: c.id,
+    return labels.map((c) => ({
+      id: c.id,
       vectorLiteral: null,
       embeddingModel: null,
     }));
@@ -225,15 +225,15 @@ export const createBackfillTagEmbeddings = async (
 
     if (!embedding) {
       throw new EmbeddingRequestError(
-        "Jina returned too few embeddings during tag backfill."
+        "Jina returned too few embeddings during label backfill."
       );
     }
 
     vectorMap.set(c.id, toVectorLiteral(embedding));
   });
 
-  return tags.map((c) => ({
-    tagId: c.id,
+  return labels.map((c) => ({
+    id: c.id,
     vectorLiteral: vectorMap.get(c.id) ?? null,
     embeddingModel: vectorMap.has(c.id) ? CURRENT_NOTE_EMBEDDING_MODEL : null,
   }));

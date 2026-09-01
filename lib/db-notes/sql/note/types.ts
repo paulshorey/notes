@@ -1,5 +1,4 @@
 export type {
-  NoteCategoryRef,
   NoteTagRef,
   NoteInput,
   NoteRecord,

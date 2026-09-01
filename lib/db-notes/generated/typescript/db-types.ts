@@ -47,7 +47,7 @@ export interface UserNoteV1Row {
   embedding_model: string | null
   embedding_updated_at: Date | null
   description_embedding: string | null
-  category_id: number
+  category_id: number | null
   group_id: number
   group_level: number
 }

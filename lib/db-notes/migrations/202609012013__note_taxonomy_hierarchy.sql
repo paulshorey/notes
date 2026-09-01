@@ -209,3 +209,11 @@ ALTER TABLE public.user_note_v1
 
 CREATE INDEX user_note_v1_group_id_idx
   ON public.user_note_v1 (group_id);
+
+-- category_id stays for the rollback window but stops being required, because
+-- the new code writes group_id alone. Existing rows keep their value, so an
+-- older app version still reads every note it created; notes created after the
+-- deploy are invisible to it, which is the accepted cost of the window. Phase 2
+-- drops the column outright.
+ALTER TABLE public.user_note_v1
+  ALTER COLUMN category_id DROP NOT NULL;

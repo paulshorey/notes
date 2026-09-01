@@ -3,6 +3,8 @@ import type { PoolClient } from "pg";
 import type { UserV1Row } from "../../generated/typescript/db-types";
 import { getDb } from "../../lib/db/postgres";
 import { ensureDefaultTagForUser } from "../tag";
+import { ensureDefaultTaxonomyChainForUser } from "../taxonomy";
+import { ensureTaxonomyLevelsForUser } from "../taxonomy-level";
 import { hashPassword } from "./password";
 import type { UserSummary } from "./types";
 
@@ -43,6 +45,13 @@ export const createAnonymousUser = async (): Promise<UserSummary> => {
     }
 
     await ensureDefaultTagForUser(client, rows[0].id);
+    // Seeded in the same transaction as the user row. A user with no tier
+    // vocabulary cannot hold a taxonomy row at all (the composite level FK
+    // forbids it), and one with no epic > category > group chain has nowhere to
+    // put a note, which the editor experiences as autosave silently doing
+    // nothing.
+    await ensureTaxonomyLevelsForUser(client, rows[0].id);
+    await ensureDefaultTaxonomyChainForUser(client, rows[0].id);
     await client.query("COMMIT");
 
     return mapUser(rows[0]);

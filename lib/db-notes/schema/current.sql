@@ -166,7 +166,7 @@ CREATE TABLE public.user_note_v1 (
     embedding_model text,
     embedding_updated_at timestamp with time zone,
     description_embedding public.vector(1024),
-    category_id integer NOT NULL,
+    category_id integer,
     group_id integer NOT NULL,
     group_level smallint DEFAULT 3 NOT NULL,
     CONSTRAINT user_note_v1_group_level_check CHECK ((group_level = 3))
