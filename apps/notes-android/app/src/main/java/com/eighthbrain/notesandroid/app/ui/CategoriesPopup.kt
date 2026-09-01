@@ -25,24 +25,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.TaxonomyRecord
 
 @Composable
 fun CategoriesPopupList(
-    categories: List<CategoryRecord>,
+    categories: List<TaxonomyRecord>,
     totalNoteCount: Int,
-    selectedCategoryId: Int?,
+    selectedGroupId: Int?,
     editingCategoryId: Int?,
     editingDraft: String,
     deletingCategoryId: Int?,
     protectedCategoryId: Int?,
     busy: Boolean,
     onSelect: (Int?) -> Unit,
-    onStartEdit: (CategoryRecord) -> Unit,
+    onStartEdit: (TaxonomyRecord) -> Unit,
     onEditDraftChange: (String) -> Unit,
     onSaveEdit: () -> Unit,
     onCancelEdit: () -> Unit,
-    onStartDelete: (CategoryRecord) -> Unit,
+    onStartDelete: (TaxonomyRecord) -> Unit,
     onConfirmDelete: () -> Unit,
     onCancelDelete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -60,7 +60,7 @@ fun CategoriesPopupList(
                 "All notes",
                 style = MaterialTheme.typography.bodyLarge,
                 color =
-                    if (selectedCategoryId == null) {
+                    if (selectedGroupId == null) {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.onSurface
@@ -101,7 +101,7 @@ fun CategoriesPopupList(
                     else ->
                         CategoryDefaultRow(
                             category = category,
-                            isActive = selectedCategoryId == category.id,
+                            isActive = selectedGroupId == category.id,
                             isProtected = category.id == protectedCategoryId,
                             busy = busy,
                             onSelect = { onSelect(category.id) },
@@ -125,7 +125,7 @@ fun CategoriesPopupList(
 
 @Composable
 private fun CategoryDefaultRow(
-    category: CategoryRecord,
+    category: TaxonomyRecord,
     isActive: Boolean,
     isProtected: Boolean,
     busy: Boolean,
@@ -232,7 +232,7 @@ private fun CategoryEditRow(
 
 @Composable
 private fun CategoryDeleteConfirmRow(
-    category: CategoryRecord,
+    category: TaxonomyRecord,
     busy: Boolean,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,

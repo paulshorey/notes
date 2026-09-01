@@ -3,7 +3,7 @@ package com.eighthbrain.notesandroid.app.data
 import android.content.Context
 import com.eighthbrain.notesandroid.app.BuildConfig
 import com.eighthbrain.notesandroid.app.model.AppSnapshot
-import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.TaxonomyRecord
 import com.eighthbrain.notesandroid.app.model.TagRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
@@ -32,14 +32,15 @@ class NotesRepository(
             val baseUrl = BuildConfig.DEFAULT_API_BASE_URL
             val session = apiClient.login(baseUrl, identifier, password)
             val token = session.token
-            val categories = apiClient.listCategories(baseUrl, token)
+            val (taxonomy, taxonomyLevels) = apiClient.listTaxonomy(baseUrl, token)
             val tags = apiClient.listTags(baseUrl, token)
             val notes = apiClient.listNotes(baseUrl, token)
             val next =
                 snapshot.copy(
                     user = session.user,
                     apiToken = token,
-                    categories = categories,
+                    taxonomy = taxonomy,
+                    taxonomyLevels = taxonomyLevels,
                     tags = tags,
                     notes = notes,
                     lastSearchQuery = "",
@@ -96,16 +97,26 @@ class NotesRepository(
         return createTag(label)
     }
 
-    suspend fun createCategory(label: String): CategoryRecord {
+    /** Create a group under the user's first category. */
+    suspend fun createGroup(label: String): TaxonomyRecord {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
+        val parent = snapshot.taxonomy.firstOrNull { it.level == 2 }
+            ?: throw IllegalStateException("No category to create this under yet.")
         return try {
-            val category = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmed)
+            val group =
+                apiClient.createGroup(
+                    BuildConfig.DEFAULT_API_BASE_URL,
+                    token,
+                    user.id,
+                    parent.id,
+                    trimmed,
+                )
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
-            category
+            group
         } catch (error: Throwable) {
             persist(
                 snapshot.copy(
@@ -116,14 +127,14 @@ class NotesRepository(
         }
     }
 
-    suspend fun resolveCategory(label: String): CategoryRecord {
+    suspend fun resolveGroup(label: String): TaxonomyRecord {
         val snapshot = readSnapshot()
-        snapshot.categories.findLabelMatch(label)?.let { return it }
-        return createCategory(label)
+        snapshot.groups.findLabelMatch(label)?.let { return it }
+        return createGroup(label)
     }
 
-    suspend fun updateCategory(
-        categoryId: Int,
+    suspend fun renameTaxonomy(
+        taxonomyId: Int,
         label: String,
     ): AppSnapshot {
         val snapshot = readSnapshot()
@@ -132,17 +143,17 @@ class NotesRepository(
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return runWithErrorPersistence(snapshot) {
-            apiClient.updateCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryId, trimmed)
+            apiClient.renameTaxonomy(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, taxonomyId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
 
-    suspend fun deleteCategory(categoryId: Int): AppSnapshot {
+    suspend fun deleteTaxonomy(taxonomyId: Int): AppSnapshot {
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
         return runWithErrorPersistence(snapshot) {
-            apiClient.deleteCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryId)
+            apiClient.deleteTaxonomy(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, taxonomyId)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
@@ -183,17 +194,26 @@ class NotesRepository(
             var resolvedSnapshot = snapshot
             var resolvedDraft = noteDraft
 
-            val categoryLabel = noteDraft.newCategoryLabel.trim()
+            val categoryLabel = noteDraft.newGroupLabel.trim()
             if (categoryLabel.isNotEmpty()) {
-                val category = snapshot.categories.findLabelMatch(categoryLabel) ?: run {
-                    val created = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryLabel)
+                val category = snapshot.groups.findLabelMatch(categoryLabel) ?: run {
+                    val parent = snapshot.taxonomy.firstOrNull { it.level == 2 }
+                        ?: throw IllegalStateException("No category to create this under yet.")
+                    val created =
+                        apiClient.createGroup(
+                            BuildConfig.DEFAULT_API_BASE_URL,
+                            token,
+                            user.id,
+                            parent.id,
+                            categoryLabel,
+                        )
                     resolvedSnapshot = syncSnapshot(snapshot, refreshSearch = false)
                     created
                 }
                 resolvedDraft =
                     resolvedDraft.copy(
-                        selectedCategoryId = category.id,
-                        newCategoryLabel = "",
+                        selectedGroupId = category.id,
+                        newGroupLabel = "",
                     )
             }
 
@@ -216,7 +236,7 @@ class NotesRepository(
                     )
             }
 
-            require(resolvedDraft.selectedCategoryId != null) { "Choose or type a category before saving." }
+            require(resolvedDraft.selectedGroupId != null) { "Choose where this goes before saving." }
 
             apiClient.saveNote(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, noteId, resolvedDraft)
             syncSnapshot(resolvedSnapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
@@ -292,7 +312,7 @@ class NotesRepository(
 
     suspend fun tags(): List<TagRecord> = readSnapshot().tags
 
-    suspend fun categories(): List<CategoryRecord> = readSnapshot().categories
+    suspend fun groups(): List<TaxonomyRecord> = readSnapshot().groups
 
     private suspend fun syncSnapshot(
         snapshot: AppSnapshot,
@@ -302,7 +322,7 @@ class NotesRepository(
             val baseUrl = BuildConfig.DEFAULT_API_BASE_URL
             val token = requireToken(snapshot)
             val verifiedUser = apiClient.getUser(baseUrl, token)
-            val categories = apiClient.listCategories(baseUrl, token)
+            val (taxonomy, taxonomyLevels) = apiClient.listTaxonomy(baseUrl, token)
             val tags = apiClient.listTags(baseUrl, token)
             val notes = apiClient.listNotes(baseUrl, token)
             val results =
@@ -315,7 +335,8 @@ class NotesRepository(
             val next =
                 snapshot.copy(
                     user = verifiedUser,
-                    categories = categories,
+                    taxonomy = taxonomy,
+                    taxonomyLevels = taxonomyLevels,
                     tags = tags,
                     notes = notes,
                     searchResults = results,
@@ -357,7 +378,7 @@ class NotesRepository(
 
 private fun String.normalizedTaxonomyLabel(): String = trim().lowercase()
 
-private fun List<CategoryRecord>.findLabelMatch(label: String): CategoryRecord? {
+private fun List<TaxonomyRecord>.findLabelMatch(label: String): TaxonomyRecord? {
     val normalized = label.normalizedTaxonomyLabel()
     return firstOrNull { it.label.normalizedTaxonomyLabel() == normalized }
 }

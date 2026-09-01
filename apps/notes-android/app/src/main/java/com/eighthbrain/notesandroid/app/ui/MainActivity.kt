@@ -85,7 +85,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.eighthbrain.notesandroid.app.NotesApplication
 import com.eighthbrain.notesandroid.app.model.AppSnapshot
-import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.TaxonomyRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.TagRecord
@@ -127,7 +127,7 @@ data class NotesUiState(
     val isBusy: Boolean = false,
     val message: String? = null,
     val error: String? = null,
-    val selectedCategoryId: Int? = null,
+    val selectedGroupId: Int? = null,
     val editingCategoryId: Int? = null,
     val editingCategoryLabel: String = "",
     val deletingCategoryId: Int? = null,
@@ -227,17 +227,17 @@ class NotesViewModel(
     }
 
     fun updateNewCategoryLabel(value: String) {
-        _uiState.update { it.copy(noteDraft = it.noteDraft.copy(newCategoryLabel = value)) }
+        _uiState.update { it.copy(noteDraft = it.noteDraft.copy(newGroupLabel = value)) }
     }
 
     fun selectDraftCategory(categoryId: Int) {
-        val category = _uiState.value.snapshot.categories.firstOrNull { it.id == categoryId }
+        val category = _uiState.value.snapshot.groups.firstOrNull { it.id == categoryId }
         _uiState.update {
             it.copy(
                 noteDraft =
                     it.noteDraft.copy(
-                        selectedCategoryId = categoryId,
-                        newCategoryLabel = category?.label ?: it.noteDraft.newCategoryLabel,
+                        selectedGroupId = categoryId,
+                        newGroupLabel = category?.label ?: it.noteDraft.newGroupLabel,
                     ),
             )
         }
@@ -300,18 +300,18 @@ class NotesViewModel(
 
     fun createCategoryFromInput() {
         val current = uiState.value
-        val label = current.noteDraft.newCategoryLabel.trim()
+        val label = current.noteDraft.newGroupLabel.trim()
         if (label.isEmpty()) {
             return
         }
         runAction {
-            val category = repository.resolveCategory(label)
+            val category = repository.resolveGroup(label)
             _uiState.update {
                 it.copy(
                     noteDraft =
                         it.noteDraft.copy(
-                            newCategoryLabel = "",
-                            selectedCategoryId = category.id,
+                            newGroupLabel = "",
+                            selectedGroupId = category.id,
                         ),
                     message = "Category \"${category.label}\" added.",
                     error = null,
@@ -437,7 +437,7 @@ class NotesViewModel(
     }
 
     fun showNoteEditor(categoryId: Int? = null) {
-        val categories = _uiState.value.snapshot.categories
+        val categories = _uiState.value.snapshot.groups
         val resolvedCategory =
             categoryId?.let { id -> categories.firstOrNull { it.id == id } }
                 ?: categories.minByOrNull { it.id }
@@ -446,8 +446,8 @@ class NotesViewModel(
                 showNoteEditor = true,
                 noteDraft =
                     NoteDraft(
-                        selectedCategoryId = resolvedCategory?.id,
-                        newCategoryLabel = resolvedCategory?.label.orEmpty(),
+                        selectedGroupId = resolvedCategory?.id,
+                        newGroupLabel = resolvedCategory?.label.orEmpty(),
                     ),
             )
         }
@@ -455,7 +455,7 @@ class NotesViewModel(
 
     fun saveNote() {
         val current = uiState.value
-        if (current.noteDraft.selectedCategoryId == null && current.noteDraft.newCategoryLabel.trim().isEmpty()) {
+        if (current.noteDraft.selectedGroupId == null && current.noteDraft.newGroupLabel.trim().isEmpty()) {
             _uiState.update { it.copy(error = "Choose or type a category before saving.") }
             return
         }
@@ -478,12 +478,12 @@ class NotesViewModel(
     }
 
     fun selectCategoryFilter(categoryId: Int?) {
-        _uiState.update { it.copy(selectedCategoryId = categoryId) }
+        _uiState.update { it.copy(selectedGroupId = categoryId) }
     }
 
     fun startEditingCategory(categoryId: Int) {
         val current = _uiState.value
-        val category = current.snapshot.categories.firstOrNull { it.id == categoryId } ?: return
+        val category = current.snapshot.groups.firstOrNull { it.id == categoryId } ?: return
         _uiState.update {
             it.copy(
                 editingCategoryId = category.id,
@@ -507,7 +507,7 @@ class NotesViewModel(
         val label = current.editingCategoryLabel.trim()
         if (label.isEmpty()) return
         runAction {
-            repository.updateCategory(categoryId, label)
+            repository.renameTaxonomy(categoryId, label)
             _uiState.update {
                 it.copy(
                     editingCategoryId = null,
@@ -521,13 +521,13 @@ class NotesViewModel(
 
     fun startDeletingCategory(categoryId: Int) {
         val current = _uiState.value
-        val category = current.snapshot.categories.firstOrNull { it.id == categoryId } ?: return
-        val fallbackId = current.snapshot.categories.minByOrNull { it.id }?.id
+        val category = current.snapshot.groups.firstOrNull { it.id == categoryId } ?: return
+        val fallbackId = current.snapshot.groups.minByOrNull { it.id }?.id
         if (categoryId == fallbackId) {
             _uiState.update { it.copy(error = "The default category cannot be deleted.") }
             return
         }
-        if (current.snapshot.categories.size <= 1) {
+        if (current.snapshot.groups.size <= 1) {
             _uiState.update {
                 it.copy(error = "Create another category before deleting the last one.")
             }
@@ -535,12 +535,12 @@ class NotesViewModel(
         }
         if (category.noteCount == 0) {
             runAction {
-                repository.deleteCategory(categoryId)
+                repository.deleteTaxonomy(categoryId)
                 _uiState.update {
                     it.copy(
                         deletingCategoryId = null,
-                        selectedCategoryId =
-                            if (it.selectedCategoryId == categoryId) null else it.selectedCategoryId,
+                        selectedGroupId =
+                            if (it.selectedGroupId == categoryId) null else it.selectedGroupId,
                         message = "Category deleted.",
                         error = null,
                     )
@@ -559,12 +559,12 @@ class NotesViewModel(
         val current = _uiState.value
         val categoryId = current.deletingCategoryId ?: return
         runAction {
-            repository.deleteCategory(categoryId)
+            repository.deleteTaxonomy(categoryId)
             _uiState.update {
                 it.copy(
                     deletingCategoryId = null,
-                    selectedCategoryId =
-                        if (it.selectedCategoryId == categoryId) null else it.selectedCategoryId,
+                    selectedGroupId =
+                        if (it.selectedGroupId == categoryId) null else it.selectedGroupId,
                     message = "Category deleted.",
                     error = null,
                 )
@@ -959,18 +959,18 @@ private fun MainContent(
     val searchMode = uiState.searchQuery.trim().isNotEmpty()
     val isLoading = if (searchMode) uiState.searchLoading || uiState.isBusy else uiState.isBusy
 
-    val selectedCategoryId = uiState.selectedCategoryId
+    val selectedGroupId = uiState.selectedGroupId
     val selectedTagId = uiState.selectedTagId
     val displayItems =
         remember(
             uiState.snapshot.notes,
             uiState.snapshot.searchResults,
             searchMode,
-            selectedCategoryId,
+            selectedGroupId,
             selectedTagId,
         ) {
             val matchesCategory: (NoteRecord) -> Boolean = { note ->
-                selectedCategoryId == null || note.category.id == selectedCategoryId
+                selectedGroupId == null || note.groupId == selectedGroupId
             }
             val matchesTag: (NoteRecord) -> Boolean = { note ->
                 selectedTagId == null ||
@@ -989,7 +989,7 @@ private fun MainContent(
             }
         }
 
-    val selectedCategory = uiState.snapshot.categories.firstOrNull { it.id == selectedCategoryId }
+    val selectedCategory = uiState.snapshot.groups.firstOrNull { it.id == selectedGroupId }
     val selectedTag = uiState.snapshot.tags.firstOrNull { it.id == selectedTagId }
 
     var showCategoryPicker by remember { mutableStateOf(false) }
@@ -1264,13 +1264,13 @@ private fun CategoriesPickerDialog(
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                 CategoriesPopupList(
-                    categories = uiState.snapshot.categories,
+                    categories = uiState.snapshot.groups,
                     totalNoteCount = uiState.snapshot.notes.size,
-                    selectedCategoryId = uiState.selectedCategoryId,
+                    selectedGroupId = uiState.selectedGroupId,
                     editingCategoryId = uiState.editingCategoryId,
                     editingDraft = uiState.editingCategoryLabel,
                     deletingCategoryId = uiState.deletingCategoryId,
-                    protectedCategoryId = uiState.snapshot.categories.minByOrNull { it.id }?.id,
+                    protectedCategoryId = uiState.snapshot.groups.minByOrNull { it.id }?.id,
                     busy = uiState.isBusy,
                     onSelect = { id ->
                         viewModel.selectCategoryFilter(id)
@@ -1530,8 +1530,8 @@ private fun NoteEditorModal(
                         minLines = 4,
                     )
                     CategoryComboField(
-                        value = uiState.noteDraft.newCategoryLabel,
-                        categories = uiState.snapshot.categories,
+                        value = uiState.noteDraft.newGroupLabel,
+                        categories = uiState.snapshot.groups,
                         busy = uiState.isBusy,
                         onValueChange = viewModel::updateNewCategoryLabel,
                         onCategorySelected = viewModel::selectDraftCategory,
@@ -1647,7 +1647,7 @@ private fun OptionalDateField(
 @Composable
 private fun CategoryComboField(
     value: String,
-    categories: List<CategoryRecord>,
+    categories: List<TaxonomyRecord>,
     busy: Boolean,
     onValueChange: (String) -> Unit,
     onCategorySelected: (Int) -> Unit,
@@ -1862,7 +1862,7 @@ private fun <T> matchingLabels(
     return items.filter { label(it).contains(query, ignoreCase = true) }
 }
 
-private fun List<CategoryRecord>.matchingCategoryLabels(query: String): List<CategoryRecord> =
+private fun List<TaxonomyRecord>.matchingCategoryLabels(query: String): List<TaxonomyRecord> =
     matchingLabels(this, query) { it.label }
 
 private fun List<TagRecord>.matchingTagLabels(query: String): List<TagRecord> =

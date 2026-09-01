@@ -1,6 +1,7 @@
 package com.eighthbrain.notesandroid.app.data
 
-import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.TaxonomyRecord
+import com.eighthbrain.notesandroid.app.model.TaxonomyLevelRecord
 import com.eighthbrain.notesandroid.app.model.LoginSession
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
@@ -120,24 +121,34 @@ class NotesApiClient(
             }
         }
 
-    suspend fun listCategories(
+    /** The whole tree and this user's tier vocabulary, in one call. */
+    suspend fun listTaxonomy(
         baseUrl: String,
         token: String,
-    ): List<CategoryRecord> =
+    ): Pair<List<TaxonomyRecord>, List<TaxonomyLevelRecord>> =
         withContext(Dispatchers.IO) {
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
-                    pathSegments = listOf("api", "categories"),
+                    pathSegments = listOf("api", "taxonomy"),
                     token = token,
                 )
 
-            val categoriesArray = response.getJSONArray("categories")
-            buildList {
-                for (index in 0 until categoriesArray.length()) {
-                    add(categoryFromJson(categoriesArray.getJSONObject(index)))
+            val nodesArray = response.getJSONArray("taxonomy")
+            val nodes = buildList {
+                for (index in 0 until nodesArray.length()) {
+                    add(taxonomyFromJson(nodesArray.getJSONObject(index)))
                 }
             }
+
+            val levelsArray = response.getJSONArray("levels")
+            val levels = buildList {
+                for (index in 0 until levelsArray.length()) {
+                    add(taxonomyLevelFromJson(levelsArray.getJSONObject(index)))
+                }
+            }
+
+            nodes to levels
         }
 
     suspend fun saveNote(
@@ -153,7 +164,7 @@ class NotesApiClient(
 
             val noteJson =
                 JSONObject()
-                    .put("categoryId", noteDraft.selectedCategoryId)
+                    .put("groupId", noteDraft.selectedGroupId)
                     .put("tagIds", tagIdsJson)
                     .put("description", noteDraft.description)
                     .put("timeDue", parseOptionalLocalInputToIso(noteDraft.dueInput, "Due time") ?: NULL)
@@ -180,16 +191,23 @@ class NotesApiClient(
             noteFromJson(response.getJSONObject("note"))
         }
 
-    suspend fun createCategory(
+    /**
+     * Create a group under [parentCategoryId]. Levels are numbers, never names:
+     * 3 is the group tier regardless of what this user calls it.
+     */
+    suspend fun createGroup(
         baseUrl: String,
         token: String,
         userId: Int,
+        parentCategoryId: Int,
         label: String,
-    ): CategoryRecord =
+    ): TaxonomyRecord =
         withContext(Dispatchers.IO) {
             val payload =
                 JSONObject()
                     .put("userId", userId)
+                    .put("level", 3)
+                    .put("parentId", parentCategoryId)
                     .put("label", label.trim())
                     .toString()
                     .toRequestBody(jsonMediaType)
@@ -197,27 +215,27 @@ class NotesApiClient(
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
-                    pathSegments = listOf("api", "categories"),
+                    pathSegments = listOf("api", "taxonomy"),
                     method = "POST",
                     requestBody = payload,
                     token = token,
                 )
 
-            categoryFromJson(response.getJSONObject("category"))
+            taxonomyFromJson(response.getJSONObject("taxonomy"))
         }
 
-    suspend fun updateCategory(
+    suspend fun renameTaxonomy(
         baseUrl: String,
         token: String,
         userId: Int,
-        categoryId: Int,
+        taxonomyId: Int,
         label: String,
-    ): CategoryRecord =
+    ): TaxonomyRecord =
         withContext(Dispatchers.IO) {
             val payload =
                 JSONObject()
                     .put("userId", userId)
-                    .put("categoryId", categoryId)
+                    .put("taxonomyId", taxonomyId)
                     .put("label", label.trim())
                     .toString()
                     .toRequestBody(jsonMediaType)
@@ -225,32 +243,38 @@ class NotesApiClient(
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
-                    pathSegments = listOf("api", "categories"),
+                    pathSegments = listOf("api", "taxonomy"),
                     method = "PATCH",
                     requestBody = payload,
                     token = token,
                 )
 
-            categoryFromJson(response.getJSONObject("category"))
+            taxonomyFromJson(response.getJSONObject("taxonomy"))
         }
 
-    suspend fun deleteCategory(
+    /**
+     * [mode] is required by the server: guessing between moving a node's
+     * contents and deleting them is not a call the client gets to make.
+     */
+    suspend fun deleteTaxonomy(
         baseUrl: String,
         token: String,
         userId: Int,
-        categoryId: Int,
+        taxonomyId: Int,
+        mode: String = "reassign-children",
     ) {
         withContext(Dispatchers.IO) {
             val payload =
                 JSONObject()
                     .put("userId", userId)
-                    .put("categoryId", categoryId)
+                    .put("taxonomyId", taxonomyId)
+                    .put("mode", mode)
                     .toString()
                     .toRequestBody(jsonMediaType)
 
             execute(
                 baseUrl = normalizeBaseUrl(baseUrl),
-                pathSegments = listOf("api", "categories"),
+                pathSegments = listOf("api", "taxonomy"),
                 method = "DELETE",
                 requestBody = payload,
                 token = token,
