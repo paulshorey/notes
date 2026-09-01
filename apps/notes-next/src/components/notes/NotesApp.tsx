@@ -717,7 +717,20 @@ export default function NotesApp() {
    */
   const detachRemovedEntries = useCallback<(removed: OpenNoteEntry[]) => void>((removed) => {
     for (const entry of removed) {
-      if (!isEntryDirty(entry) || !isSaveableForm(entry.form)) continue
+      if (!isEntryDirty(entry)) continue
+
+      // Text the server will not accept — today that means a note with no
+      // category. Dropping it here would destroy it silently, which is exactly
+      // what the ring makes easy to miss, since an unsaved note looks no
+      // different from a saved one until it is evicted.
+      if (!isSaveableForm(entry.form)) {
+        if (entry.form.description.trim() !== "") {
+          setErrorMessage(
+            "A note was closed before it could be saved because it has no category. Reopen it from the list and choose one.",
+          )
+        }
+        continue
+      }
 
       detachedSavesRef.current.set(entry.key, {
         noteId: entry.noteId,

@@ -57,6 +57,7 @@ import {
 import {
   deleteCategoryForUser,
   deleteCategoryWithNotesForUser,
+  ensureDefaultCategoryForUser,
   getCategoryByIdForUser,
   getFirstCategoryForUser,
   listCategoriesByUser,
@@ -434,9 +435,17 @@ export const listNotesForNotesApp = async (
 
 export const listCategoriesForNotesApp = async (
   request: CategoriesRequest
-): Promise<CategoriesResponse> => ({
-  categories: await listCategoriesByUser(request.userId),
-});
+): Promise<CategoriesResponse> => {
+  const client = await getDb().connect();
+
+  try {
+    await ensureDefaultCategoryForUser(client, request.userId);
+  } finally {
+    client.release();
+  }
+
+  return { categories: await listCategoriesByUser(request.userId) };
+};
 
 export const listTagsForNotesApp = async (
   request: TagsRequest

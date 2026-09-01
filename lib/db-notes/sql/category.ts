@@ -65,6 +65,31 @@ const mapCategory = (row: CategoryWithCountRow): CategoryRecord => ({
   lastUsedAt: toIsoStringOrNull(row.last_used_at),
 });
 
+export const DEFAULT_CATEGORY_LABEL = "uncategorized";
+
+/**
+ * Give a new user somewhere to put their first note.
+ *
+ * A note requires a real category — `ensureCategoryIdForUser` rejects anything
+ * else, and the editor will not even attempt a save without one — so a user
+ * with no categories cannot save at all. Tags already seed a default this way;
+ * categories did not, which left every brand-new account unable to store a
+ * note until it created a category by hand.
+ */
+export const ensureDefaultCategoryForUser = async (
+  client: PoolClient,
+  userId: number
+) => {
+  await client.query(
+    `
+      INSERT INTO public.user_note_category_v1 (user_id, label)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id, label) DO NOTHING
+    `,
+    [userId, DEFAULT_CATEGORY_LABEL]
+  );
+};
+
 export const getFirstCategoryForUser = async (
   client: PoolClient,
   userId: number
