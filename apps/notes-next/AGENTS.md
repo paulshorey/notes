@@ -89,7 +89,7 @@ Notes persist through `saveEntry(key, mode)` in `NotesApp.tsx`, keyed by entry:
 - `flush` — awaited save, used only where the session itself changes (`handleLogin`, `handleSignup`, `handleLogout`) via `flushAllPendingSaves()`. Ordinary note switching no longer flushes.
 - `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is never retried, because a repeated `POST` for a never-saved draft would create a second note.
 
-`pagehide`/`visibilitychange` fire best-effort `keepalive` requests for every dirty entry **and** everything in `detachedSaves`, and write the persistence snapshot.
+`pagehide`/`visibilitychange` write the persistence snapshot **first**, while entries are still dirty and including anything in `detachedSaves`. That snapshot is the durable recovery if keepalive bodies are dropped (browsers share a bounded in-flight quota). Keepalive then PATCHes already-saved notes only — a keepalive POST of a never-saved draft would race a reload into a second create. `visibilitychange` then `pagehide` share a sent-keys set so the same PATCH is not fired twice.
 
 **Invariant worth protecting:** a form change the *user* did not make must never leave an entry dirty. Reconciliation, the category remap, and the sidebar move handlers all recompute `savedSignature` alongside the form — otherwise autosave immediately pushes the change back to the server, which on the anonymous-merge path would overwrite merged category and tag ids with anonymous-side ones.
 

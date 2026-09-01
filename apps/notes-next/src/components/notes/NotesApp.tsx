@@ -60,6 +60,11 @@ import {
   writeNotesCache,
 } from "@/lib/notesCache"
 import {
+  collectExitFlushItems,
+  selectKeepaliveExitItems,
+  stateWithDetachedSaves,
+} from "@/lib/openNotesExit"
+import {
   clearOpenNotesSnapshot,
   readOpenNotesSnapshot,
   readOpenNotesSnapshotForAnyUser,
@@ -486,9 +491,14 @@ export default function NotesApp() {
   // Stable handle to the latest flush implementation so handlers declared
   // before it can trigger a save without declaration-order gymnastics.
   const flushAllPendingSavesRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true))
+  const persistOpenNotesRef = useRef<() => void>(() => undefined)
   const saveEntryRef = useRef<(key: OpenNoteKey, mode: NoteSaveMode) => Promise<boolean>>(() =>
     Promise.resolve(true),
   )
+  // Keys already sent a keepalive PATCH during this hide/exit, so pagehide
+  // after visibilitychange does not fire the same write twice. Cleared when
+  // the tab is visible again.
+  const exitKeepaliveKeysRef = useRef(new Set<OpenNoteKey>())
   const creatingTagLabelsRef = useRef(new Set<string>())
   const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
   const preferenceSaveRequestIdRef = useRef(0)
@@ -738,6 +748,9 @@ export default function NotesApp() {
         savedSignature: entry.savedSignature,
       })
       void saveEntryRef.current(entry.key, "detached")
+    }
+    if (removed.some((entry) => isEntryDirty(entry))) {
+      persistOpenNotesRef.current()
     }
   }, [])
 
@@ -1620,7 +1633,12 @@ export default function NotesApp() {
         // Drop the detached record only once its text is actually stored.
         // Keeping it on failure is what lets the exit keepalive and the
         // pre-sign-out flush still find the words that left the ring.
-        if (persisted) detachedSavesRef.current.delete(key)
+        if (persisted) {
+          detachedSavesRef.current.delete(key)
+          // Evicted notes live in the snapshot until this lands. Drop them now
+          // so a reload does not reopen a note the user already closed.
+          if (detached) persistOpenNotesRef.current()
+        }
       }
 
       if (queuedAutosaveKeysRef.current.delete(key)) {
@@ -1686,46 +1704,39 @@ export default function NotesApp() {
     }
   }, [openNotes, patchEntry, user])
 
-  // Best-effort save when the tab is being hidden or torn down. The awaited
-  // flushes cannot run during an unload, so fire keepalive requests (which the
-  // browser allows to outlive the page) for every unsaved entry — including
-  // ones that already left the ring but whose request never landed.
+  // Best-effort save when the tab is being hidden or torn down. Keepalive
+  // bodies share a browser quota, so the durable guarantee is the local
+  // snapshot — written first, while entries are still dirty — not the fan-out.
   useEffect(() => {
     if (!user) return
 
     const flushOnExit = () => {
       const currentUser = userRef.current
-      // No session to save into. Not a failure the caller can act on, but not
-      // a success either — a sign-in flush must not read this as "all stored".
-      if (!currentUser) return false
+      if (!currentUser) return
+
+      persistOpenNotesRef.current()
 
       const store = useNotesAppStore.getState()
+      const pending = collectExitFlushItems(
+        store.openNotes,
+        detachedSavesRef.current,
+        isEntryDirty,
+        isSaveableForm,
+      )
+      const keepalive = selectKeepaliveExitItems(pending, exitKeepaliveKeysRef.current)
 
-      const pending: { key: OpenNoteKey; noteId: number | null; form: NoteFormState }[] = [
-        ...store.openNotes
-          .filter((entry) => isSaveableForm(entry.form) && isEntryDirty(entry))
-          .map((entry) => ({ key: entry.key, noteId: entry.noteId, form: entry.form })),
-        ...[...detachedSavesRef.current.entries()].map(([key, save]) => ({
-          key,
-          noteId: save.noteId,
-          form: save.form,
-        })),
-      ]
+      for (const { key, noteId, form } of keepalive) {
+        exitKeepaliveKeysRef.current.add(key)
 
-      for (const { key, noteId, form } of pending) {
-        // Mark as persisted optimistically so repeated exit events (pagehide
-        // after visibilitychange) do not fire the same write twice.
-        patchEntry(key, { savedSignature: serializeNoteDraft(noteId, form) })
-        detachedSavesRef.current.delete(key)
-
-        const requestBody =
-          noteId === null
-            ? { userId: currentUser.id, note: noteRequestBody(form) }
-            : { userId: currentUser.id, noteId, note: noteRequestBody(form) }
+        const requestBody = {
+          userId: currentUser.id,
+          noteId,
+          note: noteRequestBody(form),
+        }
 
         try {
           void fetch("/api/notes", {
-            method: noteId === null ? "POST" : "PATCH",
+            method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(requestBody),
             keepalive: true,
@@ -1734,14 +1745,14 @@ export default function NotesApp() {
           // Ignore — this is a best-effort save during teardown.
         }
       }
-
-      persistOpenNotesRef.current()
     }
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         flushOnExit()
+        return
       }
+      exitKeepaliveKeysRef.current.clear()
     }
 
     window.addEventListener("pagehide", flushOnExit)
@@ -1750,7 +1761,7 @@ export default function NotesApp() {
       window.removeEventListener("pagehide", flushOnExit)
       document.removeEventListener("visibilitychange", handleVisibilityChange)
     }
-  }, [patchEntry, user])
+  }, [user])
 
   // Persist the ring so a reload keeps the open notes and their unsaved text.
   // Debounced: this must never run on a keystroke, since JSON.stringify plus a
@@ -1762,7 +1773,7 @@ export default function NotesApp() {
 
     const ok = writeOpenNotesSnapshot(
       currentUser.id,
-      useNotesAppStore.getState(),
+      stateWithDetachedSaves(useNotesAppStore.getState(), detachedSavesRef.current),
       isEntryDirty,
     )
     if (!ok) {
@@ -1770,7 +1781,6 @@ export default function NotesApp() {
     }
   }, [])
 
-  const persistOpenNotesRef = useRef(persistOpenNotes)
   persistOpenNotesRef.current = persistOpenNotes
 
   useEffect(() => {
