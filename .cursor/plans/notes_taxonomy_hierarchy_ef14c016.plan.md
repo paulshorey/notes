@@ -2,6 +2,12 @@
 name: Notes Taxonomy — Epic > Category > Group > Note hierarchy
 overview: Documents how notes are persisted today (flat single-category taxonomy plus many-to-many tags, saved asynchronously from a bounded ring of simultaneously open notes) and plans the extension to a four-level strict hierarchy — Epic > Category > Group > Note — where every child has exactly one parent, tags stay many-to-many on notes, every taxonomy level carries a label embedding for autocomplete, and semantic note search is simplified to compare the query against the note description embedding only. The tier names themselves are per-user editable data, including the word Note, which is what lets the same app manage tasks or any other content. The program branches only on the level number while a separate user_taxonomy_level_v1 table holds each user's words for levels 1-4. The hierarchy lives in one self-referencing user_taxonomy_v1 table whose depth, parent level, per-user ownership, and tier-definition existence are all enforced declaratively by composite foreign keys with no triggers. Rebased onto the merged multi-note editor (PR #69), Part 6 works through how the hierarchy fits the open-note ring — the note draft holds exactly one taxonomy id and it is the leaf group, which keeps the dirty-check signature honest and makes a taxonomy move cost zero note writes, and the localStorage snapshot must be upgraded rather than version-bumped or every unsaved draft is silently discarded. Section 6.6 records five gaps found reviewing the ring against the hierarchy, two of which are live data-loss bugs in shipped code (a sidebar move sends last-saved text over the live draft, and an anonymous merge relocates a dirty open note), plus a reproduced label-upsert race and a roll-up query shape that is 5x cheaper. The DDL, the backfill, the tier-rename layer, the search rewrite, and the concurrency edge cases were prototyped and validated against a real PostgreSQL 17 + pgvector 0.8.6 cluster before this plan was written.
 todos:
+  - id: fix_sidebar_move_clobber
+    content: "Fix live data loss found reviewing the ring (6.7a): patchNoteFromSidebar sends the last-saved description rather than the live draft, and applyServerNoteToEntry then overwrites the entry's form and marks it clean, so moving an open note within the 3s autosave window silently discards the user's typing. When the note is open, make a sidebar move a draft edit on the entry and let autosave carry it; keep the direct PATCH only for notes that are not open."
+    status: pending
+  - id: merge_returns_taxonomy_remap
+    content: "Have the anonymous merge return the id remap it already computes and apply it to ring entries and detachedSavesRef before reconciliation, recomputing savedSignature for entries that were clean (6.7b). Without it, a dirty open note whose pre-merge flush failed is silently relocated to the fallback group, losing its whole path."
+    status: pending
   - id: schema_migration_phase1
     content: "Phase 1 (additive) migration: create user_taxonomy_level_v1 (per-user tier names for levels 1-4) and user_taxonomy_v1 (hierarchy, composite-FK level/ownership/tier-existence enforcement, partial HNSW label indexes); seed the Epic/Category/Group/Note vocabulary for every user FIRST; backfill an epic + a level-2 row per existing category + a group per category, all auto-created items labelled 'uncategorized'; add user_note_v1.group_id (+ pinned group_level) and backfill from category_id. Leaves user_note_category_v1 and user_note_v1.category_id in place."
     status: pending
@@ -12,13 +18,13 @@ todos:
     content: Register BOTH user_taxonomy_v1 (dedup-remap) and user_taxonomy_level_v1 (drop) in MERGE_TABLE_STRATEGIES, and rewrite mergeAnonymousUserInto to remap a three-level subtree in level order instead of a flat category list (db:verify fails until this is done)
     status: pending
   - id: contract_types
-    content: "Replace CategoryRecord with TaxonomyRecord (id, userId, level, parentId, label, noteCount, directNoteCount, lastUsedAt) in contracts/notes-app.ts; add TaxonomyLevelRecord plus level constants and default labels, delivered on the session payload; change NoteInput.categoryId to groupId; add NoteRecord.group/category/epic refs; simplify SemanticSearchResult to { note, similarity }"
+    content: "Replace CategoryRecord with TaxonomyRecord (id, userId, level, parentId, label, noteCount, directNoteCount, lastUsedAt) in contracts/notes-app.ts; add TaxonomyLevelRecord plus level constants and default labels, delivered on the session payload; change NoteInput.categoryId to groupId; change NoteRecord.category to a bare groupId with NO embedded group/category/epic labels (section 6.2 — one source of truth, and 34% of the notes payload); simplify SemanticSearchResult to { note, similarity }"
     status: pending
   - id: sql_service_layer
     content: Collapse sql/category.ts into sql/taxonomy.ts (level-parameterized CRUD, subtree note counts, per-level fallback resolution, move/reparent, delete-with-children and delete-with-notes), carry ensureDefaultCategoryForUser forward as ensureDefaultTaxonomyChainForUser on the GET /api/taxonomy path, add sql/taxonomy-level.ts with ensureTaxonomyLevelsForUser wired into user creation, and update sql/note/* to read and write group_id while leaving PR #69's embedding-skip and expectedDescription guard intact
     status: pending
-  - id: tier_rename_ui
-    content: Make the four tier words data end to end — GET/PATCH /api/taxonomy/levels, a store selector for the vocabulary, a rename UI, and removal of the ~2 dozen hardcoded 'Categories'/'Notes' strings across 8 notes-next files. Never branch on a label; ids and level numbers only in URLs, cache keys and filters.
+  - id: upsert_race_and_rollup_shape
+    content: "Two measured server-side fixes (6.7c, 6.7d): change the label-resolve upsert from ON CONFLICT DO NOTHING + UNION ALL SELECT to ON CONFLICT DO UPDATE ... RETURNING id, which returns zero rows under concurrent creation of the same label and makes the service throw (reproduced on PG 17.11) — apply to tags too; and implement listTaxonomyByUser's subtree counts as fixed-depth aggregates rather than a recursive CTE, 5.5 ms vs 26-31 ms at 20k notes, keeping the recursive form in tests as the oracle. Also add the transactional POST /api/taxonomy/path (6.7e)."
     status: pending
   - id: search_simplify
     content: Rewrite searchNotesByEmbedding as an exact per-user description-only scan (drop the 0.67/0.33 composite, the category join and the tag AVG subquery); do NOT switch to an index-ordered HNSW scan — it silently returns 0 rows for users holding a small share of the table
@@ -26,8 +32,8 @@ todos:
   - id: autocomplete_endpoint
     content: Add level-scoped label autocomplete (literal prefix match first, embedding similarity as semantic fallback) backed by label_embedding, and extend embed-on-write plus embedding maintenance to all three taxonomy levels
     status: pending
-  - id: api_routes
-    content: Replace /api/categories with /api/taxonomy (level-aware CRUD + move), add /api/taxonomy/suggest and /api/taxonomy/levels, update /api/notes payloads, update /api/embeddings/debug and /embeddings to drop composite scoring
+  - id: taxonomy_index
+    content: "Add src/lib/taxonomyIndex.ts — buildTaxonomyIndex returning byId, childrenOf and a precomputed pathByGroupId whose entries keep stable identity until the tree changes, so the sidebar tree, the picker and the recent-notes breadcrumbs all read a Map.get instead of walking parents per render. Build it with useMemo in NotesApp and pass it as one prop; it is derived server data, not UI state, and all three consumers are direct children. Test that a group id absent from the tree yields undefined rather than throwing."
     status: pending
   - id: open_notes_draft_layer
     content: "Land the open-note draft layer on its own, before any UI work, because a mistake here silently destroys unsaved drafts. NoteFormState.selectedCategoryId becomes selectedGroupId and nothing else (epic/category are derived from the tree, never stored, never in the signature); serializeNoteDraft/noteRequestBody/isSaveableForm move to groupId; openNotesStorage UPGRADES v1 snapshots to v2 by mapping each old categoryId to that category's seeded group and recomputing savedSignature — do NOT just bump schemaVersion, isSnapshot rejects unknown versions and the caller reads null as 'nothing to restore'."
@@ -35,14 +41,11 @@ todos:
   - id: taxonomy_remap_and_blocked_state
     content: "Make taxonomy edits safe against N concurrent background writers: rename remapEntriesAfterCategoryChange to remapEntriesAfterTaxonomyChange, handle a group dying because an ancestor was deleted, remap detachedSavesRef as well as the ring (a gap that exists today), always remap before issuing the delete, and add a 'blocked' NoteSaveStatus so an unsaveable entry stops failing silently"
     status: pending
-  - id: fix_sidebar_move_clobber
-    content: "Fix live data loss found reviewing the ring (6.6a): patchNoteFromSidebar sends the last-saved description rather than the live draft, and applyServerNoteToEntry then overwrites the entry's form and marks it clean, so moving an open note within the 3s autosave window silently discards the user's typing. When the note is open, make a sidebar move a draft edit on the entry and let autosave carry it; keep the direct PATCH only for notes that are not open."
+  - id: api_routes
+    content: Replace /api/categories with /api/taxonomy (level-aware CRUD + move), add /api/taxonomy/suggest and /api/taxonomy/levels, update /api/notes payloads, update /api/embeddings/debug and /embeddings to drop composite scoring
     status: pending
-  - id: merge_returns_taxonomy_remap
-    content: "Have the anonymous merge return the id remap it already computes and apply it to ring entries and detachedSavesRef before reconciliation, recomputing savedSignature for entries that were clean (6.6b). Without it, a dirty open note whose pre-merge flush failed is silently relocated to the fallback group, losing its whole path."
-    status: pending
-  - id: upsert_race_and_rollup_shape
-    content: "Two measured server-side fixes (6.6c, 6.6d): change the label-resolve upsert from ON CONFLICT DO NOTHING + UNION ALL SELECT to ON CONFLICT DO UPDATE ... RETURNING id, which returns zero rows under concurrent creation of the same label and makes the service throw (reproduced on PG 17.11) — apply to tags too; and implement listTaxonomyByUser's subtree counts as fixed-depth aggregates rather than a recursive CTE, 5.5 ms vs 26-31 ms at 20k notes, keeping the recursive form in tests as the oracle. Also add the transactional POST /api/taxonomy/path (6.6e)."
+  - id: tier_rename_ui
+    content: Make the four tier words data end to end — GET/PATCH /api/taxonomy/levels, a store selector for the vocabulary, a rename UI, and removal of the ~2 dozen hardcoded 'Categories'/'Notes' strings across 8 notes-next files. Never branch on a label; ids and level numbers only in URLs, cache keys and filters.
     status: pending
   - id: frontend
     content: Rework NotesApp/ResultsColumn/NoteForm/NotesHeader/notesAppStore/notesCache from two flat accordions into a hierarchy tree with a three-step picker (picker navigation state on the entry, not the form) and id-based hierarchical URL state
@@ -50,11 +53,11 @@ todos:
   - id: android_contract
     content: Update Android Models.kt/JsonCodec.kt/NotesApiClient.kt (adding TaxonomyLevelRecord and persisting the vocabulary in AppSnapshot so the widget can label itself offline) and the widget filters, then run contracts:check and rebuild the APK
     status: pending
-  - id: schema_migration_phase2
-    content: "Phase 2 (cutover) migration, only after the new code is deployed: drop user_note_v1.category_id, drop user_note_category_v1, and flip verify-contract assertions to must-be-absent"
-    status: pending
   - id: regenerate_embeddings
     content: Extend scripts/regenerate-embeddings.mjs to cover all three taxonomy levels (it currently embeds tags and notes but never categories) and run it after the rollout
+    status: pending
+  - id: schema_migration_phase2
+    content: "Phase 2 (cutover) migration, only after the new code is deployed: drop user_note_v1.category_id, drop user_note_category_v1, and flip verify-contract assertions to must-be-absent"
     status: pending
 isProject: true
 ---
@@ -83,8 +86,8 @@ error and two of which are live in shipped code today:
 | ---- | ----------------------------------------------------------------------------- | -------------------- |
 | 6.1  | Dropping the taxonomy id from the draft signature makes a move never autosave | risk in the new work |
 | 6.3  | Bumping the `localStorage` schema version discards every unsaved draft        | risk in the new work |
-| 6.6a | A sidebar move sends the last-saved text and overwrites the live draft        | **live today**       |
-| 6.6b | An anonymous merge relocates a dirty open note to the fallback group          | **live today**       |
+| 6.7a | A sidebar move sends the last-saved text and overwrites the live draft        | **live today**       |
+| 6.7b | An anonymous merge relocates a dirty open note to the fallback group          | **live today**       |
 
 Section 6.4 covers a fifth, the silent-no-save trap, which has already cost this
 project a full round of manual testing against an empty table.
@@ -314,7 +317,7 @@ returned before reaching the network. `localStorage` reproduced the notes
 perfectly on reload and nothing looked wrong. The fix was
 `ensureDefaultCategoryForUser`, called at the top of `listCategoriesForNotesApp`
 so any user with zero categories gets `uncategorized` on their first
-`GET /api/categories`. Section 6.4 explains why a three-level chain makes this
+`GET /api/categories`. Section 6.5 explains why a three-level chain makes this
 trap materially worse and what the plan does about it.
 
 ## 1.4 The read path
@@ -1009,9 +1012,12 @@ export interface TaxonomyRef {
 export interface NoteRecord {
   id: number
   userId: number
-  group: TaxonomyRef
-  category: TaxonomyRef // group's parent, denormalized for display
-  epic: TaxonomyRef // category's parent
+  /**
+   * The leaf group only. The epic and category are resolved client-side from
+   * the taxonomy tree, which every client already holds — see section 6.2 for
+   * why embedding them here was removed.
+   */
+  groupId: number
   tags: NoteTagRef[] // unchanged
   description: string | null
   timeDue: string | null
@@ -1034,9 +1040,13 @@ export interface SemanticSearchResult {
 }
 ```
 
-`CategoryRecord` and `NoteCategoryRef` go away. Keeping `category` and `epic` as
-denormalized refs on `NoteRecord` preserves today's "render a note row without a
-second lookup" property, which every list view depends on.
+`CategoryRecord` and `NoteCategoryRef` go away. `TaxonomyRef` survives only as
+the shape inside `TaxonomyPath` (section 6.2); nothing on the wire uses it.
+
+Today's "render a note row without a second lookup" property is preserved not by
+embedding labels but by the client's `TaxonomyIndex`, which turns the lookup into
+a `Map.get` against data already in memory. Section 6.2 has the reasoning and the
+34%-payload measurement behind that trade.
 
 Two `noteCount` fields are needed because the UI wants both: a rolled-up count
 for tree nodes (an epic showing the total beneath it) and a direct count for the
@@ -1090,9 +1100,11 @@ until the APK is rebuilt.
   `deleteTaxonomyNodeForUser`, `listTaxonomyMissingEmbeddingsByUser`,
   `listTaxonomyStaleEmbeddingsByUser`, `updateTaxonomyEmbeddingById`,
   `getFirstTaxonomyChildForUser(level, parentId)`.
-- **`sql/note/shared.ts`** — `noteSelect` joins the group, its parent and its
-  grandparent, emitting three `json_build_object`s. `ensureCategoryIdForUser`
-  can be **deleted**: the composite FK now enforces exactly what it checked.
+- **`sql/note/shared.ts`** — `noteSelect` gets _simpler_: it selects
+  `n.group_id` and drops the category join entirely, since the client resolves
+  the path (section 6.2). `mapNote` loses `parseCategory`.
+  `ensureCategoryIdForUser` can be **deleted**: the composite FK now enforces
+  exactly what it checked.
 - **`sql/note/{add,update}.ts`** — write `group_id` instead of `category_id`.
   `updateNoteForUser` gained the optional `embeddings === null` path and the
   `expectedDescription` race guard in PR #69; both are orthogonal to the
@@ -1103,7 +1115,7 @@ until the APK is rebuilt.
 - **`sql/category.ts`** — `ensureDefaultCategoryForUser` becomes
   `ensureDefaultTaxonomyChainForUser` in `sql/taxonomy.ts`, creating the whole
   epic → category → group chain when a user has none, and called from the
-  `GET /api/taxonomy` service the same way (section 6.4).
+  `GET /api/taxonomy` service the same way (section 6.7).
 - **`services/notes-app.ts`** — `createLabeledEntityForNotesApp` and
   `updateLabeledEntityForNotesApp` already take a `tableName` and an embedding
   column name; they collapse to a single taxonomy path with a `level` argument.
@@ -1179,14 +1191,16 @@ notes on the description vector alone:
 SELECT <noteColumns>,
        1 - (n.description_embedding <=> $2::vector) AS similarity
 FROM public.user_note_v1 n
-JOIN public.user_taxonomy_v1 g ON g.id = n.group_id
-JOIN public.user_taxonomy_v1 c ON c.id = g.parent_id
-JOIN public.user_taxonomy_v1 e ON e.id = c.parent_id
 WHERE n.user_id = $1
   AND n.description_embedding IS NOT NULL
 ORDER BY similarity DESC, n.time_modified DESC
 LIMIT $3
 ```
+
+Note there are no taxonomy joins. Because `NoteRecord` carries `groupId` and the
+client resolves the path (section 6.2), `noteSelect` reads `n.group_id` straight
+off the row — the search query, the note list and the single-note read all lose
+the three-level join they would otherwise need.
 
 Also removed: `tagSimilarity` / `descriptionSimilarity` from
 `SemanticSearchResult`, the `0.67 / 0.33` formula in
@@ -1366,28 +1380,146 @@ convenience. Section 2.4's fixed-depth joins already make it unnecessary.
 `localStorage` on a 1-second debounce while the user types. One integer per
 entry is the whole taxonomy footprint.
 
-**Reconciliation has one reference to repair, not three.** Section 6.3.
+**Reconciliation has one reference to repair, not three.** Section 6.4.
 
-`NoteRecord` still carries `group`, `category` and `epic` refs for display
-(section 4.1) — those are server-computed on read and are what
-`noteToFormState` and the sidebar render from. The distinction is between the
-**writable** field (one group id) and the **readable** projection (the resolved
-path).
+`NoteRecord` follows the same rule: it carries `groupId` and nothing else about
+the taxonomy, and every display of a note's location is resolved from the tree.
+Section 6.2 covers why an earlier draft got this wrong and what it costs.
 
 Consequences elsewhere, all mechanical:
 
 | Site                                     | Change                                                           |
 | ---------------------------------------- | ---------------------------------------------------------------- |
 | `types/notes.ts` `createDefaultNoteForm` | `selectedGroupId: null`                                          |
-| `types/notes.ts` `noteToFormState`       | `selectedGroupId: note.group.id`                                 |
+| `types/notes.ts` `noteToFormState`       | `selectedGroupId: note.groupId`                                  |
 | `lib/noteDraft.ts` `serializeNoteDraft`  | `groupId: form.selectedGroupId`                                  |
 | `lib/noteDraft.ts` `noteRequestBody`     | `groupId: form.selectedGroupId`                                  |
 | `lib/noteDraft.ts` `isSaveableForm`      | `form.selectedGroupId !== null`                                  |
 | `stores/openNotes.ts` `isEmptyDraft`     | unchanged — it does not look at the category                     |
-| `stores/openNotes.ts` `openExistingNote` | `categoryInputValue: note.group.label`                           |
+| `stores/openNotes.ts` `openExistingNote` | takes the resolved group label from the caller (section 6.2)     |
 | `stores/openNotes.ts` `openNewDraft`     | `options.categoryId` → `groupId`, `categoryLabel` → `groupLabel` |
 
-## 6.2 Where the picker's in-progress state lives
+## 6.2 Resolving a note's location, and the flaw that hid here
+
+An earlier draft of this plan kept `group`, `category` and `epic` refs on
+`NoteRecord` "denormalized for display", while section 6.1 required the draft to
+hold only `selectedGroupId`. Those two decisions contradict each other, and the
+contradiction only became obvious when working out how the recent-notes list
+would render a breadcrumb.
+
+**Why they contradict.** A recent-notes row renders from the _entry_, whose form
+holds only a group id, so the row must resolve the path from the taxonomy tree.
+The sidebar's note rows render from `NoteRecord`, so they would use the server's
+embedded labels. Two code paths, two sources of truth for the same fact, and
+they drift: rename a category and the tree updates immediately while every
+already-fetched `NoteRecord` still carries the old label until a refetch. The
+awkwardness of "where do I get the breadcrumb from, and how do I avoid
+re-deriving it per row" was the symptom; the duplicated source of truth was the
+cause.
+
+**Decision: `NoteRecord` carries `groupId: number` and nothing else about the
+taxonomy.** The client resolves the path from the tree it already holds — the
+same way the draft does.
+
+```diff
+ export interface NoteRecord {
+   id: number
+   userId: number
+-  group: TaxonomyRef
+-  category: TaxonomyRef
+-  epic: TaxonomyRef
++  groupId: number
+   tags: NoteTagRef[]
+   description: string | null
+   …
+ }
+```
+
+This is not only tidier, it is measurably cheaper. `GET /api/notes` returns
+every note for the user, so the embedded path is paid per note. Measured on one
+user with 20,005 notes and a 487-row taxonomy:
+
+| Projection                                       | Payload   |
+| ------------------------------------------------ | --------- |
+| With `group` / `category` / `epic` embedded      | 6,893 kB  |
+| `groupId` only                                   | 4,546 kB  |
+| The entire taxonomy tree the client needs anyway | **30 kB** |
+
+**34% of the notes payload** duplicating a 30 kB tree. And three consequences
+beyond size:
+
+- **A rename becomes free.** Today renaming a category requires refetching notes
+  so their embedded labels update. With ids only, the tree changes and every
+  breadcrumb in the app re-renders — no note refetch, and nothing to go stale.
+- **The read path loses its joins.** `noteSelect` no longer joins the taxonomy at
+  all; `n.group_id` is already on the row. The simplified search query in
+  section 5.1 drops its three joins for the same reason.
+- **One resolution path** serves drafts, saved notes and search results, so
+  there is no way for them to disagree.
+
+### The index
+
+Resolution should be computed once per taxonomy change, not per row per render:
+
+```ts
+export interface TaxonomyPath {
+  epic: TaxonomyRecord
+  category: TaxonomyRecord
+  group: TaxonomyRecord
+}
+
+export interface TaxonomyIndex {
+  byId: Map<number, TaxonomyRecord>
+  /** Children keyed by parent id; `null` holds the epics. Drives the tree and the picker. */
+  childrenOf: Map<number | null, TaxonomyRecord[]>
+  /** Precomputed, so `.get(id)` returns the same object until the tree changes. */
+  pathByGroupId: Map<number, TaxonomyPath>
+}
+
+export const buildTaxonomyIndex = (rows: TaxonomyRecord[]): TaxonomyIndex => …
+```
+
+The property that matters is **stable identity**: `pathByGroupId.get(id)` returns
+the same object across renders until the taxonomy actually changes, so any
+component may memoize on it and no render allocates. Building it is one O(n) pass
+over a few hundred rows, run when the taxonomy list changes — page load, taxonomy
+CRUD, and the coalesced refetch — not on keystrokes.
+
+It is not a breadcrumb gadget: `childrenOf` is what the sidebar tree and the
+three-step picker iterate, so the same index serves all three consumers.
+
+### Where it lives
+
+Build it with `useMemo(() => buildTaxonomyIndex(taxonomy), [taxonomy])` in
+`NotesApp` and pass it as one prop.
+
+Not in the Zustand store, despite the repo convention preferring store selectors
+over prop-drilling. That convention is about **app-wide UI state**; PR #69
+deliberately keeps server data (`notes`, `categories`, `tags`) in React state and
+puts only UI state in the store. The index is derived server data, and all three
+consumers — `NotesHeader`, `ResultsColumn`, `NoteForm` — are direct children of
+`NotesApp`, so there is no drilling to avoid. If a deeper consumer appears later,
+promoting the index to the store is safe precisely because it is a stable
+reference, which is what the store's selector rule requires.
+
+Pure reducers that need a label take it as an argument rather than reaching for
+the index. `openExistingNote` currently seeds `categoryInputValue` from
+`note.category.label`; it should receive the resolved label from the caller.
+That mirrors `reconcileOpenNotes(snapshot, lookupNote, options)`, which already
+takes a lookup rather than the note array for exactly this reason, and keeps
+`openNotes.ts` React-free and node-testable.
+
+### The cost this introduces
+
+Dropping the embedded refs means a note can reference a group the client's tree
+does not know about — created on another device since the last taxonomy fetch.
+With server-resolved labels that was impossible. Notes and taxonomy are loaded
+together, and the coalesced refetch keeps the tree fresh, so the window is small,
+but the UI must handle a miss: render the note with no path rather than crashing
+or showing a partial chain, and schedule a taxonomy refetch. Worth a test in the
+index builder — a group id absent from the tree yields `undefined`, not a throw.
+
+## 6.3 Where the picker's in-progress state lives
 
 The three-step Epic → Category → Group picker needs somewhere to hold "the user
 has chosen an epic and is now choosing a category". That state is per-entry — two
@@ -1420,7 +1552,7 @@ persisted, and deliberately outside `form` so they never reach the signature.
 On open, seed `pickerEpicId` / `pickerCategoryId` from the group's ancestors so
 reopening a note shows the picker already positioned.
 
-## 6.3 Reconciliation, and the localStorage version trap
+## 6.4 Reconciliation, and the localStorage version trap
 
 `reconcileOpenNotes` repairs references that died while the tab was closed. Its
 current options are `categoryExists`, `tagExists`, `fallbackCategoryId`; they
@@ -1482,7 +1614,7 @@ Give the upgrade its own unit test in `test/open-notes-storage.test.ts`, which
 already covers the analogous cases. `reconcileOpenNotes` is pure and takes
 lookups, so this is testable without a DOM.
 
-## 6.4 The silent-no-save trap, three levels deep
+## 6.5 The silent-no-save trap, three levels deep
 
 `isSaveableForm` returning false makes autosave skip an entry **without any
 user-visible signal**. `AGENTS.md` records what that cost last time: a whole
@@ -1511,7 +1643,7 @@ Point 3 is a small addition beyond the taxonomy work proper, but this is the
 change that triples the number of ways to enter the state, and the failure is
 silent data loss that a reload does not reveal.
 
-## 6.5 Taxonomy edits versus in-flight saves
+## 6.6 Taxonomy edits versus in-flight saves
 
 Deleting or moving taxonomy while N notes are open and saving is the genuinely
 new concurrency surface. Three cases:
@@ -1545,14 +1677,14 @@ the plan does not propose using it, but the field is there when conflict
 detection is wanted, and the taxonomy work does not make the situation worse
 because it does not add any new client-writable taxonomy field to the note.
 
-## 6.6 Gaps found reviewing the ring against the hierarchy
+## 6.7 Gaps found reviewing the ring against the hierarchy
 
 Five things that a straightforward implementation gets wrong. Two are bugs that
 exist in shipped code today and that the hierarchy widens; three are choices the
 plan previously left underspecified. Each was checked against the code or the
 database rather than reasoned about.
 
-### 6.6a A sidebar move silently discards unsaved text
+### 6.7a A sidebar move silently discards unsaved text
 
 **This is live data loss today, not a hypothetical.** `patchNoteFromSidebar`
 builds its payload from the `NoteRecord` in the `notes` array — server state —
@@ -1606,7 +1738,7 @@ This must be fixed as part of the hierarchy work rather than after it, because
 the hierarchy multiplies sidebar move affordances: moving between groups, and
 re-parenting a group or a category.
 
-### 6.6b The anonymous merge loses taxonomy placement for dirty entries
+### 6.7b The anonymous merge loses taxonomy placement for dirty entries
 
 `readOpenNotesSnapshotForAnyUser` re-keys the snapshot to the new user id and
 lets reconciliation repair references, with this reasoning in the code:
@@ -1631,7 +1763,7 @@ recomputing `savedSignature` for entries that were clean. Returning the map is
 nearly free — the merge builds it anyway — and it turns a silent relocation into
 an exact one.
 
-### 6.6c The label-upsert race, reproduced
+### 6.7c The label-upsert race, reproduced
 
 `resolveCategoryIdForUser` / `resolveTagIdForUser` use this shape:
 
@@ -1672,7 +1804,7 @@ user action. Fix is one line — `ON CONFLICT … DO UPDATE SET label = EXCLUDED
 RETURNING id`, which takes the row lock, waits, and always returns an id.
 Carry the same fix to tags while touching this code.
 
-### 6.6d Roll-up counts: fixed-depth aggregates, not a recursive CTE
+### 6.7d Roll-up counts: fixed-depth aggregates, not a recursive CTE
 
 Section 2.6 demonstrated subtree counts with a recursive CTE. That was the right
 tool for proving correctness at arbitrary depth, but the depth is fixed at three
@@ -1693,7 +1825,7 @@ the epic roll-up equals the total note count). Use the fixed-depth form in
 independent oracle the fixed-depth one is checked against — that is what proved
 them equal here.
 
-### 6.6e Creating a whole path should be one request
+### 6.7e Creating a whole path should be one request
 
 The picker lets a user name a new epic, a new category and a new group in one
 gesture. Doing that as three sequential `POST /api/taxonomy` calls has two
@@ -1704,10 +1836,10 @@ it is untidy and user-visible.
 Add `POST /api/taxonomy/path` taking `{ epicLabel, categoryLabel, groupLabel }`
 (any prefix may be existing ids instead) and resolving the chain in one
 transaction, returning the group id. It reuses `resolveTaxonomyIdForUser` per
-level with the 6.6c fix, and gives the client a single call to await before a
+level with the 6.7c fix, and gives the client a single call to await before a
 save.
 
-### 6.6f Why the `notesCache` key bump is load-bearing
+### 6.7f Why the `notesCache` key bump is load-bearing
 
 Section 7.1 says to bump the `notes-app-cache-v1` key. That is not only hygiene.
 `rehydrateOpenNotes` runs twice — once against the cached paint, once against
@@ -1719,7 +1851,7 @@ second pass could correct them. Bumping the key means there is no cache to paint
 from on the first load after deploy, so the cold path runs a single reconcile
 against real data. Bump it in the same commit as the storage upgrade.
 
-## 6.7 What does not change
+## 6.8 What does not change
 
 Worth stating so the implementer does not go looking:
 
@@ -1743,20 +1875,25 @@ Worth stating so the implementer does not go looking:
 The current UI encodes "flat categories + flat tags" everywhere. Highest-impact
 files, updated for the post-#69 architecture:
 
+- **`src/lib/taxonomyIndex.ts`** (new) — `buildTaxonomyIndex` and the
+  `TaxonomyIndex` / `TaxonomyPath` types from section 6.2. Pure and DOM-free, so
+  the node runner can test it: stable identity across rebuilds, a missing group
+  id yielding `undefined` rather than throwing, and `childrenOf` ordering.
 - **`src/types/notes.ts`** — `NoteFormState.selectedCategoryId` →
   `selectedGroupId`; `createDefaultNoteForm`; `noteToFormState` reads
-  `note.group.id`. Per section 6.1 this is the _only_ form field that changes.
+  `note.groupId`. Per section 6.1 this is the _only_ form field that changes.
 - **`src/lib/noteDraft.ts`** — `serializeNoteDraft`, `noteRequestBody` and
   `isSaveableForm` all move from `categoryId` to `groupId`. Getting
   `serializeNoteDraft` wrong is the highest-consequence mistake in the whole
   client change: omit the field and moving a note between groups never
   autosaves, with no error.
-- **`src/stores/openNotes.ts`** — only `openExistingNote`
-  (`categoryInputValue: note.group.label`) and the `openNewDraft` option names.
-  The reducers are otherwise taxonomy-agnostic. Add the picker-navigation
-  fields from section 6.2.
+- **`src/stores/openNotes.ts`** — `openExistingNote` takes the resolved group
+  label from the caller rather than reading it off the record, and the
+  `openNewDraft` option names change. The reducers are otherwise
+  taxonomy-agnostic and stay React-free. Add the picker-navigation fields from
+  section 6.3.
 - **`src/lib/openNotesStorage.ts`** — the v1 → v2 snapshot upgrade of section
-  6.3, and `categoryExists` / `fallbackCategoryId` → `groupExists` /
+  6.4, and `categoryExists` / `fallbackCategoryId` → `groupExists` /
   `fallbackGroupId`. Do not simply bump the version.
 - **`src/components/notes/NotesApp.tsx`** — the orchestrator. Loads
   `categories`/`tags`/`notes` into React state (not Zustand) and owns every CRUD
@@ -1764,10 +1901,13 @@ files, updated for the post-#69 architecture:
   grouping in `categoryNoteGroups`, hierarchical id-based URL state
   (`?epic=&category=&group=`), `groupId` in `saveEntry`'s payload,
   `remapEntriesAfterCategoryChange` → `remapEntriesAfterTaxonomyChange`
-  including the detached map (section 6.5), `getDefaultCategoryId` → a
-  chain-aware default resolver, and `applyServerNoteToEntry` reading the new
-  refs. The delete-category-with-notes flow at the bottom of the file filters
-  `notesRef.current` by `note.category.id` and must become subtree-aware.
+  including the detached map (section 6.7), `getDefaultCategoryId` → a
+  chain-aware default resolver, `applyServerNoteToEntry` reading `note.groupId`,
+  and the `taxonomyIndex` `useMemo` from section 6.2 passed to the three child
+  components. The delete-category-with-notes flow at the bottom of the file
+  filters `notesRef.current` by `note.category.id` and must become subtree-aware
+  — with ids only it becomes a `pathByGroupId` lookup rather than a label
+  comparison.
 - **`src/components/notes/ResultsColumn.tsx`** — today two flat accordions
   (Categories, Tags) plus a search-results section, with per-note "Move" and
   per-category edit/delete actions. Becomes an expand/collapse tree with
@@ -1785,16 +1925,15 @@ files, updated for the post-#69 architecture:
   headline. **Decided:** show the full breadcrumb, `Epic → Category → Group`, on
   a **second line** beneath the headline, because the path is too long to share
   a row with a save-status dot and a close control. Notes for the implementer:
-  - Resolve the path by walking up from `entry.form.selectedGroupId`; do not
-    store it on the entry. A `useMemo` over the taxonomy tree keyed by the tree
-    and the group id gives every row its path in one pass. It must not be a
-    store selector that builds an object — that hangs the app (see the store
-    selector note below).
+  - Read the path from `taxonomyIndex.pathByGroupId.get(entry.form.selectedGroupId)`.
+    Nothing is stored on the entry and nothing is walked per render — the index
+    is built once per taxonomy change (section 6.2), so a row is a `Map.get`.
   - Truncate per segment with `text-overflow: ellipsis` rather than truncating
     the whole string, so the group — the most specific and most useful segment —
     survives. Put the untruncated path in the row's `title`.
-  - A never-saved draft with no group yet has no path. Render nothing rather
-    than a placeholder arrow chain.
+  - A never-saved draft with no group yet has no path, and so does a note whose
+    group the client's tree has not seen. Render nothing rather than a
+    placeholder arrow chain.
   - The row is a button; the second line must not be separately focusable.
 - **`src/components/ui/FilterablePickerPopup.tsx`** — generic filter/select/
   create popup, already used for both categories and tags. Extend it with an
@@ -1802,9 +1941,11 @@ files, updated for the post-#69 architecture:
 - **`src/stores/notesAppStore.ts`** — `manuallyExpandedCategoryId: number | null`
   becomes a set of expanded node ids. Note the store now spreads `OpenNotesState`
   into its own state, and **selectors must return an existing reference or a
-  primitive** — a tier-label or breadcrumb selector that builds a new object per
-  call will hang the app in an infinite `useSyncExternalStore` loop. Derive
-  those with `useMemo` in the component.
+  primitive**; one that builds a new object per call hangs the app in an
+  infinite `useSyncExternalStore` loop. The `TaxonomyIndex` sidesteps this by
+  construction — its `pathByGroupId` entries are built once per taxonomy change,
+  so they are existing references whether they are read through a prop or, later,
+  through the store.
 - **`src/lib/notesCache.ts`** — `NotesCacheSnapshot` swaps `categories` for
   `taxonomy` and gains `taxonomyLevels`. Bump the cache key so stale snapshots
   are discarded rather than mis-parsed. This one _is_ safe to discard on version
@@ -1822,7 +1963,7 @@ files, updated for the post-#69 architecture:
 Tests, which are now a real safety net rather than an afterthought:
 
 - **`test/open-notes-storage.test.ts`** — add the v1 → v2 upgrade cases from
-  section 6.3: a v1 snapshot with a clean entry restores clean under v2, a v1
+  section 6.4: a v1 snapshot with a clean entry restores clean under v2, a v1
   dirty entry keeps its text, and a v1 entry whose category is gone lands on the
   fallback group. The existing "no unedited entry loads dirty" invariant test is
   the one that would have caught the signature mistake; keep it and make sure it
@@ -1839,7 +1980,7 @@ Tests, which are now a real safety net rather than an afterthought:
   "category-only change reuses the embedding". Rename to the group equivalent
   and keep it; it is the test that proves a taxonomy move costs no Jina call.
 - **`lib/db-notes/testing/default-category.test.ts`** — becomes the
-  default-chain test for `ensureDefaultTaxonomyChainForUser` (section 6.4):
+  default-chain test for `ensureDefaultTaxonomyChainForUser` (section 6.7):
   a new user gets a full epic → category → group chain on first taxonomy list,
   it is idempotent on a second call, and a user with existing taxonomy is
   untouched.
@@ -1887,10 +2028,16 @@ Gated by `apps/notes-android/tools/validate-notes-contract.mjs`, which checks
 field _order_ and Kotlin types, so these edits are mandatory, not optional:
 
 - `app/.../model/Models.kt` — replace `CategoryRecord`/`NoteCategoryRef` with
-  `TaxonomyRecord`/`TaxonomyRef`; add `TaxonomyLevelRecord`; update `NoteRecord`,
-  `NoteDraft` (`selectedCategoryId` → `selectedGroupId`),
-  `SemanticSearchResult`, `AppSnapshot` (which must persist the tier vocabulary
-  so the widget can label itself offline).
+  `TaxonomyRecord`; add `TaxonomyLevelRecord`; `NoteRecord.category` becomes
+  `groupId`; `NoteDraft.selectedCategoryId` → `selectedGroupId`; update
+  `SemanticSearchResult`.
+- `AppSnapshot` must now persist **the taxonomy tree and the tier vocabulary**,
+  not just a category list. This is a hard requirement rather than a nicety:
+  since `NoteRecord` no longer carries labels (section 6.2), a widget with no
+  tree cannot render a note's location at all. The Kotlin side needs the
+  equivalent of `pathByGroupId` — resolving three parent hops per row in a
+  Glance `LazyColumn` is fine, but build the map once in the repository rather
+  than per row.
 - `app/.../data/JsonCodec.kt` — decoders in matching field order.
 - `app/.../data/NotesApiClient.kt` — `/api/taxonomy` calls; `groupId` in the
   note payload.
@@ -1924,9 +2071,9 @@ the only real gate on the Android side.
    where a mistake silently destroys user drafts, so it is worth landing and
    reviewing on its own rather than buried in a UI diff.
 
-   The two live bugs in 6.6a and 6.6b can be fixed **independently of this plan
+   The two live bugs in 6.7a and 6.7b can be fixed **independently of this plan
    and shipped first** — neither depends on the hierarchy, both discard user
-   text today, and fixing 6.6a in particular removes a whole write path that
+   text today, and fixing 6.7a in particular removes a whole write path that
    would otherwise have to be ported to groups. Doing them first also means
    their fixes get reviewed on their own evidence rather than inside a large
    taxonomy diff.
@@ -1984,12 +2131,12 @@ Clear `localStorage`, reload, and check `user_note_v1.group_id` and
 | A restored draft loads dirty because its v1 signature can never match a v2 signature, firing a save storm on first load after deploy                                                                                                          | The upgrade recomputes `savedSignature` for entries that were clean; the existing "no unedited entry loads dirty" test covers exactly this                                                    |
 | `serializeNoteDraft` omits `groupId`, so moving a note between groups never autosaves and shows no error                                                                                                                                      | Called out in 6.1 and 7.1 as the highest-consequence line in the client change; add a test that a group change alone marks an entry dirty                                                     |
 | Notes silently never save because no valid group exists — the failure that made a whole manual test campaign write to an empty table                                                                                                          | Three defenses in 6.4: migration seeds the chain, `ensureDefaultTaxonomyChainForUser` repairs lazily on read, and a `blocked` save status makes the skip visible                              |
-| A taxonomy delete leaves a detached save pointing at a dead group, so a background request 400s for a note the user cannot see                                                                                                                | Remap the ring **and** `detachedSavesRef` before issuing the delete (6.5); this closes a gap that exists today                                                                                |
-| **A sidebar move discards unsaved text** — the PATCH carries the last-saved description and the response overwrites the live draft and marks it clean. Live today inside the 3s autosave window, and the hierarchy adds more move affordances | When the note is open, make a sidebar move a draft edit on the entry and let autosave carry it, instead of a second write path with a stale payload (6.6a)                                    |
-| An anonymous merge relocates a dirty open note to the fallback group, losing its whole path, when the pre-merge flush did not fully succeed                                                                                                   | Return the id remap the merge already computes and apply it to the ring and `detachedSavesRef` before reconciling, recomputing signatures (6.6b)                                              |
-| Two open notes create the same group name at once and the resolve throws "Failed to resolve" — reproduced on PG 17.11, returns zero rows                                                                                                      | `ON CONFLICT … DO UPDATE SET label = EXCLUDED.label RETURNING id`, which always returns a row under contention; same fix for tags (6.6c)                                                      |
-| The taxonomy refetch runs every few seconds while notes autosave, and a recursive-CTE roll-up makes it ~5x more expensive than it needs to be                                                                                                 | Fixed-depth aggregate roll-up, 5.5 ms vs 26–31 ms at 20k notes; keep the recursive form in tests as the oracle (6.6d)                                                                         |
-| A partially created epic/category/group chain is left behind when the picker's second or third create call fails                                                                                                                              | One transactional `POST /api/taxonomy/path` that resolves the whole chain and returns the group id (6.6e)                                                                                     |
+| A taxonomy delete leaves a detached save pointing at a dead group, so a background request 400s for a note the user cannot see                                                                                                                | Remap the ring **and** `detachedSavesRef` before issuing the delete (6.6); this closes a gap that exists today                                                                                |
+| **A sidebar move discards unsaved text** — the PATCH carries the last-saved description and the response overwrites the live draft and marks it clean. Live today inside the 3s autosave window, and the hierarchy adds more move affordances | When the note is open, make a sidebar move a draft edit on the entry and let autosave carry it, instead of a second write path with a stale payload (6.7a)                                    |
+| An anonymous merge relocates a dirty open note to the fallback group, losing its whole path, when the pre-merge flush did not fully succeed                                                                                                   | Return the id remap the merge already computes and apply it to the ring and `detachedSavesRef` before reconciling, recomputing signatures (6.7b)                                              |
+| Two open notes create the same group name at once and the resolve throws "Failed to resolve" — reproduced on PG 17.11, returns zero rows                                                                                                      | `ON CONFLICT … DO UPDATE SET label = EXCLUDED.label RETURNING id`, which always returns a row under contention; same fix for tags (6.7c)                                                      |
+| The taxonomy refetch runs every few seconds while notes autosave, and a recursive-CTE roll-up makes it ~5x more expensive than it needs to be                                                                                                 | Fixed-depth aggregate roll-up, 5.5 ms vs 26–31 ms at 20k notes; keep the recursive form in tests as the oracle (6.7d)                                                                         |
+| A partially created epic/category/group chain is left behind when the picker's second or third create call fails                                                                                                                              | One transactional `POST /api/taxonomy/path` that resolves the whole chain and returns the group id (6.7e)                                                                                     |
 
 ---
 
@@ -2061,7 +2208,7 @@ vocabulary, on the same seeded data.
 minimal `localStorage` stub.
 
 - A snapshot rewritten with `schemaVersion: 2` reads back as `null`; the same
-  payload at v1 restores its unsaved text. This is the version trap in 6.3.
+  payload at v1 restores its unsaved text. This is the version trap in 6.4.
 - The shipped `serializeNoteDraft` marks a taxonomy move dirty; a signature
   omitting the taxonomy id is byte-identical before and after the move, so the
   move would never autosave. This is the signature trap in 6.1.
@@ -2074,16 +2221,16 @@ a regression test. The regression tests that _should_ be committed with the
 implementation are listed in section 7.1.
 
 **`hierarchy_concurrency_edge_cases.log`** — the two database-level edge cases
-in section 6.6, run against a scratch database whose schema was **rebuilt from
+in section 6.7, run against a scratch database whose schema was **rebuilt from
 this plan's own sections 2.3, 2.4 and the backfill appendix**. That rebuild is
 itself a check: the plan is complete enough to implement the schema from without
 reference to the earlier prototype scripts, which did not survive the VM.
 
-- The label-upsert race (6.6c): with a concurrent uncommitted insert of the same
+- The label-upsert race (6.7c): with a concurrent uncommitted insert of the same
   label, the shipped `ON CONFLICT DO NOTHING` + `UNION ALL SELECT` pattern
   returns 0 rows, which makes the service throw; the `DO UPDATE … RETURNING id`
   variant returns the id.
-- The roll-up shape (6.6d): 1 epic, 23 categories, 463 groups, 20,005 notes.
+- The roll-up shape (6.7d): 1 epic, 23 categories, 463 groups, 20,005 notes.
   Recursive CTE 26–31 ms across three runs, fixed-depth aggregate 5.5 ms, zero
   rows of disagreement between them, and the epic roll-up equal to the total
   note count.
@@ -2091,7 +2238,7 @@ reference to the earlier prototype scripts, which did not survive the VM.
 The existing suites were also run after merging `main` into this branch:
 `pnpm --filter notes-next test` passes 72/72.
 
-The two client-side gaps in 6.6a and 6.6b were established by reading the
+The two client-side gaps in 6.7a and 6.7b were established by reading the
 shipped code paths rather than by execution — `patchNoteFromSidebar`,
 `applyServerNoteToEntry` and `rehydrateOpenNotes` are quoted directly in those
 sections so the reasoning can be checked against the source.
