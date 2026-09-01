@@ -113,7 +113,7 @@ import {
 } from "./notes-embeddings";
 
 export const NOTES_APP_NOTE_NOT_FOUND_ERROR = "Note not found.";
-export const NOTES_APP_CATEGORY_NOT_FOUND_ERROR = "Category not found.";
+export const NOTES_APP_TAXONOMY_NOT_FOUND_ERROR = "Not found.";
 export const NOTES_APP_TAG_NOT_FOUND_ERROR = "Tag not found.";
 export const NOTES_APP_USER_NOT_FOUND_ERROR = "User not found.";
 export const NOTES_APP_INVALID_CREDENTIALS_ERROR =

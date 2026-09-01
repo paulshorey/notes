@@ -1,11 +1,13 @@
 "use client"
 
 import type {
-  CategoriesResponse,
-  CategoryRecord,
-  CreateCategoryResponse,
-  DeleteCategoryResponse,
-  DeleteCategoryWithNotesResponse,
+  TaxonomyResponse,
+  TaxonomyRecord,
+  TaxonomyLevelRecord,
+  CreateTaxonomyResponse,
+  DeleteTaxonomyResponse,
+  TaxonomyLevelsResponse,
+  TaxonomyPathResponse,
   TagsResponse,
   TagRecord,
   CreateTagResponse,
@@ -15,12 +17,24 @@ import type {
   NoteRecord,
   SearchResponse,
   SessionResponse,
-  UpdateCategoryResponse,
+  UpdateTaxonomyResponse,
   UpdateTagResponse,
   UserPreferences,
   UserSummary,
 } from "@lib/db-notes"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-notes/notes-search-constants"
+import {
+  TAXONOMY_LEVEL_CATEGORY,
+  TAXONOMY_LEVEL_CONTENT,
+  TAXONOMY_LEVEL_EPIC,
+  TAXONOMY_LEVEL_GROUP,
+} from "@lib/db-notes/contracts/notes-app"
+import {
+  buildTaxonomyIndex,
+  defaultGroupId as defaultGroupIdOf,
+  levelLabel,
+  pathForGroup,
+} from "@/lib/taxonomyIndex"
 import {
   type CSSProperties,
   type Dispatch,
@@ -83,7 +97,7 @@ import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader, type SignupFields } from "./NotesHeader"
-import { ResultsColumn, type CategoryNoteGroup, type TagNoteGroup } from "./ResultsColumn"
+import { ResultsColumn, type EpicNoteGroup, type TagNoteGroup } from "./ResultsColumn"
 import { DeleteCategoryModal, type DeleteCategoryAction } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
@@ -102,7 +116,7 @@ const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 const OPEN_NOTES_PERSIST_DEBOUNCE_MS = 1000
 const TAXONOMY_REFRESH_DEBOUNCE_MS = 4000
 const NOTE_URL_ID_PARAM = "id"
-const NOTE_URL_CATEGORY_PARAM = "category"
+const NOTE_URL_GROUP_PARAM = "group"
 const NOTE_URL_TAGS_PARAM = "tags"
 
 // A signed, short-lived token captured while the browser is still an anonymous
@@ -140,7 +154,7 @@ const clearPendingMergeToken = (): void => {
 interface NotesUrlSelection {
   hasState: boolean
   noteId: number | null
-  categoryId: number | null
+  groupId: number | null
   tagIds: number[]
 }
 
@@ -184,7 +198,7 @@ const parsePositiveInteger = (value: string | null) => {
 
 const readNotesUrlSelection = (): NotesUrlSelection => {
   if (typeof window === "undefined") {
-    return { hasState: false, noteId: null, categoryId: null, tagIds: [] }
+    return { hasState: false, noteId: null, groupId: null, tagIds: [] }
   }
 
   const params = new URLSearchParams(window.location.search)
@@ -204,17 +218,17 @@ const readNotesUrlSelection = (): NotesUrlSelection => {
   return {
     hasState:
       params.has(NOTE_URL_ID_PARAM) ||
-      params.has(NOTE_URL_CATEGORY_PARAM) ||
+      params.has(NOTE_URL_GROUP_PARAM) ||
       params.has(NOTE_URL_TAGS_PARAM),
     noteId: parsePositiveInteger(params.get(NOTE_URL_ID_PARAM)),
-    categoryId: parsePositiveInteger(params.get(NOTE_URL_CATEGORY_PARAM)),
+    groupId: parsePositiveInteger(params.get(NOTE_URL_GROUP_PARAM)),
     tagIds,
   }
 }
 
 const writeNotesUrlSelection = ({
   noteId,
-  categoryId,
+  groupId,
   tagIds,
 }: Omit<NotesUrlSelection, "hasState">) => {
   if (typeof window === "undefined") {
@@ -228,10 +242,10 @@ const writeNotesUrlSelection = ({
     url.searchParams.set(NOTE_URL_ID_PARAM, String(noteId))
   }
 
-  if (categoryId === null) {
-    url.searchParams.delete(NOTE_URL_CATEGORY_PARAM)
+  if (groupId === null) {
+    url.searchParams.delete(NOTE_URL_GROUP_PARAM)
   } else {
-    url.searchParams.set(NOTE_URL_CATEGORY_PARAM, String(categoryId))
+    url.searchParams.set(NOTE_URL_GROUP_PARAM, String(groupId))
   }
 
   const nextTagIds = Array.from(new Set(tagIds)).filter((id) => Number.isInteger(id) && id > 0)
@@ -312,8 +326,15 @@ const withMaxOpenNotesPreference = (
   },
 })
 
-const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
-  categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
+/** Lowest-id group, matching the server's fallback. */
+const getDefaultGroupId = (taxonomyList: TaxonomyRecord[]) => {
+  let fallback: number | null = null
+  for (const row of taxonomyList) {
+    if (row.level !== TAXONOMY_LEVEL_GROUP) continue
+    if (fallback === null || row.id < fallback) fallback = row.id
+  }
+  return fallback
+}
 
 const getDefaultTagId = (tagList: TagRecord[]) =>
   tagList.length > 0 ? tagList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
@@ -329,7 +350,7 @@ const getNoteSortTime = (note: NoteRecord) => getTimeValue(note.timeModified)
 const getGroupSortTime = (items: DisplayNoteItem[]) =>
   items.reduce((latest, { note }) => Math.max(latest, getNoteSortTime(note)), 0)
 
-type NoteGroupSortRecord = CategoryRecord | TagRecord
+type NoteGroupSortRecord = TaxonomyRecord | TagRecord
 
 const compareNoteGroups = <
   T extends { sortTime: number } & (
@@ -348,27 +369,6 @@ const compareNoteGroups = <
     leftRecord.label.localeCompare(rightRecord.label, undefined, { sensitivity: "base" }) ||
     leftRecord.id - rightRecord.id
   )
-}
-
-const compareCategoryNoteGroups = (
-  left: CategoryNoteGroup,
-  right: CategoryNoteGroup,
-  uncategorizedCategoryId: number | null,
-) => {
-  const leftIsEmptyUncategorized =
-    uncategorizedCategoryId !== null &&
-    left.category.id === uncategorizedCategoryId &&
-    left.items.length === 0
-  const rightIsEmptyUncategorized =
-    uncategorizedCategoryId !== null &&
-    right.category.id === uncategorizedCategoryId &&
-    right.items.length === 0
-
-  if (leftIsEmptyUncategorized !== rightIsEmptyUncategorized) {
-    return leftIsEmptyUncategorized ? 1 : -1
-  }
-
-  return compareNoteGroups(left, right)
 }
 
 /**
@@ -410,9 +410,34 @@ export default function NotesApp() {
   const [user, setUser] = useState<UserSummary | null>(null)
   const [userPreferences, setUserPreferences] = useState<UserPreferences>({})
   const [notes, setNotes] = useState<NoteRecord[]>([])
-  const [categories, setCategories] = useState<CategoryRecord[]>([])
+  const [taxonomy, setTaxonomy] = useState<TaxonomyRecord[]>([])
+  const [taxonomyLevels, setTaxonomyLevels] = useState<TaxonomyLevelRecord[]>([])
+  // Built once per taxonomy change, not per render: every row of the recent
+  // list reads a resolved path out of it, and the entries keep stable identity
+  // so nothing downstream re-renders without cause.
+  const taxonomyIndex = useMemo(
+    () => buildTaxonomyIndex(taxonomy, taxonomyLevels),
+    [taxonomy, taxonomyLevels],
+  )
+  /**
+   * The user's own words for the tiers. Every user-facing string that names a
+   * tier reads from here; nothing branches on these values.
+   */
+  const allGroups = useMemo(
+    () => taxonomy.filter((row) => row.level === TAXONOMY_LEVEL_GROUP),
+    [taxonomy],
+  )
+  const taxonomyLabels = useMemo(
+    () => ({
+      epic: levelLabel(taxonomyIndex, TAXONOMY_LEVEL_EPIC),
+      category: levelLabel(taxonomyIndex, TAXONOMY_LEVEL_CATEGORY),
+      group: levelLabel(taxonomyIndex, TAXONOMY_LEVEL_GROUP),
+      note: levelLabel(taxonomyIndex, TAXONOMY_LEVEL_CONTENT),
+    }),
+    [taxonomyIndex],
+  )
   const [tags, setTags] = useState<TagRecord[]>([])
-  const fallbackCategoryId = getDefaultCategoryId(categories)
+  const fallbackGroupId = getDefaultGroupId(taxonomy)
   const fallbackTagId = getDefaultTagId(tags)
   // Selector subscriptions rather than a bulk destructure: with a ring of open
   // notes, subscribing to the whole store would re-render the entire app —
@@ -452,10 +477,10 @@ export default function NotesApp() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [searchErrorMessage, setSearchErrorMessage] = useState<string | null>(null)
-  const [editingCategory, setEditingCategory] = useState<CategoryRecord | null>(null)
+  const [editingCategory, setEditingCategory] = useState<TaxonomyRecord | null>(null)
   const [editCategoryLabel, setEditCategoryLabel] = useState("")
   const [editCategoryPending, setEditCategoryPending] = useState(false)
-  const [deletingCategory, setDeletingCategory] = useState<CategoryRecord | null>(null)
+  const [deletingCategory, setDeletingCategory] = useState<TaxonomyRecord | null>(null)
   const [deleteCategoryPendingAction, setDeleteCategoryPendingAction] =
     useState<DeleteCategoryAction | null>(null)
   const [editingTag, setEditingTag] = useState<TagRecord | null>(null)
@@ -472,7 +497,7 @@ export default function NotesApp() {
   const userRef = useRef<UserSummary | null>(null)
   const userPreferencesRef = useRef<UserPreferences>({})
   const notesRef = useRef<NoteRecord[]>(notes)
-  const categoriesRef = useRef<CategoryRecord[]>(categories)
+  const taxonomyRef = useRef<TaxonomyRecord[]>(taxonomy)
   const tagsRef = useRef<TagRecord[]>(tags)
   // Saves are keyed by entry, so two notes can be in flight at once while a
   // second save of the *same* note still queues behind the first.
@@ -675,8 +700,8 @@ export default function NotesApp() {
   }, [notes])
 
   useEffect(() => {
-    categoriesRef.current = categories
-  }, [categories])
+    taxonomyRef.current = taxonomy
+  }, [taxonomy])
 
   useEffect(() => {
     tagsRef.current = tags
@@ -783,7 +808,7 @@ export default function NotesApp() {
   )
 
   const openDraftEntry = useCallback(
-    (options: { categoryId?: number | null; tagIds?: number[]; categoryLabel?: string } = {}) => {
+    (options: { groupId?: number | null; tagIds?: number[]; groupLabel?: string } = {}) => {
       detachRemovedEntries(openNewDraftInStore(options))
     },
     [detachRemovedEntries, openNewDraftInStore],
@@ -799,13 +824,13 @@ export default function NotesApp() {
       userId: number,
       {
         noteList,
-        categoryList,
+        taxonomyList,
         tagList,
         pendingMerge,
         force = false,
       }: {
         noteList: NoteRecord[]
-        categoryList: CategoryRecord[]
+        taxonomyList: TaxonomyRecord[]
         tagList: TagRecord[]
         pendingMerge: boolean
         force?: boolean
@@ -828,16 +853,30 @@ export default function NotesApp() {
       if (!usable) return
 
       const notesById = new Map(noteList.map((note) => [note.id, note]))
-      const categoryIds = new Set(categoryList.map((category) => category.id))
       const tagIds = new Set(tagList.map((tag) => tag.id))
+      const index = buildTaxonomyIndex(taxonomyList)
+
+      // A v1 snapshot stored a flat category id. The migration created one
+      // group under every category, so this mapping is total.
+      const defaultGroupForCategory = (categoryId: number) => {
+        const children = index.childrenOf.get(categoryId) ?? []
+        let lowest: number | undefined
+        for (const child of children) {
+          if (child.level !== TAXONOMY_LEVEL_GROUP) continue
+          if (lowest === undefined || child.id < lowest) lowest = child.id
+        }
+        return lowest
+      }
 
       const { state, orphanedDraftCount } = reconcileOpenNotes(
         usable,
         (noteId) => notesById.get(noteId),
         {
-          categoryExists: (categoryId) => categoryIds.has(categoryId),
+          groupExists: (groupId) => index.byId.get(groupId)?.level === TAXONOMY_LEVEL_GROUP,
           tagExists: (tagId) => tagIds.has(tagId),
-          fallbackCategoryId: getDefaultCategoryId(categoryList),
+          fallbackGroupId: defaultGroupIdOf(index),
+          defaultGroupForCategory,
+          groupLabel: (groupId) => index.byId.get(groupId)?.label,
         },
       )
 
@@ -863,11 +902,11 @@ export default function NotesApp() {
    */
   const applyNotesUrlSelection = useCallback(
     ({
-      categoryList = categoriesRef.current,
+      taxonomyList = taxonomyRef.current,
       noteList = notesRef.current,
       tagList = tagsRef.current,
     }: {
-      categoryList?: CategoryRecord[]
+      taxonomyList?: TaxonomyRecord[]
       noteList?: NoteRecord[]
       tagList?: TagRecord[]
     } = {}) => {
@@ -893,19 +932,21 @@ export default function NotesApp() {
       const validTagIds = selection.tagIds.filter((tagId) =>
         tagList.some((tag) => tag.id === tagId),
       )
-      const categoryId =
-        selection.categoryId !== null &&
-        categoryList.some((category) => category.id === selection.categoryId)
-          ? selection.categoryId
-          : getDefaultCategoryId(categoryList)
+      const urlGroup =
+        selection.groupId !== null
+          ? taxonomyList.find(
+              (row) => row.id === selection.groupId && row.level === TAXONOMY_LEVEL_GROUP,
+            )
+          : undefined
+      const groupId = urlGroup?.id ?? getDefaultGroupId(taxonomyList)
 
       openDraftEntry({
-        categoryId,
+        groupId,
         tagIds: validTagIds,
-        categoryLabel:
-          categoryId === null
-            ? ""
-            : (categoryList.find((category) => category.id === categoryId)?.label ?? ""),
+        groupLabel:
+          urlGroup?.label ??
+          taxonomyList.find((row) => row.id === groupId)?.label ??
+          "",
       })
       setNotesUrlSelectionReady(true)
     },
@@ -918,9 +959,9 @@ export default function NotesApp() {
     // to await here.
     clearMessages()
     openDraftEntry({
-      categoryId:
+      groupId:
         useNotesAppStore.getState().openNotes.find((entry) => entry.key === activeKey)?.form
-          .selectedCategoryId ?? getDefaultCategoryId(categoriesRef.current),
+          .selectedGroupId ?? getDefaultGroupId(taxonomyRef.current),
     })
   }, [activeKey, clearMessages, openDraftEntry])
 
@@ -941,12 +982,13 @@ export default function NotesApp() {
     }
   }, [])
 
-  const loadCategories = useCallback(async (userId: number) => {
-    const response = await fetch(`/api/categories?userId=${userId}`, { cache: "no-store" })
-    const data = await readJson<CategoriesResponse>(response)
-    setCategories(data.categories)
-    updateNotesCacheList(userId, "categories", data.categories)
-    return data.categories
+  const loadTaxonomy = useCallback(async (userId: number) => {
+    const response = await fetch(`/api/taxonomy?userId=${userId}`, { cache: "no-store" })
+    const data = await readJson<TaxonomyResponse>(response)
+    setTaxonomy(data.taxonomy)
+    setTaxonomyLevels(data.levels)
+    updateNotesCacheList(userId, "taxonomy", data.taxonomy)
+    return data.taxonomy
   }, [])
 
   const loadTags = useCallback(async (userId: number) => {
@@ -1011,9 +1053,9 @@ export default function NotesApp() {
         updateNotesCacheUser(sessionData.user.id, userForCache)
       }
 
-      const [loadedNotes, loadedCategories, loadedTags] = await Promise.all([
+      const [loadedNotes, loadedTaxonomy, loadedTags] = await Promise.all([
         loadNotes(sessionData.user.id),
-        loadCategories(sessionData.user.id),
+        loadTaxonomy(sessionData.user.id),
         loadTags(sessionData.user.id),
       ])
 
@@ -1021,11 +1063,11 @@ export default function NotesApp() {
         userId: sessionData.user.id,
         user: userForCache,
         notes: loadedNotes,
-        categories: loadedCategories,
+        taxonomy: loadedTaxonomy,
         tags: loadedTags,
       })
 
-      return { sessionData, loadedNotes, loadedCategories, loadedTags }
+      return { sessionData, loadedNotes, loadedTaxonomy, loadedTags }
     }
 
     const restoreSession = async () => {
@@ -1105,17 +1147,17 @@ export default function NotesApp() {
       if (cachedSnapshot) {
         applyLoadedUser(cachedSnapshot.user)
         setNotes(cachedSnapshot.notes)
-        setCategories(cachedSnapshot.categories)
+        setTaxonomy(cachedSnapshot.taxonomy)
         setTags(cachedSnapshot.tags)
         // Reconcile against the cached list so the ring paints immediately…
         rehydrateOpenNotes(cachedSnapshot.userId, {
           noteList: cachedSnapshot.notes,
-          categoryList: cachedSnapshot.categories,
+          taxonomyList: cachedSnapshot.taxonomy,
           tagList: cachedSnapshot.tags,
           pendingMerge: Boolean(pendingMergeToken),
         })
         applyNotesUrlSelection({
-          categoryList: cachedSnapshot.categories,
+          taxonomyList: cachedSnapshot.taxonomy,
           noteList: cachedSnapshot.notes,
           tagList: cachedSnapshot.tags,
         })
@@ -1130,7 +1172,7 @@ export default function NotesApp() {
           // so the second pass only corrects clean ones.
           rehydrateOpenNotes(cachedSnapshot.userId, {
             noteList: refreshed.loadedNotes,
-            categoryList: refreshed.loadedCategories,
+            taxonomyList: refreshed.loadedTaxonomy,
             tagList: refreshed.loadedTags,
             pendingMerge: false,
             force: true,
@@ -1150,12 +1192,12 @@ export default function NotesApp() {
 
         rehydrateOpenNotes(result.sessionData.user.id, {
           noteList: result.loadedNotes,
-          categoryList: result.loadedCategories,
+          taxonomyList: result.loadedTaxonomy,
           tagList: result.loadedTags,
           pendingMerge: Boolean(pendingMergeToken),
         })
         applyNotesUrlSelection({
-          categoryList: result.loadedCategories,
+          taxonomyList: result.loadedTaxonomy,
           noteList: result.loadedNotes,
           tagList: result.loadedTags,
         })
@@ -1167,7 +1209,8 @@ export default function NotesApp() {
         lastSavedPreferencesRef.current = serializeUserPreferences({})
         setUser(null)
         setUserPreferences({})
-        setCategories([])
+        setTaxonomy([])
+        setTaxonomyLevels([])
         setTags([])
         setNotes([])
         clearOpenNotesSnapshot()
@@ -1191,7 +1234,7 @@ export default function NotesApp() {
     authSession?.user?.isAnonymous,
     authStatus,
     applyLoadedUser,
-    loadCategories,
+    loadTaxonomy,
     loadTags,
     loadNotes,
     applyNotesUrlSelection,
@@ -1251,12 +1294,12 @@ export default function NotesApp() {
     // Mirrors the *active* entry so the address bar stays copy-pasteable.
     writeNotesUrlSelection({
       noteId: activeEntry?.noteId ?? null,
-      categoryId: activeEntry?.form.selectedCategoryId ?? null,
+      groupId: activeEntry?.form.selectedGroupId ?? null,
       tagIds: activeEntry?.form.selectedTagIds ?? [],
     })
   }, [
     activeEntry?.noteId,
-    activeEntry?.form.selectedCategoryId,
+    activeEntry?.form.selectedGroupId,
     activeEntry?.form.selectedTagIds,
     notesUrlSelectionReady,
     user,
@@ -1335,26 +1378,44 @@ export default function NotesApp() {
    * its signature moves with the form, otherwise autosave would immediately
    * push the remap back to the server as if the user had made it.
    */
-  const remapEntriesAfterCategoryChange = useCallback(
-    (categoryList: CategoryRecord[]) => {
-      const fallback = getDefaultCategoryId(categoryList)
+  const remapEntriesAfterTaxonomyChange = useCallback(
+    (taxonomyList: TaxonomyRecord[]) => {
+      const fallback = getDefaultGroupId(taxonomyList)
+      const groups = new Map(
+        taxonomyList
+          .filter((row) => row.level === TAXONOMY_LEVEL_GROUP)
+          .map((row) => [row.id, row]),
+      )
 
-      patchEveryEntry((entry) => {
-        const categoryId = entry.form.selectedCategoryId
-        if (categoryId !== null && categoryList.some((category) => category.id === categoryId)) {
-          return {}
-        }
+      const repair = (
+        entry: { form: NoteFormState; noteId: number | null; savedSignature: string | null },
+        dirty: boolean,
+      ) => {
+        const groupId = entry.form.selectedGroupId
+        // A group can die because it was deleted, or because an ancestor was
+        // and took it with it. Both look the same from here.
+        if (groupId !== null && groups.has(groupId)) return null
 
-        const form = { ...entry.form, selectedCategoryId: fallback }
+        const form = { ...entry.form, selectedGroupId: fallback }
         return {
           form,
-          savedSignature: isEntryDirty(entry)
-            ? entry.savedSignature
-            : serializeNoteDraft(entry.noteId, form),
-          categoryInputValue:
-            categoryList.find((category) => category.id === fallback)?.label ?? "",
+          savedSignature: dirty ? entry.savedSignature : serializeNoteDraft(entry.noteId, form),
+          groupInputValue: fallback === null ? "" : (groups.get(fallback)?.label ?? ""),
         }
-      })
+      }
+
+      patchEveryEntry((entry) => repair(entry, isEntryDirty(entry)) ?? {})
+
+      // Detached saves are snapshots of evicted-but-dirty entries whose request
+      // has not landed yet. They are not in the ring, so patchEveryEntry misses
+      // them, and one left pointing at a deleted group 400s for a note the user
+      // cannot even see.
+      for (const [key, detached] of detachedSavesRef.current) {
+        const repaired = repair(detached, true)
+        if (repaired) {
+          detachedSavesRef.current.set(key, { ...detached, form: repaired.form })
+        }
+      }
     },
     [patchEveryEntry],
   )
@@ -1377,11 +1438,11 @@ export default function NotesApp() {
         form,
         baseTimeModified: note.timeModified,
         savedSignature: serializeNoteDraft(note.id, form),
-        categoryInputValue: note.category.label,
+        groupInputValue: taxonomyIndex.byId.get(note.groupId)?.label ?? "",
         pendingTagLabels: [],
       })
     },
-    [patchEntry],
+    [patchEntry, taxonomyIndex],
   )
 
   /**
@@ -1409,12 +1470,13 @@ export default function NotesApp() {
     [patchEntryForm],
   )
 
-  const categoryLabelById = useCallback(
-    (categoryId: number | null) =>
-      categoryId === null
-        ? "uncategorized"
-        : (categories.find((category) => category.id === categoryId)?.label ?? "uncategorized"),
-    [categories],
+  /**
+   * The full Epic → Category → Group path for an open entry, read straight out
+   * of the prebuilt index rather than walked per render.
+   */
+  const groupPathById = useCallback(
+    (groupId: number | null) => pathForGroup(taxonomyIndex, groupId),
+    [taxonomyIndex],
   )
 
   /** Closing is not discarding: a dirty entry still finishes its save. */
@@ -1440,11 +1502,11 @@ export default function NotesApp() {
     [detachRemovedEntries, setMaxOpenNotesInStore],
   )
 
-  const handleCategoryInputValueChange = useCallback(
+  const handleGroupInputValueChange = useCallback(
     (value: string) => {
       const key = useNotesAppStore.getState().activeKey
       if (key === null) return
-      patchEntry(key, { categoryInputValue: value })
+      patchEntry(key, { groupInputValue: value })
     },
     [patchEntry],
   )
@@ -1465,10 +1527,10 @@ export default function NotesApp() {
       }
       taxonomyRefreshTimeoutRef.current = window.setTimeout(() => {
         taxonomyRefreshTimeoutRef.current = null
-        void Promise.all([loadCategories(userId), loadTags(userId)]).catch(() => undefined)
+        void Promise.all([loadTaxonomy(userId), loadTags(userId)]).catch(() => undefined)
       }, TAXONOMY_REFRESH_DEBOUNCE_MS)
     },
-    [loadCategories, loadTags],
+    [loadTaxonomy, loadTags],
   )
 
   /** Merge a saved record into the lists in place, instead of refetching them. */
@@ -1491,20 +1553,20 @@ export default function NotesApp() {
     async (userId: number) => {
       const [latestNotes, latestCategories, latestTags] = await Promise.all([
         loadNotes(userId),
-        loadCategories(userId),
+        loadTaxonomy(userId),
         loadTags(userId),
       ])
-      remapEntriesAfterCategoryChange(latestCategories)
+      remapEntriesAfterTaxonomyChange(latestCategories)
       if (trimmedSearchQuery) {
         await runSearch(userId, trimmedSearchQuery, NOTES_APP_SEARCH_MAX_RESULTS)
       }
       return { latestNotes, latestCategories, latestTags }
     },
     [
-      loadCategories,
+      loadTaxonomy,
       loadTags,
       loadNotes,
-      remapEntriesAfterCategoryChange,
+      remapEntriesAfterTaxonomyChange,
       runSearch,
       trimmedSearchQuery,
     ],
@@ -1846,35 +1908,40 @@ export default function NotesApp() {
 
   const allCategoriesNoteCount = selectedTagId === null ? notes.length : allCategoryItems.length
 
-  const categoryNoteGroups = useMemo<CategoryNoteGroup[]>(() => {
-    const notesByCategory = new Map<number, NoteRecord[]>()
-    for (const category of categories) {
-      notesByCategory.set(category.id, [])
-    }
-
-    for (const note of notes) {
-      const categoryNotes = notesByCategory.get(note.category.id)
-      if (categoryNotes) {
-        categoryNotes.push(note)
+  /**
+   * The sidebar tree: epics, each with categories, each with groups holding the
+   * notes. Built from the index, so a rename or a move re-renders it without
+   * touching a single note.
+   */
+  const taxonomyTree = useMemo<EpicNoteGroup[]>(() => {
+    const notesByGroup = new Map<number, DisplayNoteItem[]>()
+    for (const item of allNoteItems) {
+      const bucket = notesByGroup.get(item.note.groupId)
+      if (bucket) {
+        bucket.push(item)
+      } else {
+        notesByGroup.set(item.note.groupId, [item])
       }
     }
 
-    return categories
-      .map((category) => {
-        const categoryNotes = notesByCategory.get(category.id) ?? []
-        const items = [...categoryNotes]
-          .filter(matchesSelectedTag)
-          .sort((left, right) => getNoteSortTime(right) - getNoteSortTime(left))
-          .map((note) => ({ note }))
+    const sortItems = (items: DisplayNoteItem[]) =>
+      [...items].sort((left, right) => getNoteSortTime(right.note) - getNoteSortTime(left.note))
 
-        return {
-          category,
-          items,
-          sortTime: getGroupSortTime(items),
-        }
+    return (taxonomyIndex.childrenOf.get(null) ?? []).map((epic) => {
+      const categories = (taxonomyIndex.childrenOf.get(epic.id) ?? []).map((category) => {
+        const groups = (taxonomyIndex.childrenOf.get(category.id) ?? []).map((group) => {
+          const items = sortItems(notesByGroup.get(group.id) ?? [])
+          return { group, items, sortTime: getGroupSortTime(items) }
+        })
+
+        const items = groups.flatMap((entry) => entry.items)
+        return { category, groups, items, sortTime: getGroupSortTime(items) }
       })
-      .sort((left, right) => compareCategoryNoteGroups(left, right, fallbackCategoryId))
-  }, [categories, fallbackCategoryId, matchesSelectedTag, notes])
+
+      const items = categories.flatMap((entry) => entry.items)
+      return { epic, categories, items, sortTime: getGroupSortTime(items) }
+    })
+  }, [allNoteItems, taxonomyIndex])
 
   const tagNoteGroups = useMemo<TagNoteGroup[]>(() => {
     const notesByTag = new Map<number, DisplayNoteItem[]>()
@@ -2156,7 +2223,8 @@ export default function NotesApp() {
     lastSavedPreferencesRef.current = serializeUserPreferences({})
     setUser(null)
     setUserPreferences({})
-    setCategories([])
+    setTaxonomy([])
+    setTaxonomyLevels([])
     setTags([])
     setNotes([])
     setSearchQuery("")
@@ -2195,32 +2263,29 @@ export default function NotesApp() {
     closeResultsListOnMobile()
   }
 
-  const handleAddNoteForCategory = (category: CategoryRecord) => {
+  const handleAddNoteForGroup = (group: TaxonomyRecord) => {
     clearMessages()
-    openDraftEntry({ categoryId: category.id, categoryLabel: category.label })
+    openDraftEntry({ groupId: group.id, groupLabel: group.label })
     closeResultsListOnMobile()
   }
 
   const handleAddNoteForTag = (tag: TagRecord) => {
     clearMessages()
-    const currentCategoryId = activeEntry?.form.selectedCategoryId ?? null
-    const selectedCategoryId =
-      currentCategoryId !== null && categories.some((category) => category.id === currentCategoryId)
-        ? currentCategoryId
-        : getDefaultCategoryId(categories)
+    const currentGroupId = activeEntry?.form.selectedGroupId ?? null
+    const groupId =
+      currentGroupId !== null && taxonomyIndex.pathByGroupId.has(currentGroupId)
+        ? currentGroupId
+        : getDefaultGroupId(taxonomy)
 
     openDraftEntry({
-      categoryId: selectedCategoryId,
+      groupId,
       tagIds: [tag.id],
-      categoryLabel:
-        selectedCategoryId === null
-          ? ""
-          : (categories.find((category) => category.id === selectedCategoryId)?.label ?? ""),
+      groupLabel: groupId === null ? "" : (taxonomyIndex.byId.get(groupId)?.label ?? ""),
     })
     closeResultsListOnMobile()
   }
 
-  const handleSelectCategory = (rawId: string) => {
+  const handleSelectGroup = (rawId: string) => {
     if (rawId === "") {
       return
     }
@@ -2228,14 +2293,14 @@ export default function NotesApp() {
     if (!Number.isInteger(id) || id < 1) {
       return
     }
-    const category = categories.find((item) => item.id === id)
-    if (!category) {
+    const group = taxonomyIndex.byId.get(id)
+    if (!group || group.level !== TAXONOMY_LEVEL_GROUP) {
       return
     }
     if (activeKey === null) return
     patchEntry(activeKey, (entry) => ({
-      form: { ...entry.form, selectedCategoryId: category.id },
-      categoryInputValue: category.label,
+      form: { ...entry.form, selectedGroupId: group.id },
+      groupInputValue: group.label,
     }))
   }
 
@@ -2315,48 +2380,88 @@ export default function NotesApp() {
     }
   }
 
-  const handleCreateCategory = async (
+  /**
+   * Create a group under the active note's current category, or under the
+   * user's default chain when it has none yet.
+   *
+   * `targetKey` is captured by the caller before this awaits: switching notes
+   * no longer blocks, so without it a group created from one note would land on
+   * whichever note happens to be active when the response returns.
+   */
+  const handleCreateGroup = async (
     rawLabel: string,
     targetKey: OpenNoteKey | null = activeKey,
   ) => {
     if (!user) {
-      setErrorMessage("Sign in before adding categories.")
+      setErrorMessage(`Sign in before adding a ${taxonomyLabels.group}.`)
       return
     }
     const label = rawLabel.trim()
     if (label === "" || targetKey === null) {
       return
     }
-    const existingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
+
+    const entry = useNotesAppStore.getState().openNotes.find((item) => item.key === targetKey)
+    const currentPath = pathForGroup(taxonomyIndex, entry?.form.selectedGroupId ?? null)
+    const parentCategoryId = currentPath?.category.id ?? null
+
+    const existing = (taxonomyIndex.childrenOf.get(parentCategoryId) ?? []).find(
+      (row) =>
+        row.level === TAXONOMY_LEVEL_GROUP &&
+        normalizeLabel(row.label) === normalizeLabel(label),
     )
-    if (existingCategory) {
-      patchEntry(targetKey, (entry) => ({
-        form: { ...entry.form, selectedCategoryId: existingCategory.id },
-        categoryInputValue: existingCategory.label,
+    if (existing) {
+      patchEntry(targetKey, (item) => ({
+        form: { ...item.form, selectedGroupId: existing.id },
+        groupInputValue: existing.label,
       }))
       return
     }
+
     clearMessages()
     setCreateCategoryPending(true)
     try {
-      const response = await fetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, label }),
-      })
-      const data = await readJson<CreateCategoryResponse>(response)
-      setCategories((prev) => {
-        const without = prev.filter((category) => category.id !== data.category.id)
-        return [...without, data.category].sort((a, b) =>
-          a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-        )
-      })
-      patchEntry(targetKey, (entry) => ({
-        form: { ...entry.form, selectedCategoryId: data.category.id },
-        categoryInputValue: data.category.label,
+      let groupId: number
+      let groupLabel: string
+
+      if (parentCategoryId === null) {
+        // No chain to hang it on yet, so resolve the whole path in one
+        // transaction rather than three creates that can half-fail.
+        const response = await fetch("/api/taxonomy/path", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            epicLabel: "uncategorized",
+            categoryLabel: "uncategorized",
+            groupLabel: label,
+          }),
+        })
+        const data = await readJson<TaxonomyPathResponse>(response)
+        groupId = data.group.id
+        groupLabel = data.group.label
+      } else {
+        const response = await fetch("/api/taxonomy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            level: TAXONOMY_LEVEL_GROUP,
+            parentId: parentCategoryId,
+            label,
+          }),
+        })
+        const data = await readJson<CreateTaxonomyResponse>(response)
+        groupId = data.taxonomy.id
+        groupLabel = data.taxonomy.label
+      }
+
+      await loadTaxonomy(user.id)
+      patchEntry(targetKey, (item) => ({
+        form: { ...item.form, selectedGroupId: groupId },
+        groupInputValue: groupLabel,
       }))
-      setStatusMessage(`Category “${data.category.label}” added.`)
+      setStatusMessage(`${taxonomyLabels.group} “${groupLabel}” added.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -2364,37 +2469,44 @@ export default function NotesApp() {
     }
   }
 
-  const resolveCategoryForSidebarMove = async (
+  /**
+   * Resolve a group by label for a sidebar move, creating it under the note's
+   * current category when it does not exist.
+   */
+  const resolveGroupForSidebarMove = async (
+    note: NoteRecord,
     rawLabel: string,
-  ): Promise<CategoryRecord | null> => {
+  ): Promise<TaxonomyRecord | null> => {
     if (!user) {
       setErrorMessage("Sign in before moving notes.")
       return null
     }
     const label = normalizeLabel(rawLabel)
-    if (label === "") {
-      return null
-    }
-    const existingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
-    )
-    if (existingCategory) {
-      return existingCategory
-    }
+    if (label === "") return null
 
-    const response = await fetch("/api/categories", {
+    const parentCategoryId = pathForGroup(taxonomyIndex, note.groupId)?.category.id ?? null
+    const existing = (taxonomyIndex.childrenOf.get(parentCategoryId) ?? []).find(
+      (row) =>
+        row.level === TAXONOMY_LEVEL_GROUP &&
+        normalizeLabel(row.label) === normalizeLabel(label),
+    )
+    if (existing) return existing
+
+    if (parentCategoryId === null) return null
+
+    const response = await fetch("/api/taxonomy", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id, label }),
+      body: JSON.stringify({
+        userId: user.id,
+        level: TAXONOMY_LEVEL_GROUP,
+        parentId: parentCategoryId,
+        label,
+      }),
     })
-    const data = await readJson<CreateCategoryResponse>(response)
-    setCategories((prev) => {
-      const without = prev.filter((category) => category.id !== data.category.id)
-      return [...without, data.category].sort((a, b) =>
-        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-      )
-    })
-    return data.category
+    const data = await readJson<CreateTaxonomyResponse>(response)
+    await loadTaxonomy(user.id)
+    return data.taxonomy
   }
 
   const resolveTagForSidebarMove = async (rawLabel: string): Promise<TagRecord | null> => {
@@ -2470,7 +2582,7 @@ export default function NotesApp() {
    */
   const patchNoteFromSidebar = async (
     note: NoteRecord,
-    nextCategoryId: number,
+    nextGroupId: number,
     nextTagIds: number[],
   ) => {
     if (!user) return null
@@ -2492,7 +2604,7 @@ export default function NotesApp() {
           userId: user.id,
           noteId: note.id,
           note: {
-            categoryId: nextCategoryId,
+            groupId: nextGroupId,
             tagIds: nextTagIds,
             description: note.description ?? "",
             timeDue: note.timeDue,
@@ -2510,27 +2622,27 @@ export default function NotesApp() {
     return data.note
   }
 
-  const handleMoveNoteCategory = async (note: NoteRecord, categoryLabel: string) => {
+  const handleMoveNoteToGroup = async (note: NoteRecord, groupLabel: string) => {
     if (!user) return
     clearMessages()
     try {
-      const category = await resolveCategoryForSidebarMove(categoryLabel)
-      if (!category) return
-      if (category.id === note.category.id) return
+      const group = await resolveGroupForSidebarMove(note, groupLabel)
+      if (!group) return
+      if (group.id === note.groupId) return
 
       const moved = await moveOpenNoteFromSidebar(note, (form) => ({
         ...form,
-        selectedCategoryId: category.id,
+        selectedGroupId: group.id,
       }))
       if (!moved) {
         const updatedNote = await patchNoteFromSidebar(
           note,
-          category.id,
+          group.id,
           note.tags.map((tag) => tag.id),
         )
         if (updatedNote) applyServerNoteToEntry(updatedNote)
       }
-      setStatusMessage(`Note moved to “${category.label}”.`)
+      setStatusMessage(`${taxonomyLabels.note} moved to “${group.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
@@ -2553,7 +2665,7 @@ export default function NotesApp() {
         selectedTagIds: nextTagIds,
       }))
       if (!moved) {
-        const updatedNote = await patchNoteFromSidebar(note, note.category.id, nextTagIds)
+        const updatedNote = await patchNoteFromSidebar(note, note.groupId, nextTagIds)
         if (updatedNote) applyServerNoteToEntry(updatedNote)
       }
       setStatusMessage(`Note tag changed to “${tag.label}”.`)
@@ -2562,45 +2674,42 @@ export default function NotesApp() {
     }
   }
 
-  const openEditCategory = (category: CategoryRecord) => {
+  const openEditTaxonomy = (node: TaxonomyRecord) => {
     clearMessages()
-    setEditingCategory(category)
-    setEditCategoryLabel(category.label)
+    setEditingCategory(node)
+    setEditCategoryLabel(node.label)
   }
 
-  const closeEditCategory = () => {
+  const closeEditTaxonomy = () => {
     setEditingCategory(null)
     setEditCategoryLabel("")
   }
 
-  const handleSaveCategory = async () => {
+  const handleSaveTaxonomy = async () => {
     if (!user || !editingCategory) return
     const label = editCategoryLabel.trim()
     if (label === "" || label === editingCategory.label) {
-      closeEditCategory()
+      closeEditTaxonomy()
       return
     }
     clearMessages()
     setEditCategoryPending(true)
     try {
-      const response = await fetch("/api/categories", {
+      const response = await fetch("/api/taxonomy", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          categoryId: editingCategory.id,
+          taxonomyId: editingCategory.id,
           label,
         }),
       })
-      const data = await readJson<UpdateCategoryResponse>(response)
-      setCategories((prev) =>
-        prev
-          .map((category) => (category.id === data.category.id ? data.category : category))
-          .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })),
-      )
-      await loadNotes(user.id)
-      setStatusMessage(`Category renamed to “${data.category.label}”.`)
-      closeEditCategory()
+      const data = await readJson<UpdateTaxonomyResponse>(response)
+      // Only the tree changes. Notes reference the group by id, so a rename
+      // needs no note refetch and nothing goes stale.
+      await loadTaxonomy(user.id)
+      setStatusMessage(`Renamed to “${data.taxonomy.label}”.`)
+      closeEditTaxonomy()
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -2608,22 +2717,29 @@ export default function NotesApp() {
     }
   }
 
-  const performDeleteCategoryKeepUncategorized = async (category: CategoryRecord) => {
+  const performDeleteTaxonomyReassign = async (node: TaxonomyRecord) => {
     if (!user) return
     clearMessages()
     setDeleteCategoryPendingAction("keep-uncategorized")
     try {
-      const response = await fetch("/api/categories", {
+      const response = await fetch("/api/taxonomy", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          categoryId: category.id,
+          taxonomyId: node.id,
+          mode: "reassign-children",
         }),
       })
-      await readJson<DeleteCategoryResponse>(response)
+      await readJson<DeleteTaxonomyResponse>(response)
+
+      // Remap before anything else re-renders: an open entry still pointing at
+      // the deleted node would autosave a dead id, and a detached save would
+      // 400 for a note nobody is looking at.
+      const refreshed = await loadTaxonomy(user.id)
+      remapEntriesAfterTaxonomyChange(refreshed)
       await refreshResults(user.id)
-      setStatusMessage(`Category “${category.label}” deleted.`)
+      setStatusMessage(`“${node.label}” deleted; its contents were moved.`)
       setDeletingCategory(null)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -2632,29 +2748,37 @@ export default function NotesApp() {
     }
   }
 
-  const performDeleteCategoryWithNotes = async (category: CategoryRecord) => {
+  const performDeleteTaxonomySubtree = async (node: TaxonomyRecord) => {
     if (!user) return
     clearMessages()
     setDeleteCategoryPendingAction("delete-notes")
     try {
-      const response = await fetch("/api/categories/with-notes", {
+      // Which notes are about to disappear, resolved through the tree before
+      // the tree changes.
+      const doomedGroupIds = new Set<number>()
+      const collect = (id: number) => {
+        doomedGroupIds.add(id)
+        for (const child of taxonomyIndex.childrenOf.get(id) ?? []) collect(child.id)
+      }
+      collect(node.id)
+
+      const response = await fetch("/api/taxonomy", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
-          categoryId: category.id,
+          taxonomyId: node.id,
+          mode: "delete-subtree",
         }),
       })
-      const result = await readJson<DeleteCategoryWithNotesResponse>(response)
+      const result = await readJson<DeleteTaxonomyResponse>(response)
 
-      // Every note in the category is gone server-side. Any that were open
-      // would otherwise stay in the ring pointing at dead ids, so the user
-      // could keep typing into a zombie entry whose next autosave 404s. These
-      // are the one removal that must NOT route through a detached save — the
-      // rows they would write to no longer exist.
+      // Those notes are gone server-side. An open entry pointing at one would
+      // stay in the ring and keep typing into a row that no longer exists, so
+      // these are the one removal that must NOT route through a detached save.
       const deletedNoteIds = new Set(
         notesRef.current
-          .filter((note) => note.category.id === category.id)
+          .filter((note) => doomedGroupIds.has(note.groupId))
           .map((note) => note.id),
       )
       for (const entry of useNotesAppStore.getState().openNotes) {
@@ -2663,12 +2787,14 @@ export default function NotesApp() {
         closeEntryInStore(entry.key)
       }
 
+      const refreshed = await loadTaxonomy(user.id)
+      remapEntriesAfterTaxonomyChange(refreshed)
       await refreshResults(user.id)
       const deletedNotes = result.deletedNotes
       setStatusMessage(
         deletedNotes > 0
-          ? `Category “${category.label}” and ${deletedNotes} ${deletedNotes === 1 ? "note" : "notes"} deleted.`
-          : `Category “${category.label}” deleted.`,
+          ? `“${node.label}” and ${deletedNotes} ${deletedNotes === 1 ? taxonomyLabels.note : taxonomyLabels.note + "s"} deleted.`
+          : `“${node.label}” deleted.`,
       )
       setDeletingCategory(null)
     } catch (error) {
@@ -2678,32 +2804,35 @@ export default function NotesApp() {
     }
   }
 
-  const openDeleteCategory = (category: CategoryRecord) => {
+  const openDeleteTaxonomy = (node: TaxonomyRecord) => {
     clearMessages()
-    if (categories.length <= 1) {
-      setErrorMessage("Create another category before deleting the last one.")
+    // Every user keeps at least one full chain; without a group there is
+    // nowhere to put a note and autosave goes quiet.
+    const siblings = taxonomyIndex.childrenOf.get(node.parentId) ?? []
+    if (siblings.length <= 1) {
+      setErrorMessage(`Add another ${levelLabel(taxonomyIndex, node.level)} before deleting this one.`)
       return
     }
-    if (category.id === fallbackCategoryId) {
-      setErrorMessage("The default category cannot be deleted.")
+    if (node.id === fallbackGroupId) {
+      setErrorMessage(`The default ${taxonomyLabels.group} cannot be deleted.`)
       return
     }
-    setDeletingCategory(category)
+    setDeletingCategory(node)
   }
 
-  const closeDeleteCategory = () => {
+  const closeDeleteTaxonomy = () => {
     if (deleteCategoryPendingAction !== null) return
     setDeletingCategory(null)
   }
 
-  const handleDeleteCategoryWithNotes = async () => {
+  const handleDeleteTaxonomySubtree = async () => {
     if (!deletingCategory) return
-    await performDeleteCategoryWithNotes(deletingCategory)
+    await performDeleteTaxonomySubtree(deletingCategory)
   }
 
-  const handleDeleteCategoryKeepUncategorized = async () => {
+  const handleDeleteTaxonomyReassign = async () => {
     if (!deletingCategory) return
-    await performDeleteCategoryKeepUncategorized(deletingCategory)
+    await performDeleteTaxonomyReassign(deletingCategory)
   }
 
   const openEditTag = (tag: TagRecord) => {
@@ -2872,7 +3001,7 @@ export default function NotesApp() {
           onLogout={handleLogout}
           maxOpenNotes={maxOpenNotes}
           onMaxOpenNotesChange={handleMaxOpenNotesChange}
-          categoryLabelById={categoryLabelById}
+          groupPathById={groupPathById}
           onSelectOpenNote={activateEntryInStore}
           onCloseOpenNote={handleCloseOpenNote}
           embeddingMaintenancePending={embeddingMaintenancePending}
@@ -2896,7 +3025,8 @@ export default function NotesApp() {
           editingNoteId={activeEntry?.noteId ?? null}
           userPresent={Boolean(user)}
           pasteUrlAsMarkdown={pasteUrlAsMarkdown}
-          categories={categories}
+          taxonomyIndex={taxonomyIndex}
+          taxonomyLabels={taxonomyLabels}
           tags={tags}
           pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
           // Keying the editor on the entry as well as the session id is what
@@ -2904,12 +3034,12 @@ export default function NotesApp() {
           descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
           editorAutofocus={activeEntry?.autofocus ?? false}
           editorRevealText={activeEntry?.revealText ?? null}
-          categoryInputValue={activeEntry?.categoryInputValue ?? ""}
-          onCategoryInputValueChange={handleCategoryInputValueChange}
-          createCategoryPending={createCategoryPending}
+          groupInputValue={activeEntry?.groupInputValue ?? ""}
+          onGroupInputValueChange={handleGroupInputValueChange}
+          createGroupPending={createCategoryPending}
           createTagPending={createTagPending}
-          onSelectCategoryId={handleSelectCategory}
-          onCreateCategory={handleCreateCategory}
+          onSelectGroupId={handleSelectGroup}
+          onCreateGroup={handleCreateGroup}
           onTagValuesChange={handleTagValuesChange}
           onCancelEdit={handleCancelEdit}
           onAddNote={handleCancelEdit}
@@ -2959,8 +3089,11 @@ export default function NotesApp() {
           tags={tags}
           notesCount={notes.length}
           notesLoading={notesLoading}
-          categories={categories}
-          fallbackCategoryId={fallbackCategoryId}
+          taxonomyTree={taxonomyTree}
+          taxonomyLabels={taxonomyLabels}
+          activePath={pathForGroup(taxonomyIndex, activeForm.selectedGroupId)}
+          allGroups={allGroups}
+          fallbackGroupId={fallbackGroupId}
           fallbackTagId={fallbackTagId}
           selectedTag={selectedTag}
           searchMode={searchMode}
@@ -2968,22 +3101,21 @@ export default function NotesApp() {
           searchLoading={searchLoading}
           allCategoryItems={allCategoryItems}
           allCategoriesNoteCount={allCategoriesNoteCount}
-          categoryNoteGroups={categoryNoteGroups}
           allTagItems={allNoteItems}
           tagNoteGroups={tagNoteGroups}
           activeNoteId={activeEntry?.noteId ?? null}
           openNoteIds={openNoteIds}
-          activeCategoryId={activeForm.selectedCategoryId}
+          activeGroupId={activeForm.selectedGroupId}
           activeTagIds={activeForm.selectedTagIds}
           onEditNote={handleOpenNoteFromResults}
-          onAddNoteForCategory={handleAddNoteForCategory}
+          onAddNoteForGroup={handleAddNoteForGroup}
           onAddNoteForTag={handleAddNoteForTag}
-          onMoveNoteCategory={handleMoveNoteCategory}
+          onMoveNoteToGroup={handleMoveNoteToGroup}
           onMoveNoteTag={handleMoveNoteTag}
           onDeleteNote={(noteId) => void handleDeleteNote(noteId)}
           deletingNoteId={deletingNoteId}
-          onEditCategory={openEditCategory}
-          onDeleteCategory={openDeleteCategory}
+          onEditTaxonomy={openEditTaxonomy}
+          onDeleteTaxonomy={openDeleteTaxonomy}
           onEditTag={openEditTag}
           onDeleteTag={openDeleteTag}
         />
@@ -2993,16 +3125,16 @@ export default function NotesApp() {
         category={editingCategory}
         label={editCategoryLabel}
         onLabelChange={setEditCategoryLabel}
-        onClose={closeEditCategory}
-        onSave={() => void handleSaveCategory()}
+        onClose={closeEditTaxonomy}
+        onSave={() => void handleSaveTaxonomy()}
         pending={editCategoryPending}
       />
 
       <DeleteCategoryModal
         category={deletingCategory}
-        onClose={closeDeleteCategory}
-        onDeleteWithNotes={() => void handleDeleteCategoryWithNotes()}
-        onKeepUncategorized={() => void handleDeleteCategoryKeepUncategorized()}
+        onClose={closeDeleteTaxonomy}
+        onDeleteWithNotes={() => void handleDeleteTaxonomySubtree()}
+        onKeepUncategorized={() => void handleDeleteTaxonomyReassign()}
         pendingAction={deleteCategoryPendingAction}
       />
 

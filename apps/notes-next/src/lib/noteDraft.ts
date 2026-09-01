@@ -16,7 +16,7 @@ export const snapshotNoteForm = (form: NoteFormState): NoteFormState => ({
 export const serializeNoteDraft = (noteId: NoteRef | null, form: NoteFormState) =>
   JSON.stringify({
     noteId,
-    categoryId: form.selectedCategoryId,
+    groupId: form.selectedGroupId,
     tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
     description: form.description,
     timeDue: form.dueExpanded ? form.timeDue : null,
@@ -24,7 +24,7 @@ export const serializeNoteDraft = (noteId: NoteRef | null, form: NoteFormState) 
   })
 
 export const noteRequestBody = (form: NoteFormState) => ({
-  categoryId: form.selectedCategoryId,
+  groupId: form.selectedGroupId,
   tagIds: form.selectedTagIds,
   description: form.description,
   timeDue: form.dueExpanded ? form.timeDue : null,
@@ -33,4 +33,11 @@ export const noteRequestBody = (form: NoteFormState) => ({
 
 /** Whether an entry holds anything worth sending to the server. */
 export const isSaveableForm = (form: NoteFormState) =>
-  form.description.trim() !== "" && form.selectedCategoryId !== null
+  form.description.trim() !== "" && form.selectedGroupId !== null
+
+/**
+ * Has content the user would expect to be stored, but cannot be sent yet.
+ * Autosave skips these silently, so the UI has to say so.
+ */
+export const isBlockedForm = (form: NoteFormState) =>
+  form.description.trim() !== "" && form.selectedGroupId === null

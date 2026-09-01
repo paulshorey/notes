@@ -21,6 +21,8 @@ import {
  */
 const STORAGE_KEY = "notes-open-notes-v1"
 
+export const OPEN_NOTES_SCHEMA_VERSION = 2
+
 /**
  * Clean entries older than this are dropped on load; they cost nothing to
  * reopen from the server. Dirty entries never expire — unsaved text does not
@@ -28,20 +30,25 @@ const STORAGE_KEY = "notes-open-notes-v1"
  */
 const CLEAN_ENTRY_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000
 
+/** A v1 form, before `selectedCategoryId` became `selectedGroupId`. */
+interface LegacyNoteFormState extends Omit<NoteFormState, "selectedGroupId"> {
+  selectedCategoryId?: number | null
+}
+
 interface PersistedEntry {
   key: OpenNoteKey
   noteId: number | null
   baseTimeModified: string | null
   form: NoteFormState
   savedSignature: string | null
-  categoryInputValue: string
+  groupInputValue: string
   pendingTagLabels: string[]
   openedAt: number
   lastActivatedAt: number
 }
 
 export interface OpenNotesSnapshot {
-  schemaVersion: 1
+  schemaVersion: 1 | 2
   userId: number
   activeKey: OpenNoteKey | null
   backStack: OpenNoteKey[]
@@ -66,9 +73,16 @@ const isPersistedEntry = (value: unknown): value is PersistedEntry => {
   return true
 }
 
+/**
+ * Accepts v1 as well as v2. Rejecting an older version here would not degrade
+ * gracefully: the caller reads `null` as "nothing to restore", so a version
+ * bump alone would silently discard every unsaved draft in every browser on the
+ * first load after deploy, with no error anywhere. `upgradeSnapshot` migrates
+ * instead.
+ */
 const isSnapshot = (value: unknown): value is OpenNotesSnapshot => {
   if (!isObject(value)) return false
-  if (value.schemaVersion !== 1) return false
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2) return false
   if (typeof value.userId !== "number" || !Number.isInteger(value.userId)) return false
   if (!Array.isArray(value.entries)) return false
   if (!Array.isArray(value.backStack)) return false
@@ -87,7 +101,7 @@ export const toSnapshot = (
   userId: number,
   state: OpenNotesState,
 ): OpenNotesSnapshot => ({
-  schemaVersion: 1,
+  schemaVersion: OPEN_NOTES_SCHEMA_VERSION,
   userId,
   activeKey: state.activeKey,
   backStack: state.backStack,
@@ -98,7 +112,7 @@ export const toSnapshot = (
     baseTimeModified: entry.baseTimeModified,
     form: entry.form,
     savedSignature: entry.savedSignature,
-    categoryInputValue: entry.categoryInputValue,
+    groupInputValue: entry.groupInputValue,
     pendingTagLabels: entry.pendingTagLabels,
     openedAt: entry.openedAt,
     lastActivatedAt: entry.lastActivatedAt,
@@ -212,6 +226,63 @@ export interface ReconcileResult {
 }
 
 /**
+ * Bring a v1 snapshot forward to v2.
+ *
+ * Two things have to happen together. The form's `selectedCategoryId` becomes
+ * the `selectedGroupId` of that category's seeded group, and `savedSignature`
+ * is recomputed for every entry that was clean — a v1 signature contains
+ * `categoryId` and can never match a v2 one, so leaving it would mark every
+ * restored note dirty and fire a save storm on the first load after deploy.
+ *
+ * Entries that were already dirty keep their old signature, because "dirty"
+ * is what they were and any non-matching value preserves that.
+ */
+export const upgradeSnapshot = (
+  snapshot: OpenNotesSnapshot,
+  defaultGroupForCategory: ((categoryId: number) => number | undefined) | undefined,
+): OpenNotesSnapshot => {
+  if (snapshot.schemaVersion === OPEN_NOTES_SCHEMA_VERSION) return snapshot
+
+  const entries = snapshot.entries.map((persisted) => {
+    const legacyForm = persisted.form as unknown as LegacyNoteFormState
+    const legacyCategoryId = legacyForm.selectedCategoryId ?? null
+
+    const selectedGroupId =
+      legacyCategoryId === null
+        ? null
+        : (defaultGroupForCategory?.(legacyCategoryId) ?? null)
+
+    const form: NoteFormState = {
+      ...(persisted.form as NoteFormState),
+      selectedGroupId,
+    }
+    delete (form as Partial<LegacyNoteFormState>).selectedCategoryId
+
+    const wasClean =
+      persisted.savedSignature !== null &&
+      persisted.savedSignature ===
+        JSON.stringify({
+          noteId: persisted.noteId,
+          categoryId: legacyCategoryId,
+          tagIds: [...legacyForm.selectedTagIds].sort((left, right) => left - right),
+          description: legacyForm.description,
+          timeDue: legacyForm.dueExpanded ? legacyForm.timeDue : null,
+          timeRemind: legacyForm.remindExpanded ? legacyForm.timeRemind : null,
+        })
+
+    return {
+      ...persisted,
+      form,
+      savedSignature: wasClean
+        ? serializeNoteDraft(persisted.noteId, form)
+        : persisted.savedSignature,
+    }
+  })
+
+  return { ...snapshot, schemaVersion: OPEN_NOTES_SCHEMA_VERSION, entries }
+}
+
+/**
  * Rebuild ring state from a snapshot against the notes that actually exist.
  *
  * Takes a lookup rather than an array so the whole-corpus assumption stays out
@@ -228,14 +299,24 @@ export const reconcileOpenNotes = (
   lookupNote: (noteId: number) => NoteRecord | undefined,
   options: {
     now?: number
-    categoryExists?: (categoryId: number) => boolean
+    groupExists?: (groupId: number) => boolean
     tagExists?: (tagId: number) => boolean
-    fallbackCategoryId?: number | null
+    fallbackGroupId?: number | null
+    /**
+     * v1 stored a flat category id. The migration creates one group under every
+     * category, so this mapping is total; without it an upgraded draft would
+     * land on the fallback group and lose its placement.
+     */
+    defaultGroupForCategory?: (categoryId: number) => number | undefined
+    /** Group labels live in the taxonomy tree, which this module does not hold. */
+    groupLabel?: (groupId: number) => string | undefined
   } = {},
 ): ReconcileResult => {
   const now = options.now ?? Date.now()
-  const categoryExists = options.categoryExists ?? (() => true)
+  const groupExists = options.groupExists ?? (() => true)
   const tagExists = options.tagExists ?? (() => true)
+  const upgraded = upgradeSnapshot(snapshot, options.defaultGroupForCategory)
+  snapshot = upgraded
 
   const entries: OpenNoteEntry[] = []
   let orphanedDraftCount = 0
@@ -250,7 +331,7 @@ export const reconcileOpenNotes = (
       savedSignature: persisted.savedSignature ?? null,
       saveStatus: "idle",
       editorSessionId: 0,
-      categoryInputValue: persisted.categoryInputValue ?? "",
+      groupInputValue: persisted.groupInputValue ?? "",
       pendingTagLabels: persisted.pendingTagLabels ?? [],
       revealText: null,
       autofocus: false,
@@ -299,7 +380,7 @@ export const reconcileOpenNotes = (
         form,
         baseTimeModified: record.timeModified,
         savedSignature: serializeNoteDraft(record.id, form),
-        categoryInputValue: record.category.label,
+        groupInputValue: options.groupLabel?.(record.groupId) ?? base.groupInputValue,
       })
       continue
     }
@@ -307,22 +388,21 @@ export const reconcileOpenNotes = (
     entries.push(base)
   }
 
-  // Repair references to categories and tags that no longer exist. Same rule:
+  // Repair references to groups and tags that no longer exist. Same rule:
   // this is not a user edit, so the signature moves with the form.
   const repaired = entries.map((entry) => {
-    const categoryOk =
-      entry.form.selectedCategoryId !== null && categoryExists(entry.form.selectedCategoryId)
+    const groupOk = entry.form.selectedGroupId !== null && groupExists(entry.form.selectedGroupId)
     const validTagIds = entry.form.selectedTagIds.filter(tagExists)
 
-    if (categoryOk && validTagIds.length === entry.form.selectedTagIds.length) {
+    if (groupOk && validTagIds.length === entry.form.selectedTagIds.length) {
       return entry
     }
 
     const form: NoteFormState = {
       ...entry.form,
-      selectedCategoryId: categoryOk
-        ? entry.form.selectedCategoryId
-        : (options.fallbackCategoryId ?? null),
+      selectedGroupId: groupOk
+        ? entry.form.selectedGroupId
+        : (options.fallbackGroupId ?? null),
       selectedTagIds: validTagIds,
     }
     const wasDirty = serializeNoteDraft(entry.noteId, entry.form) !== entry.savedSignature

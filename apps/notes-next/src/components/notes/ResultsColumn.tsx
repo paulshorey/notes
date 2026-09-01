@@ -1,6 +1,6 @@
 "use client"
 
-import type { CategoryRecord, NoteRecord, TagRecord } from "@lib/db-notes"
+import type { TaxonomyRecord, NoteRecord, TagRecord } from "@lib/db-notes"
 import {
   ArrowsLeftRight,
   DotsThreeVertical,
@@ -41,8 +41,22 @@ type MovePickerState =
       fromTagId: number
     }
 
+export interface GroupNoteGroup {
+  group: TaxonomyRecord
+  items: DisplayNoteItem[]
+  sortTime: number
+}
+
 export interface CategoryNoteGroup {
-  category: CategoryRecord
+  category: TaxonomyRecord
+  groups: GroupNoteGroup[]
+  items: DisplayNoteItem[]
+  sortTime: number
+}
+
+export interface EpicNoteGroup {
+  epic: TaxonomyRecord
+  categories: CategoryNoteGroup[]
   items: DisplayNoteItem[]
   sortTime: number
 }
@@ -59,8 +73,13 @@ interface ResultsColumnProps {
   tags: TagRecord[]
   notesCount: number
   notesLoading: boolean
-  categories: CategoryRecord[]
-  fallbackCategoryId: number | null
+  taxonomyTree: EpicNoteGroup[]
+  taxonomyLabels: { epic: string; category: string; group: string; note: string }
+  /** The active note's resolved path, used to open its ancestors on load. */
+  activePath: { epic: TaxonomyRecord; category: TaxonomyRecord; group: TaxonomyRecord } | null
+  /** Every group, flat, for the move picker. */
+  allGroups: TaxonomyRecord[]
+  fallbackGroupId: number | null
   fallbackTagId: number | null
   selectedTag: TagRecord | null
   searchMode: boolean
@@ -68,23 +87,22 @@ interface ResultsColumnProps {
   searchLoading: boolean
   allCategoryItems: DisplayNoteItem[]
   allCategoriesNoteCount: number
-  categoryNoteGroups: CategoryNoteGroup[]
   allTagItems: DisplayNoteItem[]
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
   /** Notes with an open entry, marked distinctly from the active one. */
   openNoteIds: number[]
-  activeCategoryId: number | null
+  activeGroupId: number | null
   activeTagIds: number[]
   onEditNote: (note: NoteRecord) => void
-  onAddNoteForCategory: (category: CategoryRecord) => void
+  onAddNoteForGroup: (group: TaxonomyRecord) => void
   onAddNoteForTag: (tag: TagRecord) => void
-  onMoveNoteCategory: (note: NoteRecord, categoryLabel: string) => void | Promise<void>
+  onMoveNoteToGroup: (note: NoteRecord, groupLabel: string) => void | Promise<void>
   onMoveNoteTag: (note: NoteRecord, fromTagId: number, tagLabel: string) => void | Promise<void>
   onDeleteNote: (noteId: number) => void
   deletingNoteId: number | null
-  onEditCategory: (category: CategoryRecord) => void
-  onDeleteCategory: (category: CategoryRecord) => void
+  onEditTaxonomy: (node: TaxonomyRecord) => void
+  onDeleteTaxonomy: (node: TaxonomyRecord) => void
   onEditTag: (tag: TagRecord) => void
   onDeleteTag: (tag: TagRecord) => void
 }
@@ -95,8 +113,11 @@ export function ResultsColumn({
   tags,
   notesCount,
   notesLoading,
-  categories,
-  fallbackCategoryId,
+  taxonomyTree,
+  taxonomyLabels,
+  activePath,
+  allGroups,
+  fallbackGroupId,
   fallbackTagId,
   selectedTag,
   searchMode,
@@ -104,22 +125,21 @@ export function ResultsColumn({
   searchLoading,
   allCategoryItems,
   allCategoriesNoteCount,
-  categoryNoteGroups,
   allTagItems,
   tagNoteGroups,
   activeNoteId,
   openNoteIds,
-  activeCategoryId,
+  activeGroupId,
   activeTagIds,
   onEditNote,
-  onAddNoteForCategory,
+  onAddNoteForGroup,
   onAddNoteForTag,
-  onMoveNoteCategory,
+  onMoveNoteToGroup,
   onMoveNoteTag,
   onDeleteNote,
   deletingNoteId,
-  onEditCategory,
-  onDeleteCategory,
+  onEditTaxonomy,
+  onDeleteTaxonomy,
   onEditTag,
   onDeleteTag,
 }: ResultsColumnProps) {
@@ -128,41 +148,25 @@ export function ResultsColumn({
   const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
   const didExpandActiveCategoryOnLoadRef = useRef(false)
   const {
-    manuallyExpandedCategoryId,
-    setManuallyExpandedCategoryId,
+    expandedTaxonomyIds,
+    toggleTaxonomyExpanded,
+    setTaxonomyExpanded,
     selectedTagId,
     setSelectedTagId,
   } = useNotesAppStore()
-  const visibleCategoryNoteGroups = categoryNoteGroups
+  const TREE_INDENT = 12
 
   useEffect(() => {
-    if (didExpandActiveCategoryOnLoadRef.current) {
-      return
-    }
-
-    if (activeCategoryId === null) {
-      return
-    }
-
-    if (!categories.some((category) => category.id === activeCategoryId)) {
-      return
-    }
+    if (didExpandActiveCategoryOnLoadRef.current) return
+    if (!activePath) return
 
     didExpandActiveCategoryOnLoadRef.current = true
-    setManuallyExpandedCategoryId(activeCategoryId)
-  }, [activeCategoryId, categories, setManuallyExpandedCategoryId])
-
-  useEffect(() => {
-    if (manuallyExpandedCategoryId === null) {
-      return
-    }
-
-    if (categories.some((category) => category.id === manuallyExpandedCategoryId)) {
-      return
-    }
-
-    setManuallyExpandedCategoryId(null)
-  }, [categories, manuallyExpandedCategoryId, setManuallyExpandedCategoryId])
+    // The whole path, not just the group: an ancestor left collapsed would
+    // hide the note the user is looking at.
+    setTaxonomyExpanded(activePath.epic.id, true)
+    setTaxonomyExpanded(activePath.category.id, true)
+    setTaxonomyExpanded(activePath.group.id, true)
+  }, [activePath, setTaxonomyExpanded])
 
   useEffect(() => {
     setExpandedTagId((current) => {
@@ -211,15 +215,15 @@ export function ResultsColumn({
     }
   }, [openActionMenuId])
 
-  const getFilteredNoteCount = (category: CategoryRecord, items: DisplayNoteItem[]) =>
-    selectedTag === null ? category.noteCount : items.length
+  const countFor = (node: TaxonomyRecord, items: DisplayNoteItem[]) =>
+    selectedTag === null ? node.noteCount : items.length
 
-  const isCategoryExpanded = (categoryId: number) => manuallyExpandedCategoryId === categoryId
+  const isExpanded = (taxonomyId: number) => expandedTaxonomyIds.includes(taxonomyId)
 
-  const toggleCategory = (categoryId: number) => {
+  const toggleExpanded = (taxonomyId: number) => {
     setOpenActionMenuId(null)
     setActiveMovePicker(null)
-    setManuallyExpandedCategoryId(manuallyExpandedCategoryId === categoryId ? null : categoryId)
+    toggleTaxonomyExpanded(taxonomyId)
   }
 
   const toggleTag = (tagId: ExpandedTagId) => {
@@ -246,7 +250,7 @@ export function ResultsColumn({
     setActiveMovePicker(null)
   }
 
-  const openCategoryMovePicker = (note: NoteRecord, categoryId: number) => {
+  const openGroupMovePicker = (note: NoteRecord, categoryId: number) => {
     setOpenActionMenuId(null)
     setActiveMovePicker({
       kind: "category",
@@ -294,12 +298,12 @@ export function ResultsColumn({
       return (
         <NoteMovePicker
           mode="category"
-          options={categories}
-          currentOptionIds={[note.category.id]}
+          options={allGroups}
+          currentOptionIds={[note.groupId]}
           inputPlaceholder="Enter new..."
-          emptyMessage="No other categories."
+          emptyMessage={`No other ${taxonomyLabels.group} to move to.`}
           onClose={closeMovePicker}
-          onSelect={(label) => onMoveNoteCategory(note, label)}
+          onSelect={(label) => onMoveNoteToGroup(note, label)}
         />
       )
     }
@@ -342,81 +346,162 @@ export function ResultsColumn({
               />
             </div>
           )}
-          <div className={styles.categoryAccordion} role="list" aria-label="Notes by category">
-            <div className={styles.accordionHeading}>Categories</div>
+          <div
+            className={styles.categoryAccordion}
+            role="tree"
+            aria-label={`${taxonomyLabels.note} by ${taxonomyLabels.category}`}
+          >
+            <div className={styles.accordionHeading}>{taxonomyLabels.epic}</div>
             {notesLoading ? (
               <div className={styles.categoryAccordionStatus}>
                 <Text variant="body-1" color="secondary">
                   Loading…
                 </Text>
               </div>
-            ) : categories.length === 0 ? (
+            ) : taxonomyTree.length === 0 ? (
               <div className={styles.categoryAccordionStatus}>
                 <Text variant="body-1" color="secondary">
-                  &ensp;No categories yet
+                  &ensp;Nothing here yet
                 </Text>
               </div>
             ) : (
               <>
-                {visibleCategoryNoteGroups.map(({ category, items }) => {
-                  const expanded = isCategoryExpanded(category.id)
-                  const panelId = `category-notes-${category.id}`
-                  const deleteDisabled = category.id === fallbackCategoryId
+                {taxonomyTree.map(({ epic, categories: categoryGroups, items: epicItems }) => {
+                  const epicExpanded = isExpanded(epic.id)
+                  const epicPanelId = `taxonomy-epic-${epic.id}`
+
                   return (
-                    <div className={styles.categoryGroup} key={category.id} role="listitem">
+                    <div className={styles.categoryGroup} key={epic.id} role="treeitem">
                       <div className={styles.categoryRow}>
                         <SectionTitle
-                          count={getFilteredNoteCount(category, items)}
-                          label={category.label}
-                          active={expanded}
-                          selected={activeCategoryId === category.id}
-                          expanded={expanded}
-                          panelId={panelId}
-                          onToggle={() => toggleCategory(category.id)}
+                          count={countFor(epic, epicItems)}
+                          label={epic.label}
+                          active={epicExpanded}
+                          selected={activePath?.epic.id === epic.id}
+                          expanded={epicExpanded}
+                          panelId={epicPanelId}
+                          onToggle={() => toggleExpanded(epic.id)}
                         >
-                          <SectionAddNoteButton
-                            label={`Add note in ${category.label}`}
-                            active={expanded}
-                            selected={activeCategoryId === category.id}
-                            onClick={() => {
-                              setManuallyExpandedCategoryId(category.id)
-                              onAddNoteForCategory(category)
-                            }}
-                          />
                           <SectionActionMenu
-                            id={`category-${category.id}`}
-                            label={category.label}
+                            id={`taxonomy-${epic.id}`}
+                            label={epic.label}
                             openActionMenuId={openActionMenuId}
                             onOpenActionMenuChange={setOpenActionMenuId}
-                            onEdit={() => onEditCategory(category)}
-                            onDelete={() => onDeleteCategory(category)}
-                            deleteDisabled={deleteDisabled}
-                            deleteTitle={
-                              deleteDisabled ? "The default category cannot be deleted" : undefined
-                            }
+                            onEdit={() => onEditTaxonomy(epic)}
+                            onDelete={() => onDeleteTaxonomy(epic)}
                           />
                         </SectionTitle>
                       </div>
-                      {expanded && items.length > 0 && (
-                        <ScrollableNotesPanel id={panelId}>
-                          <NoteResultsList
-                            items={items}
-                            activeNoteId={activeNoteId}
-                openNoteIds={openNoteIds}
-                            loading={false}
-                            emptyMessage=""
-                            onEdit={handleResultEdit}
-                            renderAction={(note) =>
-                              renderNoteRowAction(
-                                note,
-                                `category-${category.id}-note-${note.id}`,
-                                `category-${category.id}-note-${note.id}`,
-                                () => openCategoryMovePicker(note, category.id),
-                              )
-                            }
-                          />
-                        </ScrollableNotesPanel>
-                      )}
+
+                      {epicExpanded &&
+                        categoryGroups.map(
+                          ({ category, groups, items: categoryItems }) => {
+                            const categoryExpanded = isExpanded(category.id)
+                            const categoryPanelId = `taxonomy-category-${category.id}`
+
+                            return (
+                              <div
+                                className={styles.categoryGroup}
+                                key={category.id}
+                                role="treeitem"
+                                style={{ paddingLeft: TREE_INDENT }}
+                              >
+                                <div className={styles.categoryRow}>
+                                  <SectionTitle
+                                    count={countFor(category, categoryItems)}
+                                    label={category.label}
+                                    active={categoryExpanded}
+                                    selected={activePath?.category.id === category.id}
+                                    expanded={categoryExpanded}
+                                    panelId={categoryPanelId}
+                                    onToggle={() => toggleExpanded(category.id)}
+                                  >
+                                    <SectionActionMenu
+                                      id={`taxonomy-${category.id}`}
+                                      label={category.label}
+                                      openActionMenuId={openActionMenuId}
+                                      onOpenActionMenuChange={setOpenActionMenuId}
+                                      onEdit={() => onEditTaxonomy(category)}
+                                      onDelete={() => onDeleteTaxonomy(category)}
+                                    />
+                                  </SectionTitle>
+                                </div>
+
+                                {categoryExpanded &&
+                                  groups.map(({ group, items }) => {
+                                    const groupExpanded = isExpanded(group.id)
+                                    const panelId = `taxonomy-group-${group.id}`
+                                    const deleteDisabled = group.id === fallbackGroupId
+
+                                    return (
+                                      <div
+                                        className={styles.categoryGroup}
+                                        key={group.id}
+                                        role="treeitem"
+                                        style={{ paddingLeft: TREE_INDENT }}
+                                      >
+                                        <div className={styles.categoryRow}>
+                                          <SectionTitle
+                                            count={countFor(group, items)}
+                                            label={group.label}
+                                            active={groupExpanded}
+                                            selected={activeGroupId === group.id}
+                                            expanded={groupExpanded}
+                                            panelId={panelId}
+                                            onToggle={() => toggleExpanded(group.id)}
+                                          >
+                                            <SectionAddNoteButton
+                                              label={`Add ${taxonomyLabels.note} in ${group.label}`}
+                                              active={groupExpanded}
+                                              selected={activeGroupId === group.id}
+                                              onClick={() => {
+                                                setTaxonomyExpanded(group.id, true)
+                                                onAddNoteForGroup(group)
+                                              }}
+                                            />
+                                            <SectionActionMenu
+                                              id={`taxonomy-${group.id}`}
+                                              label={group.label}
+                                              openActionMenuId={openActionMenuId}
+                                              onOpenActionMenuChange={setOpenActionMenuId}
+                                              onEdit={() => onEditTaxonomy(group)}
+                                              onDelete={() => onDeleteTaxonomy(group)}
+                                              deleteDisabled={deleteDisabled}
+                                              deleteTitle={
+                                                deleteDisabled
+                                                  ? `The default ${taxonomyLabels.group} cannot be deleted`
+                                                  : undefined
+                                              }
+                                            />
+                                          </SectionTitle>
+                                        </div>
+                                        {groupExpanded && items.length > 0 && (
+                                          <ScrollableNotesPanel id={panelId}>
+                                            <NoteResultsList
+                                              items={items}
+                                              activeNoteId={activeNoteId}
+                                              openNoteIds={openNoteIds}
+                                              loading={false}
+                                              emptyMessage=""
+                                              onEdit={handleResultEdit}
+                                              renderAction={(note) =>
+                                                renderNoteRowAction(
+                                                  note,
+                                                  `group-${group.id}-note-${note.id}`,
+                                                  `group-${group.id}-note-${note.id}`,
+                                                  () => openGroupMovePicker(note, group.id),
+                                                )
+                                              }
+                                            />
+                                          </ScrollableNotesPanel>
+                                        )}
+                                      </div>
+                                    )
+                                  })}
+                              </div>
+                            )
+                          },
+                        )}
                     </div>
                   )
                 })}
@@ -817,7 +902,7 @@ function NoteActionMenu({
 
 interface NoteMovePickerProps {
   mode: "category" | "tag"
-  options: Array<CategoryRecord | TagRecord>
+  options: Array<TaxonomyRecord | TagRecord>
   currentOptionIds: number[]
   inputPlaceholder: string
   emptyMessage: string

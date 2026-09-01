@@ -354,7 +354,10 @@ export const registerNotesApiAdapterSuite = (
     })
 
     assert.equal(response.status, 200)
-    assert.deepEqual(response.body, { user: sampleUser })
+    assert.deepEqual(response.body, {
+      user: sampleUser,
+      taxonomyLevels: sampleTaxonomyLevels,
+    })
     assert.deepEqual(requests, [{ userId: sampleUser.id }])
   })
 
@@ -424,6 +427,7 @@ export const registerNotesApiAdapterSuite = (
           },
         },
       },
+      taxonomyLevels: sampleTaxonomyLevels,
     })
     assert.deepEqual(requests, [
       {
@@ -971,7 +975,7 @@ export const registerNotesApiAdapterSuite = (
       mode: "stale",
       processed: 2,
       updated: 2,
-      categoriesUpdated: 0,
+      taxonomyUpdated: 0,
       tagsUpdated: 0,
       hasMore: true,
     })

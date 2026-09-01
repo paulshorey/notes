@@ -13,7 +13,8 @@ import {
   useRef,
   useState,
 } from "react"
-import type { CategoryRecord, TagRecord } from "@lib/db-notes"
+import type { TagRecord } from "@lib/db-notes"
+import type { TaxonomyIndex } from "@/lib/taxonomyIndex"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
@@ -33,18 +34,19 @@ interface NoteFormProps {
   editingNoteId: number | null
   userPresent: boolean
   pasteUrlAsMarkdown?: boolean
-  categories: CategoryRecord[]
+  taxonomyIndex: TaxonomyIndex
+  taxonomyLabels: { epic: string; category: string; group: string; note: string }
   tags: TagRecord[]
   pendingTagLabels: string[]
   descriptionEditorSessionId: string | number
   editorAutofocus: boolean
   editorRevealText?: string | null
-  categoryInputValue: string
-  onCategoryInputValueChange: (value: string) => void
-  createCategoryPending: boolean
+  groupInputValue: string
+  onGroupInputValueChange: (value: string) => void
+  createGroupPending: boolean
   createTagPending: boolean
-  onSelectCategoryId: (rawId: string) => void
-  onCreateCategory: (label: string) => void | Promise<void>
+  onSelectGroupId: (rawId: string) => void
+  onCreateGroup: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
@@ -57,18 +59,19 @@ export function NoteForm({
   editingNoteId,
   userPresent,
   pasteUrlAsMarkdown = false,
-  categories,
+  taxonomyIndex,
+  taxonomyLabels,
   tags,
   pendingTagLabels,
   descriptionEditorSessionId,
   editorAutofocus,
   editorRevealText = null,
-  categoryInputValue,
-  onCategoryInputValueChange,
-  createCategoryPending,
+  groupInputValue,
+  onGroupInputValueChange,
+  createGroupPending,
   createTagPending,
-  onSelectCategoryId,
-  onCreateCategory,
+  onSelectGroupId,
+  onCreateGroup,
   onTagValuesChange,
   onCancelEdit,
   onDeleteEditingNote,
@@ -84,18 +87,35 @@ export function NoteForm({
   const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [tagInputValue, setTagInputValue] = useState("")
 
+  /**
+   * Groups, each labelled with its full path. One searchable list rather than
+   * three chained selects: the path is what disambiguates two groups with the
+   * same name, and typing part of any level finds it.
+   */
+  const groupOptions = useMemo(
+    () =>
+      [...taxonomyIndex.pathByGroupId.values()]
+        .map(({ epic, category, group }) => ({
+          id: group.id,
+          label: group.label,
+          path: `${epic.label} → ${category.label} → ${group.label}`,
+        }))
+        .sort((left, right) => left.path.localeCompare(right.path, undefined, { sensitivity: "base" })),
+    [taxonomyIndex],
+  )
+
   const selectedCategoryLabel =
-    form.selectedCategoryId === null
+    form.selectedGroupId === null
       ? ""
-      : (categories.find((category) => category.id === form.selectedCategoryId)?.label ?? "")
+      : (taxonomyIndex.byId.get(form.selectedGroupId)?.label ?? "")
 
   const filteredCategoryOptions = useMemo(() => {
-    const query = normalizeLabel(categoryInputValue)
-    if (query === "") {
-      return categories
-    }
-    return categories.filter((category) => normalizeLabel(category.label).includes(query))
-  }, [categories, categoryInputValue])
+    const query = normalizeLabel(groupInputValue)
+    if (query === "") return groupOptions
+    // Match on the whole path, so "work" finds every group under a "work"
+    // category as well as one named "work".
+    return groupOptions.filter((option) => normalizeLabel(option.path).includes(query))
+  }, [groupOptions, groupInputValue])
 
   const selectedTagLabels = useMemo(() => {
     const next = [
@@ -140,19 +160,19 @@ export function NoteForm({
 
   useEffect(() => {
     if (!categoryPickerOpen) {
-      onCategoryInputValueChange(selectedCategoryLabel)
+      onGroupInputValueChange(selectedCategoryLabel)
     }
-  }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
+  }, [categoryPickerOpen, onGroupInputValueChange, selectedCategoryLabel])
 
   const openCategoryDropdown = () => {
-    onCategoryInputValueChange("")
+    onGroupInputValueChange("")
     setCategoryPickerOpen(true)
     setTagPickerOpen(false)
     setMorePickerOpen(false)
   }
 
   const restoreCategoryInputValue = () => {
-    onCategoryInputValueChange(selectedCategoryLabel)
+    onGroupInputValueChange(selectedCategoryLabel)
   }
 
   const closeCategoryDropdown = () => {
@@ -179,16 +199,16 @@ export function NoteForm({
   }
 
   const selectCategory = (categoryId: number) => {
-    onSelectCategoryId(String(categoryId))
+    onSelectGroupId(String(categoryId))
     setCategoryPickerOpen(false)
   }
 
   const submitCategoryInput = () => {
-    const label = categoryInputValue.trim()
+    const label = groupInputValue.trim()
     if (label === "") {
       return
     }
-    const matchingCategory = categories.find(
+    const matchingCategory = groupOptions.find(
       (category) => normalizeLabel(category.label) === normalizeLabel(label),
     )
     if (matchingCategory) {
@@ -198,7 +218,7 @@ export function NoteForm({
     if (filteredCategoryOptions.length === 0) {
       void (async () => {
         try {
-          await onCreateCategory(label)
+          await onCreateGroup(label)
         } finally {
           setCategoryPickerOpen(false)
         }
@@ -365,7 +385,7 @@ export function NoteForm({
               type="button"
               className={styles.categoryTrigger}
               onClick={categoryPickerOpen ? closeCategoryDropdown : openCategoryDropdown}
-              disabled={!userPresent || createCategoryPending}
+              disabled={!userPresent || createGroupPending}
               aria-expanded={categoryPickerOpen}
               aria-haspopup="dialog"
             >
@@ -382,18 +402,18 @@ export function NoteForm({
               open={categoryPickerOpen}
               onClose={closeCategoryDropdown}
               placement={["top-start", "top-end", "bottom-start", "bottom-end"]}
-              listboxAriaLabel="Category options"
+              listboxAriaLabel={`${taxonomyLabels.group} options`}
               options={filteredCategoryOptions}
-              inputValue={categoryInputValue}
+              inputValue={groupInputValue}
               inputRef={categoryInputRef}
-              inputDisabled={!userPresent || createCategoryPending}
-              onInputChange={(value) => onCategoryInputValueChange(toLowercaseInput(value))}
+              inputDisabled={!userPresent || createGroupPending}
+              onInputChange={(value) => onGroupInputValueChange(toLowercaseInput(value))}
               onInputKeyDown={handleCategoryInputKeyDown}
               onInputSubmit={submitCategoryInput}
               onSelectOption={(category) => selectCategory(Number(category.id))}
-              isOptionActive={(category) => form.selectedCategoryId === Number(category.id)}
-              isOptionSelected={(category) => form.selectedCategoryId === Number(category.id)}
-              emptyWithoutQueryMessage="No categories yet"
+              isOptionActive={(category) => form.selectedGroupId === Number(category.id)}
+              isOptionSelected={(category) => form.selectedGroupId === Number(category.id)}
+              emptyWithoutQueryMessage={`No ${taxonomyLabels.group} yet`}
             />
           </div>
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}

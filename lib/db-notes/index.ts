@@ -14,6 +14,13 @@ export { listTaxonomyByUser } from "./sql/taxonomy";
 export { listTaxonomyLevelsForUser } from "./sql/taxonomy-level";
 export { listTagsByUser } from "./sql/tag";
 export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./sql/user";
+export {
+  DEFAULT_TAXONOMY_LEVEL_LABELS,
+  TAXONOMY_LEVEL_CATEGORY,
+  TAXONOMY_LEVEL_CONTENT,
+  TAXONOMY_LEVEL_EPIC,
+  TAXONOMY_LEVEL_GROUP,
+} from "./contracts/notes-app";
 
 export type {
   UserNoteCategoryV1Row,

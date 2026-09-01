@@ -37,7 +37,7 @@ export interface OpenNoteEntry {
   saveStatus: NoteSaveStatus
   /** Bumped to force the editor to remount within the same entry. */
   editorSessionId: number
-  categoryInputValue: string
+  groupInputValue: string
   pendingTagLabels: string[]
   /** Search term to scroll to and highlight; cleared once it has fired. */
   revealText: string | null
@@ -137,7 +137,7 @@ const createEntry = (
     savedSignature: null,
     saveStatus: "idle",
     editorSessionId: 0,
-    categoryInputValue: "",
+    groupInputValue: "",
     pendingTagLabels: [],
     revealText: null,
     autofocus: true,
@@ -246,6 +246,12 @@ const insertActivateEvict = (
 export const openExistingNote = (
   state: OpenNotesState,
   note: NoteRecord,
+  /**
+   * Resolved by the caller: a note carries only its group id, and these
+   * reducers stay free of the taxonomy tree so they remain pure and testable
+   * under the node runner.
+   */
+  groupLabel: string = "",
   cap: number = MAX_OPEN_NOTES_DEFAULT,
 ): OpenNotesResult => {
   const existing = findEntryByNoteId(state, note.id)
@@ -259,7 +265,7 @@ export const openExistingNote = (
     noteId: note.id,
     baseTimeModified: note.timeModified,
     form,
-    categoryInputValue: note.category.label,
+    groupInputValue: groupLabel,
   })
 
   return insertActivateEvict(state, entry, cap)
@@ -268,9 +274,9 @@ export const openExistingNote = (
 export const openNewDraft = (
   state: OpenNotesState,
   options: {
-    categoryId?: number | null
+    groupId?: number | null
     tagIds?: number[]
-    categoryLabel?: string
+    groupLabel?: string
   } = {},
   cap: number = MAX_OPEN_NOTES_DEFAULT,
 ): OpenNotesResult => {
@@ -283,10 +289,10 @@ export const openNewDraft = (
       ...active,
       form: {
         ...active.form,
-        selectedCategoryId: options.categoryId ?? active.form.selectedCategoryId,
+        selectedGroupId: options.groupId ?? active.form.selectedGroupId,
         selectedTagIds: options.tagIds ?? active.form.selectedTagIds,
       },
-      categoryInputValue: options.categoryLabel ?? active.categoryInputValue,
+      groupInputValue: options.groupLabel ?? active.groupInputValue,
       autofocus: true,
       editorSessionId: active.editorSessionId + 1,
     }
@@ -302,10 +308,10 @@ export const openNewDraft = (
   const entry = createEntry(`draft:${state.nextDraftSequence}`, {
     form: {
       ...createDefaultNoteForm(),
-      selectedCategoryId: options.categoryId ?? null,
+      selectedGroupId: options.groupId ?? null,
       selectedTagIds: options.tagIds ?? [],
     },
-    categoryInputValue: options.categoryLabel ?? "",
+    groupInputValue: options.groupLabel ?? "",
   })
 
   return insertActivateEvict({ ...state, nextDraftSequence: state.nextDraftSequence + 1 }, entry, cap)
