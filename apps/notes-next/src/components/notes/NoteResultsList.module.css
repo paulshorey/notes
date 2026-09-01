@@ -31,6 +31,19 @@
   color: var(--g-color-base-brand);
 }
 
+/* Open in the ring but not the note on screen: a rule rather than a color, so
+   it reads as "loaded" without competing with the active row. */
+.noteItemOpen::before {
+  content: "";
+  position: absolute;
+  inset-block: 3px;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--g-color-base-brand);
+  opacity: 0.45;
+}
+
 .noteLine {
   display: flex;
   align-items: center;

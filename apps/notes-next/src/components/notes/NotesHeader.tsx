@@ -2,10 +2,12 @@
 
 import type { FormEvent, KeyboardEvent } from "react"
 import { useEffect, useRef, useState } from "react"
-import { Button, Checkbox, Popup, Spin, Text, TextInput } from "@gravity-ui/uikit"
+import { Button, Checkbox, Popup, Select, Spin, Text, TextInput } from "@gravity-ui/uikit"
 import { Notification } from "@mantine/core"
 import {
+  ArrowLeft,
   Check,
+  ClockCounterClockwise,
   Cloud,
   MagnifyingGlass,
   SidebarSimple,
@@ -14,10 +16,18 @@ import {
   X,
 } from "@phosphor-icons/react"
 import type { UserSummary } from "@lib/db-notes"
-import { toLowercaseInput } from "@/lib/strings"
-import { useNotesAppStore } from "@/stores/notesAppStore"
+import { noteHeadline, toLowercaseInput } from "@/lib/strings"
+import {
+  selectActiveSaveStatus,
+  selectBackTarget,
+  selectHasBackgroundSaveActivity,
+  useNotesAppStore,
+} from "@/stores/notesAppStore"
+import type { OpenNoteKey } from "@/stores/openNotes"
 import type { EmbeddingMaintenanceMode, NoteSaveStatus } from "@/types/notes"
 import styles from "./NotesHeader.module.css"
+
+const OPEN_NOTES_CHOICES = [1, 3, 5, 10, 15, 20, 25]
 
 const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
   idle: "",
@@ -28,7 +38,7 @@ const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
 }
 
 function SaveStatusIndicator() {
-  const saveStatus = useNotesAppStore((state) => state.noteSaveStatus)
+  const saveStatus = useNotesAppStore(selectActiveSaveStatus)
 
   if (saveStatus === "idle") {
     return null
@@ -53,6 +63,110 @@ function SaveStatusIndicator() {
   )
 }
 
+function RecentNotesMenu({
+  categoryLabelById,
+  onSelect,
+  onClose,
+}: {
+  categoryLabelById: (categoryId: number | null) => string
+  onSelect: (key: OpenNoteKey) => void
+  onClose: (key: OpenNoteKey) => void
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = useState(false)
+  const openNotes = useNotesAppStore((state) => state.openNotes)
+  const activeKey = useNotesAppStore((state) => state.activeKey)
+  const hasBackgroundActivity = useNotesAppStore(selectHasBackgroundSaveActivity)
+
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        view="flat"
+        size="m"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="Recent notes"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title="Recent notes"
+        className={`${styles.headerButton} ${styles.recentButton}`}
+      >
+        <ClockCounterClockwise size={18} weight="regular" className={styles.headerIcon} />
+        {hasBackgroundActivity && <span className={styles.recentBadge} aria-hidden />}
+      </Button>
+
+      <Popup
+        anchorRef={triggerRef}
+        open={open}
+        onClose={() => setOpen(false)}
+        placement={["bottom-start", "bottom-end"]}
+        offset={6}
+      >
+        <div className={styles.recentMenu} role="menu" aria-label="Recent notes">
+          {openNotes.length === 0 ? (
+            <Text variant="caption-1" color="secondary" className={styles.recentEmpty}>
+              No open notes
+            </Text>
+          ) : (
+            openNotes.map((entry) => {
+              const isActive = entry.key === activeKey
+              const title = noteHeadline(entry.form.description)
+
+              return (
+                <div
+                  key={entry.key}
+                  className={`${styles.recentRow} ${isActive ? styles.recentRowActive : ""}`}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-current={isActive}
+                    className={styles.recentRowButton}
+                    onClick={() => {
+                      onSelect(entry.key)
+                      setOpen(false)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Delete" && event.key !== "Backspace") return
+                      event.preventDefault()
+                      onClose(entry.key)
+                    }}
+                  >
+                    <span className={styles.recentTitle}>{title}</span>
+                    <span className={styles.recentMeta}>
+                      {categoryLabelById(entry.form.selectedCategoryId)}
+                    </span>
+                  </button>
+                  <span
+                    className={styles.recentStatus}
+                    data-status={entry.saveStatus}
+                    aria-label={SAVE_STATUS_LABELS[entry.saveStatus] || undefined}
+                    title={SAVE_STATUS_LABELS[entry.saveStatus] || undefined}
+                  />
+                  <button
+                    type="button"
+                    className={styles.recentCloseButton}
+                    aria-label={`Close “${title}”`}
+                    title="Close"
+                    onClick={(event) => {
+                      // The row itself is clickable, so this must not also
+                      // activate the note it is removing.
+                      event.stopPropagation()
+                      onClose(entry.key)
+                    }}
+                  >
+                    <X size={12} weight="bold" />
+                  </button>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </Popup>
+    </>
+  )
+}
+
 export interface SignupFields {
   username: string
   email: string
@@ -67,6 +181,11 @@ interface NotesHeaderProps {
   onPasteUrlAsMarkdownChange: (enabled: boolean) => void
   onAddNote: () => void
   onLogout: () => void
+  maxOpenNotes: number
+  onMaxOpenNotesChange: (value: number) => void
+  categoryLabelById: (categoryId: number | null) => string
+  onSelectOpenNote: (key: OpenNoteKey) => void
+  onCloseOpenNote: (key: OpenNoteKey) => void
   embeddingMaintenancePending: EmbeddingMaintenanceMode | null
   onRunEmbeddingMaintenance: (mode: EmbeddingMaintenanceMode) => void
   identifier: string
@@ -88,6 +207,11 @@ export function NotesHeader({
   onPasteUrlAsMarkdownChange,
   onAddNote,
   onLogout,
+  maxOpenNotes,
+  onMaxOpenNotesChange,
+  categoryLabelById,
+  onSelectOpenNote,
+  onCloseOpenNote,
   embeddingMaintenancePending,
   onRunEmbeddingMaintenance,
   identifier,
@@ -111,6 +235,8 @@ export function NotesHeader({
   const searchQuery = useNotesAppStore((state) => state.searchQuery)
   const setSearchQuery = useNotesAppStore((state) => state.setSearchQuery)
   const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
+  const backTarget = useNotesAppStore(selectBackTarget)
+  const goBack = useNotesAppStore((state) => state.goBack)
   const trimmedSearchQuery = searchQuery.trim()
   const searchExpanded = searchOpen || trimmedSearchQuery !== ""
 
@@ -192,6 +318,27 @@ export function NotesHeader({
     </Checkbox>
   )
 
+  // A fixed set of choices rather than a free number field. Lowering the cap
+  // evicts immediately, so a text input would apply every intermediate value
+  // as you type — typing "15" would pass through 1 and close notes on the way.
+  const openNotesPreference = (
+    <div className={styles.userMenuSelectPreference}>
+      <Text variant="body-2">Keep open notes</Text>
+      <Select
+        size="s"
+        value={[String(maxOpenNotes)]}
+        onUpdate={([next]) => {
+          if (next !== undefined) onMaxOpenNotesChange(Number(next))
+        }}
+        options={OPEN_NOTES_CHOICES.map((count) => ({
+          value: String(count),
+          content: String(count),
+        }))}
+        width="max"
+      />
+    </div>
+  )
+
   return (
     <div className={styles.headerActions}>
       <div className={styles.headerBrand}>
@@ -210,6 +357,28 @@ export function NotesHeader({
           jot.new
         </span>
         <SaveStatusIndicator />
+
+        <Button
+          view="flat"
+          size="m"
+          onClick={goBack}
+          disabled={backTarget === null}
+          aria-label="Back to the previous note"
+          title={
+            backTarget
+              ? `Back to “${noteHeadline(backTarget.form.description)}”`
+              : "No previous note"
+          }
+          className={`${styles.headerButton} ${styles.backButton}`}
+        >
+          <ArrowLeft size={18} weight="regular" className={styles.headerIcon} />
+        </Button>
+
+        <RecentNotesMenu
+          categoryLabelById={categoryLabelById}
+          onSelect={onSelectOpenNote}
+          onClose={onCloseOpenNote}
+        />
       </div>
 
       <span className={styles.headerButtons}>
@@ -294,6 +463,7 @@ export function NotesHeader({
       <Popup anchorRef={userBtnRef} open={menuOpen} onClose={closeAuthMenu} placement="bottom-end">
         <div className={styles.userMenu}>
           {pasteUrlPreference}
+          {openNotesPreference}
           {isAnonymous ? (
             authMode === "signin" ? (
               <form

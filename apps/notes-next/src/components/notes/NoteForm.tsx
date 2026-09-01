@@ -6,7 +6,6 @@ import { FilterablePickerPopup } from "@/components/ui/FilterablePickerPopup"
 import { CalendarBlank, CaretDown, DotsThree, Plus, X } from "@phosphor-icons/react"
 import {
   type Dispatch,
-  type FormEvent,
   type KeyboardEvent,
   type SetStateAction,
   useEffect,
@@ -32,13 +31,12 @@ interface NoteFormProps {
   form: NoteFormState
   setForm: Dispatch<SetStateAction<NoteFormState>>
   editingNoteId: number | null
-  notePending: boolean
   userPresent: boolean
   pasteUrlAsMarkdown?: boolean
   categories: CategoryRecord[]
   tags: TagRecord[]
   pendingTagLabels: string[]
-  descriptionEditorSessionId: number
+  descriptionEditorSessionId: string | number
   editorAutofocus: boolean
   editorRevealText?: string | null
   categoryInputValue: string
@@ -48,7 +46,6 @@ interface NoteFormProps {
   onSelectCategoryId: (rawId: string) => void
   onCreateCategory: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
   onAddNote: () => void
@@ -73,7 +70,6 @@ export function NoteForm({
   onSelectCategoryId,
   onCreateCategory,
   onTagValuesChange,
-  onSubmit,
   onCancelEdit,
   onDeleteEditingNote,
   onAddNote,
@@ -325,7 +321,9 @@ export function NoteForm({
 
   return (
     <section className={styles.formColumn}>
-      <form className={styles.form} onSubmit={onSubmit}>
+      {/* Notes save in the background, so there is no submit action. Enter in a
+          date field would otherwise implicitly submit and reload the page. */}
+      <form className={styles.form} onSubmit={(event) => event.preventDefault()}>
         <div className={styles.formActions}>
           {showCancelButton && (
             <Button

@@ -46,6 +46,7 @@ import {
   listNotesStaleEmbeddingsByUser,
   parseNoteInput,
   searchNotesByEmbedding,
+  selectNoteEmbeddingStateById,
   updateNoteEmbeddingsForUser,
   updateNoteForUser,
 } from "../sql/note";
@@ -56,6 +57,7 @@ import {
 import {
   deleteCategoryForUser,
   deleteCategoryWithNotesForUser,
+  ensureDefaultCategoryForUser,
   getCategoryByIdForUser,
   getFirstCategoryForUser,
   listCategoriesByUser,
@@ -93,6 +95,7 @@ import {
   createNoteEmbeddingInput,
   createQueryEmbedding,
   createTagLabelEmbedding,
+  CURRENT_NOTE_EMBEDDING_MODEL,
   EmbeddingConfigurationError,
   EmbeddingRequestError,
 } from "./notes-embeddings";
@@ -432,9 +435,17 @@ export const listNotesForNotesApp = async (
 
 export const listCategoriesForNotesApp = async (
   request: CategoriesRequest
-): Promise<CategoriesResponse> => ({
-  categories: await listCategoriesByUser(request.userId),
-});
+): Promise<CategoriesResponse> => {
+  const client = await getDb().connect();
+
+  try {
+    await ensureDefaultCategoryForUser(client, request.userId);
+  } finally {
+    client.release();
+  }
+
+  return { categories: await listCategoriesByUser(request.userId) };
+};
 
 export const listTagsForNotesApp = async (
   request: TagsRequest
@@ -789,9 +800,79 @@ export const createNoteForNotesApp = async (
   return { note };
 };
 
+const normalizeDescriptionForCompare = (value: string | null | undefined) =>
+  (value ?? "").trim();
+
+/**
+ * Whether this update can reuse the stored embedding instead of paying for a
+ * Jina round-trip. All three conditions matter:
+ *
+ * 1. the description is unchanged — anything else is a new document;
+ * 2. an embedding actually exists — a create whose Jina call failed, or a row
+ *    inserted by the anonymous merge (which bypasses embed-on-write), must
+ *    still get repaired by ordinary editing;
+ * 3. it was written by the current model — otherwise notes would stop
+ *    migrating when the model is bumped.
+ *
+ * Conditions 2 and 3 mirror what `listNotesStaleEmbeddingsByUser` treats as
+ * needing work, so a skip only ever happens when the stored vector is already
+ * what a reindex would produce.
+ */
+const canReuseStoredEmbedding = (
+  stored: {
+    description: string | null;
+    has_embedding: boolean;
+    embedding_model: string | null;
+  } | null,
+  nextDescription: string | null | undefined
+) => {
+  if (!stored) return false;
+  if (
+    normalizeDescriptionForCompare(stored.description) !==
+    normalizeDescriptionForCompare(nextDescription)
+  ) {
+    return false;
+  }
+  // An empty description has no embedding by design; there is nothing to reuse
+  // and nothing to write.
+  if (normalizeDescriptionForCompare(nextDescription) === "") {
+    return stored.embedding_model === null && !stored.has_embedding;
+  }
+  return stored.has_embedding && stored.embedding_model === CURRENT_NOTE_EMBEDDING_MODEL;
+};
+
 export const updateNoteForNotesApp = async (
   request: UpdateNoteRequest
 ): Promise<NoteResponse | null> => {
+  const stored = await selectNoteEmbeddingStateById(
+    request.noteId,
+    request.userId
+  );
+
+  // Sidebar moves and due-date edits are description-preserving, and they were
+  // previously paying for a full re-embed.
+  const reuseStored = canReuseStoredEmbedding(stored, request.note.description);
+
+  if (reuseStored) {
+    const note = await updateNoteForUser(
+      request.noteId,
+      request.userId,
+      request.note,
+      null,
+      stored?.description ?? null
+    );
+
+    // The row still matched the description the skip was decided from, so the
+    // stored vector genuinely describes the stored text.
+    if (note) return { note };
+
+    // Either the note is gone or another client changed its description
+    // between the read above and this write. Falling through re-embeds, which
+    // is correct in the first case (it simply finds nothing) and required in
+    // the second, where reusing the old vector would leave the note and its
+    // embedding describing different text.
+  }
+
   const embeddings = await createNoteEmbeddingInput({
     description: request.note.description,
   });
