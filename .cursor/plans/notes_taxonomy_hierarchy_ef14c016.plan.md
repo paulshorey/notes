@@ -1,6 +1,6 @@
 ---
 name: Notes Taxonomy — Epic > Category > Group > Note hierarchy
-overview: Documents how notes are persisted today (flat single-category taxonomy plus many-to-many tags, saved asynchronously from a bounded ring of simultaneously open notes) and plans the extension to a four-level strict hierarchy — Epic > Category > Group > Note — where every child has exactly one parent, tags stay many-to-many on notes, every taxonomy level carries a label embedding for autocomplete, and semantic note search is simplified to compare the query against the note description embedding only. The tier names themselves are per-user editable data, including the word Note, which is what lets the same app manage tasks or any other content. The program branches only on the level number while a separate user_taxonomy_level_v1 table holds each user's words for levels 1-4. The hierarchy lives in one self-referencing user_taxonomy_v1 table whose depth, parent level, per-user ownership, and tier-definition existence are all enforced declaratively by composite foreign keys with no triggers. Rebased onto the merged multi-note editor (PR #69), Part 6 works through how the hierarchy fits the open-note ring — the note draft holds exactly one taxonomy id and it is the leaf group, which keeps the dirty-check signature honest and makes a taxonomy move cost zero note writes, and the localStorage snapshot must be upgraded rather than version-bumped or every unsaved draft is silently discarded. The DDL, the backfill, the tier-rename layer, and the search rewrite were prototyped and validated against a real PostgreSQL 17 + pgvector 0.8.6 cluster before this plan was written.
+overview: Documents how notes are persisted today (flat single-category taxonomy plus many-to-many tags, saved asynchronously from a bounded ring of simultaneously open notes) and plans the extension to a four-level strict hierarchy — Epic > Category > Group > Note — where every child has exactly one parent, tags stay many-to-many on notes, every taxonomy level carries a label embedding for autocomplete, and semantic note search is simplified to compare the query against the note description embedding only. The tier names themselves are per-user editable data, including the word Note, which is what lets the same app manage tasks or any other content. The program branches only on the level number while a separate user_taxonomy_level_v1 table holds each user's words for levels 1-4. The hierarchy lives in one self-referencing user_taxonomy_v1 table whose depth, parent level, per-user ownership, and tier-definition existence are all enforced declaratively by composite foreign keys with no triggers. Rebased onto the merged multi-note editor (PR #69), Part 6 works through how the hierarchy fits the open-note ring — the note draft holds exactly one taxonomy id and it is the leaf group, which keeps the dirty-check signature honest and makes a taxonomy move cost zero note writes, and the localStorage snapshot must be upgraded rather than version-bumped or every unsaved draft is silently discarded. Section 6.6 records five gaps found reviewing the ring against the hierarchy, two of which are live data-loss bugs in shipped code (a sidebar move sends last-saved text over the live draft, and an anonymous merge relocates a dirty open note), plus a reproduced label-upsert race and a roll-up query shape that is 5x cheaper. The DDL, the backfill, the tier-rename layer, the search rewrite, and the concurrency edge cases were prototyped and validated against a real PostgreSQL 17 + pgvector 0.8.6 cluster before this plan was written.
 todos:
   - id: schema_migration_phase1
     content: "Phase 1 (additive) migration: create user_taxonomy_level_v1 (per-user tier names for levels 1-4) and user_taxonomy_v1 (hierarchy, composite-FK level/ownership/tier-existence enforcement, partial HNSW label indexes); seed the Epic/Category/Group/Note vocabulary for every user FIRST; backfill an epic + a level-2 row per existing category + a group per category, all auto-created items labelled 'uncategorized'; add user_note_v1.group_id (+ pinned group_level) and backfill from category_id. Leaves user_note_category_v1 and user_note_v1.category_id in place."
@@ -35,6 +35,15 @@ todos:
   - id: taxonomy_remap_and_blocked_state
     content: "Make taxonomy edits safe against N concurrent background writers: rename remapEntriesAfterCategoryChange to remapEntriesAfterTaxonomyChange, handle a group dying because an ancestor was deleted, remap detachedSavesRef as well as the ring (a gap that exists today), always remap before issuing the delete, and add a 'blocked' NoteSaveStatus so an unsaveable entry stops failing silently"
     status: pending
+  - id: fix_sidebar_move_clobber
+    content: "Fix live data loss found reviewing the ring (6.6a): patchNoteFromSidebar sends the last-saved description rather than the live draft, and applyServerNoteToEntry then overwrites the entry's form and marks it clean, so moving an open note within the 3s autosave window silently discards the user's typing. When the note is open, make a sidebar move a draft edit on the entry and let autosave carry it; keep the direct PATCH only for notes that are not open."
+    status: pending
+  - id: merge_returns_taxonomy_remap
+    content: "Have the anonymous merge return the id remap it already computes and apply it to ring entries and detachedSavesRef before reconciliation, recomputing savedSignature for entries that were clean (6.6b). Without it, a dirty open note whose pre-merge flush failed is silently relocated to the fallback group, losing its whole path."
+    status: pending
+  - id: upsert_race_and_rollup_shape
+    content: "Two measured server-side fixes (6.6c, 6.6d): change the label-resolve upsert from ON CONFLICT DO NOTHING + UNION ALL SELECT to ON CONFLICT DO UPDATE ... RETURNING id, which returns zero rows under concurrent creation of the same label and makes the service throw (reproduced on PG 17.11) — apply to tags too; and implement listTaxonomyByUser's subtree counts as fixed-depth aggregates rather than a recursive CTE, 5.5 ms vs 26-31 ms at 20k notes, keeping the recursive form in tests as the oracle. Also add the transactional POST /api/taxonomy/path (6.6e)."
+    status: pending
   - id: frontend
     content: Rework NotesApp/ResultsColumn/NoteForm/NotesHeader/notesAppStore/notesCache from two flat accordions into a hierarchy tree with a three-step picker (picker navigation state on the entry, not the form) and id-based hierarchical URL state
     status: pending
@@ -65,9 +74,20 @@ architecture as it actually exists, including the new ring (section 1.3a).
 The database design is unaffected by the ring: the schema, the migration and the
 search rewrite stand as validated. What the ring changes is the client contract
 for a note's taxonomy field, and **Part 6** is devoted to it. Read Part 6 before
-touching anything under `apps/notes-next` — two of its findings (the signature
-field in 6.1 and the localStorage version trap in 6.3) are silent-data-loss
-bugs if missed.
+touching anything under `apps/notes-next`.
+
+Four of its findings are silent-data-loss bugs, all of which fail without an
+error and two of which are live in shipped code today:
+
+|      | Finding                                                                       | Status               |
+| ---- | ----------------------------------------------------------------------------- | -------------------- |
+| 6.1  | Dropping the taxonomy id from the draft signature makes a move never autosave | risk in the new work |
+| 6.3  | Bumping the `localStorage` schema version discards every unsaved draft        | risk in the new work |
+| 6.6a | A sidebar move sends the last-saved text and overwrites the live draft        | **live today**       |
+| 6.6b | An anonymous merge relocates a dirty open note to the fallback group          | **live today**       |
+
+Section 6.4 covers a fifth, the silent-no-save trap, which has already cost this
+project a full round of manual testing against an empty table.
 
 Every schema statement, constraint and query plan in Part 2 was prototyped
 against a real PostgreSQL 17.11 + pgvector 0.8.6 cluster before this plan was
@@ -603,10 +623,11 @@ durable identifier breaks the moment someone renames a tier. Concretely:
   literals — `<div className={styles.accordionHeading}>Categories</div>`,
   `aria-label="Notes by category"`, "Add note", and so on: roughly two dozen
   such strings across eight files, listed in section 7.1.
-- Singular/plural: the table stores one word per tier. The UI needs "Category"
-  and "Categories". Recommendation for now is naive pluralization at the display
-  layer, with a `label_plural` column as the escape hatch if a user picks a word
-  it mangles. Adding that column later is additive and cheap.
+- Singular only (decision 4.4-7). The table stores one word per tier and the UI
+  renders it verbatim — a sidebar heading reads `Category`, not `Categories`.
+  There is no pluralization step and no `label_plural` column, because guessing
+  a plural for a word the user invented is a bug generator. Adding the column
+  later is additive if it ever matters.
 
 ## 2.4 Recommended schema: the hierarchy table
 
@@ -916,16 +937,22 @@ that serialize a merge against a concurrent claim, and the hard-won rule that
 the inlined `VALUES` remap statements must not be passed unused bind parameters
 (that bug aborted every merge in production once).
 
-`user_taxonomy_level_v1` is `drop` — **recommended, and a deliberate divergence
-from the preferences precedent.** Preferences carry anon values over because
-"key present means the visitor customized it", and the same test is available
-here (a tier label differing from the seeded default means it was renamed). The
-reason not to is product, not technical: silently renaming every tier in an
-established account because a visitor relabelled theirs before signing in is a
-far bigger surprise than inheriting a column width. The destination account's
-vocabulary should win. Flag this for the product owner, since it contradicts the
-earlier "anon wins" decision on preferences; carrying it over is a small change
-if they prefer consistency.
+`user_taxonomy_level_v1` is `drop` — **decided**. The destination account's tier
+vocabulary wins; an anonymous visitor's rename does not survive the merge. This
+is a deliberate divergence from the "anon wins" rule on preferences, on the
+grounds that silently renaming every tier in an established account is a far
+bigger surprise than inheriting a column width.
+
+The same decision fixes the merge's semantics generally: **merge final state by
+label, and do not track how that state was reached.** No rename history, no
+attempt to recognize that an anon row "is really" a destination row under a new
+name. Concretely, if a visitor started from a category that also exists in the
+destination account and then renamed it, the renamed category merges in as a
+**separate second row** alongside the original. That is exactly what
+`dedup-remap` already does — dedup is by final label, and a renamed label simply
+does not collide — so the level-ordered walk above needs no extra machinery. It
+is worth stating explicitly because the alternative (matching on identity to
+"follow" a rename) is a plausible-sounding design that this decision rejects.
 
 Note that the merge order now matters for a new reason: the destination user
 already has tier definitions, so no level rows need creating, but the level FK
@@ -1122,12 +1149,15 @@ API surface:
    needed — but the sibling-label unique constraint can reject a move into a
    parent that already has that label, and the API must surface that as a
    conflict rather than a 500.
-6. **Does an anonymous visitor's tier rename survive a merge?** Recommended
-   `drop` (the destination account's vocabulary wins), which diverges from the
-   earlier "anon wins" decision on preferences. Reasoning in section 3.4.
-7. **Singular vs plural tier names.** The table stores one word; the UI needs
-   both ("Category" / "Categories"). Recommendation: naive pluralization at the
-   display layer now, with an additive `label_plural` column as the escape hatch.
+6. **Does an anonymous visitor's tier rename survive a merge?** **Decided: no.**
+   Strategy `drop`; merge final state by label with no rename tracking. Full
+   reasoning and its consequence for renamed categories in section 3.4.
+7. **Singular vs plural tier names.** **Decided: singular only.** The table
+   stores exactly one word per tier and the UI uses it verbatim everywhere. No
+   pluralization at the display layer and no `label_plural` column — do not
+   guess a plural form. A sidebar heading therefore reads `Category`, not
+   `Categories`. If that reads badly enough to matter, adding `label_plural`
+   later is additive and cheap; until then, "no guessing" is the rule.
 8. **Are tier names per user, or per user _and_ content type?** Today one user
    has exactly one vocabulary. If notes and tasks should eventually have
    _different_ tier names, this table needs a content-type dimension and the
@@ -1515,7 +1545,181 @@ the plan does not propose using it, but the field is there when conflict
 detection is wanted, and the taxonomy work does not make the situation worse
 because it does not add any new client-writable taxonomy field to the note.
 
-## 6.6 What does not change
+## 6.6 Gaps found reviewing the ring against the hierarchy
+
+Five things that a straightforward implementation gets wrong. Two are bugs that
+exist in shipped code today and that the hierarchy widens; three are choices the
+plan previously left underspecified. Each was checked against the code or the
+database rather than reasoned about.
+
+### 6.6a A sidebar move silently discards unsaved text
+
+**This is live data loss today, not a hypothetical.** `patchNoteFromSidebar`
+builds its payload from the `NoteRecord` in the `notes` array — server state —
+not from the open entry's live draft:
+
+```ts
+body: JSON.stringify({
+  userId: user.id,
+  noteId: note.id,
+  note: {
+    categoryId: nextCategoryId,
+    tagIds: nextTagIds,
+    description: note.description ?? "",   // ← last-saved text, not the draft
+    …
+```
+
+and `applyServerNoteToEntry` then overwrites the entry's whole form with the
+response and recomputes `savedSignature`:
+
+```ts
+const form = noteToFormState(note)
+patchEntry(entry.key, {
+  form,
+  baseTimeModified: note.timeModified,
+  savedSignature: serializeNoteDraft(note.id, form),
+  …
+```
+
+So: type into an open note, and within the 3-second autosave debounce move that
+same note from the sidebar. The PATCH carries the _old_ description, the
+response carries the old description, the entry adopts it, and the signature is
+recomputed so the entry reads **clean**. The typing is gone from the screen and
+was never sent. Outside the debounce window the autosave has already landed and
+the move is harmless, which is why this survived review — it is a race the ring
+created and only reproduces inside a 3-second window.
+
+The existing code already knows the two writes can race; `patchNoteFromSidebar`
+registers on `saveInFlightRef` under the entry's key with a comment about
+ordering. Ordering was necessary but not sufficient: the payload itself is
+stale.
+
+**Fix, and it simplifies things.** When the note is open in the ring, a sidebar
+move should not issue its own PATCH at all. It should patch `selectedGroupId` on
+the entry — a normal draft edit — and let the existing autosave carry it with
+the live text. Only when the note is _not_ open does the direct PATCH path
+apply. That removes the stale-payload class of bug entirely, removes the need to
+register on `saveInFlightRef` for this case, and means one code path writes a
+note instead of two.
+
+This must be fixed as part of the hierarchy work rather than after it, because
+the hierarchy multiplies sidebar move affordances: moving between groups, and
+re-parenting a group or a category.
+
+### 6.6b The anonymous merge loses taxonomy placement for dirty entries
+
+`readOpenNotesSnapshotForAnyUser` re-keys the snapshot to the new user id and
+lets reconciliation repair references, with this reasoning in the code:
+
+> Note rows are reparented and keep their ids, but categories and tags are
+> dedup-remapped, so re-key the snapshot and let reconciliation repair the
+> references. `handleLogin` already flushed everything, so nothing here is
+> unsaved.
+
+The flush makes entries clean, and clean entries adopt the server record, so the
+remap is invisible. But a flush is best-effort: `flushAllPendingSaves` collects
+results and a save can fail (offline, 5xx), leaving an entry dirty. A dirty
+entry keeps its local draft, whose group id belongs to the anonymous user's now
+deleted taxonomy row, so `groupExists` is false and reconciliation sends it to
+the **fallback group** — the note's placement is silently lost, and with three
+levels that is a whole path rather than one category.
+
+Fix: have the merge return the id remap it already computes in memory
+(`categoryRemap` / `tagRemap` today, three taxonomy levels after this change),
+and apply it to ring entries **and** `detachedSavesRef` before reconciliation,
+recomputing `savedSignature` for entries that were clean. Returning the map is
+nearly free — the merge builds it anyway — and it turns a silent relocation into
+an exact one.
+
+### 6.6c The label-upsert race, reproduced
+
+`resolveCategoryIdForUser` / `resolveTagIdForUser` use this shape:
+
+```sql
+WITH inserted AS (
+  INSERT INTO … VALUES ($1, $2) ON CONFLICT (user_id, label) DO NOTHING
+  RETURNING id
+)
+SELECT id FROM inserted
+UNION ALL
+SELECT id FROM … WHERE user_id = $1 AND label = $2
+LIMIT 1
+```
+
+with `if (!rows[0]) throw new Error("Failed to resolve note category.")`.
+
+Under a concurrent insert of the same label that has not yet committed, the
+`DO NOTHING` skips and the `SELECT` — running on the statement's snapshot —
+cannot see the uncommitted row, so the statement returns **zero rows** and the
+service throws. Reproduced on PostgreSQL 17.11 against the plan's schema:
+
+```
+--- session B runs the shipped resolve pattern while A is uncommitted ---
+ id
+----
+(0 rows)
+    ^ zero rows here means the service throws 'Failed to resolve'
+
+--- the DO UPDATE variant, same contention ---
+ id
+----
+ 13
+```
+
+The ring makes this materially more reachable: N notes are open, each can create
+a group, and creating the same group name from two of them at once is an obvious
+user action. Fix is one line — `ON CONFLICT … DO UPDATE SET label = EXCLUDED.label
+RETURNING id`, which takes the row lock, waits, and always returns an id.
+Carry the same fix to tags while touching this code.
+
+### 6.6d Roll-up counts: fixed-depth aggregates, not a recursive CTE
+
+Section 2.6 demonstrated subtree counts with a recursive CTE. That was the right
+tool for proving correctness at arbitrary depth, but the depth is fixed at three
+and `GET /api/taxonomy` is now refetched on a coalesced 4-second debounce while
+notes autosave in the background, so this query runs often.
+
+Measured on one user with 1 epic, 23 categories, 463 groups and 20,005 notes,
+three runs each:
+
+| Roll-up shape                                   | Execution time |
+| ----------------------------------------------- | -------------- |
+| Recursive CTE over `parent_id`                  | 26–31 ms       |
+| Fixed-depth aggregate (group → category → epic) | 5.5 ms         |
+
+Roughly 5x, and the two agree on every row (`rows_where_they_disagree = 0`, and
+the epic roll-up equals the total note count). Use the fixed-depth form in
+`listTaxonomyByUser`. Keep the recursive version in the test suite as the
+independent oracle the fixed-depth one is checked against — that is what proved
+them equal here.
+
+### 6.6e Creating a whole path should be one request
+
+The picker lets a user name a new epic, a new category and a new group in one
+gesture. Doing that as three sequential `POST /api/taxonomy` calls has two
+problems: three round trips inside a save, and a failure after the first leaves
+a stray epic with no children. Nothing is corrupted — the constraints hold — but
+it is untidy and user-visible.
+
+Add `POST /api/taxonomy/path` taking `{ epicLabel, categoryLabel, groupLabel }`
+(any prefix may be existing ids instead) and resolving the chain in one
+transaction, returning the group id. It reuses `resolveTaxonomyIdForUser` per
+level with the 6.6c fix, and gives the client a single call to await before a
+save.
+
+### 6.6f Why the `notesCache` key bump is load-bearing
+
+Section 7.1 says to bump the `notes-app-cache-v1` key. That is not only hygiene.
+`rehydrateOpenNotes` runs twice — once against the cached paint, once against
+the fresh fetch with `force: true` — and it passes whatever taxonomy it has into
+`reconcileOpenNotes`. If a stale v1 cache were readable, the first pass would run
+with **no** taxonomy, every entry's group would fail `groupExists`, and clean
+entries would be rewritten to the fallback with a recomputed signature before the
+second pass could correct them. Bumping the key means there is no cache to paint
+from on the first load after deploy, so the cold path runs a single reconcile
+against real data. Bump it in the same commit as the storage upgrade.
+
+## 6.7 What does not change
 
 Worth stating so the implementer does not go looking:
 
@@ -1577,10 +1781,21 @@ files, updated for the post-#69 architecture:
   Per decision 4.4-2, the group step should be able to auto-create a default.
   The form has no submit control and must not gain one.
 - **`src/components/notes/NotesHeader.tsx`** — recent-notes rows currently show
-  `categoryLabelById(entry.form.selectedCategoryId)`. With a hierarchy this
-  needs a decision: group label alone, or an abbreviated breadcrumb. Recommend
-  the group label with the full path as the row's `title`, since the row is
-  already dense with a headline, a save-status dot and a close control.
+  `categoryLabelById(entry.form.selectedCategoryId)` on the same line as the
+  headline. **Decided:** show the full breadcrumb, `Epic → Category → Group`, on
+  a **second line** beneath the headline, because the path is too long to share
+  a row with a save-status dot and a close control. Notes for the implementer:
+  - Resolve the path by walking up from `entry.form.selectedGroupId`; do not
+    store it on the entry. A `useMemo` over the taxonomy tree keyed by the tree
+    and the group id gives every row its path in one pass. It must not be a
+    store selector that builds an object — that hangs the app (see the store
+    selector note below).
+  - Truncate per segment with `text-overflow: ellipsis` rather than truncating
+    the whole string, so the group — the most specific and most useful segment —
+    survives. Put the untruncated path in the row's `title`.
+  - A never-saved draft with no group yet has no path. Render nothing rather
+    than a placeholder arrow chain.
+  - The row is a button; the second line must not be separately focusable.
 - **`src/components/ui/FilterablePickerPopup.tsx`** — generic filter/select/
   create popup, already used for both categories and tags. Extend it with an
   async suggestion source so it can call `/api/taxonomy/suggest`.
@@ -1708,6 +1923,14 @@ the only real gate on the Android side.
    `openNotesStorage.ts` v1 → v2 upgrade, with their tests. This is the step
    where a mistake silently destroys user drafts, so it is worth landing and
    reviewing on its own rather than buried in a UI diff.
+
+   The two live bugs in 6.6a and 6.6b can be fixed **independently of this plan
+   and shipped first** — neither depends on the hierarchy, both discard user
+   text today, and fixing 6.6a in particular removes a whole write path that
+   would otherwise have to be ported to groups. Doing them first also means
+   their fixes get reviewed on their own evidence rather than inside a large
+   taxonomy diff.
+
 4. Land the `notes-next` API routes, then the UI.
 5. Land the Android contract updates; `contracts:check`; build the APK.
 6. Deploy: `pnpm run release:notes:prepare`, run `db:migrate` against the target
@@ -1745,23 +1968,28 @@ Clear `localStorage`, reload, and check `user_note_v1.group_id` and
 
 # Part 9 — Risks
 
-| Risk                                                                                                                                                                                                                    | Mitigation                                                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Silent search-recall regression if someone "optimizes" the simplified query onto the HNSW index — it passes review and passes a manual test on a well-populated account, then returns nothing for the smallest accounts | Documented in 5.2 with a reproduction; add an adapter-suite test that seeds one user with many notes and another with a handful and asserts _both_ get a full page of results                 |
-| Backfill leaves notes without a group                                                                                                                                                                                   | `SET NOT NULL` in the same migration fails the transaction; plus the 3.3 structural invariants in `db:verify`                                                                                 |
-| `db:verify` fails after merge because `verify-contract.mjs` was not updated                                                                                                                                             | Called out as the known top cause; update it in the same commit as the migration                                                                                                              |
-| Anonymous merge loses data on the three-level remap                                                                                                                                                                     | Level-ordered remap (3.4), `FOR UPDATE` locks preserved, expanded DB-backed regression tests                                                                                                  |
-| Released APK breaks when `/api/categories` disappears                                                                                                                                                                   | Keep a read-only level-2 alias until the APK is rebuilt (4.2)                                                                                                                                 |
-| Autocomplete returns nothing after rollout                                                                                                                                                                              | Embeddings are NULL until step 6 runs; the literal prefix half of the hybrid still works, which is why hybrid is recommended                                                                  |
-| Phase 2 runs before the new code deploys                                                                                                                                                                                | Two separate migrations; phase 1 is additive and leaves the old table readable                                                                                                                |
-| Code branches on a tier _label_ instead of `level`, so a rename breaks filtering, routing or cached state                                                                                                               | The guardrail in 2.3: ids and `level` in every URL, cache key and API filter; labels are render-time only                                                                                     |
-| A new user is created without tier definitions, so their first taxonomy write fails the level FK                                                                                                                        | `ensureTaxonomyLevelsForUser` on the user-creation path (4.3), plus the "every user has all four tier definitions" invariant in `db:verify` (3.3)                                             |
-| A user renames a tier to a word the naive pluralizer mangles                                                                                                                                                            | Cosmetic only; additive `label_plural` column is the escape hatch (4.4-7)                                                                                                                     |
-| **Bumping `notes-open-notes-v1` to v2 silently discards every unsaved draft in every browser** — `isSnapshot` rejects an unknown version and the caller reads `null` as "nothing to restore"                            | Upgrade the snapshot instead of rejecting it, mapping each v1 `categoryId` to that category's seeded group, and recompute `savedSignature`; unit-tested in `open-notes-storage.test.ts` (6.3) |
-| A restored draft loads dirty because its v1 signature can never match a v2 signature, firing a save storm on first load after deploy                                                                                    | The upgrade recomputes `savedSignature` for entries that were clean; the existing "no unedited entry loads dirty" test covers exactly this                                                    |
-| `serializeNoteDraft` omits `groupId`, so moving a note between groups never autosaves and shows no error                                                                                                                | Called out in 6.1 and 7.1 as the highest-consequence line in the client change; add a test that a group change alone marks an entry dirty                                                     |
-| Notes silently never save because no valid group exists — the failure that made a whole manual test campaign write to an empty table                                                                                    | Three defenses in 6.4: migration seeds the chain, `ensureDefaultTaxonomyChainForUser` repairs lazily on read, and a `blocked` save status makes the skip visible                              |
-| A taxonomy delete leaves a detached save pointing at a dead group, so a background request 400s for a note the user cannot see                                                                                          | Remap the ring **and** `detachedSavesRef` before issuing the delete (6.5); this closes a gap that exists today                                                                                |
+| Risk                                                                                                                                                                                                                                          | Mitigation                                                                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Silent search-recall regression if someone "optimizes" the simplified query onto the HNSW index — it passes review and passes a manual test on a well-populated account, then returns nothing for the smallest accounts                       | Documented in 5.2 with a reproduction; add an adapter-suite test that seeds one user with many notes and another with a handful and asserts _both_ get a full page of results                 |
+| Backfill leaves notes without a group                                                                                                                                                                                                         | `SET NOT NULL` in the same migration fails the transaction; plus the 3.3 structural invariants in `db:verify`                                                                                 |
+| `db:verify` fails after merge because `verify-contract.mjs` was not updated                                                                                                                                                                   | Called out as the known top cause; update it in the same commit as the migration                                                                                                              |
+| Anonymous merge loses data on the three-level remap                                                                                                                                                                                           | Level-ordered remap (3.4), `FOR UPDATE` locks preserved, expanded DB-backed regression tests                                                                                                  |
+| Released APK breaks when `/api/categories` disappears                                                                                                                                                                                         | Keep a read-only level-2 alias until the APK is rebuilt (4.2)                                                                                                                                 |
+| Autocomplete returns nothing after rollout                                                                                                                                                                                                    | Embeddings are NULL until step 6 runs; the literal prefix half of the hybrid still works, which is why hybrid is recommended                                                                  |
+| Phase 2 runs before the new code deploys                                                                                                                                                                                                      | Two separate migrations; phase 1 is additive and leaves the old table readable                                                                                                                |
+| Code branches on a tier _label_ instead of `level`, so a rename breaks filtering, routing or cached state                                                                                                                                     | The guardrail in 2.3: ids and `level` in every URL, cache key and API filter; labels are render-time only                                                                                     |
+| A new user is created without tier definitions, so their first taxonomy write fails the level FK                                                                                                                                              | `ensureTaxonomyLevelsForUser` on the user-creation path (4.3), plus the "every user has all four tier definitions" invariant in `db:verify` (3.3)                                             |
+| A user renames a tier to a word the naive pluralizer mangles                                                                                                                                                                                  | Cosmetic only; additive `label_plural` column is the escape hatch (4.4-7)                                                                                                                     |
+| **Bumping `notes-open-notes-v1` to v2 silently discards every unsaved draft in every browser** — `isSnapshot` rejects an unknown version and the caller reads `null` as "nothing to restore"                                                  | Upgrade the snapshot instead of rejecting it, mapping each v1 `categoryId` to that category's seeded group, and recompute `savedSignature`; unit-tested in `open-notes-storage.test.ts` (6.3) |
+| A restored draft loads dirty because its v1 signature can never match a v2 signature, firing a save storm on first load after deploy                                                                                                          | The upgrade recomputes `savedSignature` for entries that were clean; the existing "no unedited entry loads dirty" test covers exactly this                                                    |
+| `serializeNoteDraft` omits `groupId`, so moving a note between groups never autosaves and shows no error                                                                                                                                      | Called out in 6.1 and 7.1 as the highest-consequence line in the client change; add a test that a group change alone marks an entry dirty                                                     |
+| Notes silently never save because no valid group exists — the failure that made a whole manual test campaign write to an empty table                                                                                                          | Three defenses in 6.4: migration seeds the chain, `ensureDefaultTaxonomyChainForUser` repairs lazily on read, and a `blocked` save status makes the skip visible                              |
+| A taxonomy delete leaves a detached save pointing at a dead group, so a background request 400s for a note the user cannot see                                                                                                                | Remap the ring **and** `detachedSavesRef` before issuing the delete (6.5); this closes a gap that exists today                                                                                |
+| **A sidebar move discards unsaved text** — the PATCH carries the last-saved description and the response overwrites the live draft and marks it clean. Live today inside the 3s autosave window, and the hierarchy adds more move affordances | When the note is open, make a sidebar move a draft edit on the entry and let autosave carry it, instead of a second write path with a stale payload (6.6a)                                    |
+| An anonymous merge relocates a dirty open note to the fallback group, losing its whole path, when the pre-merge flush did not fully succeed                                                                                                   | Return the id remap the merge already computes and apply it to the ring and `detachedSavesRef` before reconciling, recomputing signatures (6.6b)                                              |
+| Two open notes create the same group name at once and the resolve throws "Failed to resolve" — reproduced on PG 17.11, returns zero rows                                                                                                      | `ON CONFLICT … DO UPDATE SET label = EXCLUDED.label RETURNING id`, which always returns a row under contention; same fix for tags (6.6c)                                                      |
+| The taxonomy refetch runs every few seconds while notes autosave, and a recursive-CTE roll-up makes it ~5x more expensive than it needs to be                                                                                                 | Fixed-depth aggregate roll-up, 5.5 ms vs 26–31 ms at 20k notes; keep the recursive form in tests as the oracle (6.6d)                                                                         |
+| A partially created epic/category/group chain is left behind when the picker's second or third create call fails                                                                                                                              | One transactional `POST /api/taxonomy/path` that resolves the whole chain and returns the group id (6.6e)                                                                                     |
 
 ---
 
@@ -1845,8 +2073,28 @@ hypothetical v2 code rather than shipped behavior, so it is a demonstration, not
 a regression test. The regression tests that _should_ be committed with the
 implementation are listed in section 7.1.
 
+**`hierarchy_concurrency_edge_cases.log`** — the two database-level edge cases
+in section 6.6, run against a scratch database whose schema was **rebuilt from
+this plan's own sections 2.3, 2.4 and the backfill appendix**. That rebuild is
+itself a check: the plan is complete enough to implement the schema from without
+reference to the earlier prototype scripts, which did not survive the VM.
+
+- The label-upsert race (6.6c): with a concurrent uncommitted insert of the same
+  label, the shipped `ON CONFLICT DO NOTHING` + `UNION ALL SELECT` pattern
+  returns 0 rows, which makes the service throw; the `DO UPDATE … RETURNING id`
+  variant returns the id.
+- The roll-up shape (6.6d): 1 epic, 23 categories, 463 groups, 20,005 notes.
+  Recursive CTE 26–31 ms across three runs, fixed-depth aggregate 5.5 ms, zero
+  rows of disagreement between them, and the epic roll-up equal to the total
+  note count.
+
 The existing suites were also run after merging `main` into this branch:
 `pnpm --filter notes-next test` passes 72/72.
+
+The two client-side gaps in 6.6a and 6.6b were established by reading the
+shipped code paths rather than by execution — `patchNoteFromSidebar`,
+`applyServerNoteToEntry` and `rehydrateOpenNotes` are quoted directly in those
+sections so the reasoning can be checked against the source.
 
 ## Validated phase-1 backfill SQL
 
