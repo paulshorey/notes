@@ -80,10 +80,16 @@ export const ensureDefaultCategoryForUser = async (
   client: PoolClient,
   userId: number
 ) => {
+  // Only for an account with none at all. Seeding unconditionally would add an
+  // "uncategorized" category to every existing user, including those who have
+  // deliberately curated their own set.
   await client.query(
     `
       INSERT INTO public.user_note_category_v1 (user_id, label)
-      VALUES ($1, $2)
+      SELECT $1, $2
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.user_note_category_v1 WHERE user_id = $1
+      )
       ON CONFLICT (user_id, label) DO NOTHING
     `,
     [userId, DEFAULT_CATEGORY_LABEL]
