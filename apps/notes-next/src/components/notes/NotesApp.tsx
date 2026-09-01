@@ -2426,12 +2426,63 @@ export default function NotesApp() {
     return data.tag
   }
 
+  /**
+   * Apply a sidebar move to a note that is open in the ring, by editing its
+   * draft and saving that.
+   *
+   * The direct PATCH path below builds its body from the `NoteRecord` in
+   * `notes`, which holds the *last saved* text. Sending that for an entry the
+   * user has been typing into, and then adopting the response, overwrites the
+   * live draft with older text and recomputes `savedSignature` so the entry
+   * reads clean — the typing is gone and no save will ever carry it. That is
+   * only reachable inside the autosave debounce, which is exactly when a user
+   * types and then reaches for the sidebar.
+   *
+   * Editing the draft instead keeps the live text, and one code path writes the
+   * note. Returns false when the note has no open entry, so the caller falls
+   * back to the direct PATCH.
+   */
+  const moveOpenNoteFromSidebar = async (
+    note: NoteRecord,
+    applyMove: (form: NoteFormState) => NoteFormState,
+  ): Promise<boolean> => {
+    if (!user) return false
+    const key = useNotesAppStore
+      .getState()
+      .openNotes.find((entry) => entry.noteId === note.id)?.key
+    if (!key) return false
+
+    patchEntryForm(key, applyMove)
+    // Awaited rather than left to the debounce so the sidebar reflects the move
+    // now; `saveEntry` reads the entry's current form, so the live text goes
+    // with it.
+    const persisted = await saveEntryRef.current(key, "flush")
+    if (!persisted) throw new Error("The note could not be saved, so it was not moved.")
+    await refreshResults(user.id)
+    return true
+  }
+
+  /**
+   * Sidebar move for a note with no open entry. Its body is built from the
+   * stored `NoteRecord`, which is only safe because there is no draft that
+   * could be newer — `moveOpenNoteFromSidebar` handles the open case and this
+   * asserts the split rather than trusting callers to remember it.
+   */
   const patchNoteFromSidebar = async (
     note: NoteRecord,
     nextCategoryId: number,
     nextTagIds: number[],
   ) => {
     if (!user) return null
+
+    const openEntry = useNotesAppStore
+      .getState()
+      .openNotes.find((entry) => entry.noteId === note.id)
+    if (openEntry) {
+      throw new Error(
+        "Refusing to move an open note from its stored copy: that would send the last saved text over the live draft. Use moveOpenNoteFromSidebar.",
+      )
+    }
 
     const request = (async () => {
       const response = await fetch("/api/notes", {
@@ -2452,30 +2503,9 @@ export default function NotesApp() {
       return readJson<{ note: NoteRecord }>(response)
     })()
 
-    // Register under the entry's key so an autosave for the same note queues
-    // behind this write instead of racing it. Without this, moving an open,
-    // dirty note from the sidebar could land in either order.
-    const openKey = useNotesAppStore
-      .getState()
-      .openNotes.find((entry) => entry.noteId === note.id)?.key
-    if (openKey) {
-      saveInFlightRef.current.set(
-        openKey,
-        request.then(
-          () => undefined,
-          () => undefined,
-        ),
-      )
-    }
-
-    let data: { note: NoteRecord }
-    try {
-      data = await request
-    } finally {
-      if (openKey && saveInFlightRef.current.has(openKey)) {
-        saveInFlightRef.current.delete(openKey)
-      }
-    }
+    // No `saveInFlightRef` registration: this path only runs for notes with no
+    // open entry, so there is no autosave for it to race.
+    const data = await request
     await refreshResults(user.id)
     return data.note
   }
@@ -2488,12 +2518,18 @@ export default function NotesApp() {
       if (!category) return
       if (category.id === note.category.id) return
 
-      const updatedNote = await patchNoteFromSidebar(
-        note,
-        category.id,
-        note.tags.map((tag) => tag.id),
-      )
-      if (updatedNote) applyServerNoteToEntry(updatedNote)
+      const moved = await moveOpenNoteFromSidebar(note, (form) => ({
+        ...form,
+        selectedCategoryId: category.id,
+      }))
+      if (!moved) {
+        const updatedNote = await patchNoteFromSidebar(
+          note,
+          category.id,
+          note.tags.map((tag) => tag.id),
+        )
+        if (updatedNote) applyServerNoteToEntry(updatedNote)
+      }
       setStatusMessage(`Note moved to “${category.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -2512,8 +2548,14 @@ export default function NotesApp() {
         .map((noteTag) => noteTag.id)
       nextTagIds.push(tag.id)
 
-      const updatedNote = await patchNoteFromSidebar(note, note.category.id, nextTagIds)
-      if (updatedNote) applyServerNoteToEntry(updatedNote)
+      const moved = await moveOpenNoteFromSidebar(note, (form) => ({
+        ...form,
+        selectedTagIds: nextTagIds,
+      }))
+      if (!moved) {
+        const updatedNote = await patchNoteFromSidebar(note, note.category.id, nextTagIds)
+        if (updatedNote) applyServerNoteToEntry(updatedNote)
+      }
       setStatusMessage(`Note tag changed to “${tag.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
