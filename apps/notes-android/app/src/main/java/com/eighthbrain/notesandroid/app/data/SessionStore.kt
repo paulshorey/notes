@@ -21,7 +21,10 @@ private val Context.notesAndroidDataStore: DataStore<Preferences> by preferences
 private object PreferenceKeys {
     val userJson = stringPreferencesKey("user_json")
     val apiToken = stringPreferencesKey("api_token")
-    val categoriesJson = stringPreferencesKey("categories_json")
+    // New key names: the stored shape changed from a flat category list to a
+    // tree, so an old blob must not be read back as one.
+    val taxonomyJson = stringPreferencesKey("taxonomy_json")
+    val taxonomyLevelsJson = stringPreferencesKey("taxonomy_levels_json")
     val tagsJson = stringPreferencesKey("tags_json")
     val notesJson = stringPreferencesKey("notes_json")
     val lastSearchQuery = stringPreferencesKey("last_search_query")
@@ -55,7 +58,8 @@ class SessionStore(
                 preferences[PreferenceKeys.apiToken] = snapshot.apiToken
             }
 
-            preferences[PreferenceKeys.categoriesJson] = categoriesToJson(snapshot.categories)
+            preferences[PreferenceKeys.taxonomyJson] = taxonomyListToJson(snapshot.taxonomy)
+            preferences[PreferenceKeys.taxonomyLevelsJson] = taxonomyLevelsToJson(snapshot.taxonomyLevels)
             preferences[PreferenceKeys.tagsJson] = tagsToJson(snapshot.tags)
             preferences[PreferenceKeys.notesJson] = notesToJson(snapshot.notes)
             preferences[PreferenceKeys.lastSearchQuery] = snapshot.lastSearchQuery
@@ -91,8 +95,11 @@ class SessionStore(
                     runCatching { userFromJson(applyUserSummaryDefaults(JSONObject(raw))) }.getOrNull()
                 },
             apiToken = this[PreferenceKeys.apiToken],
-            categories =
-                runCatching { categoriesFromJson(this[PreferenceKeys.categoriesJson]) }
+            taxonomy =
+                runCatching { taxonomyListFromJson(this[PreferenceKeys.taxonomyJson]) }
+                    .getOrDefault(emptyList()),
+            taxonomyLevels =
+                runCatching { taxonomyLevelsFromJson(this[PreferenceKeys.taxonomyLevelsJson]) }
                     .getOrDefault(emptyList()),
             tags = runCatching { tagsFromJson(this[PreferenceKeys.tagsJson]) }.getOrDefault(emptyList()),
             notes = runCatching { notesFromJson(this[PreferenceKeys.notesJson]) }.getOrDefault(emptyList()),

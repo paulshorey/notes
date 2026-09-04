@@ -62,6 +62,34 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
     }
   })
 
+  /**
+   * Users created with raw SQL here bypass createAnonymousUser, which is what
+   * seeds the tier vocabulary in production. Without it the composite level
+   * foreign key rejects every taxonomy insert.
+   */
+  const seedTaxonomyLevels = (userId: number) =>
+    getDb().query(
+      `INSERT INTO public.user_taxonomy_level_v1 (user_id, level, label)
+       SELECT $1, v.level, v.label
+       FROM (VALUES (1,'Epic'),(2,'Category'),(3,'Group'),(4,'Note')) AS v(level, label)
+       ON CONFLICT DO NOTHING`,
+      [userId],
+    )
+
+  const insertTaxonomy = async (
+    userId: number,
+    level: number,
+    parentId: number | null,
+    label: string,
+  ) => {
+    const { rows } = await getDb().query<{ id: number }>(
+      `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [userId, level, parentId, label],
+    )
+    return rows[0]!.id
+  }
+
   test("reassigns notes, dedupes labels, merges preferences, deletes the anon row", async () => {
     // The merge's embedding backfill must degrade gracefully when Jina is not
     // configured; keep the test hermetic by guaranteeing that state.
@@ -84,12 +112,15 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
       )
       realUserId = realUser.rows[0]!.id
 
-      const realCategory = await db.query<{ id: number }>(
-        `INSERT INTO public.user_note_category_v1 (user_id, label)
-         VALUES ($1, 'shared') RETURNING id`,
-        [realUserId],
+      await seedTaxonomyLevels(realUserId)
+      const realEpicId = await insertTaxonomy(realUserId, 1, null, "shared-epic")
+      const realSharedCategoryId = await insertTaxonomy(realUserId, 2, realEpicId, "shared")
+      const realSharedGroupId = await insertTaxonomy(
+        realUserId,
+        3,
+        realSharedCategoryId,
+        "shared",
       )
-      const realSharedCategoryId = realCategory.rows[0]!.id
 
       const realTag = await db.query<{ id: number }>(
         `INSERT INTO public.user_note_tag_v1 (user_id, label)
@@ -99,9 +130,9 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
       const realImportantTagId = realTag.rows[0]!.id
 
       await db.query(
-        `INSERT INTO public.user_note_v1 (user_id, category_id, description)
+        `INSERT INTO public.user_note_v1 (user_id, group_id, description)
          VALUES ($1, $2, 'pre-existing real note')`,
-        [realUserId, realSharedCategoryId],
+        [realUserId, realSharedGroupId],
       )
 
       // --- Anonymous (source) account. createAnonymousUser seeds the default
@@ -114,14 +145,19 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
         JSON.stringify({ notesApp: { resultsColumnWidth: 321 } }),
       ])
 
-      const anonCategories = await db.query<{ id: number; label: string }>(
-        `INSERT INTO public.user_note_category_v1 (user_id, label)
-         VALUES ($1, 'shared'), ($1, 'anon-only')
-         RETURNING id, label`,
-        [anonUserId],
+      // The visitor's tree overlaps the destination account's on label, which
+      // is what the dedup path has to collapse. "anon-only" does not overlap
+      // and must arrive as a new row.
+      const anonEpicId = await insertTaxonomy(anonUserId, 1, null, "shared-epic")
+      const anonSharedCategoryId = await insertTaxonomy(anonUserId, 2, anonEpicId, "shared")
+      const anonOnlyCategoryId = await insertTaxonomy(anonUserId, 2, anonEpicId, "anon-only")
+      const anonSharedGroupId = await insertTaxonomy(
+        anonUserId,
+        3,
+        anonSharedCategoryId,
+        "shared",
       )
-      const anonSharedCategoryId = anonCategories.rows.find((row) => row.label === "shared")!.id
-      const anonOnlyCategoryId = anonCategories.rows.find((row) => row.label === "anon-only")!.id
+      const anonOnlyGroupId = await insertTaxonomy(anonUserId, 3, anonOnlyCategoryId, "inbox")
 
       const anonImportantTag = await db.query<{ id: number }>(
         `SELECT id FROM public.user_note_tag_v1 WHERE user_id = $1 AND label = 'important'`,
@@ -130,10 +166,10 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
       const anonImportantTagId = anonImportantTag.rows[0]!.id
 
       const anonNotes = await db.query<{ id: number; description: string }>(
-        `INSERT INTO public.user_note_v1 (user_id, category_id, description)
+        `INSERT INTO public.user_note_v1 (user_id, group_id, description)
          VALUES ($1, $2, 'anon note in shared'), ($1, $3, 'anon note in anon-only')
          RETURNING id, description`,
-        [anonUserId, anonSharedCategoryId, anonOnlyCategoryId],
+        [anonUserId, anonSharedGroupId, anonOnlyGroupId],
       )
       const anonSharedNoteId = anonNotes.rows.find(
         (row) => row.description === "anon note in shared",
@@ -161,9 +197,9 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
       const notes = await db.query<{
         description: string
         user_id: number
-        category_id: number
+        group_id: number
       }>(
-        `SELECT description, user_id, category_id FROM public.user_note_v1
+        `SELECT description, user_id, group_id FROM public.user_note_v1
          WHERE user_id = $1 ORDER BY description`,
         [realUserId],
       )
@@ -172,17 +208,33 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
         ["anon note in anon-only", "anon note in shared", "pre-existing real note"],
       )
       const mergedSharedNote = notes.rows.find((row) => row.description === "anon note in shared")!
-      assert.equal(mergedSharedNote.category_id, realSharedCategoryId)
+      assert.equal(mergedSharedNote.group_id, realSharedGroupId)
 
-      // Categories deduped by label: exactly one "shared", plus "anon-only".
+      // Deduped by label within each parent: one "shared" category, plus the
+      // visitor's "anon-only". A renamed row would arrive as an extra row
+      // rather than following the rename, which is the intended behavior.
       const categories = await db.query<{ label: string }>(
-        `SELECT label FROM public.user_note_category_v1
-         WHERE user_id = $1 ORDER BY label`,
+        `SELECT label FROM public.user_taxonomy_v1
+         WHERE user_id = $1 AND level = 2 ORDER BY label`,
         [realUserId],
       )
+      // "uncategorized" comes from the visitor's own seeded chain, which is
+      // real data and merges like anything else.
       assert.deepEqual(
         categories.rows.map((row) => row.label),
-        ["anon-only", "shared"],
+        ["anon-only", "shared", "uncategorized"],
+      )
+
+      // The remap is what lets the client repair an open note whose draft still
+      // points at an anonymous group id. Without it that note silently falls
+      // back to a default group and loses its placement.
+      const groupRemap = result.remaps.taxonomy.find(
+        (entry) => entry.anonId === anonSharedGroupId,
+      )
+      assert.equal(groupRemap?.realId, realSharedGroupId)
+      assert.equal(
+        result.remaps.taxonomy.some((entry) => entry.anonId === anonOnlyGroupId),
+        true,
       )
 
       // Tags deduped: one "important", and the tag link was remapped from the
@@ -240,6 +292,7 @@ describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
         [`merge-test-real-${suffix}`, JSON.stringify({ notesApp: { resultsColumnWidth: 555 } })],
       )
       realUserId = realUser.rows[0]!.id
+      await seedTaxonomyLevels(realUserId)
 
       const anonUser = await createAnonymousUser()
       anonUserId = anonUser.id

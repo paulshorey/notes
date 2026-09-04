@@ -42,7 +42,7 @@ export const stateWithDetachedSaves = (
       savedSignature: save.savedSignature,
       saveStatus: "idle",
       editorSessionId: 0,
-      categoryInputValue: "",
+      groupInputValue: "",
       pendingTagLabels: [],
       revealText: null,
       autofocus: false,

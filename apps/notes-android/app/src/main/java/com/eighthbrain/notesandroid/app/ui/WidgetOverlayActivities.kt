@@ -47,7 +47,7 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import com.eighthbrain.notesandroid.app.NotesApplication
 import com.eighthbrain.notesandroid.app.data.NotesRepository
-import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.TaxonomyRecord
 import com.eighthbrain.notesandroid.app.model.TagRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.headline
@@ -350,7 +350,7 @@ private fun WidgetCategoryPickerScreen(
     finishOverlay: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var categories by remember { mutableStateOf<List<CategoryRecord>>(emptyList()) }
+    var categories by remember { mutableStateOf<List<TaxonomyRecord>>(emptyList()) }
     var totalNoteCount by remember { mutableStateOf(0) }
     var activeId by remember { mutableStateOf<Int?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -379,7 +379,7 @@ private fun WidgetCategoryPickerScreen(
 
     LaunchedEffect(repository) {
         val snapshot = repository.readSnapshot()
-        categories = snapshot.categories
+        categories = snapshot.groups
         totalNoteCount = snapshot.notes.size
         val appContext = context.applicationContext
         val manager = GlanceAppWidgetManager(appContext)
@@ -412,7 +412,7 @@ private fun WidgetCategoryPickerScreen(
         }
     }
 
-    fun startEdit(category: CategoryRecord) {
+    fun startEdit(category: TaxonomyRecord) {
         editingId = category.id
         editingDraft = category.label
         deletingId = null
@@ -432,8 +432,8 @@ private fun WidgetCategoryPickerScreen(
             busy = true
             error = null
             try {
-                val snapshot = repository.updateCategory(id, trimmed)
-                categories = snapshot.categories
+                val snapshot = repository.renameTaxonomy(id, trimmed)
+                categories = snapshot.groups
                 totalNoteCount = snapshot.notes.size
                 editingId = null
                 editingDraft = ""
@@ -445,7 +445,7 @@ private fun WidgetCategoryPickerScreen(
         }
     }
 
-    fun startDelete(category: CategoryRecord) {
+    fun startDelete(category: TaxonomyRecord) {
         editingId = null
         editingDraft = ""
         error = null
@@ -459,8 +459,8 @@ private fun WidgetCategoryPickerScreen(
                 busy = true
                 error = null
                 try {
-                    val snapshot = repository.deleteCategory(category.id)
-                    categories = snapshot.categories
+                    val snapshot = repository.deleteTaxonomy(category.id)
+                    categories = snapshot.groups
                     totalNoteCount = snapshot.notes.size
                     if (activeId == category.id) {
                         writeWidgetFilter(null)
@@ -487,8 +487,8 @@ private fun WidgetCategoryPickerScreen(
             busy = true
             error = null
             try {
-                val snapshot = repository.deleteCategory(id)
-                categories = snapshot.categories
+                val snapshot = repository.deleteTaxonomy(id)
+                categories = snapshot.groups
                 totalNoteCount = snapshot.notes.size
                 deletingId = null
                 if (activeId == id) {
@@ -515,7 +515,7 @@ private fun WidgetCategoryPickerScreen(
         CategoriesPopupList(
             categories = categories,
             totalNoteCount = totalNoteCount,
-            selectedCategoryId = activeId,
+            selectedGroupId = activeId,
             editingCategoryId = editingId,
             editingDraft = editingDraft,
             deletingCategoryId = deletingId,
@@ -731,11 +731,11 @@ private fun WidgetNoteEditorScreen(
     noteId: Int?,
     finishOverlay: () -> Unit,
 ) {
-    var categories by remember { mutableStateOf<List<CategoryRecord>>(emptyList()) }
+    var categories by remember { mutableStateOf<List<TaxonomyRecord>>(emptyList()) }
     var tags by remember { mutableStateOf<List<TagRecord>>(emptyList()) }
-    var selectedCategoryId by remember { mutableStateOf<Int?>(null) }
+    var selectedGroupId by remember { mutableStateOf<Int?>(null) }
     var selectedTagIds by remember { mutableStateOf<List<Int>>(emptyList()) }
-    var newCategoryLabel by remember { mutableStateOf("") }
+    var newGroupLabel by remember { mutableStateOf("") }
     var newTagLabel by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var dueInput by remember { mutableStateOf(NoteDraft().dueInput) }
@@ -745,18 +745,18 @@ private fun WidgetNoteEditorScreen(
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(repository, noteId) {
-        categories = repository.categories()
+        categories = repository.groups()
         tags = repository.tags()
         val note = noteId?.let { repository.noteById(it) }
         if (note != null) {
             val draft = note.toDraft()
-            selectedCategoryId = draft.selectedCategoryId
+            selectedGroupId = draft.selectedGroupId
             selectedTagIds = draft.selectedTagIds
             description = draft.description
             dueInput = draft.dueInput
             remindInput = draft.remindInput
         } else {
-            selectedCategoryId = categories.firstOrNull()?.id
+            selectedGroupId = categories.firstOrNull()?.id
             selectedTagIds = emptyList()
         }
     }
@@ -778,9 +778,9 @@ private fun WidgetNoteEditorScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedTextField(
-                value = newCategoryLabel,
+                value = newGroupLabel,
                 onValueChange = {
-                    newCategoryLabel = it
+                    newGroupLabel = it
                     error = null
                 },
                 modifier = Modifier.weight(1f),
@@ -790,17 +790,17 @@ private fun WidgetNoteEditorScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        val label = newCategoryLabel.trim()
+                        val label = newGroupLabel.trim()
                         if (label.isEmpty()) {
                             return@launch
                         }
                         busy = true
                         error = null
                         try {
-                            val category = repository.createCategory(label)
-                            categories = repository.categories()
-                            selectedCategoryId = category.id
-                            newCategoryLabel = ""
+                            val category = repository.createGroup(label)
+                            categories = repository.groups()
+                            selectedGroupId = category.id
+                            newGroupLabel = ""
                         } catch (exception: Exception) {
                             error = exception.message ?: "Unable to add category."
                         } finally {
@@ -808,16 +808,16 @@ private fun WidgetNoteEditorScreen(
                         }
                     }
                 },
-                enabled = !busy && newCategoryLabel.trim().isNotEmpty(),
+                enabled = !busy && newGroupLabel.trim().isNotEmpty(),
             ) {
                 Text("Add")
             }
         }
         WidgetCategoryDropdown(
             categories = categories,
-            selectedCategoryId = selectedCategoryId,
+            selectedGroupId = selectedGroupId,
             onCategorySelected = {
-                selectedCategoryId = it
+                selectedGroupId = it
                 error = null
             },
             modifier = Modifier.fillMaxWidth(),
@@ -951,15 +951,15 @@ private fun WidgetNoteEditorScreen(
                     error = null
                     try {
                         val categoryId =
-                            selectedCategoryId
+                            selectedGroupId
                                 ?: throw IllegalStateException("Choose a category before saving.")
                         repository.saveNote(
                             noteId = noteId,
                             noteDraft =
                                 NoteDraft(
-                                    selectedCategoryId = categoryId,
+                                    selectedGroupId = categoryId,
                                     selectedTagIds = selectedTagIds,
-                                    newCategoryLabel = "",
+                                    newGroupLabel = "",
                                     newTagLabel = "",
                                     description = description,
                                     dueInput = dueInput,
@@ -1005,14 +1005,14 @@ private fun WidgetNoteEditorScreen(
 
 @Composable
 private fun WidgetCategoryDropdown(
-    categories: List<CategoryRecord>,
-    selectedCategoryId: Int?,
+    categories: List<TaxonomyRecord>,
+    selectedGroupId: Int?,
     onCategorySelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val selectedLabel =
-        categories.firstOrNull { it.id == selectedCategoryId }?.label ?: "Pick category"
+        categories.firstOrNull { it.id == selectedGroupId }?.label ?: "Pick category"
 
     Box(modifier = modifier) {
         OutlinedTextField(

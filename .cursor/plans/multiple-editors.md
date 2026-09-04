@@ -4,58 +4,78 @@ overview: Replace the single-note editor in `apps/notes-next` with a bounded, MR
 todos:
   - id: open_notes_module
     content: "Add `src/stores/openNotes.ts` — pure, React-free types and reducers for the open-note ring (open, activate, goBack, close, evict, patch), taking the cap as an argument so they stay pure and testable under the existing node test runner"
-    status: pending
+    status: completed
   - id: store_slice
     content: "Move the seven per-note fields out of the flat `notesAppStore` into an `openNotes` entry list plus `activeKey`, `backStack`, and `nextDraftSequence`; replace the two bulk `useNotesAppStore()` destructures in `NotesApp` and `ResultsColumn` with selector subscriptions"
-    status: pending
+    status: completed
   - id: keyed_save_engine
     content: 'Rework `saveCurrentNote` into `saveEntry(key, mode)` — in-flight promises and queued autosaves keyed by entry, concurrent across notes, serialized per note, status write-back by key instead of by "is this still the open note"'
-    status: pending
+    status: completed
   - id: save_latency_client
     content: "Remove `refreshResults()` (three full list refetches) from the save path; merge the returned `NoteRecord` into `notes` in place, derive category and tag `noteCount` client-side, and relocate the category-fallback remap to where categories actually change"
-    status: pending
+    status: completed
   - id: save_latency_server
     content: "In `lib/db-notes`, skip the blocking Jina embedding round-trip on PATCH when the description is unchanged — the largest single component of save latency, and no schema change"
-    status: pending
+    status: completed
   - id: non_blocking_switch
     content: "Stop awaiting `flushPendingNoteSave()` when switching notes or starting a draft; fire a background save for the outgoing entry and activate the target immediately"
-    status: pending
+    status: completed
   - id: ring_and_eviction
     content: "Enforce the cap with LRU eviction; hand a dirty removed entry to a detached-save map so its request still completes and is still covered by the pagehide keepalive"
-    status: pending
+    status: completed
   - id: back_stack
     content: "Add a bounded visit-history stack so back walks backwards through visited notes rather than ping-ponging, self-healing over evicted, closed, and deleted keys"
-    status: pending
+    status: completed
   - id: max_open_notes_preference
     content: "Add `notesApp.maxOpenNotes` to `NotesAppPreferences` in the db-notes contract, regenerate the contract artifact, add clamped client helpers and a control in the user menu, and evict immediately when the cap is lowered"
-    status: pending
+    status: completed
   - id: persistence
     content: "Persist the ring to `localStorage` under its own key (separate from `notesCache`) with debounced writes, a pagehide flush, quota fallback, and reconciliation rules on rehydrate; clear it on logout, on session-restore failure, and after an anonymous merge"
-    status: pending
+    status: completed
   - id: header_ui
     content: "Add back and recent buttons to `NotesHeader` — recent opens a Gravity Popup listing open entries MRU-first with a derived title, category, per-entry save state, and a per-row close button"
-    status: pending
+    status: completed
   - id: url_and_sharing
     content: "Keep `?id=`, `?category=`, and `?tags=` mirroring the active entry via replaceState so links stay shareable; define the load-order rules where a URL note wins for activation but a persisted draft wins for content"
-    status: pending
+    status: completed
   - id: lifecycle_fanout
     content: "Update every path that assumes one open note — note delete, category and tag delete and rename, logout and session reset, URL sync, popstate, pagehide keepalive, and NoteForm and ResultsColumn props"
-    status: pending
+    status: completed
   - id: tests
     content: "Unit tests for the pure ring, back-stack, eviction, persistence-reconciliation, and headline helpers; manual verification of the switch-while-saving, evict-while-dirty, and reload-with-dirty-drafts races"
-    status: pending
+    status: completed
   - id: docs
     content: 'Rewrite the "Note saving lifecycle" section of `apps/notes-next/AGENTS.md` for the multi-entry model, document the persistence key and the preference, and remove the stale `FilterBanners.tsx` reference'
-    status: pending
+    status: completed
 isProject: true
 ---
 
 # Multiple Editors — concurrent in-memory notes
 
-## Status: proposed (not started)
+## Status: shipped (PR #69, merged 2026-09-01)
 
-Planning only. Nothing has been implemented. Every file path and line reference
-describes current code unless it is marked "new".
+Implemented end to end and merged. File paths and line references below describe
+the code as it was _before_ the change unless marked "new"; read the shipped
+modules for current behavior.
+
+The implementation diverged from this document in a few places worth knowing:
+
+- There is no explicit `activateEntry` wrapper firing a save on switch. Switching
+  relies on the per-entry autosave debounce in `useOpenNotesAutosave`.
+- The per-entry `notePending` flag was dropped; sidebar moves register on
+  `saveInFlightRef` instead.
+- Note counts after a save come from a coalesced background taxonomy refetch
+  (`TAXONOMY_REFRESH_DEBOUNCE_MS`, 4s) rather than being derived client-side.
+- Reconciliation does not compare `baseTimeModified`; the field is recorded but
+  unread, and every clean entry refreshes from the server record.
+- Empty-draft cleanup lives inside the `activate` reducer rather than a separate
+  deactivate handler.
+- `test/note-headline.test.ts` was not added; `noteHeadline` lives in
+  `src/lib/strings.ts`.
+
+Follow-up work that reviewing this against the taxonomy plan turned up — two
+silent data-loss paths in the shipped code — is recorded in
+`notes_taxonomy_hierarchy_ef14c016.plan.md` sections 6.6a and 6.6b.
 
 ---
 

@@ -364,3 +364,34 @@
     min-width: min(140px, calc(100vw - 132px));
   }
 }
+
+/*
+ * The recent-notes breadcrumb. Segments truncate individually rather than the
+ * whole string, so the group — the most specific part — stays readable.
+ */
+.recentPath {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--g-color-text-hint);
+}
+
+.recentPathSegment {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 33%;
+}
+
+.recentPathSegment:last-of-type {
+  flex: 1 1 auto;
+  max-width: none;
+}
+
+.recentPathSeparator {
+  flex: 0 0 auto;
+  opacity: 0.6;
+}

@@ -1,6 +1,5 @@
 import { getDb } from "../../lib/db/postgres";
 import {
-  ensureCategoryIdForUser,
   replaceNoteTagsForNote,
   selectNoteById,
   toNullableText,
@@ -19,13 +18,12 @@ export const createNoteForUser = async (
 
   try {
     await client.query("BEGIN");
-    await ensureCategoryIdForUser(client, userId, note.categoryId);
 
     const { rows } = await client.query<{ id: number }>(
       `
         INSERT INTO public.user_note_v1 (
           user_id,
-          category_id,
+          group_id,
           description,
           time_due,
           time_remind,
@@ -47,7 +45,7 @@ export const createNoteForUser = async (
       `,
       [
         userId,
-        note.categoryId,
+        note.groupId,
         toNullableText(note.description),
         note.timeDue,
         note.timeRemind,

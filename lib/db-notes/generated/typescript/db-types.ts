@@ -47,7 +47,31 @@ export interface UserNoteV1Row {
   embedding_model: string | null
   embedding_updated_at: Date | null
   description_embedding: string | null
-  category_id: number
+  category_id: number | null
+  group_id: number
+  group_level: number
+}
+
+export interface UserTaxonomyLevelV1Row {
+  user_id: number
+  level: number
+  label: string
+  time_created: Date
+  time_modified: Date
+}
+
+export interface UserTaxonomyV1Row {
+  id: number
+  user_id: number
+  level: number
+  parent_id: number | null
+  parent_level: number | null
+  label: string
+  label_embedding: string | null
+  embedding_model: string | null
+  embedding_updated_at: Date | null
+  time_created: Date
+  time_modified: Date
 }
 
 export interface UserV1Row {
@@ -68,5 +92,7 @@ export interface PostgresDbSchema {
   user_note_tag_link_v1: UserNoteTagLinkV1Row
   user_note_tag_v1: UserNoteTagV1Row
   user_note_v1: UserNoteV1Row
+  user_taxonomy_level_v1: UserTaxonomyLevelV1Row
+  user_taxonomy_v1: UserTaxonomyV1Row
   user_v1: UserV1Row
 }

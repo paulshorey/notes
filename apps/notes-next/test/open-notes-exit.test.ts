@@ -13,10 +13,10 @@ import {
   type OpenNoteKey,
 } from "../src/stores/openNotes"
 
-const formWith = (description: string, categoryId: number | null = 7): NoteFormState => ({
+const formWith = (description: string, groupId: number | null = 7): NoteFormState => ({
   ...createDefaultNoteForm(),
   description,
-  selectedCategoryId: categoryId,
+  selectedGroupId: groupId,
 })
 
 const entry = (
@@ -35,7 +35,7 @@ const entry = (
     savedSignature: savedForm === null ? null : JSON.stringify({ d: savedDescription }),
     saveStatus: "idle",
     editorSessionId: 0,
-    categoryInputValue: "",
+    groupInputValue: "",
     pendingTagLabels: [],
     revealText: null,
     autofocus: false,
@@ -48,7 +48,7 @@ const isDirty = (item: OpenNoteEntry) =>
   JSON.stringify({ d: item.form.description }) !== item.savedSignature
 
 const isSaveable = (form: NoteFormState) =>
-  form.description.trim() !== "" && form.selectedCategoryId !== null
+  form.description.trim() !== "" && form.selectedGroupId !== null
 
 test("stateWithDetachedSaves appends evicted drafts the ring no longer holds", () => {
   const state = {

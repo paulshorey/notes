@@ -1,10 +1,16 @@
-import type { NoteCategoryRef, NoteTagRef, NoteRecord } from "./types";
+import type { NoteTagRef, NoteRecord } from "./types";
 import type { PoolClient } from "pg";
 
+/**
+ * No taxonomy join: a note carries only its group id, and clients resolve the
+ * epic/category/group path from the taxonomy tree they already hold. That keeps
+ * labels to one source of truth, so renaming a category does not require
+ * refetching every note.
+ */
 export const noteColumns = `
   n.id,
   n.user_id,
-  json_build_object('id', cat.id, 'label', cat.label) AS category,
+  n.group_id,
   n.description,
   n.time_due,
   n.time_remind,
@@ -30,15 +36,12 @@ export const noteSelect = `
   SELECT
     ${noteColumns}
   FROM public.user_note_v1 n
-  JOIN public.user_note_category_v1 cat
-    ON cat.id = n.category_id
-   AND cat.user_id = n.user_id
 `;
 
 export interface NoteRow {
   id: number;
   user_id: number;
-  category: unknown;
+  group_id: number;
   description: string | null;
   time_due: Date | null;
   time_remind: Date | null;
@@ -50,108 +53,6 @@ export interface NoteRow {
 export const toNullableText = (value: string) => {
   const trimmed = value.trim();
   return trimmed === "" ? null : trimmed;
-};
-
-const normalizeTaxonomyLabel = (value: string) => {
-  const trimmed = value.trim().toLocaleLowerCase();
-  return trimmed === "" ? null : trimmed;
-};
-
-export const resolveTagIdForUser = async (
-  client: PoolClient,
-  userId: number,
-  label: string
-) => {
-  const trimmedLabel = normalizeTaxonomyLabel(label);
-
-  if (trimmedLabel === null) {
-    return null;
-  }
-
-  const { rows } = await client.query<{ id: number }>(
-    `
-      WITH inserted AS (
-        INSERT INTO public.user_note_tag_v1 (
-          user_id,
-          label
-        )
-        VALUES ($1, $2)
-        ON CONFLICT (user_id, label)
-        DO NOTHING
-        RETURNING id
-      )
-      SELECT id
-      FROM inserted
-      UNION ALL
-      SELECT id
-      FROM public.user_note_tag_v1
-      WHERE user_id = $1
-        AND label = $2
-      LIMIT 1
-    `,
-    [userId, trimmedLabel]
-  );
-
-  if (!rows[0]) {
-    throw new Error("Failed to resolve note tag.");
-  }
-
-  return rows[0].id;
-};
-
-export const resolveCategoryIdForUser = async (
-  client: PoolClient,
-  userId: number,
-  label: string
-) => {
-  const trimmedLabel = normalizeTaxonomyLabel(label);
-
-  if (trimmedLabel === null) {
-    return null;
-  }
-
-  const { rows } = await client.query<{ id: number }>(
-    `
-      WITH inserted AS (
-        INSERT INTO public.user_note_category_v1 (
-          user_id,
-          label
-        )
-        VALUES ($1, $2)
-        ON CONFLICT (user_id, label)
-        DO NOTHING
-        RETURNING id
-      )
-      SELECT id
-      FROM inserted
-      UNION ALL
-      SELECT id
-      FROM public.user_note_category_v1
-      WHERE user_id = $1
-        AND label = $2
-      LIMIT 1
-    `,
-    [userId, trimmedLabel]
-  );
-
-  if (!rows[0]) {
-    throw new Error("Failed to resolve note category.");
-  }
-
-  return rows[0].id;
-};
-
-const parseCategory = (value: unknown): NoteCategoryRef => {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    typeof (value as NoteCategoryRef).id !== "number" ||
-    typeof (value as NoteCategoryRef).label !== "string"
-  ) {
-    throw new Error("Note category payload is invalid.");
-  }
-
-  return value as NoteCategoryRef;
 };
 
 const parseTags = (value: unknown): NoteTagRef[] => {
@@ -171,7 +72,7 @@ const parseTags = (value: unknown): NoteTagRef[] => {
 export const mapNote = (row: NoteRow): NoteRecord => ({
   id: row.id,
   userId: row.user_id,
-  category: parseCategory(row.category),
+  groupId: row.group_id,
   tags: parseTags(row.tags),
   description: row.description,
   timeDue: row.time_due?.toISOString() ?? null,
@@ -180,24 +81,37 @@ export const mapNote = (row: NoteRow): NoteRecord => ({
   timeModified: row.time_modified.toISOString(),
 });
 
-export const ensureCategoryIdForUser = async (
+export const resolveTagIdForUser = async (
   client: PoolClient,
   userId: number,
-  categoryId: number
+  label: string
 ) => {
-  const { rows } = await client.query<{ c: number }>(
+  const trimmedLabel = label.trim().toLocaleLowerCase();
+
+  if (trimmedLabel === "") {
+    return null;
+  }
+
+  // DO UPDATE rather than DO NOTHING: under a concurrent uncommitted insert of
+  // the same label, DO NOTHING skips and a follow-up SELECT on the statement's
+  // snapshot sees nothing, so the resolve returns no row and throws. Several
+  // notes are open at once and each can create a tag.
+  const { rows } = await client.query<{ id: number }>(
     `
-      SELECT COUNT(*)::int AS c
-      FROM public.user_note_category_v1
-      WHERE user_id = $1
-        AND id = $2
+      INSERT INTO public.user_note_tag_v1 (user_id, label)
+      VALUES ($1, $2)
+      ON CONFLICT (user_id, label)
+      DO UPDATE SET label = EXCLUDED.label
+      RETURNING id
     `,
-    [userId, categoryId]
+    [userId, trimmedLabel]
   );
 
-  if (!rows[0] || rows[0].c !== 1) {
-    throw new Error("Category was not found for this user.");
+  if (!rows[0]) {
+    throw new Error("Failed to resolve note tag.");
   }
+
+  return rows[0].id;
 };
 
 export const replaceNoteTagsForNote = async (

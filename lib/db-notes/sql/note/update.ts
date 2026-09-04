@@ -1,6 +1,5 @@
 import { getDb } from "../../lib/db/postgres";
 import {
-  ensureCategoryIdForUser,
   replaceNoteTagsForNote,
   selectNoteById,
   toNullableText,
@@ -34,8 +33,6 @@ export const updateNoteForUser = async (
   try {
     await client.query("BEGIN");
 
-    await ensureCategoryIdForUser(client, userId, note.categoryId);
-
     const embeddingValues =
       embeddings === null
         ? []
@@ -64,7 +61,7 @@ export const updateNoteForUser = async (
       `
         UPDATE public.user_note_v1
         SET
-          category_id = $3,
+          group_id = $3,
           description = $4,
           time_due = $5,
           time_remind = $6,${embeddingAssignments}
@@ -76,7 +73,7 @@ export const updateNoteForUser = async (
       [
         noteId,
         userId,
-        note.categoryId,
+        note.groupId,
         toNullableText(note.description),
         note.timeDue,
         note.timeRemind,

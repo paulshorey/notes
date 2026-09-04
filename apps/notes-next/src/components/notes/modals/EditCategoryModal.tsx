@@ -1,12 +1,12 @@
 "use client"
 
 import { Button, Modal, Text, TextInput } from "@gravity-ui/uikit"
-import type { CategoryRecord } from "@lib/db-notes"
+import type { TaxonomyRecord } from "@lib/db-notes"
 import { toLowercaseInput } from "@/lib/strings"
 import styles from "./EditCategoryModal.module.css"
 
 interface EditCategoryModalProps {
-  category: CategoryRecord | null
+  category: TaxonomyRecord | null
   label: string
   onLabelChange: (value: string) => void
   onClose: () => void

@@ -52,24 +52,45 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
     )
     const userId = userRows[0]!.id
 
+    // Inserting the user directly bypasses createAnonymousUser, which is what
+    // seeds the tier vocabulary; the composite level FK needs it to exist.
+    await db.query(
+      `INSERT INTO public.user_taxonomy_level_v1 (user_id, level, label)
+       SELECT $1, v.level, v.label
+       FROM (VALUES (1,'Epic'),(2,'Category'),(3,'Group'),(4,'Note')) AS v(level, label)
+       ON CONFLICT DO NOTHING`,
+      [userId],
+    )
+
+    const { rows: epicRows } = await db.query<{ id: number }>(
+      `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+       VALUES ($1, 1, NULL, $2) RETURNING id`,
+      [userId, `epic-${suffix}`],
+    )
     const { rows: categoryRows } = await db.query<{ id: number }>(
-      `INSERT INTO public.user_note_category_v1 (user_id, label)
-       VALUES ($1, $2) RETURNING id`,
-      [userId, `cat-${suffix}`],
+      `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+       VALUES ($1, 2, $2, $3) RETURNING id`,
+      [userId, epicRows[0]!.id, `cat-${suffix}`],
     )
     const categoryId = categoryRows[0]!.id
+    const { rows: groupRows } = await db.query<{ id: number }>(
+      `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+       VALUES ($1, 3, $2, $3) RETURNING id`,
+      [userId, categoryId, `grp-${suffix}`],
+    )
+    const groupId = groupRows[0]!.id
 
     const vector = options.withEmbedding ? `[${Array(1024).fill(0.01).join(",")}]` : null
 
     const { rows: noteRows } = await db.query<{ id: number }>(
       `INSERT INTO public.user_note_v1
-         (user_id, category_id, description, description_embedding, embedding_model, embedding_updated_at)
+         (user_id, group_id, description, description_embedding, embedding_model, embedding_updated_at)
        VALUES ($1, $2, $3, $4::vector, $5::text, CASE WHEN $5::text IS NULL THEN NULL ELSE now() END)
        RETURNING id`,
-      [userId, categoryId, options.description, vector, options.embeddingModel],
+      [userId, groupId, options.description, vector, options.embeddingModel],
     )
 
-    return { userId, categoryId, noteId: noteRows[0]!.id, suffix }
+    return { userId, categoryId, groupId, noteId: noteRows[0]!.id, suffix }
   }
 
   const readEmbeddingState = async (noteId: number) => {
@@ -93,12 +114,12 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
     await getDb().query(`DELETE FROM public.user_v1 WHERE id = $1`, [userId])
   }
 
-  test("a category-only change reuses the stored embedding", async () => {
+  test("a taxonomy-only change reuses the stored embedding", async () => {
     const savedJinaKey = process.env.JINA_API_KEY
     // Guarantees the assertion means something: any Jina call would now throw.
     delete process.env.JINA_API_KEY
 
-    const { userId, categoryId, noteId, suffix } = await seedNote({
+    const { userId, categoryId, groupId, noteId, suffix } = await seedNote({
       description: "unchanged text",
       embeddingModel: CURRENT_NOTE_EMBEDDING_MODEL,
       withEmbedding: true,
@@ -107,17 +128,17 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
     try {
       const before = await readEmbeddingState(noteId)
 
-      const { rows: otherCategory } = await getDb().query<{ id: number }>(
-        `INSERT INTO public.user_note_category_v1 (user_id, label)
-         VALUES ($1, $2) RETURNING id`,
-        [userId, `other-${suffix}`],
+      const { rows: otherGroup } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 3, $2, $3) RETURNING id`,
+        [userId, categoryId, `other-${suffix}`],
       )
 
       const result = await updateNoteForNotesApp({
         userId,
         noteId,
         note: {
-          categoryId: otherCategory[0]!.id,
+          groupId: otherGroup[0]!.id,
           tagIds: [],
           description: "unchanged text",
           timeDue: null,
@@ -126,7 +147,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
       })
 
       assert.ok(result)
-      assert.equal(result.note.category.id, otherCategory[0]!.id)
+      assert.equal(result.note.groupId, otherGroup[0]!.id)
 
       const after = await readEmbeddingState(noteId)
       assert.equal(after.has_embedding, true)
@@ -136,7 +157,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
         String(before.embedding_updated_at),
         "embedding_updated_at moved, so the note was needlessly re-embedded",
       )
-      assert.notEqual(categoryId, otherCategory[0]!.id)
+      assert.notEqual(groupId, otherGroup[0]!.id)
     } finally {
       if (savedJinaKey !== undefined) process.env.JINA_API_KEY = savedJinaKey
       await cleanup(userId)
@@ -147,7 +168,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
     const savedJinaKey = process.env.JINA_API_KEY
     delete process.env.JINA_API_KEY
 
-    const { userId, categoryId, noteId } = await seedNote({
+    const { userId, groupId, noteId } = await seedNote({
       description: "never embedded",
       embeddingModel: null,
       withEmbedding: false,
@@ -161,7 +182,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
           userId,
           noteId,
           note: {
-            categoryId,
+            groupId,
             tagIds: [],
             description: "never embedded",
             timeDue: null,
@@ -179,7 +200,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
     const savedJinaKey = process.env.JINA_API_KEY
     delete process.env.JINA_API_KEY
 
-    const { userId, categoryId, noteId } = await seedNote({
+    const { userId, groupId, noteId } = await seedNote({
       description: "old model",
       embeddingModel: "jina-embeddings-v1:notes-v0",
       withEmbedding: true,
@@ -191,7 +212,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
           userId,
           noteId,
           note: {
-            categoryId,
+            groupId,
             tagIds: [],
             description: "old model",
             timeDue: null,
@@ -209,7 +230,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
     const savedJinaKey = process.env.JINA_API_KEY
     delete process.env.JINA_API_KEY
 
-    const { userId, categoryId, noteId } = await seedNote({
+    const { userId, groupId, noteId } = await seedNote({
       description: "will be cleared",
       embeddingModel: CURRENT_NOTE_EMBEDDING_MODEL,
       withEmbedding: true,
@@ -222,7 +243,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
         userId,
         noteId,
         note: {
-          categoryId,
+          groupId,
           tagIds: [],
           description: "",
           timeDue: null,
@@ -247,17 +268,17 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
   // updateNoteForNotesApp cannot reproduce the interleaving, because its own
   // read would already see the other client's write.
   test("reusing a stored embedding refuses to write over a description that moved", async () => {
-    const { userId, categoryId, noteId, suffix } = await seedNote({
+    const { userId, categoryId, groupId, noteId, suffix } = await seedNote({
       description: "original text",
       embeddingModel: CURRENT_NOTE_EMBEDDING_MODEL,
       withEmbedding: true,
     })
 
     try {
-      const { rows: otherCategory } = await getDb().query<{ id: number }>(
-        `INSERT INTO public.user_note_category_v1 (user_id, label)
-         VALUES ($1, $2) RETURNING id`,
-        [userId, `race-${suffix}`],
+      const { rows: otherGroup } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 3, $2, $3) RETURNING id`,
+        [userId, categoryId, `race-${suffix}`],
       )
 
       // Another client wins the race after our read was taken.
@@ -272,7 +293,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
         noteId,
         userId,
         {
-          categoryId: otherCategory[0]!.id,
+          groupId: otherGroup[0]!.id,
           tagIds: [],
           description: "original text",
           timeDue: null,
@@ -293,7 +314,7 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
         noteId,
         userId,
         {
-          categoryId: otherCategory[0]!.id,
+          groupId: otherGroup[0]!.id,
           tagIds: [],
           description: "changed by another client",
           timeDue: null,
@@ -304,35 +325,35 @@ describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
       )
 
       assert.ok(fresh)
-      assert.equal(fresh.category.id, otherCategory[0]!.id)
-      assert.notEqual(categoryId, otherCategory[0]!.id)
+      assert.equal(fresh.groupId, otherGroup[0]!.id)
+      assert.notEqual(groupId, otherGroup[0]!.id)
     } finally {
       await cleanup(userId)
     }
   })
 
-  test("an already-empty note with a category change does not attempt an embed", async () => {
+  test("an already-empty note with a taxonomy change does not attempt an embed", async () => {
     const savedJinaKey = process.env.JINA_API_KEY
     delete process.env.JINA_API_KEY
 
-    const { userId, noteId, suffix } = await seedNote({
+    const { userId, categoryId, noteId, suffix } = await seedNote({
       description: "",
       embeddingModel: null,
       withEmbedding: false,
     })
 
     try {
-      const { rows: otherCategory } = await getDb().query<{ id: number }>(
-        `INSERT INTO public.user_note_category_v1 (user_id, label)
-         VALUES ($1, $2) RETURNING id`,
-        [userId, `empty-${suffix}`],
+      const { rows: otherGroup } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 3, $2, $3) RETURNING id`,
+        [userId, categoryId, `empty-${suffix}`],
       )
 
       const result = await updateNoteForNotesApp({
         userId,
         noteId,
         note: {
-          categoryId: otherCategory[0]!.id,
+          groupId: otherGroup[0]!.id,
           tagIds: [],
           description: "",
           timeDue: null,

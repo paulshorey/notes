@@ -23,7 +23,7 @@ import {
 const makeNote = (id: number, description = `note ${id}`): NoteRecord => ({
   id,
   userId: 1,
-  category: { id: 7, label: "inbox" },
+  groupId: 7,
   tags: [],
   description,
   timeDue: null,
@@ -34,7 +34,7 @@ const makeNote = (id: number, description = `note ${id}`): NoteRecord => ({
 
 const openNotes = (ids: number[], cap = 10): OpenNotesState =>
   ids.reduce(
-    (state, id) => openExistingNote(state, makeNote(id), cap).state,
+    (state, id) => openExistingNote(state, makeNote(id), "", cap).state,
     createEmptyOpenNotesState(),
   )
 
@@ -69,7 +69,7 @@ test("openExistingNote records the record's timeModified as the base revision", 
 
 test("exceeding the cap evicts the least recently used entry and reports it", () => {
   let state = openNotes([1, 2, 3], 3)
-  const { state: next, removed } = openExistingNote(state, makeNote(4), 3)
+  const { state: next, removed } = openExistingNote(state, makeNote(4), "", 3)
   state = next
 
   assert.equal(state.openNotes.length, 3)
@@ -103,7 +103,7 @@ test("cap holds even when the least recently used entry is the back target", () 
   const state = openNotes([1, 2], 2)
   assert.equal(getBackTarget(state)?.key, noteEntryKey(1))
 
-  const { state: next } = openExistingNote(state, makeNote(3), 2)
+  const { state: next } = openExistingNote(state, makeNote(3), "", 2)
 
   assert.equal(next.openNotes.length, 2)
   assert.equal(findEntryByNoteId(next, 1), null)
@@ -181,7 +181,7 @@ test("deleting a note closes its entry wherever it sits", () => {
 })
 
 test("a draft keeps its key across the transition to a real note id", () => {
-  const { state: opened } = openNewDraft(createEmptyOpenNotesState(), { categoryId: 7 })
+  const { state: opened } = openNewDraft(createEmptyOpenNotesState(), { groupId: 7 })
   const draftKey = opened.activeKey!
   assert.ok(draftKey.startsWith("draft:"))
 
@@ -196,16 +196,16 @@ test("a draft keeps its key across the transition to a real note id", () => {
 })
 
 test("openNewDraft reuses an untouched draft instead of minting another", () => {
-  const { state: first } = openNewDraft(createEmptyOpenNotesState(), { categoryId: 7 })
-  const { state: second } = openNewDraft(first, { categoryId: 9 })
+  const { state: first } = openNewDraft(createEmptyOpenNotesState(), { groupId: 7 })
+  const { state: second } = openNewDraft(first, { groupId: 9 })
 
   assert.equal(second.openNotes.length, 1)
   assert.equal(second.nextDraftSequence, first.nextDraftSequence)
-  assert.equal(getActiveEntry(second)?.form.selectedCategoryId, 9)
+  assert.equal(getActiveEntry(second)?.form.selectedGroupId, 9)
 })
 
 test("openNewDraft mints a new entry once the active draft has content", () => {
-  const { state: first } = openNewDraft(createEmptyOpenNotesState(), { categoryId: 7 })
+  const { state: first } = openNewDraft(createEmptyOpenNotesState(), { groupId: 7 })
   const withText = patchEntry(first, first.activeKey!, (entry) => ({
     form: { ...entry.form, description: "started writing" },
   }))
@@ -257,7 +257,7 @@ test("the back stack stays bounded across a long session", () => {
   let state = createEmptyOpenNotesState()
   for (let round = 0; round < 20; round += 1) {
     for (const id of [1, 2, 3]) {
-      state = openExistingNote(state, makeNote(id), 3).state
+      state = openExistingNote(state, makeNote(id), "", 3).state
     }
   }
 

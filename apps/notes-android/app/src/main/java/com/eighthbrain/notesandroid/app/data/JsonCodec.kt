@@ -1,7 +1,7 @@
 package com.eighthbrain.notesandroid.app.data
 
-import com.eighthbrain.notesandroid.app.model.CategoryRecord
-import com.eighthbrain.notesandroid.app.model.NoteCategoryRef
+import com.eighthbrain.notesandroid.app.model.TaxonomyRecord
+import com.eighthbrain.notesandroid.app.model.TaxonomyLevelRecord
 import com.eighthbrain.notesandroid.app.model.NotesAppPreferences
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.NoteTagRef
@@ -84,21 +84,40 @@ fun userFromJson(json: JSONObject): UserSummary =
         preferences = userPreferencesFromJson(json.getJSONObject("preferences")),
     )
 
-fun categoryToJson(category: CategoryRecord): JSONObject =
+fun taxonomyToJson(node: TaxonomyRecord): JSONObject =
     JSONObject()
-        .put("id", category.id)
-        .put("userId", category.userId)
-        .put("label", category.label)
-        .put("noteCount", category.noteCount)
-        .put("lastUsedAt", category.lastUsedAt)
+        .put("id", node.id)
+        .put("userId", node.userId)
+        .put("level", node.level)
+        .put("parentId", node.parentId)
+        .put("label", node.label)
+        .put("noteCount", node.noteCount)
+        .put("directNoteCount", node.directNoteCount)
+        .put("lastUsedAt", node.lastUsedAt)
 
-fun categoryFromJson(json: JSONObject): CategoryRecord =
-    CategoryRecord(
+fun taxonomyFromJson(json: JSONObject): TaxonomyRecord =
+    TaxonomyRecord(
         id = json.getInt("id"),
         userId = json.getInt("userId"),
+        level = json.getInt("level"),
+        parentId = json.intOrNull("parentId"),
         label = json.getString("label"),
         noteCount = json.optInt("noteCount", 0),
+        directNoteCount = json.optInt("directNoteCount", 0),
         lastUsedAt = json.stringOrNull("lastUsedAt"),
+    )
+
+fun taxonomyLevelToJson(level: TaxonomyLevelRecord): JSONObject =
+    JSONObject()
+        .put("userId", level.userId)
+        .put("level", level.level)
+        .put("label", level.label)
+
+fun taxonomyLevelFromJson(json: JSONObject): TaxonomyLevelRecord =
+    TaxonomyLevelRecord(
+        userId = json.getInt("userId"),
+        level = json.getInt("level"),
+        label = json.getString("label"),
     )
 
 fun tagToJson(tag: TagRecord): JSONObject =
@@ -124,23 +143,6 @@ private fun noteTagRefFromJson(json: JSONObject): NoteTagRef =
         label = json.getString("label"),
     )
 
-private fun noteCategoryRefToJson(category: NoteCategoryRef): JSONObject =
-    JSONObject()
-        .put("id", category.id)
-        .put("label", category.label)
-
-private fun noteCategoryRefFromJson(json: JSONObject): NoteCategoryRef =
-    NoteCategoryRef(
-        id = json.getInt("id"),
-        label = json.getString("label"),
-    )
-
-private fun noteCategoryRefFromLegacyJson(json: JSONObject): NoteCategoryRef =
-    NoteCategoryRef(
-        id = json.getInt("id"),
-        label = json.getString("label"),
-    )
-
 private fun tagsArrayFromJson(json: JSONObject): List<NoteTagRef> {
     val array =
         when {
@@ -153,19 +155,6 @@ private fun tagsArrayFromJson(json: JSONObject): List<NoteTagRef> {
             add(noteTagRefFromJson(array.getJSONObject(index)))
         }
     }
-}
-
-private fun categoryFromNoteJson(json: JSONObject): NoteCategoryRef {
-    if (json.has("category") && !json.isNull("category")) {
-        return noteCategoryRefFromJson(json.getJSONObject("category"))
-    }
-    if (json.has("categories") && !json.isNull("categories")) {
-        val categories = json.getJSONArray("categories")
-        if (categories.length() > 0) {
-            return noteCategoryRefFromLegacyJson(categories.getJSONObject(0))
-        }
-    }
-    return NoteCategoryRef(id = -1, label = "Unknown")
 }
 
 private fun <T> safeDecodeList(
@@ -195,7 +184,7 @@ fun noteToJson(note: NoteRecord): JSONObject {
     return JSONObject()
         .put("id", note.id)
         .put("userId", note.userId)
-        .put("category", noteCategoryRefToJson(note.category))
+        .put("groupId", note.groupId)
         .put("tags", tagsJson)
         .put("description", note.description)
         .put("timeDue", note.timeDue)
@@ -208,7 +197,7 @@ fun noteFromJson(json: JSONObject): NoteRecord =
     NoteRecord(
         id = json.getInt("id"),
         userId = json.getInt("userId"),
-        category = categoryFromNoteJson(json),
+        groupId = json.getInt("groupId"),
         tags = tagsArrayFromJson(json),
         description = json.stringOrNull("description"),
         timeDue = json.stringOrNull("timeDue"),
@@ -221,15 +210,11 @@ fun searchResultToJson(result: SemanticSearchResult): JSONObject =
     JSONObject()
         .put("note", noteToJson(result.note))
         .put("similarity", result.similarity)
-        .put("tagSimilarity", result.tagSimilarity)
-        .put("descriptionSimilarity", result.descriptionSimilarity)
 
 fun searchResultFromJson(json: JSONObject): SemanticSearchResult =
     SemanticSearchResult(
         note = noteFromJson(json.getJSONObject("note")),
         similarity = json.getDouble("similarity"),
-        tagSimilarity = json.doubleOrNull("tagSimilarity"),
-        descriptionSimilarity = json.doubleOrNull("descriptionSimilarity"),
     )
 
 fun notesToJson(notes: List<NoteRecord>): String =
@@ -258,14 +243,27 @@ fun tagsFromJson(raw: String?): List<TagRecord> {
     }
 }
 
-fun categoriesToJson(categories: List<CategoryRecord>): String =
-    JSONArray().apply { categories.forEach { put(categoryToJson(it)) } }.toString()
+fun taxonomyListToJson(nodes: List<TaxonomyRecord>): String =
+    JSONArray().apply { nodes.forEach { put(taxonomyToJson(it)) } }.toString()
 
-fun categoriesFromJson(raw: String?): List<CategoryRecord> {
+fun taxonomyListFromJson(raw: String?): List<TaxonomyRecord> {
     return safeDecodeList(raw) { array ->
         buildList {
             for (index in 0 until array.length()) {
-                add(categoryFromJson(array.getJSONObject(index)))
+                add(taxonomyFromJson(array.getJSONObject(index)))
+            }
+        }
+    }
+}
+
+fun taxonomyLevelsToJson(levels: List<TaxonomyLevelRecord>): String =
+    JSONArray().apply { levels.forEach { put(taxonomyLevelToJson(it)) } }.toString()
+
+fun taxonomyLevelsFromJson(raw: String?): List<TaxonomyLevelRecord> {
+    return safeDecodeList(raw) { array ->
+        buildList {
+            for (index in 0 until array.length()) {
+                add(taxonomyLevelFromJson(array.getJSONObject(index)))
             }
         }
     }

@@ -1,15 +1,20 @@
 import type {
-  CategoriesRequest,
-  CategoriesResponse,
-  CreateCategoryRequest,
-  CreateCategoryResponse,
+  TaxonomyRequest,
+  TaxonomyResponse,
+  TaxonomyLevelsResponse,
+  MergeSessionResponse,
+  TaxonomyPathRequest,
+  TaxonomyPathResponse,
+  TaxonomySuggestRequest,
+  TaxonomySuggestResponse,
+  UpdateTaxonomyLevelRequest,
+  CreateTaxonomyRequest,
+  CreateTaxonomyResponse,
   CreateNoteRequest,
   CreateTagRequest,
   CreateTagResponse,
-  DeleteCategoryRequest,
-  DeleteCategoryResponse,
-  DeleteCategoryWithNotesRequest,
-  DeleteCategoryWithNotesResponse,
+  DeleteTaxonomyRequest,
+  DeleteTaxonomyResponse,
   DeleteNoteRequest,
   DeleteResponse,
   DeleteTagRequest,
@@ -28,12 +33,13 @@ import type {
   TagsRequest,
   TagsResponse,
   UpdateUserPreferencesRequest,
-  UpdateCategoryRequest,
-  UpdateCategoryResponse,
+  UpdateTaxonomyRequest,
+  UpdateTaxonomyResponse,
   UpdateNoteRequest,
   UpdateTagRequest,
   UpdateTagResponse,
   UserPreferences,
+  UserSummary,
 } from "../contracts/notes-app";
 import type { PoolClient } from "pg";
 import { getDb } from "../lib/db/postgres";
@@ -50,22 +56,28 @@ import {
   updateNoteEmbeddingsForUser,
   updateNoteForUser,
 } from "../sql/note";
+import { resolveTagIdForUser } from "../sql/note/shared";
 import {
-  resolveCategoryIdForUser,
-  resolveTagIdForUser,
-} from "../sql/note/shared";
+  deleteTaxonomyNodeForUser,
+  ensureDefaultTaxonomyChainForUser,
+  getFallbackGroupIdForUser,
+  getTaxonomyByIdForUser,
+  listTaxonomyByUser,
+  listTaxonomyMissingEmbeddingsByUser,
+  listTaxonomyStaleEmbeddingsByUser,
+  moveTaxonomyNodeForUser,
+  resolveTaxonomyIdForUser,
+  resolveTaxonomyPathForUser,
+  suggestTaxonomyForUser,
+  updateTaxonomyEmbeddingById,
+  updateTaxonomyLabelForUser,
+  TAXONOMY_SIBLING_LABEL_TAKEN_ERROR,
+} from "../sql/taxonomy";
 import {
-  deleteCategoryForUser,
-  deleteCategoryWithNotesForUser,
-  ensureDefaultCategoryForUser,
-  getCategoryByIdForUser,
-  getFirstCategoryForUser,
-  listCategoriesByUser,
-  listCategoriesMissingEmbeddingsByUser,
-  listCategoriesStaleEmbeddingsByUser,
-  updateCategoryEmbeddingById,
-  updateCategoryLabelForUser,
-} from "../sql/category";
+  ensureTaxonomyLevelsForUser,
+  listTaxonomyLevelsForUser,
+  updateTaxonomyLevelLabelForUser,
+} from "../sql/taxonomy-level";
 import {
   deleteTagForUser,
   ensureDefaultTagForUser,
@@ -91,17 +103,17 @@ import {
 } from "../sql/user";
 import {
   createBackfillEmbeddingInputs,
-  createBackfillTagEmbeddings,
+  createBackfillLabelEmbeddings,
   createNoteEmbeddingInput,
   createQueryEmbedding,
-  createTagLabelEmbedding,
+  createLabelEmbedding,
   CURRENT_NOTE_EMBEDDING_MODEL,
   EmbeddingConfigurationError,
   EmbeddingRequestError,
 } from "./notes-embeddings";
 
 export const NOTES_APP_NOTE_NOT_FOUND_ERROR = "Note not found.";
-export const NOTES_APP_CATEGORY_NOT_FOUND_ERROR = "Category not found.";
+export const NOTES_APP_TAXONOMY_NOT_FOUND_ERROR = "Not found.";
 export const NOTES_APP_TAG_NOT_FOUND_ERROR = "Tag not found.";
 export const NOTES_APP_USER_NOT_FOUND_ERROR = "User not found.";
 export const NOTES_APP_INVALID_CREDENTIALS_ERROR =
@@ -192,9 +204,17 @@ export const parseNotesRequest = (userId: unknown): NotesRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 });
 
-export const parseCategoriesRequest = (userId: unknown): CategoriesRequest => ({
+export const parseTaxonomyRequest = (userId: unknown): TaxonomyRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 });
+
+const parseTaxonomyLevel = (value: unknown, { max = 3 } = {}) =>
+  parsePositiveInteger(value, "level", { min: 1, max });
+
+const parseNullableId = (value: unknown, fieldName: string) => {
+  if (value === null || value === undefined) return null;
+  return parsePositiveInteger(value, fieldName);
+};
 
 export const parseTagsRequest = (userId: unknown): TagsRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
@@ -209,23 +229,106 @@ const parseLabelRequest = (value: unknown) => {
   };
 };
 
-export const parseCreateCategoryRequest = (
+export const parseCreateTaxonomyRequest = (
   value: unknown
-): CreateCategoryRequest => parseLabelRequest(value);
+): CreateTaxonomyRequest => {
+  const body = toRequestObject(value);
+  const level = parseTaxonomyLevel(body.level);
+  const parentId = parseNullableId(body.parentId, "parentId");
+
+  // The schema enforces this too, but rejecting here gives a usable message
+  // instead of a foreign-key violation.
+  if (level === 1 && parentId !== null) {
+    throw new Error("A top-level item cannot have a parent.");
+  }
+  if (level > 1 && parentId === null) {
+    throw new Error("parentId is required below the top level.");
+  }
+
+  return {
+    userId: parsePositiveInteger(body.userId, "userId"),
+    level,
+    parentId,
+    label: typeof body.label === "string" ? normalizeTaxonomyLabel(body.label) : "",
+  };
+};
 
 export const parseCreateTagRequest = (
   value: unknown
 ): CreateTagRequest => parseLabelRequest(value);
 
-export const parseUpdateCategoryRequest = (
+export const parseUpdateTaxonomyRequest = (
   value: unknown
-): UpdateCategoryRequest => {
+): UpdateTaxonomyRequest => {
+  const body = toRequestObject(value);
+  const label =
+    typeof body.label === "string" ? normalizeTaxonomyLabel(body.label) : null;
+  const parentId = parseNullableId(body.parentId, "parentId");
+
+  if (label === null && parentId === null) {
+    throw new Error("Provide either a new label or a new parentId.");
+  }
+  if (label !== null && parentId !== null) {
+    throw new Error("Rename and move are separate operations.");
+  }
+
+  return {
+    userId: parsePositiveInteger(body.userId, "userId"),
+    taxonomyId: parsePositiveInteger(body.taxonomyId, "taxonomyId"),
+    label,
+    parentId,
+  };
+};
+
+export const parseUpdateTaxonomyLevelRequest = (
+  value: unknown
+): UpdateTaxonomyLevelRequest => {
+  const body = toRequestObject(value);
+  // Tier names are headings, so case is preserved; only blank is rejected.
+  const label = typeof body.label === "string" ? body.label.trim() : "";
+
+  if (label === "") {
+    throw new Error("A level name is required.");
+  }
+
+  return {
+    userId: parsePositiveInteger(body.userId, "userId"),
+    level: parseTaxonomyLevel(body.level, { max: 4 }),
+    label,
+  };
+};
+
+export const parseTaxonomyPathRequest = (
+  value: unknown
+): TaxonomyPathRequest => {
+  const body = toRequestObject(value);
+  const read = (key: "epicLabel" | "categoryLabel" | "groupLabel") => {
+    const raw = body[key];
+    const label = typeof raw === "string" ? normalizeTaxonomyLabel(raw) : "";
+    if (label === "") throw new Error(`${key} is required.`);
+    return label;
+  };
+
+  return {
+    userId: parsePositiveInteger(body.userId, "userId"),
+    epicLabel: read("epicLabel"),
+    categoryLabel: read("categoryLabel"),
+    groupLabel: read("groupLabel"),
+  };
+};
+
+export const parseTaxonomySuggestRequest = (
+  value: unknown
+): TaxonomySuggestRequest => {
   const body = toRequestObject(value);
 
   return {
     userId: parsePositiveInteger(body.userId, "userId"),
-    categoryId: parsePositiveInteger(body.categoryId, "categoryId"),
-    label: typeof body.label === "string" ? normalizeTaxonomyLabel(body.label) : "",
+    level: parseTaxonomyLevel(body.level),
+    parentId: parseNullableId(body.parentId, "parentId"),
+    query:
+      typeof body.query === "string" ? normalizeTaxonomyLabel(body.query) : "",
+    limit: parsePositiveInteger(body.limit ?? 10, "limit", { min: 1, max: 50 }),
   };
 };
 
@@ -239,14 +342,24 @@ export const parseUpdateTagRequest = (value: unknown): UpdateTagRequest => {
   };
 };
 
-export const parseDeleteCategoryRequest = (
+export const parseDeleteTaxonomyRequest = (
   value: unknown
-): DeleteCategoryRequest => {
+): DeleteTaxonomyRequest => {
   const body = toRequestObject(value);
+  const mode = typeof body.mode === "string" ? body.mode.trim() : "";
+
+  // No default. Guessing here means silently either losing notes or moving
+  // them somewhere the user did not ask for.
+  if (mode !== "reassign-children" && mode !== "delete-subtree") {
+    throw new Error(
+      'mode must be "reassign-children" or "delete-subtree".'
+    );
+  }
 
   return {
     userId: parsePositiveInteger(body.userId, "userId"),
-    categoryId: parsePositiveInteger(body.categoryId, "categoryId"),
+    taxonomyId: parsePositiveInteger(body.taxonomyId, "taxonomyId"),
+    mode,
   };
 };
 
@@ -383,7 +496,7 @@ export const getNotesAppSession = async (
 ): Promise<SessionResponse | null> => {
   const user = await getUserById(request.userId);
 
-  return user ? { user } : null;
+  return user ? await withTaxonomyLevels(user) : null;
 };
 
 export const loginNotesAppUser = async (
@@ -424,7 +537,7 @@ export const updateNotesAppUserPreferences = async (
 ): Promise<SessionResponse | null> => {
   const user = await updateUserPreferencesById(request.userId, request.preferences);
 
-  return user ? { user } : null;
+  return user ? await withTaxonomyLevels(user) : null;
 };
 
 export const listNotesForNotesApp = async (
@@ -433,18 +546,60 @@ export const listNotesForNotesApp = async (
   notes: await listNotesByUser(request.userId),
 });
 
-export const listCategoriesForNotesApp = async (
-  request: CategoriesRequest
-): Promise<CategoriesResponse> => {
+/**
+ * The whole tree plus this user's tier vocabulary.
+ *
+ * Both repairs run first. A user with no vocabulary cannot have any taxonomy
+ * row at all (the composite level FK forbids it), and a user with no chain has
+ * nowhere to put a note, which the client experiences as autosave silently
+ * doing nothing.
+ */
+export const listTaxonomyForNotesApp = async (
+  request: TaxonomyRequest
+): Promise<TaxonomyResponse> => {
   const client = await getDb().connect();
 
   try {
-    await ensureDefaultCategoryForUser(client, request.userId);
+    await ensureTaxonomyLevelsForUser(client, request.userId);
+    await ensureDefaultTaxonomyChainForUser(client, request.userId);
   } finally {
     client.release();
   }
 
-  return { categories: await listCategoriesByUser(request.userId) };
+  const [taxonomy, levels] = await Promise.all([
+    listTaxonomyByUser(request.userId),
+    listTaxonomyLevelsForUser(request.userId),
+  ]);
+
+  return { taxonomy, levels };
+};
+
+export const listTaxonomyLevelsForNotesApp = async (
+  request: TaxonomyRequest
+): Promise<TaxonomyLevelsResponse> => {
+  const client = await getDb().connect();
+
+  try {
+    await ensureTaxonomyLevelsForUser(client, request.userId);
+  } finally {
+    client.release();
+  }
+
+  return { levels: await listTaxonomyLevelsForUser(request.userId) };
+};
+
+export const updateTaxonomyLevelForNotesApp = async (
+  request: UpdateTaxonomyLevelRequest
+): Promise<TaxonomyLevelsResponse | null> => {
+  const updated = await updateTaxonomyLevelLabelForUser(
+    request.userId,
+    request.level,
+    request.label
+  );
+
+  if (!updated) return null;
+
+  return { levels: await listTaxonomyLevelsForUser(request.userId) };
 };
 
 export const listTagsForNotesApp = async (
@@ -492,7 +647,7 @@ const createLabeledEntityForNotesApp = async ({
     }
 
     entityId = resolvedId;
-    const { vectorLiteral, embeddingModel } = await createTagLabelEmbedding(trimmed);
+    const { vectorLiteral, embeddingModel } = await createLabelEmbedding(trimmed);
     const embeddingColumn =
       tableName === "user_note_category_v1" ? "category_embedding" : "tag_embedding";
 
@@ -526,22 +681,112 @@ const createLabeledEntityForNotesApp = async ({
   return entityId!;
 };
 
-export const createCategoryForNotesApp = async (
-  request: CreateCategoryRequest
-): Promise<CreateCategoryResponse> => {
-  const categoryId = await createLabeledEntityForNotesApp({
-    userId: request.userId,
-    label: request.label,
-    resolveId: resolveCategoryIdForUser,
-    tableName: "user_note_category_v1",
-  });
-  const category = await getCategoryByIdForUser(request.userId, categoryId);
+export const createTaxonomyForNotesApp = async (
+  request: CreateTaxonomyRequest
+): Promise<CreateTaxonomyResponse> => {
+  const trimmed = normalizeTaxonomyLabel(request.label);
+  if (trimmed === "") throw new Error("label is required.");
 
-  if (!category) {
-    throw new Error("Failed to load category.");
+  const client = await getDb().connect();
+  let taxonomyId: number;
+
+  try {
+    await client.query("BEGIN");
+    const resolved = await resolveTaxonomyIdForUser(
+      client,
+      request.userId,
+      request.level,
+      request.parentId,
+      trimmed
+    );
+    if (resolved === null) throw new Error("Failed to resolve taxonomy row.");
+    taxonomyId = resolved;
+
+    const { vectorLiteral, embeddingModel } = await createLabelEmbedding(trimmed);
+    await client.query(
+      `
+        UPDATE public.user_taxonomy_v1
+        SET
+          label_embedding = $1::vector,
+          embedding_model = $2,
+          embedding_updated_at = $3
+        WHERE id = $4
+          AND user_id = $5
+      `,
+      [
+        vectorLiteral,
+        embeddingModel,
+        embeddingModel ? new Date().toISOString() : null,
+        taxonomyId,
+        request.userId,
+      ]
+    );
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
   }
 
-  return { category };
+  const taxonomy = await getTaxonomyByIdForUser(request.userId, taxonomyId);
+  if (!taxonomy) throw new Error("Failed to load taxonomy row.");
+
+  return { taxonomy };
+};
+
+export const resolveTaxonomyPathForNotesApp = async (
+  request: TaxonomyPathRequest
+): Promise<TaxonomyPathResponse> => {
+  const { epicId, categoryId, groupId } = await resolveTaxonomyPathForUser(
+    request.userId,
+    request.epicLabel,
+    request.categoryLabel,
+    request.groupLabel
+  );
+
+  const [epic, category, group] = await Promise.all([
+    getTaxonomyByIdForUser(request.userId, epicId),
+    getTaxonomyByIdForUser(request.userId, categoryId),
+    getTaxonomyByIdForUser(request.userId, groupId),
+  ]);
+
+  if (!epic || !category || !group) {
+    throw new Error("Failed to load the resolved path.");
+  }
+
+  // Best-effort: a path resolved mid-save must not fail because Jina is down.
+  // Embedding maintenance picks up anything missed here.
+  void backfillTaxonomyEmbeddings(request.userId, [epic.id, category.id, group.id]);
+
+  return { epic, category, group };
+};
+
+export const suggestTaxonomyForNotesApp = async (
+  request: TaxonomySuggestRequest
+): Promise<TaxonomySuggestResponse> => {
+  // Literal matching always works; the embedding is an enhancement, so a Jina
+  // failure degrades autocomplete rather than breaking it.
+  let queryEmbedding: string | null = null;
+  if (request.query.length >= 3) {
+    try {
+      queryEmbedding = await createQueryEmbedding(request.query);
+    } catch {
+      queryEmbedding = null;
+    }
+  }
+
+  return {
+    suggestions: await suggestTaxonomyForUser(
+      request.userId,
+      request.level,
+      request.parentId,
+      request.query,
+      request.limit,
+      queryEmbedding
+    ),
+  };
 };
 
 export const createTagForNotesApp = async (
@@ -600,7 +845,7 @@ const updateLabeledEntityForNotesApp = async <T>({
       return null;
     }
 
-    const { vectorLiteral, embeddingModel } = await createTagLabelEmbedding(trimmed);
+    const { vectorLiteral, embeddingModel } = await createLabelEmbedding(trimmed);
     const embeddingColumn =
       tableName === "user_note_category_v1" ? "category_embedding" : "tag_embedding";
 
@@ -651,28 +896,48 @@ const ensureFallbackTagId = async (userId: number) => {
   }
 };
 
-const ensureFallbackCategoryId = async (userId: number) => {
+/** Rename or move one taxonomy row. Renaming re-embeds; moving does not. */
+export const updateTaxonomyForNotesApp = async (
+  request: UpdateTaxonomyRequest
+): Promise<UpdateTaxonomyResponse | null> => {
+  if (request.parentId !== null) {
+    const moved = await moveTaxonomyNodeForUser(
+      request.userId,
+      request.taxonomyId,
+      request.parentId
+    );
+    if (moved === null) return null;
+
+    const taxonomy = await getTaxonomyByIdForUser(request.userId, request.taxonomyId);
+    return taxonomy ? { taxonomy } : null;
+  }
+
+  const trimmed = normalizeTaxonomyLabel(request.label ?? "");
+  if (trimmed === "") throw new Error("label is required.");
+
   const client = await getDb().connect();
 
   try {
     await client.query("BEGIN");
-    const fallbackCategory = await getFirstCategoryForUser(client, userId);
 
-    if (!fallbackCategory) {
-      throw new Error("Failed to resolve fallback category.");
-    }
-
-    const fallbackCategoryId = fallbackCategory.id;
-
-    const { vectorLiteral, embeddingModel } = await createTagLabelEmbedding(
-      fallbackCategory.label
+    const updatedId = await updateTaxonomyLabelForUser(
+      client,
+      request.userId,
+      request.taxonomyId,
+      trimmed
     );
 
+    if (updatedId === null) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    const { vectorLiteral, embeddingModel } = await createLabelEmbedding(trimmed);
     await client.query(
       `
-        UPDATE public.user_note_category_v1
+        UPDATE public.user_taxonomy_v1
         SET
-          category_embedding = $1::vector,
+          label_embedding = $1::vector,
           embedding_model = $2,
           embedding_updated_at = $3
         WHERE id = $4
@@ -682,34 +947,28 @@ const ensureFallbackCategoryId = async (userId: number) => {
         vectorLiteral,
         embeddingModel,
         embeddingModel ? new Date().toISOString() : null,
-        fallbackCategoryId,
-        userId,
+        request.taxonomyId,
+        request.userId,
       ]
     );
 
     await client.query("COMMIT");
-    return fallbackCategoryId;
   } catch (error) {
     await client.query("ROLLBACK");
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      (error as { code?: string }).code === "23505"
+    ) {
+      throw new Error(TAXONOMY_SIBLING_LABEL_TAKEN_ERROR);
+    }
     throw error;
   } finally {
     client.release();
   }
-};
 
-export const updateCategoryForNotesApp = async (
-  request: UpdateCategoryRequest
-): Promise<UpdateCategoryResponse | null> => {
-  const category = await updateLabeledEntityForNotesApp({
-    userId: request.userId,
-    entityId: request.categoryId,
-    label: request.label,
-    updateLabel: updateCategoryLabelForUser,
-    getById: getCategoryByIdForUser,
-    tableName: "user_note_category_v1",
-  });
-
-  return category ? { category } : null;
+  const taxonomy = await getTaxonomyByIdForUser(request.userId, request.taxonomyId);
+  return taxonomy ? { taxonomy } : null;
 };
 
 export const updateTagForNotesApp = async (
@@ -727,49 +986,22 @@ export const updateTagForNotesApp = async (
   return tag ? { tag } : null;
 };
 
-export const deleteCategoryForNotesApp = async (
-  request: DeleteCategoryRequest
-): Promise<DeleteCategoryResponse | null> => {
-  const fallbackCategoryId = await ensureFallbackCategoryId(request.userId);
-  const result = await deleteCategoryForUser(
+export const deleteTaxonomyForNotesApp = async (
+  request: DeleteTaxonomyRequest
+): Promise<DeleteTaxonomyResponse | null> => {
+  const result = await deleteTaxonomyNodeForUser(
     request.userId,
-    request.categoryId,
-    fallbackCategoryId
+    request.taxonomyId,
+    request.mode
   );
 
-  if (!result.deleted) {
-    return null;
-  }
-
-  return { ok: true };
-};
-
-export const parseDeleteCategoryWithNotesRequest = (
-  value: unknown
-): DeleteCategoryWithNotesRequest => {
-  const body = toRequestObject(value);
+  if (!result.deleted) return null;
 
   return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    categoryId: parsePositiveInteger(body.categoryId, "categoryId"),
+    ok: true,
+    deletedNotes: result.deletedNotes,
+    deletedNodes: result.deletedNodes,
   };
-};
-
-export const deleteCategoryWithNotesForNotesApp = async (
-  request: DeleteCategoryWithNotesRequest
-): Promise<DeleteCategoryWithNotesResponse | null> => {
-  const fallbackCategoryId = await ensureFallbackCategoryId(request.userId);
-  const result = await deleteCategoryWithNotesForUser(
-    request.userId,
-    request.categoryId,
-    fallbackCategoryId
-  );
-
-  if (!result.deleted) {
-    return null;
-  }
-
-  return { ok: true, deletedNotes: result.deletedNotes };
 };
 
 export const deleteTagForNotesApp = async (
@@ -910,26 +1142,26 @@ export const searchNotesForNotesApp = async (
 export const maintainNoteEmbeddingsForNotesApp = async (
   request: EmbeddingMaintenanceRequest
 ): Promise<EmbeddingMaintenanceResponse> => {
-  const categories =
+  const taxonomy =
     request.mode === NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE
-      ? await listCategoriesStaleEmbeddingsByUser(request.userId, request.limit)
-      : await listCategoriesMissingEmbeddingsByUser(request.userId, request.limit);
+      ? await listTaxonomyStaleEmbeddingsByUser(request.userId, request.limit)
+      : await listTaxonomyMissingEmbeddingsByUser(request.userId, request.limit);
 
-  let categoriesUpdated = 0;
+  let taxonomyUpdated = 0;
 
-  if (categories.length > 0) {
-    const categoryJobs = await createBackfillTagEmbeddings(categories);
+  if (taxonomy.length > 0) {
+    const taxonomyJobs = await createBackfillLabelEmbeddings(taxonomy);
 
-    for (const job of categoryJobs) {
-      await updateCategoryEmbeddingById(
-        job.tagId,
+    for (const job of taxonomyJobs) {
+      await updateTaxonomyEmbeddingById(
+        job.id,
         request.userId,
         job.vectorLiteral,
         job.embeddingModel
       );
     }
 
-    categoriesUpdated = categoryJobs.length;
+    taxonomyUpdated = taxonomyJobs.length;
   }
 
   const tags =
@@ -940,11 +1172,11 @@ export const maintainNoteEmbeddingsForNotesApp = async (
   let tagsUpdated = 0;
 
   if (tags.length > 0) {
-    const tagJobs = await createBackfillTagEmbeddings(tags);
+    const tagJobs = await createBackfillLabelEmbeddings(tags);
 
     for (const job of tagJobs) {
       await updateTagEmbeddingById(
-        job.tagId,
+        job.id,
         request.userId,
         job.vectorLiteral,
         job.embeddingModel
@@ -959,12 +1191,12 @@ export const maintainNoteEmbeddingsForNotesApp = async (
       ? await listNotesStaleEmbeddingsByUser(request.userId, request.limit)
       : await listNotesMissingEmbeddingsByUser(request.userId, request.limit);
 
-  if (notes.length === 0 && tagsUpdated === 0 && categoriesUpdated === 0) {
+  if (notes.length === 0 && tagsUpdated === 0 && taxonomyUpdated === 0) {
     return {
       mode: request.mode,
       processed: 0,
       updated: 0,
-      categoriesUpdated: 0,
+      taxonomyUpdated: 0,
       tagsUpdated: 0,
       hasMore: false,
     };
@@ -986,18 +1218,69 @@ export const maintainNoteEmbeddingsForNotesApp = async (
     mode: request.mode,
     processed: notes.length,
     updated: notesUpdated,
-    categoriesUpdated,
+    taxonomyUpdated,
     tagsUpdated,
     hasMore:
       notes.length === request.limit ||
       tags.length === request.limit ||
-      categories.length === request.limit,
+      taxonomy.length === request.limit,
   };
+};
+
+/**
+ * Embed a handful of taxonomy labels without blocking the caller.
+ *
+ * Used where a path is resolved as part of saving a note: autocomplete quality
+ * is not worth failing a save for, and embedding maintenance sweeps up anything
+ * this misses.
+ */
+const backfillTaxonomyEmbeddings = async (userId: number, ids: number[]) => {
+  try {
+    const rows = await Promise.all(
+      ids.map((id) => getTaxonomyByIdForUser(userId, id))
+    );
+    const present = rows.filter((row): row is NonNullable<typeof row> => row !== null);
+    if (present.length === 0) return;
+
+    const jobs = await createBackfillLabelEmbeddings(
+      present.map((row) => ({ id: row.id, label: row.label }))
+    );
+
+    for (const job of jobs) {
+      await updateTaxonomyEmbeddingById(
+        job.id,
+        userId,
+        job.vectorLiteral,
+        job.embeddingModel
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `Taxonomy embedding backfill failed for user ${userId}; ` +
+        "autocomplete stays literal-only until embedding maintenance runs.",
+      error
+    );
+  }
+};
+
+/**
+ * Every session response carries the tier vocabulary, so no client ever paints
+ * default English tier names and corrects itself a moment later.
+ */
+const withTaxonomyLevels = async (user: UserSummary): Promise<SessionResponse> => {
+  const client = await getDb().connect();
+  try {
+    await ensureTaxonomyLevelsForUser(client, user.id);
+  } finally {
+    client.release();
+  }
+
+  return { user, taxonomyLevels: await listTaxonomyLevelsForUser(user.id) };
 };
 
 export const createAnonymousNotesAppSession = async (): Promise<SessionResponse> => {
   const user = await createAnonymousUser();
-  return { user };
+  return withTaxonomyLevels(user);
 };
 
 export const claimAnonymousNotesAppSession = async (request: {
@@ -1012,14 +1295,14 @@ export const claimAnonymousNotesAppSession = async (request: {
     email: request.email,
   });
 
-  return { user };
+  return withTaxonomyLevels(user);
 };
 
 export const mergeAnonymousNotesAppSession = async (request: {
   anonUserId: number;
   realUserId: number;
-}): Promise<SessionResponse> => {
-  await mergeAnonymousUserInto(request.anonUserId, request.realUserId);
+}): Promise<MergeSessionResponse> => {
+  const remaps = await mergeAnonymousUserInto(request.anonUserId, request.realUserId);
 
   // Categories/tags inserted by the merge bypass the embed-on-write service
   // paths, so their embeddings are NULL and they would be invisible to
@@ -1045,7 +1328,7 @@ export const mergeAnonymousNotesAppSession = async (request: {
     throw new Error("Real user not found after merge.");
   }
 
-  return { user };
+  return { ...(await withTaxonomyLevels(user)), remaps };
 };
 
 export const notesAppService = {
@@ -1056,14 +1339,17 @@ export const notesAppService = {
   revokeNotesAppToken,
   updateNotesAppUserPreferences,
   listNotesForNotesApp,
-  listCategoriesForNotesApp,
+  listTaxonomyForNotesApp,
+  listTaxonomyLevelsForNotesApp,
+  updateTaxonomyLevelForNotesApp,
   listTagsForNotesApp,
-  createCategoryForNotesApp,
+  createTaxonomyForNotesApp,
+  resolveTaxonomyPathForNotesApp,
+  suggestTaxonomyForNotesApp,
   createTagForNotesApp,
-  updateCategoryForNotesApp,
+  updateTaxonomyForNotesApp,
   updateTagForNotesApp,
-  deleteCategoryForNotesApp,
-  deleteCategoryWithNotesForNotesApp,
+  deleteTaxonomyForNotesApp,
   deleteTagForNotesApp,
   createNoteForNotesApp,
   updateNoteForNotesApp,

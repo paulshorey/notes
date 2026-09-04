@@ -22,10 +22,19 @@ const modelsContent = await fs.readFile(modelsPath, "utf8")
 const jsonCodecContent = await fs.readFile(jsonCodecPath, "utf8")
 const apiClientContent = await fs.readFile(apiClientPath, "utf8")
 
-const requiredModels = ["UserSummary", "TagRecord", "NoteRecord", "SemanticSearchResult"]
+const requiredModels = [
+  "UserSummary",
+  "TagRecord",
+  "TaxonomyRecord",
+  "TaxonomyLevelRecord",
+  "NoteRecord",
+  "SemanticSearchResult",
+]
 const jsonCodecBindings = [
   { functionName: "userFromJson", modelName: "UserSummary" },
   { functionName: "tagFromJson", modelName: "TagRecord" },
+  { functionName: "taxonomyFromJson", modelName: "TaxonomyRecord" },
+  { functionName: "taxonomyLevelFromJson", modelName: "TaxonomyLevelRecord" },
   { functionName: "noteFromJson", modelName: "NoteRecord" },
   { functionName: "searchResultFromJson", modelName: "SemanticSearchResult" },
 ]
@@ -265,15 +274,7 @@ for (const binding of jsonCodecBindings) {
 
     const pattern = expectedCodecPattern(expectedField)
 
-    const compatibilityPattern =
-      binding.functionName === "noteFromJson" && expectedField.name === "category"
-        ? /^categoryFromNoteJson\(json\)$/
-        : null
-
-    if (
-      !pattern.test(assignment.expression) &&
-      !compatibilityPattern?.test(assignment.expression)
-    ) {
+    if (!pattern.test(assignment.expression)) {
       throw new Error(
         `${binding.functionName}.${expectedField.name} does not match the notes-app contract. Found: ${assignment.expression}`,
       )

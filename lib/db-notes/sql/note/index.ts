@@ -13,7 +13,6 @@ export {
   updateNoteForUser,
 } from "./update";
 export type {
-  NoteCategoryRef,
   NoteEmbeddingBackfillRow,
   NoteEmbeddingWriteInput,
   NoteInput,

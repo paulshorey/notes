@@ -32,7 +32,7 @@ type State = OpenNotesState & {
    * Category currently expanded in the notes results accordion.
    * Only one category can be expanded at a time; null means all collapsed.
    */
-  manuallyExpandedCategoryId: number | null
+  expandedTaxonomyIds: number[]
   /**
    * Tag filter currently selected in the notes results footer.
    * Null means all tags are visible.
@@ -53,16 +53,17 @@ type State = OpenNotesState & {
 type Actions = {
   resetDefaultState: () => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
-  setManuallyExpandedCategoryId: (categoryId: number | null) => void
+  toggleTaxonomyExpanded: (taxonomyId: number) => void
+  setTaxonomyExpanded: (taxonomyId: number, expanded: boolean) => void
   setSelectedTagId: (tagId: number | null) => void
   setSearchQuery: (query: string) => void
   /** Lowering the cap evicts immediately; the dropped entries are returned. */
   setMaxOpenNotes: (value: number) => OpenNoteEntry[]
-  openExistingNote: (note: NoteRecord) => OpenNoteEntry[]
+  openExistingNote: (note: NoteRecord, groupLabel?: string) => OpenNoteEntry[]
   openNewDraft: (options?: {
-    categoryId?: number | null
+    groupId?: number | null
     tagIds?: number[]
-    categoryLabel?: string
+    groupLabel?: string
   }) => OpenNoteEntry[]
   activateEntry: (key: OpenNoteKey) => void
   goBack: () => void
@@ -87,7 +88,7 @@ export type NotesAppStore = State & Actions
 const defaultState: State = {
   ...createEmptyOpenNotesState(),
   resultsListVisible: true,
-  manuallyExpandedCategoryId: null,
+  expandedTaxonomyIds: [],
   selectedTagId: null,
   searchQuery: "",
   maxOpenNotes: MAX_OPEN_NOTES_DEFAULT,
@@ -111,8 +112,22 @@ export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
         typeof visible === "function" ? visible(current.resultsListVisible) : visible,
     }))
   },
-  setManuallyExpandedCategoryId: (categoryId) => {
-    set({ manuallyExpandedCategoryId: categoryId })
+  toggleTaxonomyExpanded: (taxonomyId) => {
+    const current = get().expandedTaxonomyIds
+    set({
+      expandedTaxonomyIds: current.includes(taxonomyId)
+        ? current.filter((id) => id !== taxonomyId)
+        : [...current, taxonomyId],
+    })
+  },
+  setTaxonomyExpanded: (taxonomyId, expanded) => {
+    const current = get().expandedTaxonomyIds
+    if (current.includes(taxonomyId) === expanded) return
+    set({
+      expandedTaxonomyIds: expanded
+        ? [...current, taxonomyId]
+        : current.filter((id) => id !== taxonomyId),
+    })
   },
   setSelectedTagId: (tagId) => {
     set({ selectedTagId: tagId })
@@ -126,8 +141,13 @@ export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
     set({ ...state, maxOpenNotes })
     return removed
   },
-  openExistingNote: (note) => {
-    const { state, removed } = openExistingNoteIn(openNotesSlice(get()), note, get().maxOpenNotes)
+  openExistingNote: (note, groupLabel = "") => {
+    const { state, removed } = openExistingNoteIn(
+      openNotesSlice(get()),
+      note,
+      groupLabel,
+      get().maxOpenNotes,
+    )
     set(state)
     return removed
   },

@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 import type { UserV1Row } from "../../generated/typescript/db-types";
 import { getDb } from "../../lib/db/postgres";
 import { ensureDefaultTagForUser } from "../tag";
+import { ensureDefaultTaxonomyChainForUser } from "../taxonomy";
+import { ensureTaxonomyLevelsForUser } from "../taxonomy-level";
 import { hashPassword } from "./password";
 import type { UserSummary } from "./types";
 
@@ -42,6 +45,13 @@ export const createAnonymousUser = async (): Promise<UserSummary> => {
     }
 
     await ensureDefaultTagForUser(client, rows[0].id);
+    // Seeded in the same transaction as the user row. A user with no tier
+    // vocabulary cannot hold a taxonomy row at all (the composite level FK
+    // forbids it), and one with no epic > category > group chain has nowhere to
+    // put a note, which the editor experiences as autosave silently doing
+    // nothing.
+    await ensureTaxonomyLevelsForUser(client, rows[0].id);
+    await ensureDefaultTaxonomyChainForUser(client, rows[0].id);
     await client.query("COMMIT");
 
     return mapUser(rows[0]);
@@ -182,10 +192,17 @@ export const MERGE_TABLE_STRATEGIES: Record<
 > = {
   user_note_category_v1: "dedup-remap",
   user_note_tag_v1: "dedup-remap",
+  user_taxonomy_v1: "dedup-remap",
   user_note_v1: "reparent",
   // Anonymous sessions have no way to mint API tokens; any that existed would
   // be discarded with the anonymous row.
   user_api_token_v1: "drop",
+  // The destination account's tier vocabulary wins. A visitor who renamed
+  // "Category" to "Project" before signing in does not rename it for the
+  // account they sign in to — that is a far bigger surprise than inheriting a
+  // UI preference, which is why this diverges from the anon-wins rule used for
+  // user_v1.preferences.
+  user_taxonomy_level_v1: "drop",
 };
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -219,10 +236,85 @@ export const mergePreferenceObjects = (
   return merged;
 };
 
+/**
+ * Old anonymous id -> surviving destination id, for references the client is
+ * still holding when the merge happens.
+ */
+export interface MergeIdRemap {
+  anonId: number;
+  realId: number;
+}
+
+export interface MergeRemaps {
+  taxonomy: MergeIdRemap[];
+  tags: MergeIdRemap[];
+}
+
+/**
+ * Merge one level of the taxonomy by label and return the id remap.
+ *
+ * Level order matters: a level-2 row cannot be inserted until its parent's
+ * destination id is known, so each call takes the remap built for the level
+ * above. Dedup is by final label — a category the visitor renamed simply does
+ * not collide and arrives as a separate row, which is the intended behavior.
+ */
+const mergeTaxonomyLevel = async (
+  client: PoolClient,
+  anonUserId: number,
+  realUserId: number,
+  level: number,
+  parentRemap: Map<number, number> | null
+): Promise<MergeIdRemap[]> => {
+  const { rows: anonRows } = await client.query<{
+    id: number;
+    parent_id: number | null;
+    label: string;
+  }>(
+    `SELECT id, parent_id, label
+     FROM public.user_taxonomy_v1
+     WHERE user_id = $1 AND level = $2
+     ORDER BY id`,
+    [anonUserId, level]
+  );
+
+  const remap: MergeIdRemap[] = [];
+
+  for (const anonRow of anonRows) {
+    const realParentId =
+      parentRemap === null
+        ? null
+        : anonRow.parent_id === null
+          ? null
+          : (parentRemap.get(anonRow.parent_id) ?? null);
+
+    // A row whose parent did not survive has nowhere to go. Cannot happen with
+    // a consistent tree, but skipping beats inserting an orphan.
+    if (parentRemap !== null && realParentId === null) continue;
+
+    const { rows } = await client.query<{ id: number }>(
+      `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (user_id, level, parent_id, label)
+       DO UPDATE SET label = EXCLUDED.label
+       RETURNING id`,
+      [realUserId, level, realParentId, anonRow.label]
+    );
+
+    const realId = rows[0]?.id;
+    if (realId === undefined) {
+      throw new Error("Failed to resolve a taxonomy row during the merge.");
+    }
+
+    remap.push({ anonId: anonRow.id, realId });
+  }
+
+  return remap;
+};
+
 export const mergeAnonymousUserInto = async (
   anonUserId: number,
   realUserId: number
-): Promise<void> => {
+): Promise<MergeRemaps> => {
   const db = getDb();
   const client = await db.connect();
 
@@ -308,6 +400,32 @@ export const mergeAnonymousUserInto = async (
       [realUserId, anonUserId]
     );
 
+    // Merge the hierarchy one level at a time, top down: a level-2 row cannot
+    // be inserted until its parent's destination id is known.
+    const epicRemap = await mergeTaxonomyLevel(client, anonUserId, realUserId, 1, null);
+    const epicMap = new Map(epicRemap.map((entry) => [entry.anonId, entry.realId]));
+
+    const categoryTaxonomyRemap = await mergeTaxonomyLevel(
+      client,
+      anonUserId,
+      realUserId,
+      2,
+      epicMap
+    );
+    const categoryMap = new Map(
+      categoryTaxonomyRemap.map((entry) => [entry.anonId, entry.realId])
+    );
+
+    const groupRemap = await mergeTaxonomyLevel(
+      client,
+      anonUserId,
+      realUserId,
+      3,
+      categoryMap
+    );
+
+    const taxonomyRemap = [...epicRemap, ...categoryTaxonomyRemap, ...groupRemap];
+
     // Reassign notes: update user_id and remap category_id
     if (categoryRemap.rows.length > 0) {
       const values = categoryRemap.rows
@@ -319,6 +437,22 @@ export const mergeAnonymousUserInto = async (
              category_id = m.real_id
          FROM (VALUES ${values}) AS m(anon_id, real_id)
          WHERE n.user_id = $2 AND n.category_id = m.anon_id`,
+        [realUserId, anonUserId]
+      );
+    }
+
+    // Remap group_id the same way, so notes land in the destination account's
+    // copy of the group rather than pointing at a row about to be cascaded away.
+    if (groupRemap.length > 0) {
+      const groupValues = groupRemap
+        .map((entry) => `(${entry.anonId}, ${entry.realId})`)
+        .join(", ");
+      await client.query(
+        `UPDATE public.user_note_v1 n
+         SET user_id = $1,
+             group_id = m.real_id
+         FROM (VALUES ${groupValues}) AS m(anon_id, real_id)
+         WHERE n.user_id = $2 AND n.group_id = m.anon_id`,
         [realUserId, anonUserId]
       );
     }
@@ -345,13 +479,25 @@ export const mergeAnonymousUserInto = async (
       );
     }
 
-    // Delete anon user — CASCADE removes orphaned anon categories/tags
+    // Delete anon user — CASCADE removes orphaned anon categories/tags/taxonomy
     await client.query(
       `DELETE FROM public.user_v1 WHERE id = $1`,
       [anonUserId]
     );
 
     await client.query("COMMIT");
+
+    // Returned so the client can repair references it is still holding. An
+    // open note the visitor was editing keeps a local draft pointing at an
+    // anonymous group id that no longer exists; without this the client falls
+    // back to a default group and silently loses the note's placement.
+    return {
+      taxonomy: taxonomyRemap,
+      tags: tagRemap.rows.map((row) => ({
+        anonId: row.anon_id,
+        realId: row.real_id,
+      })),
+    };
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

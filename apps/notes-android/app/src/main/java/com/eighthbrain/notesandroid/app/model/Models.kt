@@ -34,12 +34,27 @@ data class LoginSession(
     val user: UserSummary,
 )
 
-data class CategoryRecord(
+/**
+ * One node of the Epic > Category > Group tree. `level` (1 epic, 2 category,
+ * 3 group) is the only stable identity a tier has — never branch on the label,
+ * which the user can rename.
+ */
+data class TaxonomyRecord(
     val id: Int,
     val userId: Int,
+    val level: Int,
+    val parentId: Int?,
     val label: String,
     val noteCount: Int = 0,
+    val directNoteCount: Int = 0,
     val lastUsedAt: String? = null,
+)
+
+/** This user's word for one tier. Display text only. */
+data class TaxonomyLevelRecord(
+    val userId: Int,
+    val level: Int,
+    val label: String,
 )
 
 data class TagRecord(
@@ -50,11 +65,6 @@ data class TagRecord(
     val lastUsedAt: String? = null,
 )
 
-data class NoteCategoryRef(
-    val id: Int,
-    val label: String,
-)
-
 data class NoteTagRef(
     val id: Int,
     val label: String,
@@ -63,7 +73,12 @@ data class NoteTagRef(
 data class NoteRecord(
     val id: Int,
     val userId: Int,
-    val category: NoteCategoryRef,
+    /**
+     * The leaf group only. Resolve the category and epic from the taxonomy tree
+     * in [AppSnapshot]; the server no longer sends labels, so a rename needs no
+     * note refetch and labels have one source of truth.
+     */
+    val groupId: Int,
     val tags: List<NoteTagRef>,
     val description: String?,
     val timeDue: String?,
@@ -78,13 +93,11 @@ fun List<NoteRecord>.sortedByLastUpdated(): List<NoteRecord> =
 data class SemanticSearchResult(
     val note: NoteRecord,
     val similarity: Double,
-    val tagSimilarity: Double?,
-    val descriptionSimilarity: Double?,
 )
 
 data class NoteDraft(
-    val selectedCategoryId: Int? = null,
-    val newCategoryLabel: String = "",
+    val selectedGroupId: Int? = null,
+    val newGroupLabel: String = "",
     val selectedTagIds: List<Int> = emptyList(),
     val newTagLabel: String = "",
     val description: String = "",
@@ -97,7 +110,13 @@ data class NoteDraft(
 data class AppSnapshot(
     val user: UserSummary? = null,
     val apiToken: String? = null,
-    val categories: List<CategoryRecord> = emptyList(),
+    /**
+     * The whole tree and this user's tier vocabulary. Both are required, not
+     * optional: NoteRecord carries only a group id, so a widget without the
+     * tree cannot render a note's location at all.
+     */
+    val taxonomy: List<TaxonomyRecord> = emptyList(),
+    val taxonomyLevels: List<TaxonomyLevelRecord> = emptyList(),
     val tags: List<TagRecord> = emptyList(),
     val notes: List<NoteRecord> = emptyList(),
     val lastSearchQuery: String = "",
@@ -105,7 +124,21 @@ data class AppSnapshot(
     val widgetMode: WidgetMode = WidgetMode.NOTES,
     val lastSyncEpochMillis: Long? = null,
     val lastError: String? = null,
-)
+) {
+    /** Only level-3 rows can hold a note. */
+    val groups: List<TaxonomyRecord>
+        get() = taxonomy.filter { it.level == 3 }
+
+    /** This user's word for a tier, falling back to the shipped default. */
+    fun levelLabel(level: Int): String =
+        taxonomyLevels.firstOrNull { it.level == level }?.label
+            ?: when (level) {
+                1 -> "Epic"
+                2 -> "Category"
+                3 -> "Group"
+                else -> "Note"
+            }
+}
 
 private val localInputFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
 private val dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(
@@ -121,8 +154,8 @@ fun defaultRemindInput(): String = nowLocalDateTime().plusMinutes(30).format(loc
 
 fun NoteRecord.toDraft(): NoteDraft =
     NoteDraft(
-        selectedCategoryId = category.id,
-        newCategoryLabel = category.label,
+        selectedGroupId = groupId,
+        newGroupLabel = "",
         selectedTagIds = tags.map { it.id },
         newTagLabel = "",
         description = description.orEmpty(),

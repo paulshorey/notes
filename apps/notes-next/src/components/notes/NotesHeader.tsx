@@ -24,6 +24,7 @@ import {
   useNotesAppStore,
 } from "@/stores/notesAppStore"
 import type { OpenNoteKey } from "@/stores/openNotes"
+import type { TaxonomyPath } from "@/lib/taxonomyIndex"
 import type { EmbeddingMaintenanceMode, NoteSaveStatus } from "@/types/notes"
 import styles from "./NotesHeader.module.css"
 
@@ -32,6 +33,7 @@ const OPEN_NOTES_CHOICES = [1, 3, 5, 10, 15, 20, 25]
 const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
   idle: "",
   unsaved: "Unsaved changes",
+  blocked: "Cannot save yet — choose where this goes",
   saving: "Saving…",
   saved: "All changes saved",
   error: "Could not save — retrying",
@@ -64,11 +66,11 @@ function SaveStatusIndicator() {
 }
 
 function RecentNotesMenu({
-  categoryLabelById,
+  groupPathById,
   onSelect,
   onClose,
 }: {
-  categoryLabelById: (categoryId: number | null) => string
+  groupPathById: (groupId: number | null) => TaxonomyPath | null
   onSelect: (key: OpenNoteKey) => void
   onClose: (key: OpenNoteKey) => void
 }) {
@@ -111,6 +113,16 @@ function RecentNotesMenu({
             openNotes.map((entry) => {
               const isActive = entry.key === activeKey
               const title = noteHeadline(entry.form.description)
+              const path = groupPathById(entry.form.selectedGroupId)
+              const breadcrumb =
+                path === null
+                  ? null
+                  : {
+                      epic: path.epic.label,
+                      category: path.category.label,
+                      group: path.group.label,
+                      full: `${path.epic.label} → ${path.category.label} → ${path.group.label}`,
+                    }
 
               return (
                 <div
@@ -133,9 +145,22 @@ function RecentNotesMenu({
                     }}
                   >
                     <span className={styles.recentTitle}>{title}</span>
-                    <span className={styles.recentMeta}>
-                      {categoryLabelById(entry.form.selectedCategoryId)}
-                    </span>
+                    {/*
+                      The full path on its own line: it is too long to share a
+                      row with a status dot and a close control, and the group
+                      alone is ambiguous when two categories both have one.
+                      A draft with no group yet shows nothing rather than a
+                      placeholder arrow chain.
+                    */}
+                    {breadcrumb !== null && (
+                      <span className={styles.recentPath} title={breadcrumb.full}>
+                        <span className={styles.recentPathSegment}>{breadcrumb.epic}</span>
+                        <span className={styles.recentPathSeparator}>›</span>
+                        <span className={styles.recentPathSegment}>{breadcrumb.category}</span>
+                        <span className={styles.recentPathSeparator}>›</span>
+                        <span className={styles.recentPathSegment}>{breadcrumb.group}</span>
+                      </span>
+                    )}
                   </button>
                   <span
                     className={styles.recentStatus}
@@ -183,7 +208,7 @@ interface NotesHeaderProps {
   onLogout: () => void
   maxOpenNotes: number
   onMaxOpenNotesChange: (value: number) => void
-  categoryLabelById: (categoryId: number | null) => string
+  groupPathById: (groupId: number | null) => TaxonomyPath | null
   onSelectOpenNote: (key: OpenNoteKey) => void
   onCloseOpenNote: (key: OpenNoteKey) => void
   embeddingMaintenancePending: EmbeddingMaintenanceMode | null
@@ -209,7 +234,7 @@ export function NotesHeader({
   onLogout,
   maxOpenNotes,
   onMaxOpenNotesChange,
-  categoryLabelById,
+  groupPathById,
   onSelectOpenNote,
   onCloseOpenNote,
   embeddingMaintenancePending,
@@ -375,7 +400,7 @@ export function NotesHeader({
         </Button>
 
         <RecentNotesMenu
-          categoryLabelById={categoryLabelById}
+          groupPathById={groupPathById}
           onSelect={onSelectOpenNote}
           onClose={onCloseOpenNote}
         />
