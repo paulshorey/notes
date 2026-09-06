@@ -17,6 +17,7 @@ export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./
 export {
   DEFAULT_TAXONOMY_LEVEL_LABELS,
   DEFAULT_TAXONOMY_NODE_LABELS,
+  defaultTaxonomyNodeLabel,
   TAXONOMY_LEVEL_CATEGORY,
   TAXONOMY_LEVEL_CONTENT,
   TAXONOMY_LEVEL_EPIC,

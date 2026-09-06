@@ -1,7 +1,7 @@
 import { getDb } from "../lib/db/postgres";
 import type { TaxonomyRecord } from "../contracts/notes-app";
 import {
-  DEFAULT_TAXONOMY_NODE_LABELS,
+  defaultTaxonomyNodeLabel,
   TAXONOMY_LEVEL_CATEGORY,
   TAXONOMY_LEVEL_EPIC,
   TAXONOMY_LEVEL_GROUP,
@@ -229,21 +229,21 @@ export const ensureDefaultTaxonomyChainForUser = async (
     userId,
     TAXONOMY_LEVEL_EPIC,
     null,
-    DEFAULT_TAXONOMY_NODE_LABELS[TAXONOMY_LEVEL_EPIC]
+    defaultTaxonomyNodeLabel(TAXONOMY_LEVEL_EPIC)
   );
   const categoryId = await resolveTaxonomyIdForUser(
     client,
     userId,
     TAXONOMY_LEVEL_CATEGORY,
     epicId,
-    DEFAULT_TAXONOMY_NODE_LABELS[TAXONOMY_LEVEL_CATEGORY]
+    defaultTaxonomyNodeLabel(TAXONOMY_LEVEL_CATEGORY)
   );
   await resolveTaxonomyIdForUser(
     client,
     userId,
     TAXONOMY_LEVEL_GROUP,
     categoryId,
-    DEFAULT_TAXONOMY_NODE_LABELS[TAXONOMY_LEVEL_GROUP]
+    defaultTaxonomyNodeLabel(TAXONOMY_LEVEL_GROUP)
   );
 };
 

@@ -51,6 +51,11 @@ export const DEFAULT_TAXONOMY_NODE_LABELS: Record<number, string> = {
   [TAXONOMY_LEVEL_GROUP]: "ungrouped",
 };
 
+export const defaultTaxonomyNodeLabel = (level: number): string =>
+  DEFAULT_TAXONOMY_NODE_LABELS[level] ??
+  DEFAULT_TAXONOMY_NODE_LABELS[TAXONOMY_LEVEL_CATEGORY] ??
+  "uncategorized";
+
 /** The word this user uses for one tier. Display text only. */
 export interface TaxonomyLevelRecord {
   userId: number;

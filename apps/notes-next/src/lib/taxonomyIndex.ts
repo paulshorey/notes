@@ -2,6 +2,7 @@ import type { TaxonomyLevelRecord, TaxonomyRecord } from "@lib/db-notes"
 import {
   DEFAULT_TAXONOMY_LEVEL_LABELS,
   DEFAULT_TAXONOMY_NODE_LABELS,
+  defaultTaxonomyNodeLabel,
   TAXONOMY_LEVEL_CATEGORY,
   TAXONOMY_LEVEL_EPIC,
   TAXONOMY_LEVEL_GROUP,
@@ -10,8 +11,7 @@ import { normalizeLabel } from "@/lib/strings"
 
 export { DEFAULT_TAXONOMY_NODE_LABELS }
 
-export const defaultNodeLabel = (level: number): string =>
-  DEFAULT_TAXONOMY_NODE_LABELS[level] ?? DEFAULT_TAXONOMY_NODE_LABELS[TAXONOMY_LEVEL_CATEGORY] ?? "uncategorized"
+export const defaultNodeLabel = defaultTaxonomyNodeLabel
 
 export const isDefaultNodeLabel = (level: number, label: string): boolean =>
   normalizeLabel(label) === normalizeLabel(defaultNodeLabel(level))
