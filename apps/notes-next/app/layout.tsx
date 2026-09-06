@@ -6,6 +6,7 @@ import "@gravity-ui/uikit/styles/styles.css"
 import "./globals.css"
 import { Providers } from "./providers"
 import { ServiceWorkerRegistration } from "@/components/pwa/ServiceWorkerRegistration"
+import { auth } from "@/auth"
 
 export const metadata: Metadata = {
   title: "Notes",
@@ -27,15 +28,17 @@ export const viewport: Viewport = {
   interactiveWidget: "resizes-content",
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const session = await auth()
+
   return (
     <html lang="en">
       <body>
-        <Providers>{children}</Providers>
+        <Providers session={session}>{children}</Providers>
         <ServiceWorkerRegistration />
       </body>
     </html>
