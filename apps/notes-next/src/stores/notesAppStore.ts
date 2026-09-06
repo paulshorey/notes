@@ -1,11 +1,28 @@
 import { create } from "zustand"
+import type { NoteRecord } from "@lib/db-notes"
+import type { NoteFormState, NoteSaveStatus } from "@/types/notes"
 import {
-  createDefaultNoteForm,
-  type NoteFormState,
-  type NoteSaveStatus,
-} from "@/types/notes"
+  activate as activateEntryIn,
+  clampMaxOpenNotes,
+  closeEntriesForNote as closeEntriesForNoteIn,
+  closeEntry as closeEntryIn,
+  createEmptyOpenNotesState,
+  evictToCap,
+  getActiveEntry,
+  getBackTarget,
+  goBack as goBackIn,
+  openExistingNote as openExistingNoteIn,
+  openNewDraft as openNewDraftIn,
+  patchEntry as patchEntryIn,
+  patchEntryForm,
+  MAX_OPEN_NOTES_DEFAULT,
+  type NoteRef,
+  type OpenNoteEntry,
+  type OpenNoteKey,
+  type OpenNotesState,
+} from "./openNotes"
 
-type State = {
+type State = OpenNotesState & {
   /**
    * Whether the notes results column is visible. On mobile this controls the
    * sliding panel; on desktop it controls the resizable results column.
@@ -14,9 +31,8 @@ type State = {
   /**
    * Category currently expanded in the notes results accordion.
    * Only one category can be expanded at a time; null means all collapsed.
-   * Independent of the active note form category (which only affects color).
    */
-  manuallyExpandedCategoryId: number | null
+  expandedTaxonomyIds: number[]
   /**
    * Tag filter currently selected in the notes results footer.
    * Null means all tags are visible.
@@ -27,82 +43,68 @@ type State = {
    */
   searchQuery: string
   /**
-   * Current note editor draft. Description/due fields stay in memory only; the
-   * category/tag selections are mirrored into the URL by the page container.
+   * How many notes stay open at once. Mirrors the `notesApp.maxOpenNotes`
+   * user preference; kept here so the ring actions do not need it threaded
+   * through every call site.
    */
-  noteForm: NoteFormState
-  /**
-   * Note currently open for editing. Null means the editor is preparing a new note.
-   */
-  editingNoteId: number | null
-  /**
-   * Persistence status of the note currently open in the editor. Drives the
-   * header save indicator and lets navigation know whether the in-memory draft
-   * still needs to be flushed to the server.
-   */
-  noteSaveStatus: NoteSaveStatus
-  /**
-   * Monotonic id used to reset the markdown editor when switching notes/drafts.
-   */
-  descriptionEditorSessionId: number
-  /**
-   * Labels that have been entered into the form but are still being created.
-   */
-  pendingTagLabels: string[]
-  /**
-   * Search/create value in the category picker input.
-   */
-  categoryInputValue: string
-  /**
-   * Whether the markdown editor should auto-focus on the next mount.
-   * Set to false on mobile when opening a note from the results list so the
-   * keyboard does not appear immediately — the user opens the note to read it
-   * first and taps the editor to start typing.
-   */
-  editorAutofocus: boolean
+  maxOpenNotes: number
 }
 
 type Actions = {
   resetDefaultState: () => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
-  setManuallyExpandedCategoryId: (categoryId: number | null) => void
+  toggleTaxonomyExpanded: (taxonomyId: number) => void
+  setTaxonomyExpanded: (taxonomyId: number, expanded: boolean) => void
   setSelectedTagId: (tagId: number | null) => void
   setSearchQuery: (query: string) => void
-  setNoteForm: (
-    form:
-      | NoteFormState
-      | ((current: NoteFormState) => NoteFormState),
+  /** Lowering the cap evicts immediately; the dropped entries are returned. */
+  setMaxOpenNotes: (value: number) => OpenNoteEntry[]
+  openExistingNote: (note: NoteRecord, groupLabel?: string) => OpenNoteEntry[]
+  openNewDraft: (options?: {
+    groupId?: number | null
+    tagIds?: number[]
+    groupLabel?: string
+  }) => OpenNoteEntry[]
+  activateEntry: (key: OpenNoteKey) => void
+  goBack: () => void
+  closeEntry: (key: OpenNoteKey) => OpenNoteEntry[]
+  closeEntriesForNote: (noteId: NoteRef) => OpenNoteEntry[]
+  patchEntry: (
+    key: OpenNoteKey,
+    patch: Partial<OpenNoteEntry> | ((entry: OpenNoteEntry) => Partial<OpenNoteEntry>),
   ) => void
-  setEditingNoteId: (noteId: number | null) => void
-  setNoteSaveStatus: (status: NoteSaveStatus) => void
-  bumpDescriptionEditorSessionId: () => void
-  setPendingTagLabels: (
-    labels: string[] | ((current: string[]) => string[]),
+  patchEntryForm: (
+    key: OpenNoteKey,
+    form: NoteFormState | ((current: NoteFormState) => NoteFormState),
   ) => void
-  setCategoryInputValue: (value: string) => void
-  setEditorAutofocus: (autofocus: boolean) => void
+  patchEveryEntry: (
+    patch: (entry: OpenNoteEntry) => Partial<OpenNoteEntry>,
+  ) => void
+  replaceOpenNotes: (next: OpenNotesState) => void
 }
 
 export type NotesAppStore = State & Actions
 
 const defaultState: State = {
+  ...createEmptyOpenNotesState(),
   resultsListVisible: true,
-  manuallyExpandedCategoryId: null,
+  expandedTaxonomyIds: [],
   selectedTagId: null,
   searchQuery: "",
-  noteForm: createDefaultNoteForm(),
-  editingNoteId: null,
-  noteSaveStatus: "idle",
-  descriptionEditorSessionId: 0,
-  pendingTagLabels: [],
-  categoryInputValue: "",
-  editorAutofocus: true,
+  maxOpenNotes: MAX_OPEN_NOTES_DEFAULT,
 }
 
-export const useNotesAppStore = create<NotesAppStore>((set) => ({
+const openNotesSlice = (state: State): OpenNotesState => ({
+  openNotes: state.openNotes,
+  activeKey: state.activeKey,
+  backStack: state.backStack,
+  nextDraftSequence: state.nextDraftSequence,
+})
+
+export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
   ...defaultState,
   resetDefaultState: () => {
-    set(defaultState)
+    set({ ...defaultState, ...createEmptyOpenNotesState() })
   },
   setResultsListVisible: (visible) => {
     set((current) => ({
@@ -110,8 +112,22 @@ export const useNotesAppStore = create<NotesAppStore>((set) => ({
         typeof visible === "function" ? visible(current.resultsListVisible) : visible,
     }))
   },
-  setManuallyExpandedCategoryId: (categoryId) => {
-    set({ manuallyExpandedCategoryId: categoryId })
+  toggleTaxonomyExpanded: (taxonomyId) => {
+    const current = get().expandedTaxonomyIds
+    set({
+      expandedTaxonomyIds: current.includes(taxonomyId)
+        ? current.filter((id) => id !== taxonomyId)
+        : [...current, taxonomyId],
+    })
+  },
+  setTaxonomyExpanded: (taxonomyId, expanded) => {
+    const current = get().expandedTaxonomyIds
+    if (current.includes(taxonomyId) === expanded) return
+    set({
+      expandedTaxonomyIds: expanded
+        ? [...current, taxonomyId]
+        : current.filter((id) => id !== taxonomyId),
+    })
   },
   setSelectedTagId: (tagId) => {
     set({ selectedTagId: tagId })
@@ -119,34 +135,85 @@ export const useNotesAppStore = create<NotesAppStore>((set) => ({
   setSearchQuery: (query) => {
     set({ searchQuery: query })
   },
-  setNoteForm: (form) => {
-    set((current) => ({
-      noteForm: typeof form === "function" ? form(current.noteForm) : form,
-    }))
+  setMaxOpenNotes: (value) => {
+    const maxOpenNotes = clampMaxOpenNotes(value)
+    const { state, removed } = evictToCap(openNotesSlice(get()), maxOpenNotes)
+    set({ ...state, maxOpenNotes })
+    return removed
   },
-  setEditingNoteId: (noteId) => {
-    set({ editingNoteId: noteId })
-  },
-  setNoteSaveStatus: (status) => {
-    set((current) =>
-      current.noteSaveStatus === status ? current : { noteSaveStatus: status },
+  openExistingNote: (note, groupLabel = "") => {
+    const { state, removed } = openExistingNoteIn(
+      openNotesSlice(get()),
+      note,
+      groupLabel,
+      get().maxOpenNotes,
     )
+    set(state)
+    return removed
   },
-  bumpDescriptionEditorSessionId: () => {
+  openNewDraft: (options = {}) => {
+    const { state, removed } = openNewDraftIn(openNotesSlice(get()), options, get().maxOpenNotes)
+    set(state)
+    return removed
+  },
+  activateEntry: (key) => {
+    set(activateEntryIn(openNotesSlice(get()), key, get().maxOpenNotes))
+  },
+  goBack: () => {
+    set(goBackIn(openNotesSlice(get())))
+  },
+  closeEntry: (key) => {
+    const { state, removed } = closeEntryIn(openNotesSlice(get()), key, get().maxOpenNotes)
+    set(state)
+    return removed
+  },
+  closeEntriesForNote: (noteId) => {
+    const { state, removed } = closeEntriesForNoteIn(
+      openNotesSlice(get()),
+      noteId,
+      get().maxOpenNotes,
+    )
+    set(state)
+    return removed
+  },
+  patchEntry: (key, patch) => {
+    set(patchEntryIn(openNotesSlice(get()), key, patch))
+  },
+  patchEntryForm: (key, form) => {
+    set(patchEntryForm(openNotesSlice(get()), key, form))
+  },
+  patchEveryEntry: (patch) => {
     set((current) => ({
-      descriptionEditorSessionId: current.descriptionEditorSessionId + 1,
+      openNotes: current.openNotes.map((entry) => ({ ...entry, ...patch(entry) })),
     }))
   },
-  setPendingTagLabels: (labels) => {
-    set((current) => ({
-      pendingTagLabels:
-        typeof labels === "function" ? labels(current.pendingTagLabels) : labels,
-    }))
-  },
-  setCategoryInputValue: (value) => {
-    set({ categoryInputValue: value })
-  },
-  setEditorAutofocus: (autofocus) => {
-    set({ editorAutofocus: autofocus })
+  replaceOpenNotes: (next) => {
+    set(next)
   },
 }))
+
+// Every selector below returns an existing reference or a primitive. A
+// selector that builds a new object or array each call hands
+// useSyncExternalStore a fresh snapshot on every render and loops forever —
+// derive that kind of value with useMemo in the component instead.
+
+export const selectActiveEntry = (state: NotesAppStore): OpenNoteEntry | null =>
+  getActiveEntry(state)
+
+export const selectActiveSaveStatus = (state: NotesAppStore): NoteSaveStatus =>
+  getActiveEntry(state)?.saveStatus ?? "idle"
+
+export const selectBackTarget = (state: NotesAppStore): OpenNoteEntry | null =>
+  getBackTarget(state)
+
+/**
+ * True when a note the user is not looking at is mid-save or failed to save,
+ * so the recent button can badge. A background entry sitting at `unsaved` is
+ * normal and transient, so it does not count.
+ */
+export const selectHasBackgroundSaveActivity = (state: NotesAppStore): boolean =>
+  state.openNotes.some(
+    (entry) =>
+      entry.key !== state.activeKey &&
+      (entry.saveStatus === "saving" || entry.saveStatus === "error"),
+  )

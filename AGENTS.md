@@ -105,12 +105,11 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 ## Cursor Cloud specific instructions
 
-Before running `notes-next` or any `db:*` command, start Postgres and add pg17 tools to PATH:
+Cloud workspaces run their own PostgreSQL 17 server with pgvector. `DB_NOTES_URL` and `DB_NOTES_TEST_URL` are already set (in `.cursor/environment.json`) to local throwaway `notes` and `notes_test` databases, so `db:*` commands, tests, and `notes-next` never reach a deployed database.
 
-```bash
-sudo pg_ctlcluster 17 main start
-export PATH="/usr/lib/postgresql/17/bin:$PATH"
-```
+These databases start empty. Run `pnpm run db:migrate` before anything that needs schema.
+
+If Postgres is not running, `bash scripts/cloud-agent-postgres.sh status` reports what is missing; `install` adds the packages and `start` brings up the cluster and databases.
 
 ## Maintenance
 

@@ -5,6 +5,7 @@ export {
   listNotesMissingEmbeddingsByUser,
   listNotesStaleEmbeddingsByUser,
   searchNotesByEmbedding,
+  selectNoteEmbeddingStateById,
 } from "./gets";
 export { parseNoteInput } from "./parse";
 export {
@@ -12,7 +13,6 @@ export {
   updateNoteForUser,
 } from "./update";
 export type {
-  NoteCategoryRef,
   NoteEmbeddingBackfillRow,
   NoteEmbeddingWriteInput,
   NoteInput,

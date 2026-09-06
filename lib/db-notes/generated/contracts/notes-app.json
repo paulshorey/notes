@@ -40,6 +40,13 @@
           "kind": "scalar",
           "type": "boolean",
           "nullable": false
+        },
+        {
+          "name": "maxOpenNotes",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
         }
       ]
     },
@@ -93,7 +100,32 @@
         }
       ]
     },
-    "CategoryRecord": {
+    "TaxonomyLevelRecord": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "level",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "TaxonomyRecord": {
       "fields": [
         {
           "name": "id",
@@ -110,6 +142,20 @@
           "nullable": false
         },
         {
+          "name": "level",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "parentId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        },
+        {
           "name": "label",
           "optional": false,
           "kind": "scalar",
@@ -118,6 +164,13 @@
         },
         {
           "name": "noteCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "directNoteCount",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -171,24 +224,6 @@
         }
       ]
     },
-    "NoteCategoryRef": {
-      "fields": [
-        {
-          "name": "id",
-          "optional": false,
-          "kind": "scalar",
-          "type": "number",
-          "nullable": false
-        },
-        {
-          "name": "label",
-          "optional": false,
-          "kind": "scalar",
-          "type": "string",
-          "nullable": false
-        }
-      ]
-    },
     "NoteTagRef": {
       "fields": [
         {
@@ -224,10 +259,10 @@
           "nullable": false
         },
         {
-          "name": "category",
+          "name": "groupId",
           "optional": false,
-          "kind": "model",
-          "type": "NoteCategoryRef",
+          "kind": "scalar",
+          "type": "number",
           "nullable": false
         },
         {
@@ -292,27 +327,13 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
-        },
-        {
-          "name": "tagSimilarity",
-          "optional": false,
-          "kind": "scalar",
-          "type": "number",
-          "nullable": true
-        },
-        {
-          "name": "descriptionSimilarity",
-          "optional": false,
-          "kind": "scalar",
-          "type": "number",
-          "nullable": true
         }
       ]
     },
     "NoteInput": {
       "fields": [
         {
-          "name": "categoryId",
+          "name": "groupId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -402,7 +423,7 @@
         }
       ]
     },
-    "CategoriesRequest": {
+    "TaxonomyRequest": {
       "fields": [
         {
           "name": "userId",
@@ -413,7 +434,7 @@
         }
       ]
     },
-    "CreateCategoryRequest": {
+    "CreateTaxonomyRequest": {
       "fields": [
         {
           "name": "userId",
@@ -421,6 +442,20 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
+        },
+        {
+          "name": "level",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "parentId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
         },
         {
           "name": "label",
@@ -431,7 +466,7 @@
         }
       ]
     },
-    "UpdateCategoryRequest": {
+    "UpdateTaxonomyRequest": {
       "fields": [
         {
           "name": "userId",
@@ -441,7 +476,7 @@
           "nullable": false
         },
         {
-          "name": "categoryId",
+          "name": "taxonomyId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -452,11 +487,18 @@
           "optional": false,
           "kind": "scalar",
           "type": "string",
-          "nullable": false
+          "nullable": true
+        },
+        {
+          "name": "parentId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
         }
       ]
     },
-    "DeleteCategoryRequest": {
+    "DeleteTaxonomyRequest": {
       "fields": [
         {
           "name": "userId",
@@ -466,10 +508,113 @@
           "nullable": false
         },
         {
-          "name": "categoryId",
+          "name": "taxonomyId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "mode",
+          "optional": false,
+          "kind": "model",
+          "type": "DeleteTaxonomyMode",
+          "nullable": false
+        }
+      ]
+    },
+    "TaxonomyPathRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "epicLabel",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "categoryLabel",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "groupLabel",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "TaxonomySuggestRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "level",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "parentId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "query",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "limit",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateTaxonomyLevelRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "level",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
           "nullable": false
         }
       ]
@@ -654,6 +799,16 @@
           "kind": "model",
           "type": "UserSummary",
           "nullable": false
+        },
+        {
+          "name": "taxonomyLevels",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "TaxonomyLevelRecord"
+          },
+          "nullable": false
         }
       ]
     },
@@ -714,64 +869,41 @@
         }
       ]
     },
-    "CategoriesResponse": {
+    "TaxonomyResponse": {
       "fields": [
         {
-          "name": "categories",
+          "name": "taxonomy",
           "optional": false,
           "kind": "array",
           "items": {
             "kind": "model",
-            "type": "CategoryRecord"
+            "type": "TaxonomyRecord"
+          },
+          "nullable": false
+        },
+        {
+          "name": "levels",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "TaxonomyLevelRecord"
           },
           "nullable": false
         }
       ]
     },
-    "CreateCategoryResponse": {
+    "MergeIdRemapEntry": {
       "fields": [
         {
-          "name": "category",
-          "optional": false,
-          "kind": "model",
-          "type": "CategoryRecord",
-          "nullable": false
-        }
-      ]
-    },
-    "UpdateCategoryResponse": {
-      "fields": [
-        {
-          "name": "category",
-          "optional": false,
-          "kind": "model",
-          "type": "CategoryRecord",
-          "nullable": false
-        }
-      ]
-    },
-    "DeleteCategoryResponse": {
-      "fields": [
-        {
-          "name": "ok",
-          "optional": false,
-          "kind": "scalar",
-          "type": "true",
-          "nullable": false
-        }
-      ]
-    },
-    "DeleteCategoryWithNotesRequest": {
-      "fields": [
-        {
-          "name": "userId",
+          "name": "anonId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
           "nullable": false
         },
         {
-          "name": "categoryId",
+          "name": "realId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -779,7 +911,95 @@
         }
       ]
     },
-    "DeleteCategoryWithNotesResponse": {
+    "MergeIdRemaps": {
+      "fields": [
+        {
+          "name": "taxonomy",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "MergeIdRemapEntry"
+          },
+          "nullable": false
+        },
+        {
+          "name": "tags",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "MergeIdRemapEntry"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "MergeSessionResponse": {
+      "fields": [
+        {
+          "name": "user",
+          "optional": false,
+          "kind": "model",
+          "type": "UserSummary",
+          "nullable": false
+        },
+        {
+          "name": "taxonomyLevels",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "TaxonomyLevelRecord"
+          },
+          "nullable": false
+        },
+        {
+          "name": "remaps",
+          "optional": false,
+          "kind": "model",
+          "type": "MergeIdRemaps",
+          "nullable": false
+        }
+      ]
+    },
+    "TaxonomyLevelsResponse": {
+      "fields": [
+        {
+          "name": "levels",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "TaxonomyLevelRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "CreateTaxonomyResponse": {
+      "fields": [
+        {
+          "name": "taxonomy",
+          "optional": false,
+          "kind": "model",
+          "type": "TaxonomyRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateTaxonomyResponse": {
+      "fields": [
+        {
+          "name": "taxonomy",
+          "optional": false,
+          "kind": "model",
+          "type": "TaxonomyRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteTaxonomyResponse": {
       "fields": [
         {
           "name": "ok",
@@ -793,6 +1013,52 @@
           "optional": false,
           "kind": "scalar",
           "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "deletedNodes",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "TaxonomyPathResponse": {
+      "fields": [
+        {
+          "name": "epic",
+          "optional": false,
+          "kind": "model",
+          "type": "TaxonomyRecord",
+          "nullable": false
+        },
+        {
+          "name": "category",
+          "optional": false,
+          "kind": "model",
+          "type": "TaxonomyRecord",
+          "nullable": false
+        },
+        {
+          "name": "group",
+          "optional": false,
+          "kind": "model",
+          "type": "TaxonomyRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "TaxonomySuggestResponse": {
+      "fields": [
+        {
+          "name": "suggestions",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "TaxonomyRecord"
+          },
           "nullable": false
         }
       ]
@@ -886,7 +1152,7 @@
           "nullable": false
         },
         {
-          "name": "categoriesUpdated",
+          "name": "taxonomyUpdated",
           "optional": false,
           "kind": "scalar",
           "type": "number",

@@ -10,12 +10,21 @@ export {
   updateNoteEmbeddingsForUser,
   updateNoteForUser,
 } from "./sql/note";
-export { listCategoriesByUser } from "./sql/category";
+export { listTaxonomyByUser } from "./sql/taxonomy";
+export { listTaxonomyLevelsForUser } from "./sql/taxonomy-level";
 export { listTagsByUser } from "./sql/tag";
 export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./sql/user";
+export {
+  DEFAULT_TAXONOMY_LEVEL_LABELS,
+  TAXONOMY_LEVEL_CATEGORY,
+  TAXONOMY_LEVEL_CONTENT,
+  TAXONOMY_LEVEL_EPIC,
+  TAXONOMY_LEVEL_GROUP,
+} from "./contracts/notes-app";
 
 export type {
-  UserNoteCategoryV1Row,
+  UserTaxonomyV1Row,
+  UserTaxonomyLevelV1Row,
   PostgresDbSchema,
   UserNoteTagLinkV1Row,
   UserNoteTagV1Row,
@@ -23,22 +32,29 @@ export type {
   UserV1Row,
 } from "./generated/typescript/db-types";
 export type {
-  CategoriesRequest,
-  CategoriesResponse,
-  CategoryRecord,
-  CreateCategoryRequest,
-  CreateCategoryResponse,
+  TaxonomyRequest,
+  TaxonomyResponse,
+  TaxonomyRecord,
+  TaxonomyLevelRecord,
+  TaxonomyLevelsResponse,
+  TaxonomyPathRequest,
+  TaxonomyPathResponse,
+  TaxonomySuggestRequest,
+  TaxonomySuggestResponse,
+  CreateTaxonomyRequest,
+  CreateTaxonomyResponse,
+  MergeIdRemapEntry,
+  MergeIdRemaps,
+  MergeSessionResponse,
   TagsRequest,
   TagsResponse,
   TagRecord,
-  NoteCategoryRef,
   CreateTagRequest,
   CreateTagResponse,
   CreateNoteRequest,
-  DeleteCategoryRequest,
-  DeleteCategoryResponse,
-  DeleteCategoryWithNotesRequest,
-  DeleteCategoryWithNotesResponse,
+  DeleteTaxonomyRequest,
+  DeleteTaxonomyResponse,
+  DeleteTaxonomyMode,
   DeleteTagRequest,
   DeleteTagResponse,
   EmbeddingMaintenanceRequest,
@@ -62,8 +78,9 @@ export type {
   SessionRequest,
   SessionResponse,
   UserPreferences,
-  UpdateCategoryRequest,
-  UpdateCategoryResponse,
+  UpdateTaxonomyRequest,
+  UpdateTaxonomyResponse,
+  UpdateTaxonomyLevelRequest,
   UpdateTagRequest,
   UpdateTagResponse,
   UpdateNoteRequest,

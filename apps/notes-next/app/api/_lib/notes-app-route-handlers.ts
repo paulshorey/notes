@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
   NOTES_APP_AUTH_REQUIRED_ERROR,
-  NOTES_APP_CATEGORY_NOT_FOUND_ERROR,
+  NOTES_APP_TAXONOMY_NOT_FOUND_ERROR,
   NOTES_APP_INVALID_CREDENTIALS_ERROR,
   NOTES_APP_TAG_NOT_FOUND_ERROR,
   NOTES_APP_NOTE_NOT_FOUND_ERROR,
   NOTES_APP_USER_NOT_FOUND_ERROR,
-  parseCategoriesRequest,
-  parseCreateCategoryRequest,
+  parseTaxonomyRequest,
+  parseCreateTaxonomyRequest,
+  parseTaxonomyPathRequest,
+  parseTaxonomySuggestRequest,
+  parseUpdateTaxonomyLevelRequest,
   notesAppService,
-  parseDeleteCategoryRequest,
-  parseDeleteCategoryWithNotesRequest,
+  parseDeleteTaxonomyRequest,
   parseTagsRequest,
   parseCreateTagRequest,
   parseDeleteTagRequest,
@@ -22,7 +24,7 @@ import {
   parseSessionRequest,
   parseTokenLoginRequest,
   parseUpdateUserPreferencesRequest,
-  parseUpdateCategoryRequest,
+  parseUpdateTaxonomyRequest,
   parseUpdateTagRequest,
   parseUpdateNoteRequest,
   type NotesAppService,
@@ -333,7 +335,7 @@ export const createTagsRouteHandlers = (
   },
 })
 
-export const createCategoriesRouteHandlers = (
+export const createTaxonomyRouteHandlers = (
   service: NotesAppService = notesAppService,
   resolveSessionUserId: SessionUserResolver = noSessionUser,
 ) => ({
@@ -345,7 +347,7 @@ export const createCategoriesRouteHandlers = (
         return unauthorizedResponse()
       }
 
-      const result = await service.listCategoriesForNotesApp(parseCategoriesRequest(userId))
+      const result = await service.listTaxonomyForNotesApp(parseTaxonomyRequest(userId))
       return NextResponse.json(result)
     } catch (error) {
       return toErrorResponse(error)
@@ -359,8 +361,8 @@ export const createCategoriesRouteHandlers = (
         return unauthorizedResponse()
       }
 
-      const result = await service.createCategoryForNotesApp(
-        parseCreateCategoryRequest(await readAuthorizedJsonObject(request, userId)),
+      const result = await service.createTaxonomyForNotesApp(
+        parseCreateTaxonomyRequest(await readAuthorizedJsonObject(request, userId)),
       )
       return NextResponse.json(result, { status: 201 })
     } catch (error) {
@@ -375,12 +377,12 @@ export const createCategoriesRouteHandlers = (
         return unauthorizedResponse()
       }
 
-      const result = await service.updateCategoryForNotesApp(
-        parseUpdateCategoryRequest(await readAuthorizedJsonObject(request, userId)),
+      const result = await service.updateTaxonomyForNotesApp(
+        parseUpdateTaxonomyRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
-        return NextResponse.json({ error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR }, { status: 404 })
+        return NextResponse.json({ error: NOTES_APP_TAXONOMY_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)
@@ -396,26 +398,26 @@ export const createCategoriesRouteHandlers = (
         return unauthorizedResponse()
       }
 
-      const result = await service.deleteCategoryForNotesApp(
-        parseDeleteCategoryRequest(await readAuthorizedJsonObject(request, userId)),
+      const result = await service.deleteTaxonomyForNotesApp(
+        parseDeleteTaxonomyRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
-        return NextResponse.json({ error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR }, { status: 404 })
+        return NextResponse.json({ error: NOTES_APP_TAXONOMY_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)
     } catch (error) {
-      return toErrorResponse(error)
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
     }
   },
 })
 
-export const createDeleteCategoryWithNotesRouteHandlers = (
+export const createTaxonomyLevelsRouteHandlers = (
   service: NotesAppService = notesAppService,
   resolveSessionUserId: SessionUserResolver = noSessionUser,
 ) => ({
-  DELETE: async (request: Request) => {
+  GET: async (request: NextRequest) => {
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
 
@@ -423,17 +425,76 @@ export const createDeleteCategoryWithNotesRouteHandlers = (
         return unauthorizedResponse()
       }
 
-      const result = await service.deleteCategoryWithNotesForNotesApp(
-        parseDeleteCategoryWithNotesRequest(await readAuthorizedJsonObject(request, userId)),
+      const result = await service.listTaxonomyLevelsForNotesApp(parseTaxonomyRequest(userId))
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+  PATCH: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.updateTaxonomyLevelForNotesApp(
+        parseUpdateTaxonomyLevelRequest(await readAuthorizedJsonObject(request, userId)),
       )
 
       if (!result) {
-        return NextResponse.json({ error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR }, { status: 404 })
+        return NextResponse.json({ error: NOTES_APP_TAXONOMY_NOT_FOUND_ERROR }, { status: 404 })
       }
 
       return NextResponse.json(result)
     } catch (error) {
-      return toErrorResponse(error)
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
+    }
+  },
+})
+
+/** One transaction, so a half-created chain cannot be left behind. */
+export const createTaxonomyPathRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
+  POST: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.resolveTaxonomyPathForNotesApp(
+        parseTaxonomyPathRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
+    }
+  },
+})
+
+export const createTaxonomySuggestRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
+  POST: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+
+      if (userId === null) {
+        return unauthorizedResponse()
+      }
+
+      const result = await service.suggestTaxonomyForNotesApp(
+        parseTaxonomySuggestRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
     }
   },
 })

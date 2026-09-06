@@ -1,0 +1,372 @@
+/**
+ * Regression coverage for the re-embed skip in updateNoteForNotesApp.
+ *
+ * Updating a note used to call Jina unconditionally, so a sidebar move or a
+ * due-date change — neither of which touches the description — paid for a full
+ * embedding round-trip. The skip is only safe when the stored vector is
+ * already what a reindex would produce, which is three conditions rather than
+ * one; each branch below pins one of them.
+ *
+ * Like the merge suite, these only run when DB_NOTES_TEST_URL is set and they
+ * connect to THAT database, never to DB_NOTES_URL.
+ */
+import assert from "node:assert/strict"
+import { randomUUID } from "node:crypto"
+import { after, describe, test } from "node:test"
+import { getDb } from "../lib/db/postgres"
+import { updateNoteForNotesApp } from "../services/notes-app"
+import { updateNoteForUser } from "../sql/note"
+import { CURRENT_NOTE_EMBEDDING_MODEL } from "../services/notes-embeddings"
+
+const testDbUrl = process.env.DB_NOTES_TEST_URL
+const hasDb = Boolean(testDbUrl)
+if (hasDb) {
+  process.env.DB_NOTES_URL = testDbUrl
+}
+
+describe("updateNoteForNotesApp embedding reuse (DB)", { skip: !hasDb }, () => {
+  after(async () => {
+    if (hasDb) {
+      await getDb().end()
+    }
+  })
+
+  /**
+   * A note with a hand-written embedding, so the tests never need Jina. A real
+   * Jina call would fail here anyway — which is the point: if the skip does not
+   * fire, the update throws and the test fails loudly rather than silently
+   * doing the expensive thing.
+   */
+  const seedNote = async (options: {
+    description: string
+    embeddingModel: string | null
+    withEmbedding: boolean
+  }) => {
+    const db = getDb()
+    const suffix = randomUUID().slice(0, 8)
+
+    const { rows: userRows } = await db.query<{ id: number }>(
+      `INSERT INTO public.user_v1 (username, is_anonymous)
+       VALUES ($1, false) RETURNING id`,
+      [`embed-skip-${suffix}`],
+    )
+    const userId = userRows[0]!.id
+
+    // Inserting the user directly bypasses createAnonymousUser, which is what
+    // seeds the tier vocabulary; the composite level FK needs it to exist.
+    await db.query(
+      `INSERT INTO public.user_taxonomy_level_v1 (user_id, level, label)
+       SELECT $1, v.level, v.label
+       FROM (VALUES (1,'Epic'),(2,'Category'),(3,'Group'),(4,'Note')) AS v(level, label)
+       ON CONFLICT DO NOTHING`,
+      [userId],
+    )
+
+    const { rows: epicRows } = await db.query<{ id: number }>(
+      `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+       VALUES ($1, 1, NULL, $2) RETURNING id`,
+      [userId, `epic-${suffix}`],
+    )
+    const { rows: categoryRows } = await db.query<{ id: number }>(
+      `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+       VALUES ($1, 2, $2, $3) RETURNING id`,
+      [userId, epicRows[0]!.id, `cat-${suffix}`],
+    )
+    const categoryId = categoryRows[0]!.id
+    const { rows: groupRows } = await db.query<{ id: number }>(
+      `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+       VALUES ($1, 3, $2, $3) RETURNING id`,
+      [userId, categoryId, `grp-${suffix}`],
+    )
+    const groupId = groupRows[0]!.id
+
+    const vector = options.withEmbedding ? `[${Array(1024).fill(0.01).join(",")}]` : null
+
+    const { rows: noteRows } = await db.query<{ id: number }>(
+      `INSERT INTO public.user_note_v1
+         (user_id, group_id, description, description_embedding, embedding_model, embedding_updated_at)
+       VALUES ($1, $2, $3, $4::vector, $5::text, CASE WHEN $5::text IS NULL THEN NULL ELSE now() END)
+       RETURNING id`,
+      [userId, groupId, options.description, vector, options.embeddingModel],
+    )
+
+    return { userId, categoryId, groupId, noteId: noteRows[0]!.id, suffix }
+  }
+
+  const readEmbeddingState = async (noteId: number) => {
+    const { rows } = await getDb().query<{
+      description: string | null
+      has_embedding: boolean
+      embedding_model: string | null
+      embedding_updated_at: string | null
+    }>(
+      `SELECT description,
+              (description_embedding IS NOT NULL) AS has_embedding,
+              embedding_model,
+              embedding_updated_at
+       FROM public.user_note_v1 WHERE id = $1`,
+      [noteId],
+    )
+    return rows[0]!
+  }
+
+  const cleanup = async (userId: number) => {
+    await getDb().query(`DELETE FROM public.user_v1 WHERE id = $1`, [userId])
+  }
+
+  test("a taxonomy-only change reuses the stored embedding", async () => {
+    const savedJinaKey = process.env.JINA_API_KEY
+    // Guarantees the assertion means something: any Jina call would now throw.
+    delete process.env.JINA_API_KEY
+
+    const { userId, categoryId, groupId, noteId, suffix } = await seedNote({
+      description: "unchanged text",
+      embeddingModel: CURRENT_NOTE_EMBEDDING_MODEL,
+      withEmbedding: true,
+    })
+
+    try {
+      const before = await readEmbeddingState(noteId)
+
+      const { rows: otherGroup } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 3, $2, $3) RETURNING id`,
+        [userId, categoryId, `other-${suffix}`],
+      )
+
+      const result = await updateNoteForNotesApp({
+        userId,
+        noteId,
+        note: {
+          groupId: otherGroup[0]!.id,
+          tagIds: [],
+          description: "unchanged text",
+          timeDue: null,
+          timeRemind: null,
+        },
+      })
+
+      assert.ok(result)
+      assert.equal(result.note.groupId, otherGroup[0]!.id)
+
+      const after = await readEmbeddingState(noteId)
+      assert.equal(after.has_embedding, true)
+      assert.equal(after.embedding_model, CURRENT_NOTE_EMBEDDING_MODEL)
+      assert.equal(
+        String(after.embedding_updated_at),
+        String(before.embedding_updated_at),
+        "embedding_updated_at moved, so the note was needlessly re-embedded",
+      )
+      assert.notEqual(groupId, otherGroup[0]!.id)
+    } finally {
+      if (savedJinaKey !== undefined) process.env.JINA_API_KEY = savedJinaKey
+      await cleanup(userId)
+    }
+  })
+
+  test("a note with no stored embedding is repaired even when the text is unchanged", async () => {
+    const savedJinaKey = process.env.JINA_API_KEY
+    delete process.env.JINA_API_KEY
+
+    const { userId, groupId, noteId } = await seedNote({
+      description: "never embedded",
+      embeddingModel: null,
+      withEmbedding: false,
+    })
+
+    try {
+      // Skipping would make this resolve; attempting the embed makes it throw
+      // for want of a key. Throwing is the correct behavior.
+      await assert.rejects(
+        updateNoteForNotesApp({
+          userId,
+          noteId,
+          note: {
+            groupId,
+            tagIds: [],
+            description: "never embedded",
+            timeDue: null,
+            timeRemind: null,
+          },
+        }),
+      )
+    } finally {
+      if (savedJinaKey !== undefined) process.env.JINA_API_KEY = savedJinaKey
+      await cleanup(userId)
+    }
+  })
+
+  test("a note embedded with a superseded model is re-embedded", async () => {
+    const savedJinaKey = process.env.JINA_API_KEY
+    delete process.env.JINA_API_KEY
+
+    const { userId, groupId, noteId } = await seedNote({
+      description: "old model",
+      embeddingModel: "jina-embeddings-v1:notes-v0",
+      withEmbedding: true,
+    })
+
+    try {
+      await assert.rejects(
+        updateNoteForNotesApp({
+          userId,
+          noteId,
+          note: {
+            groupId,
+            tagIds: [],
+            description: "old model",
+            timeDue: null,
+            timeRemind: null,
+          },
+        }),
+      )
+    } finally {
+      if (savedJinaKey !== undefined) process.env.JINA_API_KEY = savedJinaKey
+      await cleanup(userId)
+    }
+  })
+
+  test("clearing the description nulls the embedding columns", async () => {
+    const savedJinaKey = process.env.JINA_API_KEY
+    delete process.env.JINA_API_KEY
+
+    const { userId, groupId, noteId } = await seedNote({
+      description: "will be cleared",
+      embeddingModel: CURRENT_NOTE_EMBEDDING_MODEL,
+      withEmbedding: true,
+    })
+
+    try {
+      // An empty description short-circuits inside createNoteEmbeddingInput,
+      // so this needs no Jina call and must still clear the stored vector.
+      const result = await updateNoteForNotesApp({
+        userId,
+        noteId,
+        note: {
+          groupId,
+          tagIds: [],
+          description: "",
+          timeDue: null,
+          timeRemind: null,
+        },
+      })
+
+      assert.ok(result)
+      const after = await readEmbeddingState(noteId)
+      assert.equal(after.has_embedding, false)
+      assert.equal(after.embedding_model, null)
+      assert.equal(after.embedding_updated_at, null)
+    } finally {
+      if (savedJinaKey !== undefined) process.env.JINA_API_KEY = savedJinaKey
+      await cleanup(userId)
+    }
+  })
+
+  // The skip is decided from a read taken before the write, so a concurrent
+  // description change can invalidate it in between. `expectedDescription` is
+  // the guard against that, and it has to be exercised directly: going through
+  // updateNoteForNotesApp cannot reproduce the interleaving, because its own
+  // read would already see the other client's write.
+  test("reusing a stored embedding refuses to write over a description that moved", async () => {
+    const { userId, categoryId, groupId, noteId, suffix } = await seedNote({
+      description: "original text",
+      embeddingModel: CURRENT_NOTE_EMBEDDING_MODEL,
+      withEmbedding: true,
+    })
+
+    try {
+      const { rows: otherGroup } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 3, $2, $3) RETURNING id`,
+        [userId, categoryId, `race-${suffix}`],
+      )
+
+      // Another client wins the race after our read was taken.
+      await getDb().query(`UPDATE public.user_note_v1 SET description = $2 WHERE id = $1`, [
+        noteId,
+        "changed by another client",
+      ])
+
+      // A category-only write still carrying the description we read earlier,
+      // reusing the stored vector. It must not land.
+      const stale = await updateNoteForUser(
+        noteId,
+        userId,
+        {
+          groupId: otherGroup[0]!.id,
+          tagIds: [],
+          description: "original text",
+          timeDue: null,
+          timeRemind: null,
+        },
+        null,
+        "original text",
+      )
+
+      assert.equal(stale, null, "a stale description-preserving update was allowed through")
+
+      const after = await readEmbeddingState(noteId)
+      assert.equal(after.description, "changed by another client")
+
+      // The same call with the description the row actually holds succeeds, so
+      // the guard blocks staleness rather than blocking everything.
+      const fresh = await updateNoteForUser(
+        noteId,
+        userId,
+        {
+          groupId: otherGroup[0]!.id,
+          tagIds: [],
+          description: "changed by another client",
+          timeDue: null,
+          timeRemind: null,
+        },
+        null,
+        "changed by another client",
+      )
+
+      assert.ok(fresh)
+      assert.equal(fresh.groupId, otherGroup[0]!.id)
+      assert.notEqual(groupId, otherGroup[0]!.id)
+    } finally {
+      await cleanup(userId)
+    }
+  })
+
+  test("an already-empty note with a taxonomy change does not attempt an embed", async () => {
+    const savedJinaKey = process.env.JINA_API_KEY
+    delete process.env.JINA_API_KEY
+
+    const { userId, categoryId, noteId, suffix } = await seedNote({
+      description: "",
+      embeddingModel: null,
+      withEmbedding: false,
+    })
+
+    try {
+      const { rows: otherGroup } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 3, $2, $3) RETURNING id`,
+        [userId, categoryId, `empty-${suffix}`],
+      )
+
+      const result = await updateNoteForNotesApp({
+        userId,
+        noteId,
+        note: {
+          groupId: otherGroup[0]!.id,
+          tagIds: [],
+          description: "",
+          timeDue: null,
+          timeRemind: null,
+        },
+      })
+
+      assert.ok(result)
+      const after = await readEmbeddingState(noteId)
+      assert.equal(after.has_embedding, false)
+    } finally {
+      if (savedJinaKey !== undefined) process.env.JINA_API_KEY = savedJinaKey
+      await cleanup(userId)
+    }
+  })
+})

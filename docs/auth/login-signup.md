@@ -67,9 +67,10 @@ rows:
 | `is_anonymous` | `true`                      | `false`                   | `false`                          |
 | `preferences`  | UI settings on the anon row | **Kept** (same row)       | May differ from anon             |
 
-Owned data (`user_note_v1`, `user_note_category_v1`, `user_note_tag_v1`,
-`user_note_tag_link_v1`) references `user_id` normally. Anonymous creation also
-seeds a default `important` tag via `ensureDefaultTagForUser`.
+Owned data (`user_note_v1`, `user_taxonomy_v1`, `user_taxonomy_level_v1`,
+`user_note_tag_v1`, `user_note_tag_link_v1`) references `user_id` normally.
+Anonymous creation also seeds a default `important` tag and a default
+Epic > Category > Group chain.
 
 ## Auth stack (NextAuth / Auth.js)
 
@@ -205,11 +206,11 @@ token:
 
 Merge SQL (simplified):
 
-- **Categories / tags:** dedupe by `(user_id, label)` on the real account, build
-  id remap tables
-- **Notes:** reparent to real `user_id`, remap `category_id`
+- **Taxonomy / tags:** dedupe by label on the real account, build id remap
+  tables (taxonomy walks Epic > Category > Group top-down)
+- **Notes:** reparent to real `user_id`, remap `group_id`
 - **Tag links:** remap `tag_id` through the tag dedup map
-- **Delete** anonymous `user_v1` row (CASCADE drops orphaned anon categories/tags)
+- **Delete** anonymous `user_v1` row (CASCADE drops orphaned anon taxonomy/tags)
 
 `MERGE_TABLE_STRATEGIES` in `anonymous.ts` documents every table with a direct
 FK to `user_v1`. `db:verify` diffs this map against the live schema so new

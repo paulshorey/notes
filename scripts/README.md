@@ -30,10 +30,12 @@ Shared defaults and helpers live in `scripts/db/common.sh`.
 Unless you pass `-t`, all four scripts target the Notes app tables:
 
 - `user_v1`
+- `user_api_token_v1`
 - `user_note_v1`
-- `user_note_category_v1`
 - `user_note_tag_v1`
 - `user_note_tag_link_v1`
+- `user_taxonomy_level_v1`
+- `user_taxonomy_v1`
 - `schema_migrations_cursor`
 
 Other tables in the database are never touched.

@@ -32,7 +32,7 @@ importers:
         version: 2.18.0(react@19.2.7)
       '@gravity-ui/uikit':
         specifier: ^7.35.2
-        version: 7.35.2(@babel/runtime@7.28.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 7.35.2(@babel/runtime@7.28.4)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
     devDependencies:
       '@lib/config':
         specifier: workspace:*
@@ -325,6 +325,9 @@ importers:
       '@types/pg':
         specifier: ^8.11.10
         version: 8.15.5
+      prettier:
+        specifier: ^3.6.2
+        version: 3.6.2
       tsx:
         specifier: ^4.20.6
         version: 4.21.0
@@ -5783,13 +5786,13 @@ snapshots:
       - '@babel/runtime'
       - '@types/react'
 
-  '@gravity-ui/uikit@7.35.2(@babel/runtime@7.28.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@gravity-ui/uikit@7.35.2(@babel/runtime@7.28.4)(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@bem-react/classname': 1.8.0
       '@floating-ui/react': 0.27.19(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@gravity-ui/i18n': 1.8.0
       '@gravity-ui/icons': 2.18.0(react@19.2.7)
-      '@hello-pangea/dnd': 18.0.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@hello-pangea/dnd': 18.0.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-virtual': 3.13.23(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@uiw/react-color': 2.9.6(@babel/runtime@7.28.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       blueimp-md5: 2.19.0
@@ -5819,14 +5822,14 @@ snapshots:
     transitivePeerDependencies:
       - '@types/react'
 
-  '@hello-pangea/dnd@18.0.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@hello-pangea/dnd@18.0.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@babel/runtime': 7.28.4
       css-box-model: 1.2.1
       raf-schd: 4.0.3
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
-      react-redux: 9.2.0(react@19.2.7)(redux@5.0.1)
+      react-redux: 9.2.0(@types/react@19.2.17)(react@19.2.7)(redux@5.0.1)
       redux: 5.0.1
     transitivePeerDependencies:
       - '@types/react'
@@ -9344,12 +9347,13 @@ snapshots:
       '@types/react': 19.2.17
       redux: 5.0.1
 
-  react-redux@9.2.0(react@19.2.7)(redux@5.0.1):
+  react-redux@9.2.0(@types/react@19.2.17)(react@19.2.7)(redux@5.0.1):
     dependencies:
       '@types/use-sync-external-store': 0.0.6
       react: 19.2.7
       use-sync-external-store: 1.6.0(react@19.2.7)
     optionalDependencies:
+      '@types/react': 19.2.17
       redux: 5.0.1
 
   react-remove-scroll-bar@2.3.8(@types/react@19.2.17)(react@19.2.4):

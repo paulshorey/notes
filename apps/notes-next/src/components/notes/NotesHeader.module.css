@@ -222,6 +222,132 @@
   align-items: flex-start;
 }
 
+.userMenuSelectPreference {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.backButton,
+.recentButton {
+  flex: 0 0 auto;
+}
+
+.recentButton {
+  position: relative;
+}
+
+/* Only badges for saving or failed background entries — a background note
+   sitting at "unsaved" is normal and would badge constantly. */
+.recentBadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--g-color-base-warning-heavy, #ffbe5c);
+}
+
+.recentMenu {
+  display: flex;
+  flex-direction: column;
+  min-width: min(320px, 80vw);
+  max-width: min(420px, 90vw);
+  max-height: min(420px, 60vh);
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.recentEmpty {
+  padding: 8px 10px;
+}
+
+.recentRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+}
+
+.recentRow:hover {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.05));
+}
+
+.recentRowActive .recentTitle {
+  color: var(--g-color-text-link);
+}
+
+.recentRowButton {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.recentTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.recentMeta {
+  flex: 0 0 auto;
+  color: var(--g-color-text-secondary);
+  font-size: 0.75rem;
+}
+
+.recentStatus {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.recentStatus[data-status="unsaved"] {
+  background: var(--g-color-text-secondary);
+}
+
+.recentStatus[data-status="saving"] {
+  background: var(--g-color-base-info-heavy, #4aa1ff);
+}
+
+.recentStatus[data-status="error"] {
+  background: var(--g-color-base-danger-heavy, #e85d5d);
+}
+
+.recentCloseButton {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  color: var(--g-color-text-secondary);
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.recentCloseButton:hover {
+  color: var(--g-color-text-primary);
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.08));
+}
+
 .loginFormInPopup {
   display: flex;
   flex-direction: column;
@@ -237,4 +363,35 @@
   .headerSearchExpanded {
     min-width: min(140px, calc(100vw - 132px));
   }
+}
+
+/*
+ * The recent-notes breadcrumb. Segments truncate individually rather than the
+ * whole string, so the group — the most specific part — stays readable.
+ */
+.recentPath {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--g-color-text-hint);
+}
+
+.recentPathSegment {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 33%;
+}
+
+.recentPathSegment:last-of-type {
+  flex: 1 1 auto;
+  max-width: none;
+}
+
+.recentPathSeparator {
+  flex: 0 0 auto;
+  opacity: 0.6;
 }

@@ -136,13 +136,13 @@ private fun WidgetContent(snapshot: AppSnapshot) {
     val tagFilterId = readTagFilterId(widgetState)
     val filteredNotes =
         snapshot.notes.filter { note ->
-            val matchesCategory = categoryFilterId == null || note.category.id == categoryFilterId
+            val matchesCategory = categoryFilterId == null || note.groupId == categoryFilterId
             val matchesTag = tagFilterId == null || note.tags.any { tag -> tag.id == tagFilterId }
             matchesCategory && matchesTag
         }
     val sortedNotes = filteredNotes.sortedByLastUpdated().take(12)
     val activeCategoryLabel =
-        categoryFilterId?.let { id -> snapshot.categories.firstOrNull { it.id == id }?.label }
+        categoryFilterId?.let { id -> snapshot.groups.firstOrNull { it.id == id }?.label }
     val activeTagLabel =
         tagFilterId?.let { id -> snapshot.tags.firstOrNull { it.id == id }?.label }
 
@@ -168,10 +168,14 @@ private fun WidgetContent(snapshot: AppSnapshot) {
                     activeTagLabel = activeTagLabel,
                 )
                 Spacer(modifier = GlanceModifier.height(2.dp))
+                // Resolved once for the whole list rather than per row: a
+                // note carries only a group id.
+                val groupLabels = snapshot.groups.associate { it.id to it.label }
                 LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                     items(sortedNotes, itemId = { it.id.toLong() }) { note ->
                         NoteRow(
                             note = note,
+                            groupLabel = groupLabels[note.groupId].orEmpty(),
                             context = context,
                             expanded = widgetState[expandedKey(note.id)] ?: false,
                         )
@@ -322,6 +326,7 @@ private fun NoteRowActions(
 @androidx.compose.runtime.Composable
 private fun NoteRowContent(
     note: NoteRecord,
+    groupLabel: String,
     expanded: Boolean,
 ) {
     Text(
@@ -349,7 +354,7 @@ private fun NoteRowContent(
     }
     if (note.tags.isNotEmpty()) {
         Text(
-            text = note.category.label,
+            text = groupLabel,
             modifier = GlanceModifier.padding(top = 2.dp),
             style = TextStyle(color = widgetText),
             maxLines = 1,
@@ -384,6 +389,7 @@ private fun NoteRowContent(
 @androidx.compose.runtime.Composable
 private fun NoteRow(
     note: NoteRecord,
+    groupLabel: String,
     context: Context,
     expanded: Boolean,
 ) {
@@ -416,7 +422,7 @@ private fun NoteRow(
                         )
                         .padding(start = 4.dp, top = 4.dp, end = 2.dp),
             ) {
-                NoteRowContent(note = note, expanded = expanded)
+                NoteRowContent(note = note, groupLabel = groupLabel, expanded = expanded)
             }
         }
     }

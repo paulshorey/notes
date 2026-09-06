@@ -3,6 +3,7 @@
 import type { NoteRecord } from "@lib/db-notes"
 import { Text } from "@gravity-ui/uikit"
 import type { ReactNode } from "react"
+import { noteHeadline } from "@/lib/strings"
 import styles from "./NoteResultsList.module.css"
 
 export interface DisplayNoteItem {
@@ -13,6 +14,7 @@ export interface DisplayNoteItem {
 interface NoteResultsListProps {
   items: DisplayNoteItem[]
   activeNoteId: number | null
+  openNoteIds: number[]
   loading: boolean
   emptyMessage: string
   onEdit: (note: NoteRecord) => void
@@ -24,17 +26,10 @@ const formatSimilarity = (value: number | null | undefined) => {
   return `${Math.max(0, Math.min(100, Math.round(value * 100)))}%`
 }
 
-function noteHeadline(note: NoteRecord): string {
-  const raw = note.description?.trim() ?? ""
-  if (raw === "") return "Untitled"
-  const firstLine = (raw.split(/\r?\n/)[0] ?? "").replaceAll(/[^\w\s]/g, "").trim()
-  if (firstLine.length <= 100) return firstLine
-  return firstLine.slice(0, 100) + "…"
-}
-
 export function NoteResultsList({
   items,
   activeNoteId,
+  openNoteIds,
   loading,
   emptyMessage,
   onEdit,
@@ -64,11 +59,14 @@ export function NoteResultsList({
     <div className={styles.noteList}>
       {items.map(({ note, relevance }) => {
         const isActive = activeNoteId === note.id
+        const isOpen = !isActive && openNoteIds.includes(note.id)
         const relevanceLabel = formatSimilarity(relevance)
 
         return (
           <div
-            className={`${styles.noteItem} ${isActive ? styles.noteItemActive : ""}`}
+            className={`${styles.noteItem} ${isActive ? styles.noteItemActive : ""} ${
+              isOpen ? styles.noteItemOpen : ""
+            }`}
             key={note.id}
             onClick={() => onEdit(note)}
             role="button"
@@ -79,10 +77,10 @@ export function NoteResultsList({
                 onEdit(note)
               }
             }}
-            aria-label={`Edit note: ${noteHeadline(note)}`}
+            aria-label={`Edit note: ${noteHeadline(note.description)}`}
           >
             <div className={styles.noteLine}>
-              <div className={styles.noteTitleCollapsed}>{noteHeadline(note)}</div>
+              <div className={styles.noteTitleCollapsed}>{noteHeadline(note.description)}</div>
               {relevanceLabel && <span className={styles.similarityBadge}>{relevanceLabel}</span>}
               {renderAction && (
                 <div className={styles.noteAction} onClick={(event) => event.stopPropagation()}>

@@ -63,15 +63,15 @@ Database-first package for the `DB_NOTES_URL` database.
   means "customized", key absence means "still default".
 - `mergeAnonymousNotesAppSession` (`services/notes-app.ts`) runs a best-effort
   `mode: "missing"` embedding backfill for the destination user after the
-  merge commits, because categories/tags inserted by the merge SQL bypass the
+  merge commits, because taxonomy rows/tags inserted by the merge SQL bypass the
   embed-on-write paths. A missing `JINA_API_KEY` or a Jina failure logs a
   warning and never fails the merge.
 - Tests: `pnpm --filter @lib/db-notes test` (node test runner via tsx).
   The merge regression suite (`testing/anonymous-merge.test.ts`) only touches
   a database when `DB_NOTES_TEST_URL` is set, and it connects to that URL
-  — never to `DB_NOTES_URL`, which in cloud environments points at the
-  real Notes database. CI's verify-notes job runs it against its
-  throwaway migrated container.
+  — never to `DB_NOTES_URL`. Cursor Cloud presets both to local throwaway
+  databases; CI's verify-notes job runs it against its throwaway migrated
+  container.
 - `user_v1` and `user_note_v1` share the `apply_row_timestamps_v1()` trigger
   function so `time_modified` refreshes automatically on insert/update while
   `time_created` stays stable after insert.
@@ -100,6 +100,44 @@ Database-first package for the `DB_NOTES_URL` database.
   `db:migrate` against the target Notes DB, deploy `notes-next`, then run
   embedding regeneration only when search data is stale.
 
+## Taxonomy: Epic > Category > Group > Note
+
+- `user_taxonomy_v1` is one self-referencing table. `level` (1 epic, 2 category,
+  3 group) plus a stored generated `parent_level` column and composite foreign
+  keys make depth, parent level and same-user ownership declarative — there are
+  no triggers and no application-side depth checks. Notes carry `group_id` plus
+  a `group_level` pinned to 3 by a CHECK, which is what stops a note from being
+  attached to a category or to someone else's group. The old flat
+  `user_note_category_v1` table and `user_note_v1.category_id` were dropped in
+  `202609060100` after the hierarchy shipped.
+- `user_taxonomy_level_v1` holds each user's _word_ for each tier, levels 1-4;
+  level 4 names the leaf content ("Note", or "Task") and has no hierarchy rows.
+  **Only ever branch on `level`.** Labels are user data: comparing them, or
+  putting them in a URL or cache key, breaks the moment someone renames a tier.
+- Tier labels preserve case and are unique per user on `lower(label)`. Item
+  labels keep the lowercase CHECK, because the upsert-by-label pattern needs a
+  deterministic form.
+- Every user needs a full epic > category > group chain, or `isSaveableForm` on
+  the client is false and autosave returns before the network — a failure that
+  looks exactly like success, since the local snapshot reproduces the notes on
+  reload. `createAnonymousUser` seeds the chain and the vocabulary in the same
+  transaction as the user row, and `listTaxonomyForNotesApp` repairs both lazily.
+- `resolveTaxonomyIdForUser` and `resolveTagIdForUser` use
+  `ON CONFLICT ... DO UPDATE ... RETURNING id`, not `DO NOTHING`. With
+  `DO NOTHING`, a concurrent uncommitted insert of the same label makes the
+  insert skip and the follow-up SELECT, on the statement's snapshot, see
+  nothing — the statement returns zero rows and the resolve throws. Several
+  notes are open at once and each can create a group, so this is reachable.
+- Subtree note counts in `listTaxonomyByUser` are fixed-depth aggregates rather
+  than a recursive CTE: the depth is three and the client refetches this on a
+  coalesced debounce while notes autosave. 5.5 ms against 26-31 ms at 20k notes.
+- `NoteRecord` carries `groupId` and no labels. Clients resolve the path from
+  the tree they already hold, so a rename needs no note refetch and labels have
+  one source of truth. Embedding the path cost ~34% of the notes payload.
+- Deleting a taxonomy node requires an explicit `mode`
+  (`reassign-children` or `delete-subtree`). There is no default, because
+  guessing means either losing notes or moving them somewhere unasked.
+
 ## Embeddings (semantic search)
 
 Provider: **Jina AI** — Model: `jina-embeddings-v5-text-small` (1024 dims, normalized).
@@ -108,7 +146,8 @@ Provider: **Jina AI** — Model: `jina-embeddings-v5-text-small` (1024 dims, nor
 
 - `services/notes-embeddings.ts` — canonical Jina client, embedding constants, and text builders
 - `services/notes-app.ts` — orchestrates embed-on-write (notes + tags) and search
-- `sql/note/gets.ts` — `searchNotesByEmbedding` SQL: composite score = `description * 0.67 + avg_tag * 0.33`
+- `sql/note/gets.ts` — `searchNotesByEmbedding` SQL: the note's own description
+  similarity, nothing else
 - `scripts/regenerate-embeddings.mjs` — CLI bulk regeneration (must stay in sync with `notes-embeddings.ts`)
 
 ### How it works

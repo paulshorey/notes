@@ -1,13 +1,13 @@
 "use client"
 
 import { Button, Modal, Text } from "@gravity-ui/uikit"
-import type { CategoryRecord } from "@lib/db-notes"
+import type { TaxonomyRecord } from "@lib/db-notes"
 import styles from "./DeleteCategoryModal.module.css"
 
 export type DeleteCategoryAction = "delete-notes" | "keep-uncategorized"
 
 interface DeleteCategoryModalProps {
-  category: CategoryRecord | null
+  category: TaxonomyRecord | null
   onClose: () => void
   onDeleteWithNotes: () => void
   onKeepUncategorized: () => void

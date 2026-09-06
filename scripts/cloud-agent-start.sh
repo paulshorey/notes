@@ -29,6 +29,14 @@ if [[ -d "$pg17_bindir" ]]; then
   esac
 fi
 
+# Start the local PostgreSQL 17 cluster and provision throwaway Notes DBs.
+# This is per-boot: environment-build snapshots keep packages, not processes.
+# A workspace without Postgres is still usable, so this must not abort the boot.
+if ! bash "$ROOT_DIR/scripts/cloud-agent-postgres.sh" start; then
+  echo "Local PostgreSQL did not start. Diagnose with:" >&2
+  echo "  bash scripts/cloud-agent-postgres.sh status" >&2
+fi
+
 expected_env_files=(
   "apps/notes-next/.env"
 )
@@ -44,15 +52,19 @@ done
 if [[ $missing_env -eq 1 ]]; then
   if [[ -n "${INFISICAL_TOKEN:-}" && -n "${INFISICAL_PROJECT_ID:-}" ]]; then
     echo "Hydrating app .env files from Infisical..."
-    pnpm run init
+    if ! pnpm run init; then
+      echo "Infisical hydration failed. Local PostgreSQL is still available via DB_NOTES_URL."
+    fi
   else
     echo "App .env files are missing, but Infisical bootstrap secrets are not configured."
     echo "Set INFISICAL_TOKEN and INFISICAL_PROJECT_ID in Cursor Cloud Agent secrets, then rerun pnpm run init."
+    echo "Local PostgreSQL is available without Infisical via DB_NOTES_URL."
   fi
 fi
 
 echo "Workspace ready."
 echo "Recommended commands:"
+echo "  pnpm run db:migrate"
 echo "  pnpm run deps:install -- <package>..."
 echo "  pnpm --filter notes-next dev"
 echo "  pnpm --filter notes-android build"

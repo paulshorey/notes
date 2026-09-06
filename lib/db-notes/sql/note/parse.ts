@@ -53,7 +53,7 @@ const parseTagIds = (value: unknown): number[] => {
   return [...new Set(ids)];
 };
 
-const parseCategoryId = (value: unknown): number => {
+const parseGroupId = (value: unknown): number => {
   if (typeof value === "number" && Number.isInteger(value) && value >= 1) {
     return value;
   }
@@ -65,7 +65,7 @@ const parseCategoryId = (value: unknown): number => {
     }
   }
 
-  throw new Error("categoryId must be an integer of at least 1.");
+  throw new Error("groupId must be an integer of at least 1.");
 };
 
 export const parseNoteInput = (value: unknown): NoteInput => {
@@ -76,7 +76,7 @@ export const parseNoteInput = (value: unknown): NoteInput => {
   const record = value as Record<string, unknown>;
 
   return {
-    categoryId: parseCategoryId(record.categoryId),
+    groupId: parseGroupId(record.groupId),
     tagIds: parseTagIds(record.tagIds),
     description:
       typeof record.description === "string" ? record.description : "",

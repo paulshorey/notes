@@ -12,17 +12,18 @@ embedded into a 1024-dimensional vector using the Jina AI Embeddings API
 embedded with the same model (using a different task adapter). Postgres then
 ranks notes by cosine similarity between the query vector and stored vectors.
 
-Search spans three entity types:
+Search ranks notes by their own description embedding. Taxonomy labels are
+still embedded so autocomplete can fall back to meaning when the typed prefix
+is short.
 
-| Entity   | Table                   | Embedded text | Column                  |
-| -------- | ----------------------- | ------------- | ----------------------- |
-| Note     | `user_note_v1`          | `description` | `description_embedding` |
-| Category | `user_note_category_v1` | `label`       | `category_embedding`    |
-| Tag      | `user_note_tag_v1`      | `label`       | `tag_embedding`         |
+| Entity   | Table               | Embedded text | Column                  |
+| -------- | ------------------- | ------------- | ----------------------- |
+| Note     | `user_note_v1`      | `description` | `description_embedding` |
+| Taxonomy | `user_taxonomy_v1`  | `label`       | `label_embedding`       |
+| Tag      | `user_note_tag_v1`  | `label`       | `tag_embedding`         |
 
-Every note belongs to exactly one category and may have zero or more tags. The
-ranking formula combines description similarity with taxonomy similarity
-(category + tags).
+Every note belongs to exactly one group (level 3 of `user_taxonomy_v1`) and
+may have zero or more tags.
 
 ## PostgreSQL: pgvector extension
 
@@ -124,11 +125,11 @@ Relevant columns on each table:
 | `embedding_model`       | `text`         | model version tag |
 | `embedding_updated_at`  | `timestamptz`  | last write        |
 
-### `user_note_category_v1`
+### `user_taxonomy_v1`
 
 | Column                 | Type           | Source text       |
 | ---------------------- | -------------- | ----------------- |
-| `category_embedding`   | `vector(1024)` | `label`           |
+| `label_embedding`      | `vector(1024)` | `label`           |
 | `embedding_model`      | `text`         | model version tag |
 | `embedding_updated_at` | `timestamptz`  | last write        |
 

@@ -1,4 +1,4 @@
-import type { CategoryRecord, NoteRecord, TagRecord, UserSummary } from "@lib/db-notes"
+import type { TaxonomyRecord, NoteRecord, TagRecord, UserSummary } from "@lib/db-notes"
 
 /**
  * Local snapshot of the data that `NotesApp` shows on startup.
@@ -13,12 +13,22 @@ export interface NotesCacheSnapshot {
   userId: number
   user: UserSummary
   notes: NoteRecord[]
-  categories: CategoryRecord[]
+  taxonomy: TaxonomyRecord[]
   tags: TagRecord[]
   savedAt: number
 }
 
-const CACHE_STORAGE_KEY = "notes-app-cache-v1"
+/**
+ * Bumped for the taxonomy hierarchy. Not just hygiene: rehydrateOpenNotes runs
+ * once against the cached paint and once against the fresh fetch, and a v1
+ * cache would give the first pass no taxonomy at all — every entry's group
+ * would fail its existence check and clean entries would be rewritten to a
+ * fallback before the second pass could correct them. With no cache to paint
+ * from, the cold path runs a single reconcile against real data.
+ *
+ * Safe to discard, unlike notes-open-notes-v1: this holds only server data.
+ */
+const CACHE_STORAGE_KEY = "notes-app-cache-v2"
 // Treat the snapshot as missing once it's this old. This bounds how stale the
 // first paint can be if the user has been offline for a long time, while still
 // covering the common "open the app daily" case.
@@ -35,7 +45,7 @@ const isSnapshot = (value: unknown): value is NotesCacheSnapshot => {
   if (typeof value.userId !== "number" || !Number.isInteger(value.userId)) return false
   if (!isObject(value.user)) return false
   if (!Array.isArray(value.notes)) return false
-  if (!Array.isArray(value.categories)) return false
+  if (!Array.isArray(value.taxonomy)) return false
   if (!Array.isArray(value.tags)) return false
   if (typeof value.savedAt !== "number" || !Number.isFinite(value.savedAt)) return false
   return true
@@ -77,12 +87,12 @@ export const writeNotesCache = (
   }
 }
 
-type CacheListField = "notes" | "categories" | "tags"
+type CacheListField = "notes" | "taxonomy" | "tags"
 
 type CacheListValue<K extends CacheListField> = K extends "notes"
   ? NoteRecord[]
-  : K extends "categories"
-    ? CategoryRecord[]
+  : K extends "taxonomy"
+    ? TaxonomyRecord[]
     : TagRecord[]
 
 /**

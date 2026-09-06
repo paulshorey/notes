@@ -38,7 +38,7 @@ const sampleUser = {
 const sampleNote = {
   id: 41,
   userId: sampleUser.id,
-  category: { id: 5, label: "work" },
+  groupId: 6,
   tags: [
     { id: 12, label: "verify both http adapters" },
   ],
@@ -52,8 +52,6 @@ const sampleNote = {
 const sampleSearchResult = {
   note: sampleNote,
   similarity: 0.94,
-  tagSimilarity: 0.89,
-  descriptionSimilarity: 0.85,
 }
 
 const sampleTag = {
@@ -64,19 +62,53 @@ const sampleTag = {
   lastUsedAt: null,
 }
 
+const sampleTaxonomyLevels = [
+  { userId: sampleUser.id, level: 1, label: "Epic" },
+  { userId: sampleUser.id, level: 2, label: "Category" },
+  { userId: sampleUser.id, level: 3, label: "Group" },
+  { userId: sampleUser.id, level: 4, label: "Note" },
+]
+
+const sampleEpic = {
+  id: 4,
+  userId: sampleUser.id,
+  level: 1,
+  parentId: null,
+  label: "uncategorized",
+  noteCount: 1,
+  directNoteCount: 0,
+  lastUsedAt: sampleNote.timeModified,
+}
+
 const sampleCategory = {
   id: 5,
   userId: sampleUser.id,
+  level: 2,
+  parentId: sampleEpic.id,
   label: "work",
   noteCount: 1,
+  directNoteCount: 0,
   lastUsedAt: sampleNote.timeModified,
 }
+
+const sampleGroup = {
+  id: 6,
+  userId: sampleUser.id,
+  level: 3,
+  parentId: sampleCategory.id,
+  label: "uncategorized",
+  noteCount: 1,
+  directNoteCount: 1,
+  lastUsedAt: sampleNote.timeModified,
+}
+
+const sampleTaxonomy = [sampleEpic, sampleCategory, sampleGroup]
 
 const sampleEmbeddingMaintenanceResponse = {
   mode: "missing",
   processed: 3,
   updated: 3,
-  categoriesUpdated: 0,
+  taxonomyUpdated: 0,
   tagsUpdated: 0,
   hasMore: false,
 }
@@ -89,18 +121,34 @@ export const createFakeNotesAppService = (
   overrides: Partial<NotesAppService> = {},
 ): NotesAppService => ({
   getNotesAppErrorStatus: () => 400,
-  getNotesAppSession: async () => ({ user: sampleUser }),
+  getNotesAppSession: async () => ({
+    user: sampleUser,
+    taxonomyLevels: sampleTaxonomyLevels,
+  }),
   loginNotesAppUser: async () => ({ token: sampleApiToken, user: sampleUser }),
   getNotesAppUserIdForToken: async ({ token }) =>
     token === sampleApiToken ? sampleUser.id : null,
   revokeNotesAppToken: async ({ token }) => token === sampleApiToken,
-  updateNotesAppUserPreferences: async () => ({ user: sampleUser }),
+  updateNotesAppUserPreferences: async () => ({
+    user: sampleUser,
+    taxonomyLevels: sampleTaxonomyLevels,
+  }),
   listNotesForNotesApp: async () => ({ notes: [sampleNote] }),
-  listCategoriesForNotesApp: async () => ({ categories: [sampleCategory] }),
-  createCategoryForNotesApp: async () => ({ category: sampleCategory }),
-  updateCategoryForNotesApp: async () => ({ category: sampleCategory }),
-  deleteCategoryForNotesApp: async () => ({ ok: true }),
-  deleteCategoryWithNotesForNotesApp: async () => ({ ok: true, deletedNotes: 1 }),
+  listTaxonomyForNotesApp: async () => ({
+    taxonomy: sampleTaxonomy,
+    levels: sampleTaxonomyLevels,
+  }),
+  listTaxonomyLevelsForNotesApp: async () => ({ levels: sampleTaxonomyLevels }),
+  updateTaxonomyLevelForNotesApp: async () => ({ levels: sampleTaxonomyLevels }),
+  createTaxonomyForNotesApp: async () => ({ taxonomy: sampleGroup }),
+  updateTaxonomyForNotesApp: async () => ({ taxonomy: sampleGroup }),
+  deleteTaxonomyForNotesApp: async () => ({ ok: true, deletedNotes: 1, deletedNodes: 1 }),
+  resolveTaxonomyPathForNotesApp: async () => ({
+    epic: sampleEpic,
+    category: sampleCategory,
+    group: sampleGroup,
+  }),
+  suggestTaxonomyForNotesApp: async () => ({ suggestions: [sampleGroup] }),
   listTagsForNotesApp: async () => ({ tags: [sampleTag] }),
   createTagForNotesApp: async () => ({ tag: sampleTag }),
   updateTagForNotesApp: async () => ({ tag: sampleTag }),
@@ -110,9 +158,19 @@ export const createFakeNotesAppService = (
   deleteNoteForNotesApp: async () => ({ ok: true }),
   searchNotesForNotesApp: async () => ({ results: [sampleSearchResult] }),
   maintainNoteEmbeddingsForNotesApp: async () => sampleEmbeddingMaintenanceResponse,
-  createAnonymousNotesAppSession: async () => ({ user: sampleUser }),
-  claimAnonymousNotesAppSession: async () => ({ user: sampleUser }),
-  mergeAnonymousNotesAppSession: async () => ({ user: sampleUser }),
+  createAnonymousNotesAppSession: async () => ({
+    user: sampleUser,
+    taxonomyLevels: sampleTaxonomyLevels,
+  }),
+  claimAnonymousNotesAppSession: async () => ({
+    user: sampleUser,
+    taxonomyLevels: sampleTaxonomyLevels,
+  }),
+  mergeAnonymousNotesAppSession: async () => ({
+    user: sampleUser,
+    taxonomyLevels: sampleTaxonomyLevels,
+    remaps: { taxonomy: [], tags: [] },
+  }),
   ...overrides,
 })
 
@@ -218,7 +276,7 @@ export const registerNotesApiAdapterSuite = (
       { method: "GET" as const, path: "/api/session" },
       { method: "GET" as const, path: "/api/notes" },
       { method: "GET" as const, path: "/api/tags" },
-      { method: "GET" as const, path: "/api/categories" },
+      { method: "GET" as const, path: "/api/taxonomy" },
       {
         method: "POST" as const,
         path: "/api/notes/search",
@@ -280,7 +338,7 @@ export const registerNotesApiAdapterSuite = (
       createFakeNotesAppService({
         getNotesAppSession: async (request) => {
           requests.push(request)
-          return { user: sampleUser }
+          return { user: sampleUser, taxonomyLevels: sampleTaxonomyLevels }
         },
       }),
     )
@@ -296,7 +354,10 @@ export const registerNotesApiAdapterSuite = (
     })
 
     assert.equal(response.status, 200)
-    assert.deepEqual(response.body, { user: sampleUser })
+    assert.deepEqual(response.body, {
+      user: sampleUser,
+      taxonomyLevels: sampleTaxonomyLevels,
+    })
     assert.deepEqual(requests, [{ userId: sampleUser.id }])
   })
 
@@ -330,7 +391,10 @@ export const registerNotesApiAdapterSuite = (
       createFakeNotesAppService({
         updateNotesAppUserPreferences: async (request) => {
           requests.push(request)
-          return { user: { ...sampleUser, preferences: request.preferences } }
+          return {
+            user: { ...sampleUser, preferences: request.preferences },
+            taxonomyLevels: sampleTaxonomyLevels,
+          }
         },
       }),
     )
@@ -363,6 +427,7 @@ export const registerNotesApiAdapterSuite = (
           },
         },
       },
+      taxonomyLevels: sampleTaxonomyLevels,
     })
     assert.deepEqual(requests, [
       {
@@ -428,13 +493,13 @@ export const registerNotesApiAdapterSuite = (
     assert.deepEqual(requests, [{ userId: 7 }])
   })
 
-  test(`${adapterName} lists categories for the requested user`, async (t) => {
+  test(`${adapterName} lists the taxonomy tree and tier vocabulary together`, async (t) => {
     const requests: Array<{ userId: number }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
-        listCategoriesForNotesApp: async (request) => {
+        listTaxonomyForNotesApp: async (request) => {
           requests.push(request)
-          return { categories: [sampleCategory] }
+          return { taxonomy: sampleTaxonomy, levels: sampleTaxonomyLevels }
         },
       }),
     )
@@ -445,27 +510,34 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "GET",
-      path: "/api/categories",
+      path: "/api/taxonomy",
       headers: authHeaders,
     })
 
     assert.equal(response.status, 200)
-    assert.deepEqual(response.body, { categories: [sampleCategory] })
+    assert.deepEqual(response.body, {
+      taxonomy: sampleTaxonomy,
+      levels: sampleTaxonomyLevels,
+    })
     assert.deepEqual(requests, [{ userId: 7 }])
   })
 
-  test(`${adapterName} lowercases category labels before create and update`, async (t) => {
-    const createRequests: Array<{ userId: number; label: string }> = []
-    const updateRequests: Array<{ userId: number; categoryId: number; label: string }> = []
+  test(`${adapterName} lowercases taxonomy labels before create and rename`, async (t) => {
+    const createRequests: Array<{ level: number; parentId: number | null; label: string }> = []
+    const updateRequests: Array<{ taxonomyId: number; label: string | null }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
-        createCategoryForNotesApp: async (request) => {
-          createRequests.push(request)
-          return { category: sampleCategory }
+        createTaxonomyForNotesApp: async (request) => {
+          createRequests.push({
+            level: request.level,
+            parentId: request.parentId,
+            label: request.label,
+          })
+          return { taxonomy: sampleGroup }
         },
-        updateCategoryForNotesApp: async (request) => {
-          updateRequests.push(request)
-          return { category: sampleCategory }
+        updateTaxonomyForNotesApp: async (request) => {
+          updateRequests.push({ taxonomyId: request.taxonomyId, label: request.label })
+          return { taxonomy: sampleGroup }
         },
       }),
     )
@@ -476,30 +548,30 @@ export const registerNotesApiAdapterSuite = (
 
     const createResponse = await adapter.request({
       method: "POST",
-      path: "/api/categories",
+      path: "/api/taxonomy",
       headers: authHeaders,
-      body: { userId: 7, label: "  Work  " },
+      body: { userId: 7, level: 3, parentId: 5, label: "  Work  " },
     })
     const updateResponse = await adapter.request({
       method: "PATCH",
-      path: "/api/categories",
+      path: "/api/taxonomy",
       headers: authHeaders,
-      body: { userId: 7, categoryId: 5, label: "  WORK  " },
+      body: { userId: 7, taxonomyId: 6, label: "  WORK  " },
     })
 
     assert.equal(createResponse.status, 201)
     assert.equal(updateResponse.status, 200)
-    assert.deepEqual(createRequests, [{ userId: 7, label: "work" }])
-    assert.deepEqual(updateRequests, [{ userId: 7, categoryId: 5, label: "work" }])
+    assert.deepEqual(createRequests, [{ level: 3, parentId: 5, label: "work" }])
+    assert.deepEqual(updateRequests, [{ taxonomyId: 6, label: "work" }])
   })
 
-  test(`${adapterName} deletes a category and its notes`, async (t) => {
-    const requests: Array<{ userId: number; categoryId: number }> = []
+  test(`${adapterName} preserves the case of a tier name`, async (t) => {
+    const requests: Array<{ level: number; label: string }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
-        deleteCategoryWithNotesForNotesApp: async (request) => {
-          requests.push(request)
-          return { ok: true, deletedNotes: 2 }
+        updateTaxonomyLevelForNotesApp: async (request) => {
+          requests.push({ level: request.level, label: request.label })
+          return { levels: sampleTaxonomyLevels }
         },
       }),
     )
@@ -509,15 +581,53 @@ export const registerNotesApiAdapterSuite = (
     })
 
     const response = await adapter.request({
-      method: "DELETE",
-      path: "/api/categories/with-notes",
+      method: "PATCH",
+      path: "/api/taxonomy/levels",
       headers: authHeaders,
-      body: { userId: 7, categoryId: 5 },
+      body: { userId: 7, level: 2, label: "  Project  " },
     })
 
     assert.equal(response.status, 200)
-    assert.deepEqual(response.body, { ok: true, deletedNotes: 2 })
-    assert.deepEqual(requests, [{ userId: 7, categoryId: 5 }])
+    // Trimmed but not lowercased: tier names are headings, and unlike item
+    // labels they are never used as an upsert key.
+    assert.deepEqual(requests, [{ level: 2, label: "Project" }])
+  })
+
+  test(`${adapterName} requires an explicit disposition when deleting a taxonomy node`, async (t) => {
+    const requests: Array<{ taxonomyId: number; mode: string }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        deleteTaxonomyForNotesApp: async (request) => {
+          requests.push({ taxonomyId: request.taxonomyId, mode: request.mode })
+          return { ok: true, deletedNotes: 2, deletedNodes: 3 }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const missingMode = await adapter.request({
+      method: "DELETE",
+      path: "/api/taxonomy",
+      headers: authHeaders,
+      body: { userId: 7, taxonomyId: 5 },
+    })
+
+    const withMode = await adapter.request({
+      method: "DELETE",
+      path: "/api/taxonomy",
+      headers: authHeaders,
+      body: { userId: 7, taxonomyId: 5, mode: "delete-subtree" },
+    })
+
+    // No default: guessing means either losing notes or moving them somewhere
+    // the user did not ask for.
+    assert.equal(missingMode.status, 400)
+    assert.equal(withMode.status, 200)
+    assert.deepEqual(withMode.body, { ok: true, deletedNotes: 2, deletedNodes: 3 })
+    assert.deepEqual(requests, [{ taxonomyId: 5, mode: "delete-subtree" }])
   })
 
   test(`${adapterName} lowercases tag labels before create and update`, async (t) => {
@@ -583,7 +693,7 @@ export const registerNotesApiAdapterSuite = (
       body: {
         userId: 7,
         note: {
-          categoryId: 5,
+          groupId: 6,
           tagIds: [12],
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
@@ -598,7 +708,7 @@ export const registerNotesApiAdapterSuite = (
       {
         userId: 7,
         note: {
-          categoryId: 5,
+          groupId: 6,
           tagIds: [12],
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
@@ -635,7 +745,7 @@ export const registerNotesApiAdapterSuite = (
       body: {
         userId: 7,
         note: {
-          categoryId: 5,
+          groupId: 6,
           tagIds: [12],
           description: "No due or reminder dates selected.",
         },
@@ -648,7 +758,7 @@ export const registerNotesApiAdapterSuite = (
       {
         userId: 7,
         note: {
-          categoryId: 5,
+          groupId: 6,
           tagIds: [12],
           description: "No due or reminder dates selected.",
           timeDue: null,
@@ -677,7 +787,7 @@ export const registerNotesApiAdapterSuite = (
         userId: 7,
         noteId: 999,
         note: {
-          categoryId: 5,
+          groupId: 6,
           tagIds: [12],
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
@@ -837,7 +947,7 @@ export const registerNotesApiAdapterSuite = (
             mode: "stale",
             processed: 2,
             updated: 2,
-            categoriesUpdated: 0,
+            taxonomyUpdated: 0,
             tagsUpdated: 0,
             hasMore: true,
           }
@@ -865,7 +975,7 @@ export const registerNotesApiAdapterSuite = (
       mode: "stale",
       processed: 2,
       updated: 2,
-      categoriesUpdated: 0,
+      taxonomyUpdated: 0,
       tagsUpdated: 0,
       hasMore: true,
     })

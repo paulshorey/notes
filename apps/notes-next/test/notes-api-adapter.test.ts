@@ -6,8 +6,10 @@ import {
 } from "@lib/db-notes/testing/notes-api-adapter-suite"
 import {
   createAuthTokenRouteHandlers,
-  createCategoriesRouteHandlers,
-  createDeleteCategoryWithNotesRouteHandlers,
+  createTaxonomyRouteHandlers,
+  createTaxonomyLevelsRouteHandlers,
+  createTaxonomyPathRouteHandlers,
+  createTaxonomySuggestRouteHandlers,
   createTagsRouteHandlers,
   createEmbeddingMaintenanceRouteHandlers,
   createNotesRouteHandlers,
@@ -24,8 +26,10 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
   const authTokenHandlers = createAuthTokenRouteHandlers(service)
   const sessionHandlers = createSessionRouteHandlers(service)
   const notesHandlers = createNotesRouteHandlers(service)
-  const categoriesHandlers = createCategoriesRouteHandlers(service)
-  const deleteCategoryWithNotesHandlers = createDeleteCategoryWithNotesRouteHandlers(service)
+  const taxonomyHandlers = createTaxonomyRouteHandlers(service)
+  const taxonomyLevelsHandlers = createTaxonomyLevelsRouteHandlers(service)
+  const taxonomyPathHandlers = createTaxonomyPathRouteHandlers(service)
+  const taxonomySuggestHandlers = createTaxonomySuggestRouteHandlers(service)
   const tagsHandlers = createTagsRouteHandlers(service)
   const searchHandlers = createSearchRouteHandlers(service)
   const embeddingMaintenanceHandlers = createEmbeddingMaintenanceRouteHandlers(service)
@@ -78,20 +82,30 @@ const createNextAdapter = (service: NotesAppService): NotesApiAdapter => {
         } else {
           throw new Error(`Unhandled test route: ${method} ${url.pathname}`)
         }
-      } else if (url.pathname === "/api/categories") {
+      } else if (url.pathname === "/api/taxonomy") {
         if (method === "GET") {
-          response = await categoriesHandlers.GET(new NextRequest(url, getRequestInit))
+          response = await taxonomyHandlers.GET(new NextRequest(url, getRequestInit))
         } else if (method === "POST") {
-          response = await categoriesHandlers.POST(new Request(url, requestInit))
+          response = await taxonomyHandlers.POST(new Request(url, requestInit))
         } else if (method === "PATCH") {
-          response = await categoriesHandlers.PATCH(new Request(url, requestInit))
+          response = await taxonomyHandlers.PATCH(new Request(url, requestInit))
         } else if (method === "DELETE") {
-          response = await categoriesHandlers.DELETE(new Request(url, requestInit))
+          response = await taxonomyHandlers.DELETE(new Request(url, requestInit))
         } else {
           throw new Error(`Unhandled test route: ${method} ${url.pathname}`)
         }
-      } else if (url.pathname === "/api/categories/with-notes" && method === "DELETE") {
-        response = await deleteCategoryWithNotesHandlers.DELETE(new Request(url, requestInit))
+      } else if (url.pathname === "/api/taxonomy/levels") {
+        if (method === "GET") {
+          response = await taxonomyLevelsHandlers.GET(new NextRequest(url, getRequestInit))
+        } else if (method === "PATCH") {
+          response = await taxonomyLevelsHandlers.PATCH(new Request(url, requestInit))
+        } else {
+          throw new Error(`Unhandled test route: ${method} ${url.pathname}`)
+        }
+      } else if (url.pathname === "/api/taxonomy/path" && method === "POST") {
+        response = await taxonomyPathHandlers.POST(new Request(url, requestInit))
+      } else if (url.pathname === "/api/taxonomy/suggest" && method === "POST") {
+        response = await taxonomySuggestHandlers.POST(new Request(url, requestInit))
       } else if (url.pathname === "/api/notes/search" && method === "POST") {
         response = await searchHandlers.POST(new Request(url, requestInit))
       } else if (url.pathname === "/api/notes/maintenance/embeddings" && method === "POST") {
