@@ -23,7 +23,8 @@ export async function GET() {
         status: "unhealthy",
         timestamp: new Date().toISOString(),
         database: "disconnected",
-        error: message,
+        code: "DATABASE_UNAVAILABLE",
+        retryable: true,
       },
       { status: 503 },
     )

@@ -1,15 +1,18 @@
-// Bump on any strategy change so existing PWA installs pick it up and discard
-// the previous cache (which used network-first and also cached API responses).
-const CACHE_NAME = "notes-pwa-v2"
-
-const PRECACHE_URLS = ["/", "/icons/icon-192x192.png", "/icons/icon-512x512.png"]
+// This worker deliberately does not cache the Next.js app shell. HTML and
+// `/_next/*` files must come from the same deployment; mixing a cached document
+// with another build's chunks can leave the app permanently unbootable.
+const CACHE_NAME = "notes-pwa-v3"
+const CACHE_PREFIX = "notes-pwa-"
+const STATIC_URLS = ["/icons/icon-192x192.png", "/icons/icon-512x512.png"]
+const DEVELOPMENT_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"])
+const IS_LOCAL_DEVELOPMENT = DEVELOPMENT_HOSTS.has(self.location.hostname)
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting()),
+    (IS_LOCAL_DEVELOPMENT
+      ? Promise.resolve()
+      : caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_URLS))
+    ).then(() => self.skipWaiting()),
   )
 })
 
@@ -18,13 +21,26 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((names) =>
-        Promise.all(names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))),
+        Promise.all(
+          names
+            .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
+            .map((name) => caches.delete(name)),
+        ),
       )
-      .then(() => self.clients.claim()),
+      .then(async () => {
+        if (IS_LOCAL_DEVELOPMENT) {
+          await caches.delete(CACHE_NAME)
+          await self.registration.unregister()
+          return
+        }
+        await self.clients.claim()
+      }),
   )
 })
 
 self.addEventListener("fetch", (event) => {
+  if (IS_LOCAL_DEVELOPMENT) return
+
   const request = event.request
   if (request.method !== "GET") return
 
@@ -37,29 +53,30 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return
 
-  // Never cache API responses. The app has its own per-user data cache in
-  // localStorage (see src/lib/notesCache.ts), so API calls must always hit the
-  // network so the user sees the latest data.
-  if (url.pathname.startsWith("/api/")) return
+  // Navigation, API, and build output always use the normal network/browser
+  // cache path. Next.js gives immutable production chunks content-based names,
+  // while the document points at one exact set of those names.
+  if (
+    request.mode === "navigate" ||
+    url.pathname === "/" ||
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/_next/")
+  ) {
+    return
+  }
 
-  // Stale-while-revalidate for the app shell (HTML, JS, CSS, fonts, icons).
-  // Serving from cache immediately is what makes the PWA paint without waiting
-  // on a network round-trip - especially important on flaky mobile networks
-  // where network-first can take several seconds to fall back. The background
-  // fetch keeps the cache fresh for the next launch.
+  if (!STATIC_URLS.includes(url.pathname)) return
+
   event.respondWith(
-    caches.open(CACHE_NAME).then((cache) =>
-      cache.match(request).then((cached) => {
-        const networkFetch = fetch(request)
-          .then((response) => {
-            if (response && response.ok) {
-              cache.put(request, response.clone())
-            }
-            return response
-          })
-          .catch(() => cached)
-        return cached || networkFetch
-      }),
-    ),
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(request)
+      if (cached) return cached
+
+      const response = await fetch(request)
+      if (response.ok) {
+        event.waitUntil(cache.put(request, response.clone()))
+      }
+      return response
+    }),
   )
 })

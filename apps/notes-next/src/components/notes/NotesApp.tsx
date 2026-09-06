@@ -6,7 +6,6 @@ import type {
   TaxonomyLevelRecord,
   CreateTaxonomyResponse,
   DeleteTaxonomyResponse,
-  TaxonomyLevelsResponse,
   TaxonomyPathResponse,
   TagsResponse,
   TagRecord,
@@ -47,10 +46,10 @@ import {
   useRef,
   useState,
 } from "react"
-import { Text } from "@gravity-ui/uikit"
+import { Button, Text } from "@gravity-ui/uikit"
 import { signIn, signOut, useSession } from "next-auth/react"
 import { STORAGE_KEY } from "@/constants/notes"
-import { getErrorMessage, readJson } from "@/lib/api"
+import { fetchWithTimeout, getErrorMessage, readJson, RequestError } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import {
   createDefaultNoteForm,
@@ -103,6 +102,8 @@ import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
 import { EditTagModal } from "./modals/EditTagModal"
 import styles from "./NotesApp.module.css"
+
+type BootstrapResponse = SessionResponse & NotesResponse & TaxonomyResponse & TagsResponse
 
 const RESULTS_COLUMN_MIN_WIDTH = 222
 const RESULTS_COLUMN_DEFAULT_WIDTH = RESULTS_COLUMN_MIN_WIDTH
@@ -465,6 +466,9 @@ export default function NotesApp() {
   const resetNotesAppStore = useNotesAppStore((state) => state.resetDefaultState)
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [sessionLoading, setSessionLoading] = useState(true)
+  const [startupErrorMessage, setStartupErrorMessage] = useState<string | null>(null)
+  const [startupRetryKey, setStartupRetryKey] = useState(0)
+  const [anonymousSignInPending, setAnonymousSignInPending] = useState(false)
   const [notesUrlSelectionReady, setNotesUrlSelectionReady] = useState(false)
   const [notesLoading, setNotesLoading] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -510,6 +514,7 @@ export default function NotesApp() {
   // twice. The sessionStorage token removal is the primary idempotency guard;
   // this ref covers the in-flight window before that removal is observed.
   const mergeInFlightRef = useRef(false)
+  const anonymousSignInInFlightRef = useRef(false)
   const didRehydrateOpenNotesRef = useRef(false)
   const openNotesPersistTimeoutRef = useRef<number | null>(null)
   const taxonomyRefreshTimeoutRef = useRef<number | null>(null)
@@ -1017,14 +1022,25 @@ export default function NotesApp() {
   useEffect(() => {
     let active = true
 
+    setStartupErrorMessage(null)
+    setSessionLoading(true)
+
     const fetchFreshSession = async (
       userId: string | number,
       { applyUser }: { applyUser: boolean },
     ) => {
-      const sessionResponse = await fetch(`/api/session?userId=${userId}`, {
+      const bootstrapResponse = await fetchWithTimeout("/api/bootstrap", {
         cache: "no-store",
       })
-      const sessionData = await readJson<SessionResponse>(sessionResponse)
+      const bootstrapData = await readJson<BootstrapResponse>(bootstrapResponse)
+      const expectedUserId = Number(userId)
+      if (Number.isInteger(expectedUserId) && bootstrapData.user.id !== expectedUserId) {
+        throw new RequestError("The active session changed during startup.", 401)
+      }
+      const sessionData: SessionResponse = {
+        user: bootstrapData.user,
+        taxonomyLevels: bootstrapData.taxonomyLevels,
+      }
 
       // On the cache-first path the in-memory preferences came from a snapshot
       // that can be arbitrarily old. Whether the fresh server copy may replace
@@ -1053,11 +1069,14 @@ export default function NotesApp() {
         updateNotesCacheUser(sessionData.user.id, userForCache)
       }
 
-      const [loadedNotes, loadedTaxonomy, loadedTags] = await Promise.all([
-        loadNotes(sessionData.user.id),
-        loadTaxonomy(sessionData.user.id),
-        loadTags(sessionData.user.id),
-      ])
+      const loadedNotes = bootstrapData.notes
+      const loadedTaxonomy = bootstrapData.taxonomy
+      const loadedTags = bootstrapData.tags
+
+      setNotes(loadedNotes)
+      setTaxonomy(loadedTaxonomy)
+      setTaxonomyLevels(bootstrapData.levels)
+      setTags(loadedTags)
 
       writeNotesCache({
         userId: sessionData.user.id,
@@ -1203,23 +1222,40 @@ export default function NotesApp() {
         })
       } catch (error) {
         if (!active) return
-        window.localStorage.removeItem(STORAGE_KEY)
-        clearNotesCache()
-        preferenceSaveRequestIdRef.current += 1
-        lastSavedPreferencesRef.current = serializeUserPreferences({})
+        const isUnauthorized = error instanceof RequestError && error.status === 401
+
+        if (isUnauthorized) {
+          window.localStorage.removeItem(STORAGE_KEY)
+          clearNotesCache()
+          preferenceSaveRequestIdRef.current += 1
+          lastSavedPreferencesRef.current = serializeUserPreferences({})
+          setUserPreferences({})
+          setTaxonomy([])
+          setTaxonomyLevels([])
+          setTags([])
+          setNotes([])
+          detachedSavesRef.current.clear()
+          setResultsListVisible(!isMobileResultsLayout())
+          setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+          setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+        }
+
+        // A network, database, or server failure is not evidence that the
+        // user's persisted drafts are invalid. Keep both caches intact and
+        // offer an explicit retry instead of silently deleting local work.
         setUser(null)
-        setUserPreferences({})
-        setTaxonomy([])
-        setTaxonomyLevels([])
-        setTags([])
-        setNotes([])
-        clearOpenNotesSnapshot()
-        detachedSavesRef.current.clear()
-        resetNotesAppStore()
-        setResultsListVisible(!isMobileResultsLayout())
-        setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-        setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-        setErrorMessage(getErrorMessage(error))
+        setStartupErrorMessage(
+          isUnauthorized
+            ? "Your session is no longer valid. Retry to start a new visitor session."
+            : getErrorMessage(error),
+        )
+
+        if (isUnauthorized) {
+          // A signed token for a deleted user cannot recover by repeating the
+          // same bootstrap request. End that session once; the unauthenticated
+          // effect then makes one normal visitor-session attempt.
+          await signOut({ redirect: false })
+        }
       } finally {
         if (active) setSessionLoading(false)
       }
@@ -1233,13 +1269,13 @@ export default function NotesApp() {
     authSession?.user?.notesUserId,
     authSession?.user?.isAnonymous,
     authStatus,
+    startupRetryKey,
     applyLoadedUser,
     loadTaxonomy,
     loadTags,
     loadNotes,
     applyNotesUrlSelection,
     rehydrateOpenNotes,
-    resetNotesAppStore,
     setResultsListVisible,
   ])
 
@@ -2964,17 +3000,82 @@ export default function NotesApp() {
 
   // Auto-create anonymous session if unauthenticated
   useEffect(() => {
-    if (authStatus === "unauthenticated") {
-      void signIn("anonymous", { redirect: false })
+    if (authStatus !== "unauthenticated" || anonymousSignInInFlightRef.current) return
+
+    let active = true
+    anonymousSignInInFlightRef.current = true
+    setAnonymousSignInPending(true)
+    setStartupErrorMessage(null)
+
+    void (async () => {
+      try {
+        const result = await signIn("anonymous", { redirect: false })
+        if (!active) return
+
+        const returnedError = result?.error
+        const redirectError = (() => {
+          if (!result?.url) return null
+          try {
+            return new URL(result.url).searchParams.get("error")
+          } catch {
+            return null
+          }
+        })()
+
+        if (returnedError || redirectError || !result?.ok) {
+          let message = "Notes could not create a visitor session."
+          try {
+            const healthResponse = await fetchWithTimeout("/api/health", {
+              cache: "no-store",
+            })
+            if (healthResponse.status === 503) {
+              message = "The Notes database is unavailable. Check the local connection and retry."
+            }
+          } catch {
+            message = "Notes could not reach the server. Check the connection and retry."
+          }
+          if (active) setStartupErrorMessage(message)
+        }
+      } catch (error) {
+        if (active) setStartupErrorMessage(getErrorMessage(error))
+      } finally {
+        anonymousSignInInFlightRef.current = false
+        if (active) {
+          setAnonymousSignInPending(false)
+          setSessionLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      active = false
     }
-  }, [authStatus])
+  }, [authStatus, startupRetryKey])
 
   if (authStatus === "loading" || sessionLoading || !user) {
     return (
       <div className={styles.page}>
-        <Text variant="body-1" color="secondary">
-          Loading…
-        </Text>
+        {startupErrorMessage ? (
+          <div className={styles.startupState} role="alert">
+            <Text variant="body-1" color="danger">
+              {startupErrorMessage}
+            </Text>
+            <Button
+              view="action"
+              size="m"
+              loading={anonymousSignInPending}
+              onClick={() => setStartupRetryKey((key) => key + 1)}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className={styles.startupState} aria-live="polite">
+            <Text variant="body-1" color="secondary">
+              Loading…
+            </Text>
+          </div>
+        )}
       </div>
     )
   }
