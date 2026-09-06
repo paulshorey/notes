@@ -90,9 +90,9 @@ describe("default taxonomy seeding (DB)", { skip: !hasDb }, () => {
       assert.deepEqual(
         taxonomy.map((row) => [row.level, row.label]),
         [
-          [1, "uncategorized"],
+          [1, "all"],
           [2, "uncategorized"],
-          [3, "uncategorized"],
+          [3, "ungrouped"],
         ],
       )
 
@@ -103,6 +103,142 @@ describe("default taxonomy seeding (DB)", { skip: !hasDb }, () => {
       assert.equal(epic.parentId, null)
       assert.equal(category.parentId, epic.id)
       assert.equal(group.parentId, category.id)
+    } finally {
+      await cleanup(userId)
+    }
+  })
+
+  test("legacy uncategorized epic and group labels rename to all and ungrouped", async () => {
+    const userId = await createUser()
+    try {
+      await seedLevels(userId)
+      const { rows: epicRows } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 1, NULL, 'uncategorized') RETURNING id`,
+        [userId],
+      )
+      const { rows: categoryRows } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 2, $2, 'uncategorized') RETURNING id`,
+        [userId, epicRows[0]!.id],
+      )
+      await getDb().query(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 3, $2, 'uncategorized')`,
+        [userId, categoryRows[0]!.id],
+      )
+
+      await getDb().query(
+        `UPDATE public.user_taxonomy_v1 AS src
+         SET label = 'all'
+         WHERE src.user_id = $1
+           AND src.level = 1
+           AND src.label = 'uncategorized'
+           AND NOT EXISTS (
+             SELECT 1 FROM public.user_taxonomy_v1 AS sibling
+             WHERE sibling.user_id = src.user_id
+               AND sibling.level = 1
+               AND sibling.parent_id IS NOT DISTINCT FROM src.parent_id
+               AND sibling.id <> src.id
+               AND sibling.label = 'all'
+           )`,
+        [userId],
+      )
+      await getDb().query(
+        `UPDATE public.user_taxonomy_v1 AS src
+         SET label = 'ungrouped'
+         WHERE src.user_id = $1
+           AND src.level = 3
+           AND src.label = 'uncategorized'
+           AND NOT EXISTS (
+             SELECT 1 FROM public.user_taxonomy_v1 AS sibling
+             WHERE sibling.user_id = src.user_id
+               AND sibling.level = 3
+               AND sibling.parent_id IS NOT DISTINCT FROM src.parent_id
+               AND sibling.id <> src.id
+               AND sibling.label = 'ungrouped'
+           )`,
+        [userId],
+      )
+
+      assert.deepEqual(await rowsFor(userId), [
+        { level: 1, label: "all" },
+        { level: 2, label: "uncategorized" },
+        { level: 3, label: "ungrouped" },
+      ])
+    } finally {
+      await cleanup(userId)
+    }
+  })
+
+  test("rename skips when a sibling already owns the target label", async () => {
+    const userId = await createUser()
+    try {
+      await seedLevels(userId)
+      await getDb().query(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 1, NULL, 'uncategorized'), ($1, 1, NULL, 'all')`,
+        [userId],
+      )
+      const { rows: categoryRows } = await getDb().query<{ id: number }>(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 2, (SELECT id FROM public.user_taxonomy_v1 WHERE user_id = $1 AND level = 1 AND label = 'uncategorized'), 'uncategorized')
+         RETURNING id`,
+        [userId],
+      )
+      await getDb().query(
+        `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)
+         VALUES ($1, 3, $2, 'uncategorized'), ($1, 3, $2, 'ungrouped')`,
+        [userId, categoryRows[0]!.id],
+      )
+
+      await getDb().query(
+        `UPDATE public.user_taxonomy_v1 AS src
+         SET label = 'all'
+         WHERE src.user_id = $1
+           AND src.level = 1
+           AND src.label = 'uncategorized'
+           AND NOT EXISTS (
+             SELECT 1 FROM public.user_taxonomy_v1 AS sibling
+             WHERE sibling.user_id = src.user_id
+               AND sibling.level = 1
+               AND sibling.parent_id IS NOT DISTINCT FROM src.parent_id
+               AND sibling.id <> src.id
+               AND sibling.label = 'all'
+           )`,
+        [userId],
+      )
+      await getDb().query(
+        `UPDATE public.user_taxonomy_v1 AS src
+         SET label = 'ungrouped'
+         WHERE src.user_id = $1
+           AND src.level = 3
+           AND src.label = 'uncategorized'
+           AND NOT EXISTS (
+             SELECT 1 FROM public.user_taxonomy_v1 AS sibling
+             WHERE sibling.user_id = src.user_id
+               AND sibling.level = 3
+               AND sibling.parent_id IS NOT DISTINCT FROM src.parent_id
+               AND sibling.id <> src.id
+               AND sibling.label = 'ungrouped'
+           )`,
+        [userId],
+      )
+
+      const labels = await getDb().query<{ level: number; label: string }>(
+        `SELECT level, label FROM public.user_taxonomy_v1 WHERE user_id = $1 ORDER BY level, label`,
+        [userId],
+      )
+      assert.deepEqual(
+        labels.rows.map((row) => [Number(row.level), row.label]),
+        [
+          [1, "all"],
+          [1, "uncategorized"],
+          [2, "uncategorized"],
+          [3, "uncategorized"],
+          [3, "ungrouped"],
+        ],
+      )
     } finally {
       await cleanup(userId)
     }
@@ -126,7 +262,7 @@ describe("default taxonomy seeding (DB)", { skip: !hasDb }, () => {
     try {
       await seedLevels(userId)
 
-      // Seeding unconditionally would push an unwanted "uncategorized" into
+      // Seeding unconditionally would push an unwanted "all" epic into
       // every existing user's sidebar.
       const { rows: epicRows } = await getDb().query<{ id: number }>(
         `INSERT INTO public.user_taxonomy_v1 (user_id, level, parent_id, label)

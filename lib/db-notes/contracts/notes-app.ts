@@ -40,6 +40,17 @@ export const DEFAULT_TAXONOMY_LEVEL_LABELS: Record<number, string> = {
   4: "Note",
 };
 
+/**
+ * Auto-created item labels at each hierarchy level. These are node labels,
+ * not tier names — the user's word for a tier lives in
+ * `DEFAULT_TAXONOMY_LEVEL_LABELS` / `user_taxonomy_level_v1`.
+ */
+export const DEFAULT_TAXONOMY_NODE_LABELS: Record<number, string> = {
+  [TAXONOMY_LEVEL_EPIC]: "all",
+  [TAXONOMY_LEVEL_CATEGORY]: "uncategorized",
+  [TAXONOMY_LEVEL_GROUP]: "ungrouped",
+};
+
 /** The word this user uses for one tier. Display text only. */
 export interface TaxonomyLevelRecord {
   userId: number;

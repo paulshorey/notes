@@ -36,11 +36,11 @@ const tree = buildTaxonomyIndex([
   node(2, TAXONOMY_LEVEL_CATEGORY, 1, "projects"),
   node(3, TAXONOMY_LEVEL_GROUP, 2, "active"),
   node(4, TAXONOMY_LEVEL_CATEGORY, 1, "uncategorized"),
-  node(5, TAXONOMY_LEVEL_GROUP, 4, "uncategorized"),
+  node(5, TAXONOMY_LEVEL_GROUP, 4, "ungrouped"),
   node(10, TAXONOMY_LEVEL_EPIC, null, "home"),
   node(11, TAXONOMY_LEVEL_CATEGORY, 10, "chores"),
   node(12, TAXONOMY_LEVEL_GROUP, 11, "weekend"),
-  node(13, TAXONOMY_LEVEL_GROUP, 11, "uncategorized"),
+  node(13, TAXONOMY_LEVEL_GROUP, 11, "ungrouped"),
 ])
 
 test("pickChildByLabel is case-insensitive and ignores blanks", () => {
@@ -53,7 +53,7 @@ test("pickChildByLabel is case-insensitive and ignores blanks", () => {
 test("pickPreferredChild falls back to the seeded default, then the first child", () => {
   const withDefault = [
     node(3, TAXONOMY_LEVEL_GROUP, 2, "active"),
-    node(5, TAXONOMY_LEVEL_GROUP, 2, "uncategorized"),
+    node(5, TAXONOMY_LEVEL_GROUP, 2, "ungrouped"),
   ]
   assert.equal(pickPreferredChild(withDefault, "missing", TAXONOMY_LEVEL_GROUP)?.id, 5)
   assert.equal(pickPreferredChild(withDefault, "active", TAXONOMY_LEVEL_GROUP)?.id, 3)
@@ -68,12 +68,12 @@ test("resolveGroupUnderEpic keeps a matching category/group when they exist", ()
   assert.equal(group?.id, 3)
 })
 
-test("resolveGroupUnderEpic falls back to uncategorized under the new epic", () => {
+test("resolveGroupUnderEpic falls back to the seeded category/group under the new epic", () => {
   const group = resolveGroupUnderEpic(tree, 1, "does-not-exist", "active")
   assert.equal(group?.id, 5)
 })
 
-test("resolveGroupUnderCategory prefers a matching group, else uncategorized", () => {
+test("resolveGroupUnderCategory prefers a matching group, else the seeded default", () => {
   assert.equal(resolveGroupUnderCategory(tree, 11, "weekend")?.id, 12)
   assert.equal(resolveGroupUnderCategory(tree, 11, "missing")?.id, 13)
 })

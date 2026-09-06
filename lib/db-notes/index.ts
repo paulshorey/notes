@@ -16,6 +16,7 @@ export { listTagsByUser } from "./sql/tag";
 export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./sql/user";
 export {
   DEFAULT_TAXONOMY_LEVEL_LABELS,
+  DEFAULT_TAXONOMY_NODE_LABELS,
   TAXONOMY_LEVEL_CATEGORY,
   TAXONOMY_LEVEL_CONTENT,
   TAXONOMY_LEVEL_EPIC,
