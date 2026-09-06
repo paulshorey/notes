@@ -26,6 +26,8 @@ pnpm --filter notes-next dev
 
 The app runs at `http://localhost:3000`.
 
+On startup, returning sessions are seeded by the server and the UI loads its initial session, notes, taxonomy, and tags through `GET /api/bootstrap`. A database or network failure shows a retryable error instead of repeatedly issuing requests. The service worker is disabled and cleaned up on local hosts so old app shells or development chunks cannot survive a server restart.
+
 ## Relevant scripts
 
 ```bash
@@ -42,6 +44,7 @@ This package only validates the Notes contract. It does not own migration script
 
 | Method                | Path                                | Purpose                                       |
 | --------------------- | ----------------------------------- | --------------------------------------------- |
+| GET                   | `/api/bootstrap`                    | Load authenticated web startup data           |
 | GET/POST              | `/api/session`                      | Look up user by userId or login by identifier |
 | GET/POST/PATCH/DELETE | `/api/notes`                        | List, create, update, delete notes            |
 | GET/POST              | `/api/tags`                         | List, create tags                             |

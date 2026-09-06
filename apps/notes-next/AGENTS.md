@@ -23,6 +23,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
       merge-token/          — POST (anonymous session mints a signed merge token)
       merge/                — POST (real session merges anonymous data using the token)
       claim/                — POST (anonymous session upgrades itself into a permanent account in place)
+    bootstrap/              — GET (session + notes + taxonomy + tags for web startup)
     session/                — GET (authenticated user), PATCH (preferences)
     notes/                  — GET (list), POST (create), PATCH (update), DELETE
     tags/                   — GET (list), POST (create)
@@ -76,12 +77,20 @@ src/                        — non-route code (import with "@/..." alias)
 - All database access and embedding logic is in `@lib/db-notes`. API routes call `notesAppService` from `@lib/db-notes/services/notes-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
 
+## Startup and service worker
+
+The root layout reads Auth.js once and seeds `SessionProvider`, so returning users do not need a client-side session round trip before startup. `NotesApp` then calls `GET /api/bootstrap`, which authenticates once and loads the session, notes, taxonomy, and tags in parallel. Keep this as the single cold-start data path; separate startup requests add auth and database work and can race one another.
+
+The local server-data snapshot may paint immediately for a returning user, but a failed refresh must not clear `notes-open-notes-v1` or other draft state. A first visit with no usable snapshot must finish in a visible, retryable error state; startup must never retry automatically in a loop.
+
+`public/sw.js` caches install icons only. It must never intercept navigation, `/api/*`, or `/_next/*`: HTML and Next.js build output from different deployments are incompatible. Localhost registrations and `notes-pwa-*` caches are removed by `ServiceWorkerRegistration`; `/sw.js` itself is always served with no-cache headers so deployed workers update promptly.
+
 ## Note saving lifecycle
 
 Several notes are open at once, in a bounded most-recently-used **ring**. Opening a note adds an entry rather than replacing one, so switching never waits for a save.
 
 - `src/stores/openNotes.ts` — pure, React-free reducers over the ring. The open sequence is **insert → activate → evict**, and the order is load-bearing: eviction protects the active entry, so evicting first protects the _outgoing_ note and at a cap of 1 leaves nothing droppable. There is a unit test pinned at `cap === 1`; larger caps hide the bug.
-- `src/lib/openNotesStorage.ts` — persists the ring under its own key, `notes-open-notes-v1`. Deliberately **not** part of `notesCache`, which expires after 14 days and is wiped on session-restore failure; either would destroy unsaved text. `reconcileOpenNotes` is pure and takes a lookup rather than the note array.
+- `src/lib/openNotesStorage.ts` — persists the ring under its own key, `notes-open-notes-v1`. Deliberately **not** part of `notesCache`, which expires after 14 days and contains only replaceable server data. A transient session-restore failure must not wipe either cache; it would remove the offline view and could destroy unsaved text. `reconcileOpenNotes` is pure and takes a lookup rather than the note array.
 - `src/hooks/useOpenNotesAutosave.ts` — one debounce per dirty entry, re-armed only when that entry's own signature changes so typing in one note cannot starve a background save.
 
 The editor has **no submit control** — notes only ever save in the background. `NoteForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so Enter in an expanded date field cannot implicitly submit and reload the page. Do not reintroduce a save mode that resets the editor after saving: it would recycle the ring slot holding the just-saved note, and throw away anything typed while the request was in flight.
