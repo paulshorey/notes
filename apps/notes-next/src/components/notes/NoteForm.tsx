@@ -8,13 +8,23 @@ import {
   type Dispatch,
   type KeyboardEvent,
   type SetStateAction,
-  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react"
 import type { TagRecord } from "@lib/db-notes"
-import type { TaxonomyIndex } from "@/lib/taxonomyIndex"
+import {
+  TAXONOMY_LEVEL_CATEGORY,
+  TAXONOMY_LEVEL_EPIC,
+  TAXONOMY_LEVEL_GROUP,
+} from "@lib/db-notes/contracts/notes-app"
+import {
+  childrenOfLevel,
+  defaultNodeLabel,
+  epicsOf,
+  pathForGroup,
+  type TaxonomyIndex,
+} from "@/lib/taxonomyIndex"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
@@ -27,6 +37,8 @@ const AtomicEditor = dynamic<AtomicEditorProps>(
     ssr: false,
   },
 )
+
+type TaxonomyPickerKind = "epic" | "category" | "group"
 
 interface NoteFormProps {
   form: NoteFormState
@@ -41,11 +53,13 @@ interface NoteFormProps {
   descriptionEditorSessionId: string | number
   editorAutofocus: boolean
   editorRevealText?: string | null
-  groupInputValue: string
-  onGroupInputValueChange: (value: string) => void
-  createGroupPending: boolean
+  createTaxonomyPending: boolean
   createTagPending: boolean
-  onSelectGroupId: (rawId: string) => void
+  onSelectEpicId: (id: number) => void
+  onSelectCategoryId: (id: number) => void
+  onSelectGroupId: (id: number) => void
+  onCreateEpic: (label: string) => void | Promise<void>
+  onCreateCategory: (label: string) => void | Promise<void>
   onCreateGroup: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
@@ -66,56 +80,46 @@ export function NoteForm({
   descriptionEditorSessionId,
   editorAutofocus,
   editorRevealText = null,
-  groupInputValue,
-  onGroupInputValueChange,
-  createGroupPending,
+  createTaxonomyPending,
   createTagPending,
+  onSelectEpicId,
+  onSelectCategoryId,
   onSelectGroupId,
+  onCreateEpic,
+  onCreateCategory,
   onCreateGroup,
   onTagValuesChange,
   onCancelEdit,
   onDeleteEditingNote,
   onAddNote,
 }: NoteFormProps) {
-  const categoryTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const categoryInputRef = useRef<HTMLInputElement | null>(null)
   const tagTriggerRef = useRef<HTMLButtonElement | null>(null)
   const tagInputRef = useRef<HTMLInputElement | null>(null)
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
+  const [openTaxonomyPicker, setOpenTaxonomyPicker] = useState<TaxonomyPickerKind | null>(null)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [tagInputValue, setTagInputValue] = useState("")
 
-  /**
-   * Groups, each labelled with its full path. One searchable list rather than
-   * three chained selects: the path is what disambiguates two groups with the
-   * same name, and typing part of any level finds it.
-   */
-  const groupOptions = useMemo(
-    () =>
-      [...taxonomyIndex.pathByGroupId.values()]
-        .map(({ epic, category, group }) => ({
-          id: group.id,
-          label: group.label,
-          path: `${epic.label} → ${category.label} → ${group.label}`,
-        }))
-        .sort((left, right) => left.path.localeCompare(right.path, undefined, { sensitivity: "base" })),
+  const selectedPath = pathForGroup(taxonomyIndex, form.selectedGroupId)
+
+  const epicOptions = useMemo(
+    () => epicsOf(taxonomyIndex).map((epic) => ({ id: epic.id, label: epic.label })),
     [taxonomyIndex],
   )
-
-  const selectedCategoryLabel =
-    form.selectedGroupId === null
-      ? ""
-      : (taxonomyIndex.byId.get(form.selectedGroupId)?.label ?? "")
-
-  const filteredCategoryOptions = useMemo(() => {
-    const query = normalizeLabel(groupInputValue)
-    if (query === "") return groupOptions
-    // Match on the whole path, so "work" finds every group under a "work"
-    // category as well as one named "work".
-    return groupOptions.filter((option) => normalizeLabel(option.path).includes(query))
-  }, [groupOptions, groupInputValue])
+  const categoryOptions = useMemo(() => {
+    const epicId = selectedPath?.epic.id ?? null
+    if (epicId === null) return []
+    return childrenOfLevel(taxonomyIndex, epicId).map((row) => ({ id: row.id, label: row.label }))
+  }, [selectedPath?.epic.id, taxonomyIndex])
+  const groupOptions = useMemo(() => {
+    const categoryId = selectedPath?.category.id ?? null
+    if (categoryId === null) return []
+    return childrenOfLevel(taxonomyIndex, categoryId).map((row) => ({
+      id: row.id,
+      label: row.label,
+    }))
+  }, [selectedPath?.category.id, taxonomyIndex])
 
   const selectedTagLabels = useMemo(() => {
     const next = [
@@ -158,34 +162,13 @@ export function NoteForm({
     form.timeRemind !== null
   const showCancelButton = editingNoteId !== null || newNoteHasUserInput
 
-  useEffect(() => {
-    if (!categoryPickerOpen) {
-      onGroupInputValueChange(selectedCategoryLabel)
-    }
-  }, [categoryPickerOpen, onGroupInputValueChange, selectedCategoryLabel])
-
-  const openCategoryDropdown = () => {
-    onGroupInputValueChange("")
-    setCategoryPickerOpen(true)
-    setTagPickerOpen(false)
-    setMorePickerOpen(false)
-  }
-
-  const restoreCategoryInputValue = () => {
-    onGroupInputValueChange(selectedCategoryLabel)
-  }
-
-  const closeCategoryDropdown = () => {
-    setCategoryPickerOpen(false)
-    restoreCategoryInputValue()
-  }
+  const closeTaxonomyPickers = () => setOpenTaxonomyPicker(null)
 
   const openTagDropdown = () => {
     setTagInputValue("")
     setTagPickerOpen(true)
-    setCategoryPickerOpen(false)
+    closeTaxonomyPickers()
     setMorePickerOpen(true)
-    restoreCategoryInputValue()
   }
 
   const closeTagDropdown = () => {
@@ -196,47 +179,6 @@ export function NoteForm({
   const closeMoreDropdown = () => {
     setMorePickerOpen(false)
     closeTagDropdown()
-  }
-
-  const selectCategory = (categoryId: number) => {
-    onSelectGroupId(String(categoryId))
-    setCategoryPickerOpen(false)
-  }
-
-  const submitCategoryInput = () => {
-    const label = groupInputValue.trim()
-    if (label === "") {
-      return
-    }
-    const matchingCategory = groupOptions.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
-    )
-    if (matchingCategory) {
-      selectCategory(matchingCategory.id)
-      return
-    }
-    if (filteredCategoryOptions.length === 0) {
-      void (async () => {
-        try {
-          await onCreateGroup(label)
-        } finally {
-          setCategoryPickerOpen(false)
-        }
-      })()
-    }
-  }
-
-  const handleCategoryInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault()
-      closeCategoryDropdown()
-      return
-    }
-    if (event.key !== "Enter") {
-      return
-    }
-    event.preventDefault()
-    submitCategoryInput()
   }
 
   const addTagLabel = (label: string) => {
@@ -344,7 +286,63 @@ export function NoteForm({
       {/* Notes save in the background, so there is no submit action. Enter in a
           date field would otherwise implicitly submit and reload the page. */}
       <form className={styles.form} onSubmit={(event) => event.preventDefault()}>
-        <div className={styles.formActions}>
+        <div className={styles.taxonomyBar}>
+          <TaxonomyFieldPicker
+            kind="epic"
+            heading={taxonomyLabels.epic}
+            options={epicOptions}
+            selectedId={selectedPath?.epic.id ?? null}
+            selectedLabel={selectedPath?.epic.label ?? defaultNodeLabel(TAXONOMY_LEVEL_EPIC)}
+            open={openTaxonomyPicker === "epic"}
+            onOpenChange={(open) => {
+              setOpenTaxonomyPicker(open ? "epic" : null)
+              if (open) {
+                setTagPickerOpen(false)
+                setMorePickerOpen(false)
+              }
+            }}
+            disabled={!userPresent || createTaxonomyPending}
+            onSelect={onSelectEpicId}
+            onCreate={onCreateEpic}
+          />
+          <TaxonomyFieldPicker
+            kind="category"
+            heading={taxonomyLabels.category}
+            options={categoryOptions}
+            selectedId={selectedPath?.category.id ?? null}
+            selectedLabel={
+              selectedPath?.category.label ?? defaultNodeLabel(TAXONOMY_LEVEL_CATEGORY)
+            }
+            open={openTaxonomyPicker === "category"}
+            onOpenChange={(open) => {
+              setOpenTaxonomyPicker(open ? "category" : null)
+              if (open) {
+                setTagPickerOpen(false)
+                setMorePickerOpen(false)
+              }
+            }}
+            disabled={!userPresent || createTaxonomyPending}
+            onSelect={onSelectCategoryId}
+            onCreate={onCreateCategory}
+          />
+          <TaxonomyFieldPicker
+            kind="group"
+            heading={taxonomyLabels.group}
+            options={groupOptions}
+            selectedId={selectedPath?.group.id ?? null}
+            selectedLabel={selectedPath?.group.label ?? defaultNodeLabel(TAXONOMY_LEVEL_GROUP)}
+            open={openTaxonomyPicker === "group"}
+            onOpenChange={(open) => {
+              setOpenTaxonomyPicker(open ? "group" : null)
+              if (open) {
+                setTagPickerOpen(false)
+                setMorePickerOpen(false)
+              }
+            }}
+            disabled={!userPresent || createTaxonomyPending}
+            onSelect={onSelectGroupId}
+            onCreate={onCreateGroup}
+          />
           {showCancelButton && (
             <Button
               view="flat"
@@ -379,43 +377,6 @@ export function NoteForm({
           >
             <Plus size={16} weight="bold" aria-hidden />
           </button>
-          <div className={styles.categoryPicker}>
-            <button
-              ref={categoryTriggerRef}
-              type="button"
-              className={styles.categoryTrigger}
-              onClick={categoryPickerOpen ? closeCategoryDropdown : openCategoryDropdown}
-              disabled={!userPresent || createGroupPending}
-              aria-expanded={categoryPickerOpen}
-              aria-haspopup="dialog"
-            >
-              <span className={styles.categoryTriggerLabel}>
-                <span className={styles.categoryTriggerValue}>
-                  {selectedCategoryLabel || "uncategorized"}
-                </span>
-              </span>
-              <CaretDown size={14} weight="regular" />
-            </button>
-
-            <FilterablePickerPopup
-              anchorRef={categoryTriggerRef}
-              open={categoryPickerOpen}
-              onClose={closeCategoryDropdown}
-              placement={["top-start", "top-end", "bottom-start", "bottom-end"]}
-              listboxAriaLabel={`${taxonomyLabels.group} options`}
-              options={filteredCategoryOptions}
-              inputValue={groupInputValue}
-              inputRef={categoryInputRef}
-              inputDisabled={!userPresent || createGroupPending}
-              onInputChange={(value) => onGroupInputValueChange(toLowercaseInput(value))}
-              onInputKeyDown={handleCategoryInputKeyDown}
-              onInputSubmit={submitCategoryInput}
-              onSelectOption={(category) => selectCategory(Number(category.id))}
-              isOptionActive={(category) => form.selectedGroupId === Number(category.id)}
-              isOptionSelected={(category) => form.selectedGroupId === Number(category.id)}
-              emptyWithoutQueryMessage={`No ${taxonomyLabels.group} yet`}
-            />
-          </div>
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {form.remindExpanded &&
             renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
@@ -427,9 +388,8 @@ export function NoteForm({
               className={`${styles.categoryTrigger} ${styles.moreTrigger}`}
               onClick={() => {
                 setMorePickerOpen((open) => !open)
-                setCategoryPickerOpen(false)
+                closeTaxonomyPickers()
                 setTagPickerOpen(false)
-                restoreCategoryInputValue()
               }}
               disabled={!userPresent}
               aria-label="More note settings"
@@ -512,5 +472,126 @@ export function NoteForm({
         </div>
       </form>
     </section>
+  )
+}
+
+interface TaxonomyFieldPickerProps {
+  kind: TaxonomyPickerKind
+  heading: string
+  options: Array<{ id: number; label: string }>
+  selectedId: number | null
+  selectedLabel: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  disabled: boolean
+  onSelect: (id: number) => void
+  onCreate: (label: string) => void | Promise<void>
+}
+
+function TaxonomyFieldPicker({
+  kind,
+  heading,
+  options,
+  selectedId,
+  selectedLabel,
+  open,
+  onOpenChange,
+  disabled,
+  onSelect,
+  onCreate,
+}: TaxonomyFieldPickerProps) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const [inputValue, setInputValue] = useState("")
+
+  const filteredOptions = useMemo(() => {
+    const query = normalizeLabel(inputValue)
+    if (query === "") return options
+    return options.filter((option) => normalizeLabel(option.label).includes(query))
+  }, [inputValue, options])
+
+  const openPicker = () => {
+    setInputValue("")
+    onOpenChange(true)
+  }
+
+  const closePicker = () => {
+    onOpenChange(false)
+    setInputValue("")
+  }
+
+  const selectOption = (id: number) => {
+    onSelect(id)
+    closePicker()
+  }
+
+  const submitInput = () => {
+    const label = inputValue.trim()
+    if (label === "") return
+    const matching = options.find((option) => normalizeLabel(option.label) === normalizeLabel(label))
+    if (matching) {
+      selectOption(matching.id)
+      return
+    }
+    if (filteredOptions.length === 0) {
+      void (async () => {
+        try {
+          await onCreate(label)
+        } finally {
+          closePicker()
+        }
+      })()
+    }
+  }
+
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault()
+      closePicker()
+      return
+    }
+    if (event.key !== "Enter") return
+    event.preventDefault()
+    submitInput()
+  }
+
+  return (
+    <div className={styles.taxonomyPicker}>
+      <div className={styles.taxonomyPickerHeading}>{heading}</div>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={styles.taxonomyTrigger}
+        onClick={open ? closePicker : openPicker}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${heading}: ${selectedLabel}`}
+        data-kind={kind}
+      >
+        <span className={styles.categoryTriggerLabel}>
+          <span className={styles.categoryTriggerValue}>{selectedLabel}</span>
+        </span>
+        <CaretDown size={14} weight="regular" />
+      </button>
+      <FilterablePickerPopup
+        anchorRef={triggerRef}
+        open={open}
+        onClose={closePicker}
+        placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
+        listboxAriaLabel={`${heading} options`}
+        options={filteredOptions}
+        inputValue={inputValue}
+        inputRef={inputRef}
+        inputDisabled={disabled}
+        onInputChange={(value) => setInputValue(toLowercaseInput(value))}
+        onInputKeyDown={handleInputKeyDown}
+        onInputSubmit={submitInput}
+        onSelectOption={(option) => selectOption(Number(option.id))}
+        isOptionActive={(option) => selectedId === Number(option.id)}
+        isOptionSelected={(option) => selectedId === Number(option.id)}
+        emptyWithoutQueryMessage={`No ${heading.toLowerCase()} yet`}
+      />
+    </div>
   )
 }

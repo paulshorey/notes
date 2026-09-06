@@ -33,11 +33,74 @@
   flex: 0 0 auto;
 }
 
+.taxonomyBar {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-height: 32px;
+  margin: 0;
+  padding: 4px 10px 6px 14px;
+  flex: 0 0 auto;
+}
+
+.taxonomyPicker {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.taxonomyPickerHeading {
+  padding: 0 0 1px;
+  color: var(--g-color-text-hint, #8a8a8a);
+  font-size: 70%;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.taxonomyTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 100%;
+  gap: 3px;
+  margin: 0;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  line-height: inherit;
+  text-align: left;
+}
+
+.taxonomyTrigger:hover,
+.taxonomyTrigger:hover .categoryTriggerValue {
+  color: var(--g-color-text-link-hover, #7abaff);
+}
+
+.taxonomyTrigger:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
+  outline-offset: 2px;
+}
+
+.taxonomyTrigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .formSideButton {
   width: 16px;
   height: 16px;
   position: relative;
   display: flex;
+  margin-left: auto;
+  margin-bottom: 4px;
+  flex: 0 0 auto;
 }
 
 .formPrimaryAction {
@@ -331,7 +394,13 @@
     gap: 6px;
   }
 
+  .taxonomyBar {
+    padding: 4px 8px 6px;
+    gap: 6px;
+  }
+
   .categoryTrigger,
+  .taxonomyTrigger,
   .selectedTag {
     max-width: calc(100vw - 28px);
   }

@@ -1,6 +1,7 @@
 import { getDb } from "../lib/db/postgres";
 import type { TaxonomyRecord } from "../contracts/notes-app";
 import {
+  defaultTaxonomyNodeLabel,
   TAXONOMY_LEVEL_CATEGORY,
   TAXONOMY_LEVEL_EPIC,
   TAXONOMY_LEVEL_GROUP,
@@ -209,7 +210,8 @@ export const resolveTaxonomyPathForUser = async (
  * autosave returns before reaching the network — a failure that looks exactly
  * like success, because the local snapshot reproduces the notes on reload. The
  * migration seeds the chain for existing users; this catches anyone created
- * afterwards by a path that forgot.
+ * afterwards by a path that forgot. Default auto-created item labels are
+ * epic `all`, category `uncategorized`, group `ungrouped`.
  */
 export const ensureDefaultTaxonomyChainForUser = async (
   client: PoolClient,
@@ -227,21 +229,21 @@ export const ensureDefaultTaxonomyChainForUser = async (
     userId,
     TAXONOMY_LEVEL_EPIC,
     null,
-    "uncategorized"
+    defaultTaxonomyNodeLabel(TAXONOMY_LEVEL_EPIC)
   );
   const categoryId = await resolveTaxonomyIdForUser(
     client,
     userId,
     TAXONOMY_LEVEL_CATEGORY,
     epicId,
-    "uncategorized"
+    defaultTaxonomyNodeLabel(TAXONOMY_LEVEL_CATEGORY)
   );
   await resolveTaxonomyIdForUser(
     client,
     userId,
     TAXONOMY_LEVEL_GROUP,
     categoryId,
-    "uncategorized"
+    defaultTaxonomyNodeLabel(TAXONOMY_LEVEL_GROUP)
   );
 };
 

@@ -31,9 +31,17 @@ import {
 import {
   buildTaxonomyIndex,
   defaultGroupId as defaultGroupIdOf,
+  defaultNodeLabel,
   levelLabel,
   pathForGroup,
 } from "@/lib/taxonomyIndex"
+import { buildEpicNoteGroups, groupPathLabel } from "@/lib/sidebarTaxonomy"
+import {
+  defaultGroupInCategory,
+  pickEpicForNavigation,
+  resolveGroupUnderCategory,
+  resolveGroupUnderEpic,
+} from "@/lib/taxonomySelection"
 import {
   type CSSProperties,
   type Dispatch,
@@ -97,7 +105,7 @@ import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader, type SignupFields } from "./NotesHeader"
-import { ResultsColumn, type EpicNoteGroup, type TagNoteGroup } from "./ResultsColumn"
+import { ResultsColumn, type TagNoteGroup } from "./ResultsColumn"
 import { DeleteCategoryModal, type DeleteCategoryAction } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
@@ -446,6 +454,8 @@ export default function NotesApp() {
   // editor included — on every keystroke in any entry.
   const resultsListVisible = useNotesAppStore((state) => state.resultsListVisible)
   const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
+  const navigationEpicId = useNotesAppStore((state) => state.navigationEpicId)
+  const setNavigationEpicId = useNotesAppStore((state) => state.setNavigationEpicId)
   const selectedTagId = useNotesAppStore((state) => state.selectedTagId)
   const setSelectedTagId = useNotesAppStore((state) => state.setSelectedTagId)
   const searchQuery = useNotesAppStore((state) => state.searchQuery)
@@ -1488,6 +1498,26 @@ export default function NotesApp() {
    */
   const activeForm = activeEntry?.form ?? EMPTY_NOTE_FORM
 
+  useEffect(() => {
+    if (notesLoading && notes.length === 0 && activeForm.selectedGroupId === null) return
+    const next = pickEpicForNavigation(
+      taxonomyIndex,
+      notes,
+      navigationEpicId,
+      activeForm.selectedGroupId,
+    )
+    if (next !== navigationEpicId) {
+      setNavigationEpicId(next)
+    }
+  }, [
+    activeForm.selectedGroupId,
+    navigationEpicId,
+    notes,
+    notesLoading,
+    setNavigationEpicId,
+    taxonomyIndex,
+  ])
+
   // Derived here rather than through a store selector: a selector that builds a
   // new array each call gives useSyncExternalStore a different snapshot every
   // time and spins forever.
@@ -1537,15 +1567,6 @@ export default function NotesApp() {
       )
     },
     [detachRemovedEntries, setMaxOpenNotesInStore],
-  )
-
-  const handleGroupInputValueChange = useCallback(
-    (value: string) => {
-      const key = useNotesAppStore.getState().activeKey
-      if (key === null) return
-      patchEntry(key, { groupInputValue: value })
-    },
-    [patchEntry],
   )
 
   /**
@@ -1940,47 +1961,19 @@ export default function NotesApp() {
     [notes],
   )
 
-  const allCategoryItems = useMemo<DisplayNoteItem[]>(
-    () => allNoteItems.filter(({ note }) => matchesSelectedTag(note)),
-    [allNoteItems, matchesSelectedTag],
+  const taxonomyTree = useMemo(
+    () => buildEpicNoteGroups(taxonomyIndex, notes.filter(matchesSelectedTag)),
+    [matchesSelectedTag, notes, taxonomyIndex],
   )
 
-  const allCategoriesNoteCount = selectedTagId === null ? notes.length : allCategoryItems.length
-
-  /**
-   * The sidebar tree: epics, each with categories, each with groups holding the
-   * notes. Built from the index, so a rename or a move re-renders it without
-   * touching a single note.
-   */
-  const taxonomyTree = useMemo<EpicNoteGroup[]>(() => {
-    const notesByGroup = new Map<number, DisplayNoteItem[]>()
-    for (const item of allNoteItems) {
-      const bucket = notesByGroup.get(item.note.groupId)
-      if (bucket) {
-        bucket.push(item)
-      } else {
-        notesByGroup.set(item.note.groupId, [item])
-      }
-    }
-
-    const sortItems = (items: DisplayNoteItem[]) =>
-      [...items].sort((left, right) => getNoteSortTime(right.note) - getNoteSortTime(left.note))
-
-    return (taxonomyIndex.childrenOf.get(null) ?? []).map((epic) => {
-      const categories = (taxonomyIndex.childrenOf.get(epic.id) ?? []).map((category) => {
-        const groups = (taxonomyIndex.childrenOf.get(category.id) ?? []).map((group) => {
-          const items = sortItems(notesByGroup.get(group.id) ?? [])
-          return { group, items, sortTime: getGroupSortTime(items) }
-        })
-
-        const items = groups.flatMap((entry) => entry.items)
-        return { category, groups, items, sortTime: getGroupSortTime(items) }
-      })
-
-      const items = categories.flatMap((entry) => entry.items)
-      return { epic, categories, items, sortTime: getGroupSortTime(items) }
-    })
-  }, [allNoteItems, taxonomyIndex])
+  const sidebarGroups = useMemo(
+    () =>
+      allGroups.map((group) => ({
+        group,
+        pathLabel: groupPathLabel(taxonomyIndex, group),
+      })),
+    [allGroups, taxonomyIndex],
+  )
 
   const tagNoteGroups = useMemo<TagNoteGroup[]>(() => {
     const notesByTag = new Map<number, DisplayNoteItem[]>()
@@ -2290,9 +2283,18 @@ export default function NotesApp() {
    * draft in memory and its own autosave, so there is nothing to lose by
    * switching immediately.
    */
+  const revealNavigationEpicForGroup = useCallback(
+    (groupId: number | null) => {
+      const epicId = pathForGroup(taxonomyIndex, groupId)?.epic.id
+      if (epicId !== undefined) setNavigationEpicId(epicId)
+    },
+    [setNavigationEpicId, taxonomyIndex],
+  )
+
   const handleOpenNoteFromResults = (note: NoteRecord) => {
     clearMessages()
     openNoteEntry(note)
+    revealNavigationEpicForGroup(note.groupId)
 
     const key = noteEntryKey(note.id)
     patchEntry(key, {
@@ -2302,10 +2304,49 @@ export default function NotesApp() {
     closeResultsListOnMobile()
   }
 
+  const handleActivateOpenNote = (key: OpenNoteKey) => {
+    activateEntryInStore(key)
+    const entry = useNotesAppStore.getState().openNotes.find((item) => item.key === key)
+    revealNavigationEpicForGroup(entry?.form.selectedGroupId ?? null)
+  }
+
   const handleAddNoteForGroup = (group: TaxonomyRecord) => {
     clearMessages()
     openDraftEntry({ groupId: group.id, groupLabel: group.label })
+    revealNavigationEpicForGroup(group.id)
     closeResultsListOnMobile()
+  }
+
+  const handleAddNoteForCategory = (category: TaxonomyRecord) => {
+    const group = defaultGroupInCategory(taxonomyIndex, category.id)
+    if (group) {
+      handleAddNoteForGroup(group)
+      return
+    }
+    if (!user) {
+      setErrorMessage("Sign in before adding notes.")
+      return
+    }
+    const epic = category.parentId === null ? undefined : taxonomyIndex.byId.get(category.parentId)
+    void (async () => {
+      try {
+        const response = await fetch("/api/taxonomy/path", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            epicLabel: epic?.label ?? defaultNodeLabel(TAXONOMY_LEVEL_EPIC),
+            categoryLabel: category.label,
+            groupLabel: defaultNodeLabel(TAXONOMY_LEVEL_GROUP),
+          }),
+        })
+        const data = await readJson<TaxonomyPathResponse>(response)
+        await loadTaxonomy(user.id)
+        handleAddNoteForGroup(data.group)
+      } catch (error) {
+        setErrorMessage(getErrorMessage(error))
+      }
+    })()
   }
 
   const handleAddNoteForTag = (tag: TagRecord) => {
@@ -2324,23 +2365,107 @@ export default function NotesApp() {
     closeResultsListOnMobile()
   }
 
-  const handleSelectGroup = (rawId: string) => {
-    if (rawId === "") {
-      return
-    }
-    const id = Number.parseInt(rawId, 10)
-    if (!Number.isInteger(id) || id < 1) {
-      return
-    }
-    const group = taxonomyIndex.byId.get(id)
-    if (!group || group.level !== TAXONOMY_LEVEL_GROUP) {
-      return
-    }
-    if (activeKey === null) return
-    patchEntry(activeKey, (entry) => ({
-      form: { ...entry.form, selectedGroupId: group.id },
+  const assignGroupToEntry = (targetKey: OpenNoteKey, group: TaxonomyRecord) => {
+    patchEntry(targetKey, (item) => ({
+      form: { ...item.form, selectedGroupId: group.id },
       groupInputValue: group.label,
     }))
+  }
+
+  const currentPathForKey = (targetKey: OpenNoteKey | null) => {
+    const entry = useNotesAppStore.getState().openNotes.find((item) => item.key === targetKey)
+    return pathForGroup(taxonomyIndex, entry?.form.selectedGroupId ?? null)
+  }
+
+  const handleSelectGroup = (id: number) => {
+    const group = taxonomyIndex.byId.get(id)
+    if (!group || group.level !== TAXONOMY_LEVEL_GROUP) return
+    if (activeKey === null) return
+    assignGroupToEntry(activeKey, group)
+  }
+
+  const handleSelectEpic = (epicId: number) => {
+    if (activeKey === null) return
+    const epic = taxonomyIndex.byId.get(epicId)
+    if (!epic || epic.level !== TAXONOMY_LEVEL_EPIC) return
+    const currentPath = currentPathForKey(activeKey)
+    if (currentPath?.epic.id === epicId) return
+    const group = resolveGroupUnderEpic(
+      taxonomyIndex,
+      epicId,
+      currentPath?.category.label ?? null,
+      currentPath?.group.label ?? null,
+    )
+    if (group) {
+      assignGroupToEntry(activeKey, group)
+      return
+    }
+    void handleResolvePathAndAssign(
+      activeKey,
+      epic.label,
+      defaultNodeLabel(TAXONOMY_LEVEL_CATEGORY),
+      defaultNodeLabel(TAXONOMY_LEVEL_GROUP),
+    )
+  }
+
+  const handleSelectCategory = (categoryId: number) => {
+    if (activeKey === null) return
+    const category = taxonomyIndex.byId.get(categoryId)
+    if (!category || category.level !== TAXONOMY_LEVEL_CATEGORY) return
+    const currentPath = currentPathForKey(activeKey)
+    if (currentPath?.category.id === categoryId) return
+    const group = resolveGroupUnderCategory(
+      taxonomyIndex,
+      categoryId,
+      currentPath?.group.label ?? null,
+    )
+    if (group) {
+      assignGroupToEntry(activeKey, group)
+      return
+    }
+    const epic =
+      category.parentId === null ? undefined : taxonomyIndex.byId.get(category.parentId)
+    void handleResolvePathAndAssign(
+      activeKey,
+      epic?.label ?? defaultNodeLabel(TAXONOMY_LEVEL_EPIC),
+      category.label,
+      defaultNodeLabel(TAXONOMY_LEVEL_GROUP),
+    )
+  }
+
+  const handleResolvePathAndAssign = async (
+    targetKey: OpenNoteKey,
+    epicLabel: string,
+    categoryLabel: string,
+    groupLabel: string,
+  ) => {
+    if (!user) {
+      setErrorMessage("Sign in before changing where this note goes.")
+      return false
+    }
+    clearMessages()
+    setCreateCategoryPending(true)
+    try {
+      const response = await fetch("/api/taxonomy/path", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          epicLabel,
+          categoryLabel,
+          groupLabel,
+        }),
+      })
+      const data = await readJson<TaxonomyPathResponse>(response)
+      await loadTaxonomy(user.id)
+      assignGroupToEntry(targetKey, data.group)
+      return true
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+      return false
+    } finally {
+      setCreateCategoryPending(false)
+    }
   }
 
   // `targetKey` is captured by the caller before this awaits. Without it, a tag
@@ -2419,6 +2544,45 @@ export default function NotesApp() {
     }
   }
 
+  const handleCreateEpic = async (
+    rawLabel: string,
+    targetKey: OpenNoteKey | null = activeKey,
+  ) => {
+    if (!user) {
+      setErrorMessage(`Sign in before adding a ${taxonomyLabels.epic}.`)
+      return
+    }
+    const label = rawLabel.trim()
+    if (label === "" || targetKey === null) return
+    const created = await handleResolvePathAndAssign(
+      targetKey,
+      label,
+      defaultNodeLabel(TAXONOMY_LEVEL_CATEGORY),
+      defaultNodeLabel(TAXONOMY_LEVEL_GROUP),
+    )
+    if (created) setStatusMessage(`${taxonomyLabels.epic} “${label}” added.`)
+  }
+
+  const handleCreateCategory = async (
+    rawLabel: string,
+    targetKey: OpenNoteKey | null = activeKey,
+  ) => {
+    if (!user) {
+      setErrorMessage(`Sign in before adding a ${taxonomyLabels.category}.`)
+      return
+    }
+    const label = rawLabel.trim()
+    if (label === "" || targetKey === null) return
+    const currentPath = currentPathForKey(targetKey)
+    const created = await handleResolvePathAndAssign(
+      targetKey,
+      currentPath?.epic.label ?? defaultNodeLabel(TAXONOMY_LEVEL_EPIC),
+      label,
+      defaultNodeLabel(TAXONOMY_LEVEL_GROUP),
+    )
+    if (created) setStatusMessage(`${taxonomyLabels.category} “${label}” added.`)
+  }
+
   /**
    * Create a group under the active note's current category, or under the
    * user's default chain when it has none yet.
@@ -2440,8 +2604,7 @@ export default function NotesApp() {
       return
     }
 
-    const entry = useNotesAppStore.getState().openNotes.find((item) => item.key === targetKey)
-    const currentPath = pathForGroup(taxonomyIndex, entry?.form.selectedGroupId ?? null)
+    const currentPath = currentPathForKey(targetKey)
     const parentCategoryId = currentPath?.category.id ?? null
 
     const existing = (taxonomyIndex.childrenOf.get(parentCategoryId) ?? []).find(
@@ -2450,57 +2613,38 @@ export default function NotesApp() {
         normalizeLabel(row.label) === normalizeLabel(label),
     )
     if (existing) {
-      patchEntry(targetKey, (item) => ({
-        form: { ...item.form, selectedGroupId: existing.id },
-        groupInputValue: existing.label,
-      }))
+      assignGroupToEntry(targetKey, existing)
+      return
+    }
+
+    if (parentCategoryId === null) {
+      const created = await handleResolvePathAndAssign(
+        targetKey,
+        currentPath?.epic.label ?? defaultNodeLabel(TAXONOMY_LEVEL_EPIC),
+        currentPath?.category.label ?? defaultNodeLabel(TAXONOMY_LEVEL_CATEGORY),
+        label,
+      )
+      if (created) setStatusMessage(`${taxonomyLabels.group} “${label}” added.`)
       return
     }
 
     clearMessages()
     setCreateCategoryPending(true)
     try {
-      let groupId: number
-      let groupLabel: string
-
-      if (parentCategoryId === null) {
-        // No chain to hang it on yet, so resolve the whole path in one
-        // transaction rather than three creates that can half-fail.
-        const response = await fetch("/api/taxonomy/path", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user.id,
-            epicLabel: "uncategorized",
-            categoryLabel: "uncategorized",
-            groupLabel: label,
-          }),
-        })
-        const data = await readJson<TaxonomyPathResponse>(response)
-        groupId = data.group.id
-        groupLabel = data.group.label
-      } else {
-        const response = await fetch("/api/taxonomy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user.id,
-            level: TAXONOMY_LEVEL_GROUP,
-            parentId: parentCategoryId,
-            label,
-          }),
-        })
-        const data = await readJson<CreateTaxonomyResponse>(response)
-        groupId = data.taxonomy.id
-        groupLabel = data.taxonomy.label
-      }
-
+      const response = await fetch("/api/taxonomy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          level: TAXONOMY_LEVEL_GROUP,
+          parentId: parentCategoryId,
+          label,
+        }),
+      })
+      const data = await readJson<CreateTaxonomyResponse>(response)
       await loadTaxonomy(user.id)
-      patchEntry(targetKey, (item) => ({
-        form: { ...item.form, selectedGroupId: groupId },
-        groupInputValue: groupLabel,
-      }))
-      setStatusMessage(`${taxonomyLabels.group} “${groupLabel}” added.`)
+      assignGroupToEntry(targetKey, data.taxonomy)
+      setStatusMessage(`${taxonomyLabels.group} “${data.taxonomy.label}” added.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -3106,7 +3250,7 @@ export default function NotesApp() {
           maxOpenNotes={maxOpenNotes}
           onMaxOpenNotesChange={handleMaxOpenNotesChange}
           groupPathById={groupPathById}
-          onSelectOpenNote={activateEntryInStore}
+          onSelectOpenNote={handleActivateOpenNote}
           onCloseOpenNote={handleCloseOpenNote}
           embeddingMaintenancePending={embeddingMaintenancePending}
           onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
@@ -3138,11 +3282,13 @@ export default function NotesApp() {
           descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
           editorAutofocus={activeEntry?.autofocus ?? false}
           editorRevealText={activeEntry?.revealText ?? null}
-          groupInputValue={activeEntry?.groupInputValue ?? ""}
-          onGroupInputValueChange={handleGroupInputValueChange}
-          createGroupPending={createCategoryPending}
+          createTaxonomyPending={createCategoryPending}
           createTagPending={createTagPending}
+          onSelectEpicId={handleSelectEpic}
+          onSelectCategoryId={handleSelectCategory}
           onSelectGroupId={handleSelectGroup}
+          onCreateEpic={handleCreateEpic}
+          onCreateCategory={handleCreateCategory}
           onCreateGroup={handleCreateGroup}
           onTagValuesChange={handleTagValuesChange}
           onCancelEdit={handleCancelEdit}
@@ -3191,28 +3337,24 @@ export default function NotesApp() {
           visible={resultsListVisible}
           columnStyle={resultsColumnStyle}
           tags={tags}
-          notesCount={notes.length}
           notesLoading={notesLoading}
           taxonomyTree={taxonomyTree}
           taxonomyLabels={taxonomyLabels}
           activePath={pathForGroup(taxonomyIndex, activeForm.selectedGroupId)}
-          allGroups={allGroups}
-          fallbackGroupId={fallbackGroupId}
+          selectedEpicId={navigationEpicId}
+          onSelectedEpicChange={setNavigationEpicId}
+          allGroups={sidebarGroups}
           fallbackTagId={fallbackTagId}
           selectedTag={selectedTag}
           searchMode={searchMode}
           searchItems={searchItems}
           searchLoading={searchLoading}
-          allCategoryItems={allCategoryItems}
-          allCategoriesNoteCount={allCategoriesNoteCount}
-          allTagItems={allNoteItems}
           tagNoteGroups={tagNoteGroups}
           activeNoteId={activeEntry?.noteId ?? null}
           openNoteIds={openNoteIds}
-          activeGroupId={activeForm.selectedGroupId}
           activeTagIds={activeForm.selectedTagIds}
           onEditNote={handleOpenNoteFromResults}
-          onAddNoteForGroup={handleAddNoteForGroup}
+          onAddNoteForCategory={handleAddNoteForCategory}
           onAddNoteForTag={handleAddNoteForTag}
           onMoveNoteToGroup={handleMoveNoteToGroup}
           onMoveNoteTag={handleMoveNoteTag}

@@ -9,6 +9,8 @@ import styles from "./NoteResultsList.module.css"
 export interface DisplayNoteItem {
   note: NoteRecord
   relevance?: number | null
+  /** Group badge under the title; omitted for the seeded default group. */
+  groupLabel?: string | null
 }
 
 interface NoteResultsListProps {
@@ -57,10 +59,11 @@ export function NoteResultsList({
 
   return (
     <div className={styles.noteList}>
-      {items.map(({ note, relevance }) => {
+      {items.map(({ note, relevance, groupLabel: itemGroupLabel }) => {
         const isActive = activeNoteId === note.id
         const isOpen = !isActive && openNoteIds.includes(note.id)
         const relevanceLabel = formatSimilarity(relevance)
+        const groupLabel = itemGroupLabel?.trim() || null
 
         return (
           <div
@@ -80,7 +83,10 @@ export function NoteResultsList({
             aria-label={`Edit note: ${noteHeadline(note.description)}`}
           >
             <div className={styles.noteLine}>
-              <div className={styles.noteTitleCollapsed}>{noteHeadline(note.description)}</div>
+              <div className={styles.noteMain}>
+                <div className={styles.noteTitleCollapsed}>{noteHeadline(note.description)}</div>
+                {groupLabel ? <div className={styles.groupBadge}>{groupLabel}</div> : null}
+              </div>
               {relevanceLabel && <span className={styles.similarityBadge}>{relevanceLabel}</span>}
               {renderAction && (
                 <div className={styles.noteAction} onClick={(event) => event.stopPropagation()}>
