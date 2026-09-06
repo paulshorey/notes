@@ -121,6 +121,11 @@ the same index feeds the sidebar tree and the group picker. It is a `useMemo` in
 `NotesApp` passed as one prop — derived server data rather than UI state, and
 all three consumers are direct children.
 
+Frontend follow-up (create/reparent nodes, path-visible pickers, tier rename UI,
+wired `blocked` status): `.cursor/plans/taxonomy-frontend-handoff.md`. The
+backend and draft contract in this section are done; that file is the starting
+point for UI work.
+
 `remapEntriesAfterTaxonomyChange` repairs the ring **and** `detachedSavesRef`
 when a node is deleted, and must run _before_ the delete request rather than
 after: a detached save left pointing at a dead group 400s for a note the user
