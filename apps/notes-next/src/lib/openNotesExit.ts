@@ -1,5 +1,10 @@
 import type { NoteFormState } from "@/types/notes"
-import type { OpenNoteEntry, OpenNoteKey, OpenNotesState } from "@/stores/openNotes"
+import {
+  isEmptyDraft,
+  type OpenNoteEntry,
+  type OpenNoteKey,
+  type OpenNotesState,
+} from "@/stores/openNotes"
 
 /**
  * The slice of a detached save that persistence and the exit flush need.
@@ -16,6 +21,21 @@ export interface ExitFlushItem {
   noteId: number | null
   form: NoteFormState
 }
+
+/**
+ * Dirty ring entries that must land before the acting session changes.
+ *
+ * A new draft starts with `savedSignature: null`, so assigning its default
+ * group makes the untouched editor technically dirty even though it contains
+ * nothing to persist. Trying to save that slot returns false and would block
+ * sign-in, sign-up, and sign-out. Started drafts remain included — even when
+ * they have no group and cannot save — so the caller still refuses to replace
+ * the session rather than lose their content.
+ */
+export const collectSessionFlushEntries = (
+  openNotes: OpenNoteEntry[],
+  isDirty: (entry: OpenNoteEntry) => boolean,
+): OpenNoteEntry[] => openNotes.filter((entry) => isDirty(entry) && !isEmptyDraft(entry))
 
 /**
  * Fold detached dirty notes back into ring state for a localStorage write.

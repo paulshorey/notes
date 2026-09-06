@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import {
   collectExitFlushItems,
+  collectSessionFlushEntries,
   selectKeepaliveExitItems,
   stateWithDetachedSaves,
   type DetachedSaveSnapshot,
@@ -49,6 +50,26 @@ const isDirty = (item: OpenNoteEntry) =>
 
 const isSaveable = (form: NoteFormState) =>
   form.description.trim() !== "" && form.selectedGroupId !== null
+
+test("session flush ignores an untouched default-group draft but keeps real work", () => {
+  const untouchedDefaultDraft = entry("draft:0", null, "", null)
+  const dirtySavedNote = entry("note:1", 1, "edited", "original")
+  const blockedDraft = {
+    ...entry("draft:2", null, "started", null),
+    form: formWith("started", null),
+  }
+  const cleanSavedNote = entry("note:3", 3, "unchanged")
+
+  assert.equal(isDirty(untouchedDefaultDraft), true, "a null saved signature reads as dirty")
+  assert.deepEqual(
+    collectSessionFlushEntries(
+      [untouchedDefaultDraft, dirtySavedNote, blockedDraft, cleanSavedNote],
+      isDirty,
+    ).map((item) => item.key),
+    ["note:1", "draft:2"],
+    "started drafts stay guarded even when their missing group prevents a save",
+  )
+})
 
 test("stateWithDetachedSaves appends evicted drafts the ring no longer holds", () => {
   const state = {
