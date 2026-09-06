@@ -74,6 +74,7 @@ import {
 } from "@/lib/notesCache"
 import {
   collectExitFlushItems,
+  collectSessionFlushEntries,
   selectKeepaliveExitItems,
   stateWithDetachedSaves,
 } from "@/lib/openNotesExit"
@@ -1754,12 +1755,14 @@ export default function NotesApp() {
   saveEntryRef.current = saveEntry
 
   /**
-   * Persist every dirty entry and wait for all of them. Used only where the
-   * session itself is about to change — sign-in, sign-up, sign-out — since
-   * ordinary note switching no longer needs to block on a save.
+   * Persist every non-empty dirty entry and wait for all of them. Used only
+   * where the session itself is about to change — sign-in, sign-up, sign-out —
+   * since ordinary note switching no longer needs to block on a save. The
+   * default group makes an untouched new slot technically dirty, but there is
+   * no content to save and it must not block the session change.
    */
   const flushAllPendingSaves = useCallback(async () => {
-    const entries = useNotesAppStore.getState().openNotes.filter(isEntryDirty)
+    const entries = collectSessionFlushEntries(useNotesAppStore.getState().openNotes, isEntryDirty)
     // Detached work counts too: text that left the ring is exactly the text
     // nobody is looking at, so it is the easiest to lose in a session change.
     const detachedKeys = [...detachedSavesRef.current.keys()]
