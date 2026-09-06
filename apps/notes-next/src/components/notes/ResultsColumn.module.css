@@ -73,6 +73,21 @@
   text-transform: uppercase;
 }
 
+.epicSelectRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px 8px 0;
+}
+
+.epicSelectRow .accordionHeading {
+  padding-right: 0;
+}
+
+.epicSelect {
+  width: 100%;
+}
+
 .categoryAccordionStatus {
   padding: 8px 8px 8px 6px;
 }

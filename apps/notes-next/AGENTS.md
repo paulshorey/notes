@@ -125,10 +125,17 @@ tier _names_ are per-user data. Two rules carry most of the weight:
 
 `src/lib/taxonomyIndex.ts` builds `byId`, `childrenOf` and a precomputed
 `pathByGroupId` once per taxonomy change. The path objects keep stable identity,
-so a recent-notes row is a `Map.get` rather than a per-render parent walk, and
-the same index feeds the sidebar tree and the group picker. It is a `useMemo` in
-`NotesApp` passed as one prop — derived server data rather than UI state, and
-all three consumers are direct children.
+so a recent-notes row is a `Map.get` rather than a per-render parent walk.
+The same index feeds the sidebar, the three form pickers, and breadcrumbs.
+It is a `useMemo` in `NotesApp` passed as one prop — derived server data rather
+than UI state, and all three consumers are direct children.
+
+The **sidebar shows one epic at a time**. `navigationEpicId` in the Zustand
+store is navigation-only: changing the epic dropdown does not edit the open
+note. Notes are listed under their category (not their group). A group other
+than the seeded default is a badge on the note row. The note form has three
+pickers at the top (epic, category, group); the draft still stores only
+`selectedGroupId`.
 
 Frontend follow-up (create/reparent nodes, path-visible pickers, tier rename UI,
 wired `blocked` status): `.cursor/plans/taxonomy-frontend-handoff.md`. The

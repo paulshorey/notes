@@ -29,8 +29,13 @@ type State = OpenNotesState & {
    */
   resultsListVisible: boolean
   /**
-   * Category currently expanded in the notes results accordion.
-   * Only one category can be expanded at a time; null means all collapsed.
+   * Epic currently shown in the notes results column. Navigation only — changing
+   * it does not edit the open note.
+   */
+  navigationEpicId: number | null
+  /**
+   * Taxonomy nodes currently expanded in the notes results accordion.
+   * Many nodes can be open at once.
    */
   expandedTaxonomyIds: number[]
   /**
@@ -53,6 +58,7 @@ type State = OpenNotesState & {
 type Actions = {
   resetDefaultState: () => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
+  setNavigationEpicId: (epicId: number | null) => void
   toggleTaxonomyExpanded: (taxonomyId: number) => void
   setTaxonomyExpanded: (taxonomyId: number, expanded: boolean) => void
   setSelectedTagId: (tagId: number | null) => void
@@ -88,6 +94,7 @@ export type NotesAppStore = State & Actions
 const defaultState: State = {
   ...createEmptyOpenNotesState(),
   resultsListVisible: true,
+  navigationEpicId: null,
   expandedTaxonomyIds: [],
   selectedTagId: null,
   searchQuery: "",
@@ -111,6 +118,9 @@ export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
       resultsListVisible:
         typeof visible === "function" ? visible(current.resultsListVisible) : visible,
     }))
+  },
+  setNavigationEpicId: (epicId) => {
+    set({ navigationEpicId: epicId })
   },
   toggleTaxonomyExpanded: (taxonomyId) => {
     const current = get().expandedTaxonomyIds
