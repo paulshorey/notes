@@ -177,7 +177,7 @@ export const claimAnonymousUser = async (
  * strategy mergeAnonymousUserInto applies to it:
  *
  * - "dedup-remap": rows are deduplicated against the destination user by a
- *   natural key and references are remapped (categories/tags by label).
+ *   natural key and references are remapped (taxonomy/tags by label).
  * - "reparent":    rows simply change user_id to the destination user.
  * - "drop":        rows are intentionally discarded via the CASCADE delete of
  *   the anonymous user row.
@@ -190,7 +190,6 @@ export const MERGE_TABLE_STRATEGIES: Record<
   string,
   "dedup-remap" | "reparent" | "drop"
 > = {
-  user_note_category_v1: "dedup-remap",
   user_note_tag_v1: "dedup-remap",
   user_taxonomy_v1: "dedup-remap",
   user_note_v1: "reparent",
@@ -364,24 +363,6 @@ export const mergeAnonymousUserInto = async (
       );
     }
 
-    // Dedupe categories: insert anon labels into real user, skip conflicts
-    await client.query(
-      `INSERT INTO public.user_note_category_v1 (user_id, label)
-       SELECT $1, label FROM public.user_note_category_v1 WHERE user_id = $2
-       ON CONFLICT (user_id, label) DO NOTHING`,
-      [realUserId, anonUserId]
-    );
-
-    // Build category remap
-    const categoryRemap = await client.query<{ anon_id: number; real_id: number }>(
-      `SELECT a.id AS anon_id, r.id AS real_id
-       FROM public.user_note_category_v1 a
-       JOIN public.user_note_category_v1 r
-         ON r.user_id = $1 AND r.label = a.label
-       WHERE a.user_id = $2`,
-      [realUserId, anonUserId]
-    );
-
     // Dedupe tags: insert anon labels into real user, skip conflicts
     await client.query(
       `INSERT INTO public.user_note_tag_v1 (user_id, label)
@@ -426,21 +407,6 @@ export const mergeAnonymousUserInto = async (
 
     const taxonomyRemap = [...epicRemap, ...categoryTaxonomyRemap, ...groupRemap];
 
-    // Reassign notes: update user_id and remap category_id
-    if (categoryRemap.rows.length > 0) {
-      const values = categoryRemap.rows
-        .map((r) => `(${r.anon_id}, ${r.real_id})`)
-        .join(", ");
-      await client.query(
-        `UPDATE public.user_note_v1 n
-         SET user_id = $1,
-             category_id = m.real_id
-         FROM (VALUES ${values}) AS m(anon_id, real_id)
-         WHERE n.user_id = $2 AND n.category_id = m.anon_id`,
-        [realUserId, anonUserId]
-      );
-    }
-
     // Remap group_id the same way, so notes land in the destination account's
     // copy of the group rather than pointing at a row about to be cascaded away.
     if (groupRemap.length > 0) {
@@ -457,7 +423,7 @@ export const mergeAnonymousUserInto = async (
       );
     }
 
-    // Move any remaining notes that might not have had a mapped category
+    // Move any remaining notes that might not have had a mapped group
     await client.query(
       `UPDATE public.user_note_v1 SET user_id = $1 WHERE user_id = $2`,
       [realUserId, anonUserId]
@@ -479,7 +445,7 @@ export const mergeAnonymousUserInto = async (
       );
     }
 
-    // Delete anon user — CASCADE removes orphaned anon categories/tags/taxonomy
+    // Delete anon user — CASCADE removes orphaned anon tags/taxonomy
     await client.query(
       `DELETE FROM public.user_v1 WHERE id = $1`,
       [anonUserId]

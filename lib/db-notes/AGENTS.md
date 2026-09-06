@@ -107,7 +107,9 @@ Database-first package for the `DB_NOTES_URL` database.
   keys make depth, parent level and same-user ownership declarative — there are
   no triggers and no application-side depth checks. Notes carry `group_id` plus
   a `group_level` pinned to 3 by a CHECK, which is what stops a note from being
-  attached to a category or to someone else's group.
+  attached to a category or to someone else's group. The old flat
+  `user_note_category_v1` table and `user_note_v1.category_id` were dropped in
+  `202609060100` after the hierarchy shipped.
 - `user_taxonomy_level_v1` holds each user's _word_ for each tier, levels 1-4;
   level 4 names the leaf content ("Note", or "Task") and has no hierarchy rows.
   **Only ever branch on `level`.** Labels are user data: comparing them, or

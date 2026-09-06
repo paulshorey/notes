@@ -627,7 +627,7 @@ const createLabeledEntityForNotesApp = async ({
   userId: number;
   label: string;
   resolveId: typeof resolveTagIdForUser;
-  tableName: "user_note_category_v1" | "user_note_tag_v1";
+  tableName: "user_note_tag_v1";
 }) => {
   const trimmed = normalizeTaxonomyLabel(label);
 
@@ -648,8 +648,7 @@ const createLabeledEntityForNotesApp = async ({
 
     entityId = resolvedId;
     const { vectorLiteral, embeddingModel } = await createLabelEmbedding(trimmed);
-    const embeddingColumn =
-      tableName === "user_note_category_v1" ? "category_embedding" : "tag_embedding";
+    const embeddingColumn = "tag_embedding";
 
     await client.query(
       `
@@ -825,7 +824,7 @@ const updateLabeledEntityForNotesApp = async <T>({
     label: string
   ) => Promise<number | null>;
   getById: (userId: number, entityId: number) => Promise<T | null>;
-  tableName: "user_note_category_v1" | "user_note_tag_v1";
+  tableName: "user_note_tag_v1";
 }): Promise<T | null> => {
   const trimmed = normalizeTaxonomyLabel(label);
 
@@ -846,8 +845,7 @@ const updateLabeledEntityForNotesApp = async <T>({
     }
 
     const { vectorLiteral, embeddingModel } = await createLabelEmbedding(trimmed);
-    const embeddingColumn =
-      tableName === "user_note_category_v1" ? "category_embedding" : "tag_embedding";
+    const embeddingColumn = "tag_embedding";
 
     await client.query(
       `

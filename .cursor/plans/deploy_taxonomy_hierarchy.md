@@ -2,8 +2,8 @@
 
 Target: production Notes Postgres (Railway), then merge
 [PR #70](https://github.com/paulshorey/notes/pull/70) so Railway deploys the
-new `notes-next`. Phase 2 (drop `category_id` / `user_note_category_v1`) waits
-until you have tested the live app.
+new `notes-next`. Phase 2 (drop `category_id` / `user_note_category_v1`) is the follow-up
+after production testing confirmed the hierarchy.
 
 ## Why this order
 

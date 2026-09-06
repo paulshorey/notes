@@ -80,37 +80,6 @@ ALTER TABLE public.user_api_token_v1 ALTER COLUMN id ADD GENERATED ALWAYS AS IDE
 
 
 --
--- Name: user_note_category_v1; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.user_note_category_v1 (
-    id integer NOT NULL,
-    user_id integer NOT NULL,
-    label text NOT NULL,
-    time_created timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    time_modified timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    category_embedding public.vector(1024),
-    embedding_model text,
-    embedding_updated_at timestamp with time zone,
-    CONSTRAINT user_note_category_v1_label_lowercase_check CHECK ((label = lower(btrim(label))))
-);
-
-
---
--- Name: user_note_category_v1_id_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-ALTER TABLE public.user_note_category_v1 ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME public.user_note_category_v1_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
---
 -- Name: user_note_tag_link_v1; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -166,7 +135,6 @@ CREATE TABLE public.user_note_v1 (
     embedding_model text,
     embedding_updated_at timestamp with time zone,
     description_embedding public.vector(1024),
-    category_id integer,
     group_id integer NOT NULL,
     group_level smallint DEFAULT 3 NOT NULL,
     CONSTRAINT user_note_v1_group_level_check CHECK ((group_level = 3))
@@ -287,22 +255,6 @@ ALTER TABLE ONLY public.user_api_token_v1
 
 
 --
--- Name: user_note_category_v1 user_note_category_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_note_category_v1
-    ADD CONSTRAINT user_note_category_v1_pkey PRIMARY KEY (id);
-
-
---
--- Name: user_note_category_v1 user_note_category_v1_user_id_label_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_note_category_v1
-    ADD CONSTRAINT user_note_category_v1_user_id_label_key UNIQUE (user_id, label);
-
-
---
 -- Name: user_note_tag_link_v1 user_note_tag_link_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -390,20 +342,6 @@ CREATE INDEX user_api_token_v1_user_id_idx ON public.user_api_token_v1 USING btr
 
 
 --
--- Name: user_note_category_v1_category_embedding_hnsw_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX user_note_category_v1_category_embedding_hnsw_idx ON public.user_note_category_v1 USING hnsw (category_embedding public.vector_cosine_ops);
-
-
---
--- Name: user_note_category_v1_user_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX user_note_category_v1_user_id_idx ON public.user_note_category_v1 USING btree (user_id);
-
-
---
 -- Name: user_note_tag_link_v1_tag_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -422,13 +360,6 @@ CREATE INDEX user_note_tag_v1_tag_embedding_hnsw_idx ON public.user_note_tag_v1 
 --
 
 CREATE INDEX user_note_tag_v1_user_id_idx ON public.user_note_tag_v1 USING btree (user_id);
-
-
---
--- Name: user_note_v1_category_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX user_note_v1_category_id_idx ON public.user_note_v1 USING btree (category_id);
 
 
 --
@@ -502,13 +433,6 @@ CREATE INDEX user_v1_is_anonymous_idx ON public.user_v1 USING btree (is_anonymou
 
 
 --
--- Name: user_note_category_v1 user_note_category_v1_apply_row_timestamps_v1; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER user_note_category_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDATE ON public.user_note_category_v1 FOR EACH ROW EXECUTE FUNCTION public.apply_row_timestamps_v1();
-
-
---
 -- Name: user_note_tag_v1 user_note_tag_v1_apply_row_timestamps_v1; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -552,14 +476,6 @@ ALTER TABLE ONLY public.user_api_token_v1
 
 
 --
--- Name: user_note_category_v1 user_note_category_v1_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_note_category_v1
-    ADD CONSTRAINT user_note_category_v1_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE;
-
-
---
 -- Name: user_note_tag_link_v1 user_note_tag_link_v1_note_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -581,14 +497,6 @@ ALTER TABLE ONLY public.user_note_tag_link_v1
 
 ALTER TABLE ONLY public.user_note_tag_v1
     ADD CONSTRAINT user_note_tag_v1_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE;
-
-
---
--- Name: user_note_v1 user_note_v1_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.user_note_v1
-    ADD CONSTRAINT user_note_v1_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.user_note_category_v1(id) ON DELETE RESTRICT;
 
 
 --

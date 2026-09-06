@@ -26,48 +26,6 @@
       "type": "Date"
     }
   ],
-  "user_note_category_v1": [
-    {
-      "column": "id",
-      "nullable": false,
-      "type": "number"
-    },
-    {
-      "column": "user_id",
-      "nullable": false,
-      "type": "number"
-    },
-    {
-      "column": "label",
-      "nullable": false,
-      "type": "string"
-    },
-    {
-      "column": "time_created",
-      "nullable": false,
-      "type": "Date"
-    },
-    {
-      "column": "time_modified",
-      "nullable": false,
-      "type": "Date"
-    },
-    {
-      "column": "category_embedding",
-      "nullable": true,
-      "type": "string"
-    },
-    {
-      "column": "embedding_model",
-      "nullable": true,
-      "type": "string"
-    },
-    {
-      "column": "embedding_updated_at",
-      "nullable": true,
-      "type": "Date"
-    }
-  ],
   "user_note_tag_link_v1": [
     {
       "column": "note_id",
@@ -172,11 +130,6 @@
       "column": "description_embedding",
       "nullable": true,
       "type": "string"
-    },
-    {
-      "column": "category_id",
-      "nullable": true,
-      "type": "number"
     },
     {
       "column": "group_id",

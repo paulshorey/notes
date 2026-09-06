@@ -18,8 +18,8 @@ Dump DDL only (no data) for selected public tables. Requires DB_NOTES_URL.
 
 Usage: notes-backup-schema.sh [-t TABLE]... [OUTFILE.sql]
   -t, --table TABLE   Public table name (repeatable). Default: NOTES_DB_DEFAULT_TABLES
-                      in common.sh (user_v1, user_note_v1, user_note_category_v1,
-                      user_note_tag_v1, user_note_tag_link_v1, schema_migrations_cursor)
+                      in common.sh (user_v1, user_note_v1, user_taxonomy_v1,
+                      user_taxonomy_level_v1, user_note_tag_v1, ...)
   -h, --help          Show this help.
 
 If OUTFILE is omitted, writes under scripts/db/backups/notes-schema-YYYYMMDD-HHMMSS.sql

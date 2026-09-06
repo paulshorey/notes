@@ -58,7 +58,7 @@ todos:
     status: pending
   - id: schema_migration_phase2
     content: "Phase 2 (cutover) migration, only after the new code is deployed: drop user_note_v1.category_id, drop user_note_category_v1, and flip verify-contract assertions to must-be-absent"
-    status: pending
+    status: completed
 isProject: true
 ---
 
@@ -103,17 +103,14 @@ verification transcripts are in the appendix.
 
 ## 0. Status
 
-Implemented and merged on `cursor/implement-notes-taxonomy-hierarchy-b3c3`. Seventeen
-of the nineteen todos are done; the two that remain are deliberately deferred and
-**must not** run before the new code is live:
+Implemented and merged on `cursor/implement-notes-taxonomy-hierarchy-b3c3`.
+Phase 2 (`202609060100__drop_legacy_note_category.sql`) drops
+`user_note_category_v1` and `user_note_v1.category_id` now that the new code
+is live. The remaining deferred item is quality, not a blocker:
 
 - `regenerate_embeddings` — a one-off backfill of `user_taxonomy_v1.label_embedding`
   via the embedding-maintenance endpoint. Until it runs, autocomplete is
-  literal-substring only, which is a quality gap and not a failure.
-- `schema_migration_phase2` — drops `user_note_category_v1` and
-  `user_note_v1.category_id`. Phase 1 deliberately left both in place so the
-  previously deployed app keeps working during the rollback window. Running
-  phase 2 before the new code is deployed everywhere breaks the old one.
+  literal-substring only.
 
 One thing changed shape during implementation. Phase 1 also has to relax
 `user_note_v1.category_id` to nullable: the column stays for the rollback window,

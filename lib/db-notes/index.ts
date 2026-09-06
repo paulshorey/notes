@@ -23,7 +23,6 @@ export {
 } from "./contracts/notes-app";
 
 export type {
-  UserNoteCategoryV1Row,
   UserTaxonomyV1Row,
   UserTaxonomyLevelV1Row,
   PostgresDbSchema,
