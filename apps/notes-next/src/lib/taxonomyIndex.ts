@@ -1,25 +1,17 @@
 import type { TaxonomyLevelRecord, TaxonomyRecord } from "@lib/db-notes"
 import {
   DEFAULT_TAXONOMY_LEVEL_LABELS,
+  DEFAULT_TAXONOMY_NODE_LABELS,
+  defaultTaxonomyNodeLabel,
   TAXONOMY_LEVEL_CATEGORY,
   TAXONOMY_LEVEL_EPIC,
   TAXONOMY_LEVEL_GROUP,
 } from "@lib/db-notes/contracts/notes-app"
 import { normalizeLabel } from "@/lib/strings"
 
-/**
- * Auto-created item labels at each hierarchy level. These are node labels,
- * not tier names — branching on them is allowed because they are the seeded
- * defaults, not the user's word for the tier.
- */
-export const DEFAULT_TAXONOMY_NODE_LABELS: Record<number, string> = {
-  [TAXONOMY_LEVEL_EPIC]: "uncategorized",
-  [TAXONOMY_LEVEL_CATEGORY]: "uncategorized",
-  [TAXONOMY_LEVEL_GROUP]: "uncategorized",
-}
+export { DEFAULT_TAXONOMY_NODE_LABELS }
 
-export const defaultNodeLabel = (level: number): string =>
-  DEFAULT_TAXONOMY_NODE_LABELS[level] ?? "uncategorized"
+export const defaultNodeLabel = defaultTaxonomyNodeLabel
 
 export const isDefaultNodeLabel = (level: number, label: string): boolean =>
   normalizeLabel(label) === normalizeLabel(defaultNodeLabel(level))

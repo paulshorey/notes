@@ -65,7 +65,10 @@ test("a partial chain does not yield a path", () => {
 })
 
 test("isDefaultNodeLabel matches the seeded label for that level", () => {
-  assert.equal(isDefaultNodeLabel(TAXONOMY_LEVEL_GROUP, "uncategorized"), true)
-  assert.equal(isDefaultNodeLabel(TAXONOMY_LEVEL_GROUP, "Uncategorized"), true)
+  assert.equal(isDefaultNodeLabel(TAXONOMY_LEVEL_EPIC, "all"), true)
+  assert.equal(isDefaultNodeLabel(TAXONOMY_LEVEL_CATEGORY, "uncategorized"), true)
+  assert.equal(isDefaultNodeLabel(TAXONOMY_LEVEL_GROUP, "ungrouped"), true)
+  assert.equal(isDefaultNodeLabel(TAXONOMY_LEVEL_GROUP, "Ungrouped"), true)
+  assert.equal(isDefaultNodeLabel(TAXONOMY_LEVEL_GROUP, "uncategorized"), false)
   assert.equal(isDefaultNodeLabel(TAXONOMY_LEVEL_GROUP, "planning"), false)
 })

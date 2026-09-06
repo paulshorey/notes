@@ -133,7 +133,9 @@ than UI state, and all three consumers are direct children.
 The **sidebar shows one epic at a time**. `navigationEpicId` in the Zustand
 store is navigation-only: changing the epic dropdown does not edit the open
 note. Notes are listed under their category (not their group). A group other
-than the seeded default is a badge on the note row. The note form has three
+than the seeded default is a badge on the note row. Seeded default item labels
+are epic `all`, category `uncategorized`, group `ungrouped`
+(`DEFAULT_TAXONOMY_NODE_LABELS` in `@lib/db-notes`). The note form has three
 pickers at the top (epic, category, group); the draft still stores only
 `selectedGroupId`.
 

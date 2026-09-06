@@ -41,10 +41,10 @@ const index = buildTaxonomyIndex([
   node(1, TAXONOMY_LEVEL_EPIC, null, "work"),
   node(2, TAXONOMY_LEVEL_CATEGORY, 1, "older-cat"),
   node(3, TAXONOMY_LEVEL_GROUP, 2, "alpha"),
-  node(4, TAXONOMY_LEVEL_GROUP, 2, "uncategorized"),
+  node(4, TAXONOMY_LEVEL_GROUP, 2, "ungrouped"),
   node(5, TAXONOMY_LEVEL_CATEGORY, 1, "newer-cat"),
   node(6, TAXONOMY_LEVEL_GROUP, 5, "beta"),
-  node(7, TAXONOMY_LEVEL_GROUP, 5, "uncategorized"),
+  node(7, TAXONOMY_LEVEL_GROUP, 5, "ungrouped"),
   node(10, TAXONOMY_LEVEL_EPIC, null, "home"),
   node(11, TAXONOMY_LEVEL_CATEGORY, 10, "chores"),
   node(12, TAXONOMY_LEVEL_GROUP, 11, "weekend"),
@@ -53,9 +53,9 @@ const index = buildTaxonomyIndex([
 test("notes sit under their category, ignoring group for grouping and sort", () => {
   const tree = buildEpicNoteGroups(index, [
     note(1, 3, "2026-01-01T00:00:00.000Z", "older in alpha"),
-    note(2, 4, "2026-01-03T00:00:00.000Z", "newer uncategorized"),
+    note(2, 4, "2026-01-03T00:00:00.000Z", "newer ungrouped"),
     note(3, 6, "2026-01-04T00:00:00.000Z", "latest in beta"),
-    note(4, 7, "2026-01-02T00:00:00.000Z", "mid uncategorized"),
+    note(4, 7, "2026-01-02T00:00:00.000Z", "mid ungrouped"),
   ])
 
   const work = epicGroupById(tree, 1)

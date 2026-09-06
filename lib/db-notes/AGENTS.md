@@ -122,6 +122,8 @@ Database-first package for the `DB_NOTES_URL` database.
   looks exactly like success, since the local snapshot reproduces the notes on
   reload. `createAnonymousUser` seeds the chain and the vocabulary in the same
   transaction as the user row, and `listTaxonomyForNotesApp` repairs both lazily.
+  Default auto-created item labels are epic `all`, category `uncategorized`,
+  group `ungrouped` (`DEFAULT_TAXONOMY_NODE_LABELS`).
 - `resolveTaxonomyIdForUser` and `resolveTagIdForUser` use
   `ON CONFLICT ... DO UPDATE ... RETURNING id`, not `DO NOTHING`. With
   `DO NOTHING`, a concurrent uncommitted insert of the same label makes the
