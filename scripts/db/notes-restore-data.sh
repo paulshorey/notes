@@ -7,11 +7,8 @@ set -euo pipefail
 # Run notes-restore-schema.sh first so tables exist with the expected schema.
 #
 # Usage:
-#   export DB_NOTES_URL='postgresql://...'
-#   ./scripts/db/notes-restore-data.sh ./scripts/db/backups/notes-data-....sql
-#   ./scripts/db/notes-restore-data.sh -y BACKUP.sql    # skip confirmation
-#
-# Tables to truncate must match the backup; use the same -t list as for notes-backup-data.sh.
+#  DB_NOTES_URL='postgresql://...' ./scripts/db/backups/notes-backup-data.sql notes-backup-data.sql
+#  -y # skip confirmation
 
 usage() {
   cat >&2 <<'EOF'

@@ -7,7 +7,7 @@ import { Notification } from "@mantine/core"
 import {
   ArrowLeft,
   Check,
-  ClockCounterClockwise,
+  CardsThree,
   Cloud,
   MagnifyingGlass,
   SidebarSimple,
@@ -93,7 +93,7 @@ function RecentNotesMenu({
         title="Recent notes"
         className={`${styles.headerButton} ${styles.recentButton}`}
       >
-        <ClockCounterClockwise size={18} weight="regular" className={styles.headerIcon} />
+        <CardsThree size={18} weight="regular" className={styles.headerIcon} />
         {hasBackgroundActivity && <span className={styles.recentBadge} aria-hidden />}
       </Button>
 

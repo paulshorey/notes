@@ -8,11 +8,8 @@ set -euo pipefail
 # Shared trigger function apply_row_timestamps_v1 is replaced via CREATE OR REPLACE when present in the dump.
 #
 # Usage:
-#   export DB_NOTES_URL='postgresql://...'
-#   ./scripts/db/notes-restore-schema.sh ./scripts/db/backups/notes-schema-....sql
-#   ./scripts/db/notes-restore-schema.sh -y BACKUP.sql    # skip confirmation
-#
-# Tables to drop must match the backup; use the same -t list as for notes-backup-schema.sh.
+#   DB_NOTES_URL='postgresql://...' ./scripts/db/notes-backup-schema.sh notes-backup-schema.sql
+#   -y # skip confirmation
 
 usage() {
   cat >&2 <<'EOF'

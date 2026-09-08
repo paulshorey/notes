@@ -6,11 +6,8 @@ set -euo pipefail
 # (default: all Notes app tables in NOTES_DB_DEFAULT_TABLES — see common.sh).
 #
 # Usage:
-#   export DB_NOTES_URL='postgresql://...'
-#   ./scripts/db/notes-backup-data.sh [OUTFILE.sql]
-#   ./scripts/db/notes-backup-data.sh -t other_table [OUTFILE.sql]
-#
-# With no OUTFILE, writes to scripts/db/backups/notes-data-YYYYMMDD-HHMMSS.sql
+#   DB_NOTES_URL='postgresql://...' ./scripts/db/notes-backup-data.sh notes-backup-data.sql
+#   -t other_table
 
 usage() {
   cat >&2 <<'EOF'
