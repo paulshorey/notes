@@ -21,6 +21,7 @@
     "verify": "pnpm run verify:db-contracts && pnpm run verify:apps",
     "release:notes:prepare": "pnpm run verify:db-contracts && pnpm run verify:notes-web",
     "dev": "turbo run dev",
+    "dev:app": "pnpm --filter notes-next dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "init": "node scripts/fetch-infisical.mjs --all",
