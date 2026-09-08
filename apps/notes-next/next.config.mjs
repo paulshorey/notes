@@ -1,6 +1,23 @@
 /** @type {import("next").NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: ["192.168.1.87"],
+  allowedDevOrigins: ["127.0.0.1", "192.168.1.87"],
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate",
+          },
+          {
+            key: "Service-Worker-Allowed",
+            value: "/",
+          },
+        ],
+      },
+    ]
+  },
   turbopack: {
     resolveAlias: {
       fs: { browser: "./stubs/fs.cjs" },
