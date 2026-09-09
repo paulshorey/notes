@@ -34,9 +34,19 @@ data class LoginSession(
     val user: UserSummary,
 )
 
+data class BootstrapData(
+    val user: UserSummary,
+    val workspaces: List<WorkspaceRecord>,
+    val activeWorkspaceId: Int,
+    val categories: List<CategoryRecord>,
+    val statuses: List<StatusRecord>,
+    val tags: List<TagRecord>,
+    val notes: List<NoteRecord>,
+)
+
 data class CategoryRecord(
     val id: Int,
-    val userId: Int,
+    val workspaceId: Int,
     val label: String,
     val noteCount: Int = 0,
     val lastUsedAt: String? = null,
@@ -44,7 +54,7 @@ data class CategoryRecord(
 
 data class TagRecord(
     val id: Int,
-    val userId: Int,
+    val workspaceId: Int,
     val label: String,
     val noteCount: Int = 0,
     val lastUsedAt: String? = null,
@@ -60,17 +70,38 @@ data class NoteTagRef(
     val label: String,
 )
 
-data class NoteRecord(
+data class WorkspaceRecord(
     val id: Int,
     val userId: Int,
-    val category: NoteCategoryRef,
+    val label: String,
+    val noteCount: Int = 0,
+)
+
+data class StatusRecord(
+    val id: Int,
+    val workspaceId: Int,
+    val label: String,
+    val position: Int,
+    val noteCount: Int = 0,
+    val lastUsedAt: String? = null,
+)
+
+data class NoteRecord(
+    val id: Int,
+    val workspaceId: Int,
+    val categories: List<NoteCategoryRef>,
+    val status: NoteCategoryRef?,
     val tags: List<NoteTagRef>,
     val description: String?,
     val timeDue: String?,
     val timeRemind: String?,
     val timeCreated: String,
     val timeModified: String,
-)
+) {
+    /** Temporary compatibility for the Android single-category UI. */
+    val category: NoteCategoryRef
+        get() = categories.firstOrNull() ?: NoteCategoryRef(id = -1, label = "Uncategorized")
+}
 
 fun List<NoteRecord>.sortedByLastUpdated(): List<NoteRecord> =
     sortedByDescending { Instant.parse(it.timeModified) }
@@ -84,6 +115,7 @@ data class NoteDraft(
     val selectedCategoryId: Int? = null,
     val newCategoryLabel: String = "",
     val selectedTagIds: List<Int> = emptyList(),
+    val selectedStatusId: Int? = null,
     val newTagLabel: String = "",
     val description: String = "",
     val dueInput: String? = null,
@@ -95,7 +127,10 @@ data class NoteDraft(
 data class AppSnapshot(
     val user: UserSummary? = null,
     val apiToken: String? = null,
+    val workspaces: List<WorkspaceRecord> = emptyList(),
+    val activeWorkspaceId: Int? = null,
     val categories: List<CategoryRecord> = emptyList(),
+    val statuses: List<StatusRecord> = emptyList(),
     val tags: List<TagRecord> = emptyList(),
     val notes: List<NoteRecord> = emptyList(),
     val lastSearchQuery: String = "",
@@ -122,6 +157,7 @@ fun NoteRecord.toDraft(): NoteDraft =
         selectedCategoryId = category.id,
         newCategoryLabel = category.label,
         selectedTagIds = tags.map { it.id },
+        selectedStatusId = status?.id,
         newTagLabel = "",
         description = description.orEmpty(),
         dueInput = timeDue?.let(::isoToLocalInput),

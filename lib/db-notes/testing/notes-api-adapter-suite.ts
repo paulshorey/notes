@@ -19,9 +19,7 @@ export type NotesApiAdapter = {
   request: (options: RequestOptions) => Promise<ResponsePayload>
 }
 
-type AdapterFactory = (
-  service: NotesAppService,
-) => Promise<NotesApiAdapter> | NotesApiAdapter
+type AdapterFactory = (service: NotesAppService) => Promise<NotesApiAdapter> | NotesApiAdapter
 
 const sampleUser = {
   id: 7,
@@ -37,11 +35,10 @@ const sampleUser = {
 
 const sampleNote = {
   id: 41,
-  userId: sampleUser.id,
-  category: { id: 5, label: "work" },
-  tags: [
-    { id: 12, label: "verify both http adapters" },
-  ],
+  workspaceId: 3,
+  categories: [{ id: 5, label: "work" }],
+  status: null,
+  tags: [{ id: 12, label: "verify both http adapters" }],
   description: "The Next and Express routes should stay behaviorally aligned.",
   timeDue: "2026-03-18T16:00:00.000Z",
   timeRemind: "2026-03-18T15:30:00.000Z",
@@ -56,7 +53,7 @@ const sampleSearchResult = {
 
 const sampleTag = {
   id: 12,
-  userId: sampleUser.id,
+  workspaceId: 3,
   label: "verify both http adapters",
   noteCount: 0,
   lastUsedAt: null,
@@ -64,10 +61,26 @@ const sampleTag = {
 
 const sampleCategory = {
   id: 5,
-  userId: sampleUser.id,
+  workspaceId: 3,
   label: "work",
   noteCount: 1,
   lastUsedAt: sampleNote.timeModified,
+}
+
+const sampleWorkspace = {
+  id: 3,
+  userId: sampleUser.id,
+  label: "personal",
+  noteCount: 1,
+}
+
+const sampleStatus = {
+  id: 8,
+  workspaceId: 3,
+  label: "backlog",
+  position: 0,
+  noteCount: 0,
+  lastUsedAt: null,
 }
 
 const sampleEmbeddingMaintenanceResponse = {
@@ -89,16 +102,22 @@ export const createFakeNotesAppService = (
   getNotesAppErrorStatus: () => 400,
   getNotesAppSession: async () => ({ user: sampleUser }),
   loginNotesAppUser: async () => ({ token: sampleApiToken, user: sampleUser }),
-  getNotesAppUserIdForToken: async ({ token }) =>
-    token === sampleApiToken ? sampleUser.id : null,
+  getNotesAppUserIdForToken: async ({ token }) => (token === sampleApiToken ? sampleUser.id : null),
   revokeNotesAppToken: async ({ token }) => token === sampleApiToken,
   updateNotesAppUserPreferences: async () => ({ user: sampleUser }),
+  listWorkspacesForNotesApp: async () => ({ workspaces: [sampleWorkspace] }),
+  createWorkspaceForNotesApp: async () => ({ workspace: sampleWorkspace }),
+  updateWorkspaceForNotesApp: async () => ({ workspace: sampleWorkspace }),
+  deleteWorkspaceForNotesApp: async () => ({ ok: true }),
   listNotesForNotesApp: async () => ({ notes: [sampleNote] }),
   listCategoriesForNotesApp: async () => ({ categories: [sampleCategory] }),
   createCategoryForNotesApp: async () => ({ category: sampleCategory }),
   updateCategoryForNotesApp: async () => ({ category: sampleCategory }),
   deleteCategoryForNotesApp: async () => ({ ok: true }),
-  deleteCategoryWithNotesForNotesApp: async () => ({ ok: true, deletedNotes: 1 }),
+  listStatusesForNotesApp: async () => ({ statuses: [sampleStatus] }),
+  createStatusForNotesApp: async () => ({ status: sampleStatus }),
+  updateStatusForNotesApp: async () => ({ status: sampleStatus }),
+  deleteStatusForNotesApp: async () => ({ ok: true }),
   listTagsForNotesApp: async () => ({ tags: [sampleTag] }),
   createTagForNotesApp: async () => ({ tag: sampleTag }),
   updateTagForNotesApp: async () => ({ tag: sampleTag }),
@@ -173,10 +192,7 @@ export const registerNotesApiAdapterSuite = (
     })
 
     assert.equal(response.status, 401)
-    assert.equal(
-      readError(response.body),
-      "Invalid username, email, phone, or password.",
-    )
+    assert.equal(readError(response.body), "Invalid username, email, phone, or password.")
   })
 
   test(`${adapterName} revokes the presented token`, async (t) => {
@@ -374,8 +390,8 @@ export const registerNotesApiAdapterSuite = (
     ])
   })
 
-  test(`${adapterName} lists notes for the requested user`, async (t) => {
-    const requests: Array<{ userId: number }> = []
+  test(`${adapterName} lists notes for the requested workspace`, async (t) => {
+    const requests: Array<{ userId: number; workspaceId: number }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
         listNotesForNotesApp: async (request) => {
@@ -391,17 +407,17 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "GET",
-      path: "/api/notes",
+      path: "/api/notes?workspaceId=3",
       headers: authHeaders,
     })
 
     assert.equal(response.status, 200)
     assert.deepEqual(response.body, { notes: [sampleNote] })
-    assert.deepEqual(requests, [{ userId: 7 }])
+    assert.deepEqual(requests, [{ userId: 7, workspaceId: 3 }])
   })
 
-  test(`${adapterName} lists tags for the requested user`, async (t) => {
-    const requests: Array<{ userId: number }> = []
+  test(`${adapterName} lists tags for the requested workspace`, async (t) => {
+    const requests: Array<{ userId: number; workspaceId: number }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
         listTagsForNotesApp: async (request) => {
@@ -417,17 +433,17 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "GET",
-      path: "/api/tags",
+      path: "/api/tags?workspaceId=3",
       headers: authHeaders,
     })
 
     assert.equal(response.status, 200)
     assert.deepEqual(response.body, { tags: [sampleTag] })
-    assert.deepEqual(requests, [{ userId: 7 }])
+    assert.deepEqual(requests, [{ userId: 7, workspaceId: 3 }])
   })
 
-  test(`${adapterName} lists categories for the requested user`, async (t) => {
-    const requests: Array<{ userId: number }> = []
+  test(`${adapterName} lists categories for the requested workspace`, async (t) => {
+    const requests: Array<{ userId: number; workspaceId: number }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
         listCategoriesForNotesApp: async (request) => {
@@ -443,18 +459,69 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "GET",
-      path: "/api/categories",
+      path: "/api/categories?workspaceId=3",
       headers: authHeaders,
     })
 
     assert.equal(response.status, 200)
     assert.deepEqual(response.body, { categories: [sampleCategory] })
-    assert.deepEqual(requests, [{ userId: 7 }])
+    assert.deepEqual(requests, [{ userId: 7, workspaceId: 3 }])
+  })
+
+  test(`${adapterName} lists workspaces for the authenticated user`, async (t) => {
+    const requests: Array<{ userId: number }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        listWorkspacesForNotesApp: async (request) => {
+          requests.push(request)
+          return { workspaces: [sampleWorkspace] }
+        },
+      }),
+    )
+    t.after(async () => adapter.close?.())
+
+    const response = await adapter.request({
+      method: "GET",
+      path: "/api/workspaces",
+      headers: authHeaders,
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { workspaces: [sampleWorkspace] })
+    assert.deepEqual(requests, [{ userId: sampleUser.id }])
+  })
+
+  test(`${adapterName} lists statuses for the requested workspace`, async (t) => {
+    const requests: Array<{ userId: number; workspaceId: number }> = []
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        listStatusesForNotesApp: async (request) => {
+          requests.push(request)
+          return { statuses: [sampleStatus] }
+        },
+      }),
+    )
+    t.after(async () => adapter.close?.())
+
+    const response = await adapter.request({
+      method: "GET",
+      path: "/api/statuses?workspaceId=3",
+      headers: authHeaders,
+    })
+
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { statuses: [sampleStatus] })
+    assert.deepEqual(requests, [{ userId: sampleUser.id, workspaceId: 3 }])
   })
 
   test(`${adapterName} lowercases category labels before create and update`, async (t) => {
-    const createRequests: Array<{ userId: number; label: string }> = []
-    const updateRequests: Array<{ userId: number; categoryId: number; label: string }> = []
+    const createRequests: Array<{ userId: number; workspaceId: number; label: string }> = []
+    const updateRequests: Array<{
+      userId: number
+      workspaceId: number
+      categoryId: number
+      label: string
+    }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
         createCategoryForNotesApp: async (request) => {
@@ -476,28 +543,28 @@ export const registerNotesApiAdapterSuite = (
       method: "POST",
       path: "/api/categories",
       headers: authHeaders,
-      body: { userId: 7, label: "  Work  " },
+      body: { userId: 7, workspaceId: 3, label: "  Work  " },
     })
     const updateResponse = await adapter.request({
       method: "PATCH",
       path: "/api/categories",
       headers: authHeaders,
-      body: { userId: 7, categoryId: 5, label: "  WORK  " },
+      body: { userId: 7, workspaceId: 3, categoryId: 5, label: "  WORK  " },
     })
 
     assert.equal(createResponse.status, 201)
     assert.equal(updateResponse.status, 200)
-    assert.deepEqual(createRequests, [{ userId: 7, label: "work" }])
-    assert.deepEqual(updateRequests, [{ userId: 7, categoryId: 5, label: "work" }])
+    assert.deepEqual(createRequests, [{ userId: 7, workspaceId: 3, label: "work" }])
+    assert.deepEqual(updateRequests, [{ userId: 7, workspaceId: 3, categoryId: 5, label: "work" }])
   })
 
-  test(`${adapterName} deletes a category and its notes`, async (t) => {
-    const requests: Array<{ userId: number; categoryId: number }> = []
+  test(`${adapterName} deletes a category without deleting notes`, async (t) => {
+    const requests: Array<{ userId: number; workspaceId: number; categoryId: number }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
-        deleteCategoryWithNotesForNotesApp: async (request) => {
+        deleteCategoryForNotesApp: async (request) => {
           requests.push(request)
-          return { ok: true, deletedNotes: 2 }
+          return { ok: true }
         },
       }),
     )
@@ -508,19 +575,24 @@ export const registerNotesApiAdapterSuite = (
 
     const response = await adapter.request({
       method: "DELETE",
-      path: "/api/categories/with-notes",
+      path: "/api/categories",
       headers: authHeaders,
-      body: { userId: 7, categoryId: 5 },
+      body: { userId: 7, workspaceId: 3, categoryId: 5 },
     })
 
     assert.equal(response.status, 200)
-    assert.deepEqual(response.body, { ok: true, deletedNotes: 2 })
-    assert.deepEqual(requests, [{ userId: 7, categoryId: 5 }])
+    assert.deepEqual(response.body, { ok: true })
+    assert.deepEqual(requests, [{ userId: 7, workspaceId: 3, categoryId: 5 }])
   })
 
   test(`${adapterName} lowercases tag labels before create and update`, async (t) => {
-    const createRequests: Array<{ userId: number; label: string }> = []
-    const updateRequests: Array<{ userId: number; tagId: number; label: string }> = []
+    const createRequests: Array<{ userId: number; workspaceId: number; label: string }> = []
+    const updateRequests: Array<{
+      userId: number
+      workspaceId: number
+      tagId: number
+      label: string
+    }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
         createTagForNotesApp: async (request) => {
@@ -542,20 +614,27 @@ export const registerNotesApiAdapterSuite = (
       method: "POST",
       path: "/api/tags",
       headers: authHeaders,
-      body: { userId: 7, label: "  Verify Both HTTP Adapters  " },
+      body: { userId: 7, workspaceId: 3, label: "  Verify Both HTTP Adapters  " },
     })
     const updateResponse = await adapter.request({
       method: "PATCH",
       path: "/api/tags",
       headers: authHeaders,
-      body: { userId: 7, tagId: 12, label: "  VERIFY BOTH HTTP ADAPTERS  " },
+      body: {
+        userId: 7,
+        workspaceId: 3,
+        tagId: 12,
+        label: "  VERIFY BOTH HTTP ADAPTERS  ",
+      },
     })
 
     assert.equal(createResponse.status, 201)
     assert.equal(updateResponse.status, 200)
-    assert.deepEqual(createRequests, [{ userId: 7, label: "verify both http adapters" }])
+    assert.deepEqual(createRequests, [
+      { userId: 7, workspaceId: 3, label: "verify both http adapters" },
+    ])
     assert.deepEqual(updateRequests, [
-      { userId: 7, tagId: 12, label: "verify both http adapters" },
+      { userId: 7, workspaceId: 3, tagId: 12, label: "verify both http adapters" },
     ])
   })
 
@@ -581,7 +660,9 @@ export const registerNotesApiAdapterSuite = (
       body: {
         userId: 7,
         note: {
-          categoryId: 5,
+          workspaceId: 3,
+          categoryIds: [5],
+          statusId: null,
           tagIds: [12],
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
@@ -596,7 +677,9 @@ export const registerNotesApiAdapterSuite = (
       {
         userId: 7,
         note: {
-          categoryId: 5,
+          workspaceId: 3,
+          categoryIds: [5],
+          statusId: null,
           tagIds: [12],
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
@@ -633,7 +716,9 @@ export const registerNotesApiAdapterSuite = (
       body: {
         userId: 7,
         note: {
-          categoryId: 5,
+          workspaceId: 3,
+          categoryIds: [5],
+          statusId: null,
           tagIds: [12],
           description: "No due or reminder dates selected.",
         },
@@ -646,7 +731,9 @@ export const registerNotesApiAdapterSuite = (
       {
         userId: 7,
         note: {
-          categoryId: 5,
+          workspaceId: 3,
+          categoryIds: [5],
+          statusId: null,
           tagIds: [12],
           description: "No due or reminder dates selected.",
           timeDue: null,
@@ -675,7 +762,9 @@ export const registerNotesApiAdapterSuite = (
         userId: 7,
         noteId: 999,
         note: {
-          categoryId: 5,
+          workspaceId: 3,
+          categoryIds: [5],
+          statusId: null,
           tagIds: [12],
           description: "The Next and Express routes should stay behaviorally aligned.",
           timeDue: "2026-03-18T16:00:00.000Z",
@@ -733,6 +822,7 @@ export const registerNotesApiAdapterSuite = (
       headers: authHeaders,
       body: {
         userId: 7,
+        workspaceId: 3,
         query: "adapter parity",
         limit: 12,
       },
@@ -743,7 +833,12 @@ export const registerNotesApiAdapterSuite = (
   })
 
   test(`${adapterName} lowercases search queries`, async (t) => {
-    const requests: Array<{ userId: number; query: string; limit: number }> = []
+    const requests: Array<{
+      userId: number
+      workspaceId: number
+      query: string
+      limit: number
+    }> = []
     const adapter = await createAdapter(
       createFakeNotesAppService({
         searchNotesForNotesApp: async (request) => {
@@ -763,6 +858,7 @@ export const registerNotesApiAdapterSuite = (
       headers: authHeaders,
       body: {
         userId: 7,
+        workspaceId: 3,
         query: "  Adapter Parity  ",
         limit: 12,
       },
@@ -770,7 +866,7 @@ export const registerNotesApiAdapterSuite = (
 
     assert.equal(response.status, 200)
     assert.deepEqual(response.body, { results: [sampleSearchResult] })
-    assert.deepEqual(requests, [{ userId: 7, query: "adapter parity", limit: 12 }])
+    assert.deepEqual(requests, [{ userId: 7, workspaceId: 3, query: "adapter parity", limit: 12 }])
   })
 
   test(`${adapterName} runs embedding maintenance in missing mode`, async (t) => {

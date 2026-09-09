@@ -64,8 +64,13 @@ This codebase is developed by AI agents.
 
 ## Release model
 
-- `notes-next`: run `release:notes:prepare`, run Notes DB migration steps when needed, then deploy on Railway.
+- `notes-next`: run `release:notes:prepare`, then deploy on Railway. The committed Railway pre-deploy command applies tracked Notes migrations before a release becomes healthy; run `db:migrate` manually for local/shared development or an intentional target-database preflight.
 - `notes-android`: run `build:android:dist:dev` or `build:android:dist:prod`, then share the APK download link in the PR; no Railway deploy.
+
+## Deployment diagnostics
+
+- Use `docs/operations/notes-environments.md` for the local, Cursor Cloud, Railway preview, production, and CI environment matrix and troubleshooting runbook.
+- Run `pnpm run diagnose:notes` for read-only checks of the checkout, app health, sanitized database target, required relations, migration ledger, PR checks, and Railway CLI linkage. It must remain read-only and must never print connection credentials.
 
 ## Database rules
 

@@ -4,16 +4,18 @@ import type {
   CreateCategoryRequest,
   CreateCategoryResponse,
   CreateNoteRequest,
+  CreateStatusRequest,
   CreateTagRequest,
   CreateTagResponse,
+  CreateWorkspaceRequest,
   DeleteCategoryRequest,
   DeleteCategoryResponse,
-  DeleteCategoryWithNotesRequest,
-  DeleteCategoryWithNotesResponse,
   DeleteNoteRequest,
   DeleteResponse,
+  DeleteStatusRequest,
   DeleteTagRequest,
   DeleteTagResponse,
+  DeleteWorkspaceRequest,
   EmbeddingMaintenanceRequest,
   EmbeddingMaintenanceResponse,
   NotesRequest,
@@ -23,21 +25,27 @@ import type {
   SearchResponse,
   SessionRequest,
   SessionResponse,
-  TokenLoginRequest,
-  TokenLoginResponse,
+  StatusResponse,
+  StatusesRequest,
+  StatusesResponse,
   TagsRequest,
   TagsResponse,
-  UpdateUserPreferencesRequest,
+  TokenLoginRequest,
+  TokenLoginResponse,
   UpdateCategoryRequest,
   UpdateCategoryResponse,
-  UpdateNoteRequest,
+  UpdateStatusRequest,
   UpdateTagRequest,
   UpdateTagResponse,
+  UpdateUserPreferencesRequest,
+  UpdateWorkspaceRequest,
   UserPreferences,
-} from "../contracts/notes-app";
-import type { PoolClient } from "pg";
-import { getDb } from "../lib/db/postgres";
-import { NOTES_APP_SEARCH_MAX_RESULTS } from "../notes-search-constants";
+  WorkspaceResponse,
+  WorkspacesRequest,
+  WorkspacesResponse,
+} from "../contracts/notes-app"
+import { getDb } from "../lib/db/postgres"
+import { NOTES_APP_SEARCH_MAX_RESULTS } from "../notes-search-constants"
 import {
   createNoteForUser,
   deleteNoteForUser,
@@ -49,38 +57,45 @@ import {
   selectNoteEmbeddingStateById,
   updateNoteEmbeddingsForUser,
   updateNoteForUser,
-} from "../sql/note";
+} from "../sql/note"
+import { resolveCategoryIdForWorkspace, resolveTagIdForWorkspace } from "../sql/note/shared"
 import {
-  resolveCategoryIdForUser,
-  resolveTagIdForUser,
-} from "../sql/note/shared";
-import {
-  deleteCategoryForUser,
-  deleteCategoryWithNotesForUser,
-  ensureDefaultCategoryForUser,
-  getCategoryByIdForUser,
-  getFirstCategoryForUser,
-  listCategoriesByUser,
+  deleteCategoryForWorkspace,
+  getCategoryByIdForWorkspace,
+  listCategoriesByWorkspace,
   listCategoriesMissingEmbeddingsByUser,
   listCategoriesStaleEmbeddingsByUser,
   updateCategoryEmbeddingById,
-  updateCategoryLabelForUser,
-} from "../sql/category";
+  updateCategoryLabelForWorkspace,
+} from "../sql/category"
 import {
-  deleteTagForUser,
-  ensureDefaultTagForUser,
-  getFirstTagForUser,
-  getTagByIdForUser,
-  listTagsByUser,
+  deleteTagForWorkspace,
+  getTagByIdForWorkspace,
+  listTagsByWorkspace,
   listTagsMissingEmbeddingsByUser,
   listTagsStaleEmbeddingsByUser,
   updateTagEmbeddingById,
-  updateTagLabelForUser,
-} from "../sql/tag";
+  updateTagLabelForWorkspace,
+} from "../sql/tag"
 import {
-  createAnonymousUser,
+  createStatusForWorkspace,
+  deleteStatusForWorkspace,
+  getStatusByIdForWorkspace,
+  listStatusesByWorkspace,
+  updateStatusForWorkspace,
+} from "../sql/status"
+import {
+  createWorkspaceForUser,
+  deleteWorkspaceForUser,
+  ensureDefaultWorkspaceForUser,
+  getWorkspaceByIdForUser,
+  listWorkspacesByUser,
+  updateWorkspaceForUser,
+} from "../sql/workspace"
+import {
   CLAIM_IDENTIFIER_TAKEN_ERROR,
   claimAnonymousUser,
+  createAnonymousUser,
   createApiTokenForUser,
   deleteApiToken,
   findUserIdByApiToken,
@@ -88,7 +103,7 @@ import {
   mergeAnonymousUserInto,
   updateUserPreferencesById,
   verifyUserCredentials,
-} from "../sql/user";
+} from "../sql/user"
 import {
   createBackfillEmbeddingInputs,
   createBackfillTagEmbeddings,
@@ -98,955 +113,540 @@ import {
   CURRENT_NOTE_EMBEDDING_MODEL,
   EmbeddingConfigurationError,
   EmbeddingRequestError,
-} from "./notes-embeddings";
+} from "./notes-embeddings"
 
-export const NOTES_APP_NOTE_NOT_FOUND_ERROR = "Note not found.";
-export const NOTES_APP_CATEGORY_NOT_FOUND_ERROR = "Category not found.";
-export const NOTES_APP_TAG_NOT_FOUND_ERROR = "Tag not found.";
-export const NOTES_APP_USER_NOT_FOUND_ERROR = "User not found.";
-export const NOTES_APP_INVALID_CREDENTIALS_ERROR =
-  "Invalid username, email, phone, or password.";
-export const NOTES_APP_AUTH_REQUIRED_ERROR = "Authentication required.";
-export const NOTES_APP_EMBEDDING_MAINTENANCE_MISSING_MODE = "missing";
-export const NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE = "stale";
+export const NOTES_APP_NOTE_NOT_FOUND_ERROR = "Note not found."
+export const NOTES_APP_CATEGORY_NOT_FOUND_ERROR = "Category not found."
+export const NOTES_APP_TAG_NOT_FOUND_ERROR = "Tag not found."
+export const NOTES_APP_STATUS_NOT_FOUND_ERROR = "Status not found."
+export const NOTES_APP_WORKSPACE_NOT_FOUND_ERROR = "Workspace not found."
+export const NOTES_APP_USER_NOT_FOUND_ERROR = "User not found."
+export const NOTES_APP_INVALID_CREDENTIALS_ERROR = "Invalid username, email, phone, or password."
+export const NOTES_APP_AUTH_REQUIRED_ERROR = "Authentication required."
+export const NOTES_APP_EMBEDDING_MAINTENANCE_MISSING_MODE = "missing"
+export const NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE = "stale"
 
-const toRequestObject = (value: unknown) => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("Request body must be a JSON object.");
-  }
-
-  return value as Record<string, unknown>;
-};
-
-const normalizeTaxonomyLabel = (value: string) => value.trim().toLocaleLowerCase();
-
-const normalizeSearchQuery = (value: string) => value.trim().toLocaleLowerCase();
-
+const object = (value: unknown) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error("Request body must be a JSON object.")
+  return value as Record<string, unknown>
+}
+const label = (value: unknown) =>
+  typeof value === "string" ? value.trim().toLocaleLowerCase() : ""
 export const parsePositiveInteger = (
   value: unknown,
-  fieldName: string,
-  { min = 1, max }: { min?: number; max?: number } = {}
+  field: string,
+  { min = 1, max }: { min?: number; max?: number } = {},
 ) => {
-  if (typeof value === "number" && Number.isInteger(value)) {
-    if (value >= min && (typeof max !== "number" || value <= max)) {
-      return value;
-    }
-  }
-
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number.parseInt(value, 10);
-
-    if (
-      Number.isInteger(parsed) &&
-      parsed >= min &&
-      (typeof max !== "number" || parsed <= max)
-    ) {
-      return parsed;
-    }
-  }
-
-  const maxText = typeof max === "number" ? ` and at most ${max}` : "";
-  throw new Error(`${fieldName} must be an integer of at least ${min}${maxText}.`);
-};
-
-export const getNotesAppErrorStatus = (error: unknown) => {
-  if (error instanceof EmbeddingConfigurationError) {
-    return 500;
-  }
-
-  if (error instanceof EmbeddingRequestError) {
-    return error.status >= 400 && error.status < 500 ? 502 : error.status;
-  }
-
-  if (error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR) {
-    return 409;
-  }
-
-  return 400;
-};
-
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number.parseInt(value, 10)
+        : NaN
+  if (!Number.isInteger(parsed) || parsed < min || (max !== undefined && parsed > max))
+    throw new Error(
+      `${field} must be an integer of at least ${min}${max !== undefined ? ` and at most ${max}` : ""}.`,
+    )
+  return parsed
+}
+const isDatabaseAvailabilityError = (error: unknown) => {
+  if (!(error instanceof Error)) return false
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code.toUpperCase() : undefined
+  return (
+    code?.startsWith("08") === true ||
+    code === "53300" ||
+    code === "57P01" ||
+    code === "57P02" ||
+    code === "57P03" ||
+    code === "ECONNREFUSED" ||
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    code === "EHOSTUNREACH" ||
+    code === "ENETUNREACH" ||
+    /connection (?:terminated|timeout|timed out|refused|reset)|connect econn(?:refused|reset)|connect etimedout|timeout exceeded when trying to connect/i.test(
+      error.message,
+    )
+  )
+}
+const workspaceRequest = (userId: unknown, workspaceId: unknown) => ({
+  userId: parsePositiveInteger(userId, "userId"),
+  workspaceId: parsePositiveInteger(workspaceId, "workspaceId"),
+})
+const labelRequest = (value: unknown) => {
+  const b = object(value)
+  return { ...workspaceRequest(b.userId, b.workspaceId), label: label(b.label) }
+}
+export const getNotesAppErrorStatus = (error: unknown) =>
+  isDatabaseAvailabilityError(error)
+    ? 503
+    : error instanceof EmbeddingConfigurationError
+      ? 500
+      : error instanceof EmbeddingRequestError
+        ? error.status >= 400 && error.status < 500
+          ? 502
+          : error.status
+        : error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR
+          ? 409
+          : 400
 export const parseSessionRequest = (userId: unknown): SessionRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
-});
-
-const parseUserPreferences = (value: unknown): UserPreferences => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("preferences must be a JSON object.");
-  }
-
-  return value as UserPreferences;
-};
-
-export const parseUpdateUserPreferencesRequest = (
-  value: unknown
-): UpdateUserPreferencesRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    preferences: parseUserPreferences(body.preferences),
-  };
-};
-
-export const parseNotesRequest = (userId: unknown): NotesRequest => ({
+})
+export const parseNotesRequest = (userId: unknown, workspaceId?: unknown): NotesRequest =>
+  workspaceRequest(userId, workspaceId)
+export const parseCategoriesRequest = (userId: unknown, workspaceId?: unknown): CategoriesRequest =>
+  workspaceRequest(userId, workspaceId)
+export const parseTagsRequest = (userId: unknown, workspaceId?: unknown): TagsRequest =>
+  workspaceRequest(userId, workspaceId)
+export const parseStatusesRequest = (userId: unknown, workspaceId?: unknown): StatusesRequest =>
+  workspaceRequest(userId, workspaceId)
+export const parseWorkspacesRequest = (userId: unknown): WorkspacesRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
-});
-
-export const parseCategoriesRequest = (userId: unknown): CategoriesRequest => ({
-  userId: parsePositiveInteger(userId, "userId"),
-});
-
-export const parseTagsRequest = (userId: unknown): TagsRequest => ({
-  userId: parsePositiveInteger(userId, "userId"),
-});
-
-const parseLabelRequest = (value: unknown) => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    label: typeof body.label === "string" ? normalizeTaxonomyLabel(body.label) : "",
-  };
-};
-
-export const parseCreateCategoryRequest = (
-  value: unknown
-): CreateCategoryRequest => parseLabelRequest(value);
-
-export const parseCreateTagRequest = (
-  value: unknown
-): CreateTagRequest => parseLabelRequest(value);
-
-export const parseUpdateCategoryRequest = (
-  value: unknown
-): UpdateCategoryRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    categoryId: parsePositiveInteger(body.categoryId, "categoryId"),
-    label: typeof body.label === "string" ? normalizeTaxonomyLabel(body.label) : "",
-  };
-};
-
-export const parseUpdateTagRequest = (value: unknown): UpdateTagRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    tagId: parsePositiveInteger(body.tagId, "tagId"),
-    label: typeof body.label === "string" ? normalizeTaxonomyLabel(body.label) : "",
-  };
-};
-
-export const parseDeleteCategoryRequest = (
-  value: unknown
-): DeleteCategoryRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    categoryId: parsePositiveInteger(body.categoryId, "categoryId"),
-  };
-};
-
-export const parseDeleteTagRequest = (value: unknown): DeleteTagRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    tagId: parsePositiveInteger(body.tagId, "tagId"),
-  };
-};
-
-export interface ClaimAnonymousSessionRequest {
-  username: string;
-  password: string;
-  email?: string;
+})
+export const parseCreateCategoryRequest = (v: unknown): CreateCategoryRequest => labelRequest(v)
+export const parseCreateTagRequest = (v: unknown): CreateTagRequest => labelRequest(v)
+export const parseCreateStatusRequest = (v: unknown): CreateStatusRequest => labelRequest(v)
+export const parseCreateWorkspaceRequest = (v: unknown): CreateWorkspaceRequest => {
+  const b = object(v)
+  return { userId: parsePositiveInteger(b.userId, "userId"), label: label(b.label) }
 }
-
-export const parseClaimAnonymousSessionRequest = (
-  value: unknown
-): ClaimAnonymousSessionRequest => {
-  const body = toRequestObject(value);
-
-  const username = typeof body.username === "string" ? body.username.trim() : "";
-  if (username === "") {
-    throw new Error("username is required.");
+export const parseUpdateCategoryRequest = (v: unknown): UpdateCategoryRequest => {
+  const b = object(v)
+  return {
+    ...workspaceRequest(b.userId, b.workspaceId),
+    categoryId: parsePositiveInteger(b.categoryId, "categoryId"),
+    label: label(b.label),
   }
-
-  const password = typeof body.password === "string" ? body.password : "";
-  if (password.length < 8) {
-    throw new Error("password must be at least 8 characters.");
+}
+export const parseUpdateTagRequest = (v: unknown): UpdateTagRequest => {
+  const b = object(v)
+  return {
+    ...workspaceRequest(b.userId, b.workspaceId),
+    tagId: parsePositiveInteger(b.tagId, "tagId"),
+    label: label(b.label),
   }
-
-  let email: string | undefined;
-  if (body.email !== undefined && body.email !== null) {
-    if (typeof body.email !== "string") {
-      throw new Error("email must be a string.");
-    }
-    const trimmedEmail = body.email.trim();
-    if (trimmedEmail !== "") {
-      if (!trimmedEmail.includes("@")) {
-        throw new Error("email must be a valid email address.");
-      }
-      email = trimmedEmail;
-    }
+}
+export const parseUpdateStatusRequest = (v: unknown): UpdateStatusRequest => {
+  const b = object(v)
+  return {
+    ...workspaceRequest(b.userId, b.workspaceId),
+    statusId: parsePositiveInteger(b.statusId, "statusId"),
+    label: label(b.label),
+    ...(b.position === undefined
+      ? {}
+      : { position: parsePositiveInteger(b.position, "position", { min: 0 }) }),
   }
-
-  return { username, password, email };
-};
-
-export const parseTokenLoginRequest = (value: unknown): TokenLoginRequest => {
-  const body = toRequestObject(value);
-
+}
+export const parseUpdateWorkspaceRequest = (v: unknown): UpdateWorkspaceRequest => {
+  const b = object(v)
   return {
-    identifier: typeof body.identifier === "string" ? body.identifier.trim() : "",
-    password: typeof body.password === "string" ? body.password : "",
-  };
-};
-
-export const parseCreateNoteRequest = (value: unknown): CreateNoteRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    note: parseNoteInput(body.note),
-  };
-};
-
-export const parseUpdateNoteRequest = (value: unknown): UpdateNoteRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    noteId: parsePositiveInteger(body.noteId, "noteId"),
-    note: parseNoteInput(body.note),
-  };
-};
-
-export const parseDeleteNoteRequest = (value: unknown): DeleteNoteRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    noteId: parsePositiveInteger(body.noteId, "noteId"),
-  };
-};
-
-export const parseSearchRequest = (value: unknown): SearchRequest => {
-  const body = toRequestObject(value);
-  const query = typeof body.query === "string" ? normalizeSearchQuery(body.query) : "";
-
-  if (query === "") {
-    throw new Error("Search query is required.");
+    userId: parsePositiveInteger(b.userId, "userId"),
+    workspaceId: parsePositiveInteger(b.workspaceId, "workspaceId"),
+    label: label(b.label),
   }
-
+}
+export const parseDeleteCategoryRequest = (v: unknown): DeleteCategoryRequest => {
+  const b = object(v)
   return {
-    userId: parsePositiveInteger(body.userId, "userId"),
+    ...workspaceRequest(b.userId, b.workspaceId),
+    categoryId: parsePositiveInteger(b.categoryId, "categoryId"),
+  }
+}
+export const parseDeleteTagRequest = (v: unknown): DeleteTagRequest => {
+  const b = object(v)
+  return {
+    ...workspaceRequest(b.userId, b.workspaceId),
+    tagId: parsePositiveInteger(b.tagId, "tagId"),
+  }
+}
+export const parseDeleteStatusRequest = (v: unknown): DeleteStatusRequest => {
+  const b = object(v)
+  return {
+    ...workspaceRequest(b.userId, b.workspaceId),
+    statusId: parsePositiveInteger(b.statusId, "statusId"),
+  }
+}
+export const parseDeleteWorkspaceRequest = (v: unknown): DeleteWorkspaceRequest => {
+  const b = object(v)
+  if (b.confirmation !== "delete-workspace")
+    throw new Error('confirmation must be "delete-workspace".')
+  return {
+    userId: parsePositiveInteger(b.userId, "userId"),
+    workspaceId: parsePositiveInteger(b.workspaceId, "workspaceId"),
+    confirmation: b.confirmation,
+  }
+}
+export const parseCreateNoteRequest = (v: unknown): CreateNoteRequest => {
+  const b = object(v)
+  return { userId: parsePositiveInteger(b.userId, "userId"), note: parseNoteInput(b.note) }
+}
+export const parseUpdateNoteRequest = (v: unknown) => {
+  const b = object(v)
+  return {
+    userId: parsePositiveInteger(b.userId, "userId"),
+    noteId: parsePositiveInteger(b.noteId, "noteId"),
+    note: parseNoteInput(b.note),
+  }
+}
+export const parseDeleteNoteRequest = (v: unknown): DeleteNoteRequest => {
+  const b = object(v)
+  return {
+    userId: parsePositiveInteger(b.userId, "userId"),
+    noteId: parsePositiveInteger(b.noteId, "noteId"),
+  }
+}
+export const parseSearchRequest = (v: unknown): SearchRequest => {
+  const b = object(v)
+  const query = label(b.query)
+  if (!query) throw new Error("Search query is required.")
+  return {
+    ...workspaceRequest(b.userId, b.workspaceId),
     query,
-    limit: parsePositiveInteger(body.limit ?? NOTES_APP_SEARCH_MAX_RESULTS, "limit", {
-      min: 1,
+    limit: parsePositiveInteger(b.limit ?? NOTES_APP_SEARCH_MAX_RESULTS, "limit", {
       max: NOTES_APP_SEARCH_MAX_RESULTS,
     }),
-  };
-};
-
-export const parseEmbeddingMaintenanceRequest = (
-  value: unknown
-): EmbeddingMaintenanceRequest => {
-  const body = toRequestObject(value);
-  const mode =
-    typeof body.mode === "string" ? body.mode.trim().toLowerCase() : "";
-
-  if (
-    mode !== NOTES_APP_EMBEDDING_MAINTENANCE_MISSING_MODE &&
-    mode !== NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE
-  ) {
-    throw new Error(
-      `mode must be "${NOTES_APP_EMBEDDING_MAINTENANCE_MISSING_MODE}" or "${NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE}".`
-    );
   }
-
+}
+export const parseTokenLoginRequest = (v: unknown): TokenLoginRequest => {
+  const b = object(v)
   return {
-    userId: parsePositiveInteger(body.userId, "userId"),
+    identifier: typeof b.identifier === "string" ? b.identifier.trim() : "",
+    password: typeof b.password === "string" ? b.password : "",
+  }
+}
+export const parseUpdateUserPreferencesRequest = (v: unknown): UpdateUserPreferencesRequest => {
+  const b = object(v)
+  if (typeof b.preferences !== "object" || b.preferences === null || Array.isArray(b.preferences))
+    throw new Error("preferences must be a JSON object.")
+  return {
+    userId: parsePositiveInteger(b.userId, "userId"),
+    preferences: b.preferences as UserPreferences,
+  }
+}
+export interface ClaimAnonymousSessionRequest {
+  username: string
+  password: string
+  email?: string
+}
+export const parseClaimAnonymousSessionRequest = (v: unknown): ClaimAnonymousSessionRequest => {
+  const b = object(v)
+  const username = typeof b.username === "string" ? b.username.trim() : ""
+  const password = typeof b.password === "string" ? b.password : ""
+  if (!username) throw new Error("username is required.")
+  if (password.length < 8) throw new Error("password must be at least 8 characters.")
+  const email = typeof b.email === "string" && b.email.trim() ? b.email.trim() : undefined
+  if (email && !email.includes("@")) throw new Error("email must be a valid email address.")
+  return { username, password, ...(email ? { email } : {}) }
+}
+export const parseEmbeddingMaintenanceRequest = (v: unknown): EmbeddingMaintenanceRequest => {
+  const b = object(v)
+  const mode = typeof b.mode === "string" ? b.mode.toLowerCase() : ""
+  if (mode !== "missing" && mode !== "stale") throw new Error('mode must be "missing" or "stale".')
+  return {
+    userId: parsePositiveInteger(b.userId, "userId"),
     mode,
-    limit: parsePositiveInteger(body.limit ?? 100, "limit", {
-      min: 1,
-      max: 500,
-    }),
-  };
-};
+    limit: parsePositiveInteger(b.limit ?? 100, "limit", { max: 500 }),
+  }
+}
 
-export const getNotesAppSession = async (
-  request: SessionRequest
-): Promise<SessionResponse | null> => {
-  const user = await getUserById(request.userId);
-
-  return user ? { user } : null;
-};
-
+export const getNotesAppSession = async (r: SessionRequest): Promise<SessionResponse | null> => {
+  const user = await getUserById(r.userId)
+  return user ? { user } : null
+}
 export const loginNotesAppUser = async (
-  request: TokenLoginRequest
+  r: TokenLoginRequest,
 ): Promise<TokenLoginResponse | null> => {
-  const user = await verifyUserCredentials(request.identifier, request.password);
+  const user = await verifyUserCredentials(r.identifier, r.password)
+  return user ? { token: await createApiTokenForUser(user.id), user } : null
+}
+export const getNotesAppUserIdForToken = ({ token }: { token: string }) =>
+  token ? findUserIdByApiToken(token) : Promise.resolve(null)
+export const revokeNotesAppToken = ({ token }: { token: string }) =>
+  token ? deleteApiToken(token) : Promise.resolve(false)
+export const updateNotesAppUserPreferences = async (r: UpdateUserPreferencesRequest) => {
+  const user = await updateUserPreferencesById(r.userId, r.preferences)
+  return user ? { user } : null
+}
 
-  if (!user) {
-    return null;
+export const listWorkspacesForNotesApp = async (
+  r: WorkspacesRequest,
+): Promise<WorkspacesResponse> => {
+  const client = await getDb().connect()
+  try {
+    await ensureDefaultWorkspaceForUser(client, r.userId)
+  } finally {
+    client.release()
   }
-
-  const token = await createApiTokenForUser(user.id);
-  return { token, user };
-};
-
-export const getNotesAppUserIdForToken = async (request: {
-  token: string;
-}): Promise<number | null> => {
-  if (request.token === "") {
-    return null;
-  }
-
-  return findUserIdByApiToken(request.token);
-};
-
-export const revokeNotesAppToken = async (request: {
-  token: string;
-}): Promise<boolean> => {
-  if (request.token === "") {
-    return false;
-  }
-
-  return deleteApiToken(request.token);
-};
-
-export const updateNotesAppUserPreferences = async (
-  request: UpdateUserPreferencesRequest
-): Promise<SessionResponse | null> => {
-  const user = await updateUserPreferencesById(request.userId, request.preferences);
-
-  return user ? { user } : null;
-};
-
-export const listNotesForNotesApp = async (
-  request: NotesRequest
-): Promise<NotesResponse> => ({
-  notes: await listNotesByUser(request.userId),
-});
-
+  return { workspaces: await listWorkspacesByUser(r.userId) }
+}
+export const createWorkspaceForNotesApp = async (
+  r: CreateWorkspaceRequest,
+): Promise<WorkspaceResponse> => {
+  if (!r.label) throw new Error("label is required.")
+  return { workspace: await createWorkspaceForUser(r.userId, r.label) }
+}
+export const updateWorkspaceForNotesApp = async (
+  r: UpdateWorkspaceRequest,
+): Promise<WorkspaceResponse | null> => {
+  if (!r.label) throw new Error("label is required.")
+  const workspace = await updateWorkspaceForUser(r.userId, r.workspaceId, r.label)
+  return workspace ? { workspace } : null
+}
+export const deleteWorkspaceForNotesApp = async (
+  r: DeleteWorkspaceRequest,
+): Promise<DeleteResponse | null> =>
+  (await deleteWorkspaceForUser(r.userId, r.workspaceId)) ? { ok: true } : null
+export const listNotesForNotesApp = async (r: NotesRequest): Promise<NotesResponse> => ({
+  notes: await listNotesByUser(r.userId, r.workspaceId),
+})
 export const listCategoriesForNotesApp = async (
-  request: CategoriesRequest
-): Promise<CategoriesResponse> => {
-  const client = await getDb().connect();
+  r: CategoriesRequest,
+): Promise<CategoriesResponse> => ({
+  categories: await listCategoriesByWorkspace(r.userId, r.workspaceId),
+})
+export const listTagsForNotesApp = async (r: TagsRequest): Promise<TagsResponse> => ({
+  tags: await listTagsByWorkspace(r.userId, r.workspaceId),
+})
+export const listStatusesForNotesApp = async (r: StatusesRequest): Promise<StatusesResponse> => ({
+  statuses: await listStatusesByWorkspace(r.userId, r.workspaceId),
+})
 
-  try {
-    await ensureDefaultCategoryForUser(client, request.userId);
-  } finally {
-    client.release();
-  }
-
-  return { categories: await listCategoriesByUser(request.userId) };
-};
-
-export const listTagsForNotesApp = async (
-  request: TagsRequest
-): Promise<TagsResponse> => {
-  const client = await getDb().connect();
-
-  try {
-    await ensureDefaultTagForUser(client, request.userId);
-  } finally {
-    client.release();
-  }
-
-  return {
-    tags: await listTagsByUser(request.userId),
-  };
-};
-
-const createLabeledEntityForNotesApp = async ({
-  userId,
-  label,
-  resolveId,
-  tableName,
-}: {
-  userId: number;
-  label: string;
-  resolveId: typeof resolveTagIdForUser;
-  tableName: "user_note_category_v1" | "user_note_tag_v1";
-}) => {
-  const trimmed = normalizeTaxonomyLabel(label);
-
-  if (trimmed === "") {
-    throw new Error("label is required.");
-  }
-
-  const client = await getDb().connect();
-  let entityId: number;
-
-  try {
-    await client.query("BEGIN");
-    const resolvedId = await resolveId(client, userId, trimmed);
-
-    if (resolvedId === null) {
-      throw new Error("Failed to resolve entity.");
-    }
-
-    entityId = resolvedId;
-    const { vectorLiteral, embeddingModel } = await createTagLabelEmbedding(trimmed);
-    const embeddingColumn =
-      tableName === "user_note_category_v1" ? "category_embedding" : "tag_embedding";
-
-    await client.query(
-      `
-        UPDATE public.${tableName}
-        SET
-          ${embeddingColumn} = $1::vector,
-          embedding_model = $2,
-          embedding_updated_at = $3
-        WHERE id = $4
-          AND user_id = $5
-      `,
-      [
-        vectorLiteral,
-        embeddingModel,
-        embeddingModel ? new Date().toISOString() : null,
-        entityId,
-        userId,
-      ]
-    );
-
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-
-  return entityId!;
-};
-
-export const createCategoryForNotesApp = async (
-  request: CreateCategoryRequest
-): Promise<CreateCategoryResponse> => {
-  const categoryId = await createLabeledEntityForNotesApp({
-    userId: request.userId,
-    label: request.label,
-    resolveId: resolveCategoryIdForUser,
-    tableName: "user_note_category_v1",
-  });
-  const category = await getCategoryByIdForUser(request.userId, categoryId);
-
-  if (!category) {
-    throw new Error("Failed to load category.");
-  }
-
-  return { category };
-};
-
-export const createTagForNotesApp = async (
-  request: CreateTagRequest
-): Promise<CreateTagResponse> => {
-  const tagId = await createLabeledEntityForNotesApp({
-    userId: request.userId,
-    label: request.label,
-    resolveId: resolveTagIdForUser,
-    tableName: "user_note_tag_v1",
-  });
-  const tag = await getTagByIdForUser(request.userId, tagId);
-
-  if (!tag) {
-    throw new Error("Failed to load tag.");
-  }
-
-  return { tag };
-};
-
-const updateLabeledEntityForNotesApp = async <T>({
-  userId,
-  entityId,
-  label,
-  updateLabel,
-  getById,
-  tableName,
-}: {
-  userId: number;
-  entityId: number;
-  label: string;
-  updateLabel: (
-    client: PoolClient,
-    userId: number,
-    entityId: number,
-    label: string
-  ) => Promise<number | null>;
-  getById: (userId: number, entityId: number) => Promise<T | null>;
-  tableName: "user_note_category_v1" | "user_note_tag_v1";
-}): Promise<T | null> => {
-  const trimmed = normalizeTaxonomyLabel(label);
-
-  if (trimmed === "") {
-    throw new Error("label is required.");
-  }
-
-  const client = await getDb().connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const updatedId = await updateLabel(client, userId, entityId, trimmed);
-
-    if (updatedId === null) {
-      await client.query("ROLLBACK");
-      return null;
-    }
-
-    const { vectorLiteral, embeddingModel } = await createTagLabelEmbedding(trimmed);
-    const embeddingColumn =
-      tableName === "user_note_category_v1" ? "category_embedding" : "tag_embedding";
-
-    await client.query(
-      `
-        UPDATE public.${tableName}
-        SET
-          ${embeddingColumn} = $1::vector,
-          embedding_model = $2,
-          embedding_updated_at = $3
-        WHERE id = $4
-          AND user_id = $5
-      `,
-      [
-        vectorLiteral,
-        embeddingModel,
-        embeddingModel ? new Date().toISOString() : null,
-        entityId,
-        userId,
-      ]
-    );
-
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-
-  return getById(userId, entityId);
-};
-
-const ensureFallbackTagId = async (userId: number) => {
-  const client = await getDb().connect();
-
-  try {
-    await ensureDefaultTagForUser(client, userId);
-    const fallbackTag = await getFirstTagForUser(client, userId);
-
-    if (!fallbackTag) {
-      throw new Error("Failed to resolve fallback tag.");
-    }
-
-    return fallbackTag.id;
-  } finally {
-    client.release();
-  }
-};
-
-const ensureFallbackCategoryId = async (userId: number) => {
-  const client = await getDb().connect();
-
-  try {
-    await client.query("BEGIN");
-    const fallbackCategory = await getFirstCategoryForUser(client, userId);
-
-    if (!fallbackCategory) {
-      throw new Error("Failed to resolve fallback category.");
-    }
-
-    const fallbackCategoryId = fallbackCategory.id;
-
-    const { vectorLiteral, embeddingModel } = await createTagLabelEmbedding(
-      fallbackCategory.label
-    );
-
-    await client.query(
-      `
-        UPDATE public.user_note_category_v1
-        SET
-          category_embedding = $1::vector,
-          embedding_model = $2,
-          embedding_updated_at = $3
-        WHERE id = $4
-          AND user_id = $5
-      `,
-      [
-        vectorLiteral,
-        embeddingModel,
-        embeddingModel ? new Date().toISOString() : null,
-        fallbackCategoryId,
-        userId,
-      ]
-    );
-
-    await client.query("COMMIT");
-    return fallbackCategoryId;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-};
-
-export const updateCategoryForNotesApp = async (
-  request: UpdateCategoryRequest
-): Promise<UpdateCategoryResponse | null> => {
-  const category = await updateLabeledEntityForNotesApp({
-    userId: request.userId,
-    entityId: request.categoryId,
-    label: request.label,
-    updateLabel: updateCategoryLabelForUser,
-    getById: getCategoryByIdForUser,
-    tableName: "user_note_category_v1",
-  });
-
-  return category ? { category } : null;
-};
-
-export const updateTagForNotesApp = async (
-  request: UpdateTagRequest
-): Promise<UpdateTagResponse | null> => {
-  const tag = await updateLabeledEntityForNotesApp({
-    userId: request.userId,
-    entityId: request.tagId,
-    label: request.label,
-    updateLabel: updateTagLabelForUser,
-    getById: getTagByIdForUser,
-    tableName: "user_note_tag_v1",
-  });
-
-  return tag ? { tag } : null;
-};
-
-export const deleteCategoryForNotesApp = async (
-  request: DeleteCategoryRequest
-): Promise<DeleteCategoryResponse | null> => {
-  const fallbackCategoryId = await ensureFallbackCategoryId(request.userId);
-  const result = await deleteCategoryForUser(
-    request.userId,
-    request.categoryId,
-    fallbackCategoryId
-  );
-
-  if (!result.deleted) {
-    return null;
-  }
-
-  return { ok: true };
-};
-
-export const parseDeleteCategoryWithNotesRequest = (
-  value: unknown
-): DeleteCategoryWithNotesRequest => {
-  const body = toRequestObject(value);
-
-  return {
-    userId: parsePositiveInteger(body.userId, "userId"),
-    categoryId: parsePositiveInteger(body.categoryId, "categoryId"),
-  };
-};
-
-export const deleteCategoryWithNotesForNotesApp = async (
-  request: DeleteCategoryWithNotesRequest
-): Promise<DeleteCategoryWithNotesResponse | null> => {
-  const fallbackCategoryId = await ensureFallbackCategoryId(request.userId);
-  const result = await deleteCategoryWithNotesForUser(
-    request.userId,
-    request.categoryId,
-    fallbackCategoryId
-  );
-
-  if (!result.deleted) {
-    return null;
-  }
-
-  return { ok: true, deletedNotes: result.deletedNotes };
-};
-
-export const deleteTagForNotesApp = async (
-  request: DeleteTagRequest
-): Promise<DeleteTagResponse | null> => {
-  const protectedTagId = await ensureFallbackTagId(request.userId);
-  const result = await deleteTagForUser(
-    request.userId,
-    request.tagId,
-    protectedTagId
-  );
-
-  if (!result.deleted) {
-    return null;
-  }
-
-  return { ok: true, deletedLinks: result.deletedLinks };
-};
-
-export const createNoteForNotesApp = async (
-  request: CreateNoteRequest
-): Promise<NoteResponse> => {
-  const embeddings = await createNoteEmbeddingInput({
-    description: request.note.description,
-  });
-  const note = await createNoteForUser(request.userId, request.note, embeddings);
-
-  return { note };
-};
-
-const normalizeDescriptionForCompare = (value: string | null | undefined) =>
-  (value ?? "").trim();
-
-/**
- * Whether this update can reuse the stored embedding instead of paying for a
- * Jina round-trip. All three conditions matter:
- *
- * 1. the description is unchanged — anything else is a new document;
- * 2. an embedding actually exists — a create whose Jina call failed, or a row
- *    inserted by the anonymous merge (which bypasses embed-on-write), must
- *    still get repaired by ordinary editing;
- * 3. it was written by the current model — otherwise notes would stop
- *    migrating when the model is bumped.
- *
- * Conditions 2 and 3 mirror what `listNotesStaleEmbeddingsByUser` treats as
- * needing work, so a skip only ever happens when the stored vector is already
- * what a reindex would produce.
- */
-const canReuseStoredEmbedding = (
-  stored: {
-    description: string | null;
-    has_embedding: boolean;
-    embedding_model: string | null;
-  } | null,
-  nextDescription: string | null | undefined
+const createLabelEntity = async (
+  kind: "category" | "tag",
+  userId: number,
+  workspaceId: number,
+  value: string,
 ) => {
-  if (!stored) return false;
-  if (
-    normalizeDescriptionForCompare(stored.description) !==
-    normalizeDescriptionForCompare(nextDescription)
-  ) {
-    return false;
+  if (!value) throw new Error("label is required.")
+  if (!(await getWorkspaceByIdForUser(userId, workspaceId))) throw new Error("Workspace not found.")
+  // Embedding generation is an external request and may take tens of seconds.
+  // Finish it before checking out a client so the small DB pool remains
+  // available to ordinary note reads and writes while that request is pending.
+  const e = await createTagLabelEmbedding(value)
+  const client = await getDb().connect()
+  try {
+    await client.query("BEGIN")
+    const id =
+      kind === "category"
+        ? await resolveCategoryIdForWorkspace(client, workspaceId, value)
+        : await resolveTagIdForWorkspace(client, workspaceId, value)
+    if (!id) throw new Error("Failed to resolve label.")
+    const table = kind === "category" ? "workspace_note_category_v1" : "workspace_note_tag_v1"
+    const column = kind === "category" ? "category_embedding" : "tag_embedding"
+    await client.query(
+      `UPDATE public.${table} SET ${column}=$1::vector,embedding_model=$2,embedding_updated_at=$3 WHERE id=$4 AND workspace_id=$5`,
+      [
+        e.vectorLiteral,
+        e.embeddingModel,
+        e.embeddingModel ? new Date().toISOString() : null,
+        id,
+        workspaceId,
+      ],
+    )
+    await client.query("COMMIT")
+    return id
+  } catch (e) {
+    await client.query("ROLLBACK")
+    throw e
+  } finally {
+    client.release()
   }
-  // An empty description has no embedding by design; there is nothing to reuse
-  // and nothing to write.
-  if (normalizeDescriptionForCompare(nextDescription) === "") {
-    return stored.embedding_model === null && !stored.has_embedding;
-  }
-  return stored.has_embedding && stored.embedding_model === CURRENT_NOTE_EMBEDDING_MODEL;
-};
-
+}
+export const createCategoryForNotesApp = async (
+  r: CreateCategoryRequest,
+): Promise<CreateCategoryResponse> => {
+  const id = await createLabelEntity("category", r.userId, r.workspaceId, r.label)
+  const category = await getCategoryByIdForWorkspace(r.userId, r.workspaceId, id)
+  if (!category) throw new Error("Failed to load category.")
+  return { category }
+}
+export const createTagForNotesApp = async (r: CreateTagRequest): Promise<CreateTagResponse> => {
+  const id = await createLabelEntity("tag", r.userId, r.workspaceId, r.label)
+  const tag = await getTagByIdForWorkspace(r.userId, r.workspaceId, id)
+  if (!tag) throw new Error("Failed to load tag.")
+  return { tag }
+}
+export const createStatusForNotesApp = async (r: CreateStatusRequest): Promise<StatusResponse> => {
+  if (!r.label) throw new Error("label is required.")
+  const status = await createStatusForWorkspace(r.userId, r.workspaceId, r.label)
+  if (!status) throw new Error("Workspace not found.")
+  return { status }
+}
+export const updateCategoryForNotesApp = async (
+  r: UpdateCategoryRequest,
+): Promise<UpdateCategoryResponse | null> => {
+  if (!r.label) throw new Error("label is required.")
+  const e = await createTagLabelEmbedding(r.label)
+  const category = await updateCategoryLabelForWorkspace(
+    r.userId,
+    r.workspaceId,
+    r.categoryId,
+    r.label,
+    e.vectorLiteral,
+    e.embeddingModel,
+  )
+  return category ? { category } : null
+}
+export const updateTagForNotesApp = async (
+  r: UpdateTagRequest,
+): Promise<UpdateTagResponse | null> => {
+  if (!r.label) throw new Error("label is required.")
+  const e = await createTagLabelEmbedding(r.label)
+  const tag = await updateTagLabelForWorkspace(
+    r.userId,
+    r.workspaceId,
+    r.tagId,
+    r.label,
+    e.vectorLiteral,
+    e.embeddingModel,
+  )
+  return tag ? { tag } : null
+}
+export const updateStatusForNotesApp = async (
+  r: UpdateStatusRequest,
+): Promise<StatusResponse | null> => {
+  if (!r.label) throw new Error("label is required.")
+  const status = await updateStatusForWorkspace(
+    r.userId,
+    r.workspaceId,
+    r.statusId,
+    r.label,
+    r.position,
+  )
+  return status ? { status } : null
+}
+export const deleteCategoryForNotesApp = async (
+  r: DeleteCategoryRequest,
+): Promise<DeleteCategoryResponse | null> =>
+  (await deleteCategoryForWorkspace(r.userId, r.workspaceId, r.categoryId)) ? { ok: true } : null
+export const deleteTagForNotesApp = async (
+  r: DeleteTagRequest,
+): Promise<DeleteTagResponse | null> => {
+  const count = await deleteTagForWorkspace(r.userId, r.workspaceId, r.tagId)
+  return count === null ? null : { ok: true, deletedLinks: count }
+}
+export const deleteStatusForNotesApp = async (
+  r: DeleteStatusRequest,
+): Promise<DeleteResponse | null> =>
+  (await deleteStatusForWorkspace(r.userId, r.workspaceId, r.statusId)) ? { ok: true } : null
+export const createNoteForNotesApp = async (r: CreateNoteRequest): Promise<NoteResponse> => ({
+  note: await createNoteForUser(
+    r.userId,
+    r.note,
+    await createNoteEmbeddingInput({ description: r.note.description }),
+  ),
+})
+const normalized = (v: string | null | undefined) => (v ?? "").trim()
+const canReuse = (
+  s: { description: string | null; has_embedding: boolean; embedding_model: string | null } | null,
+  d: string,
+) =>
+  !!s &&
+  normalized(s.description) === normalized(d) &&
+  (normalized(d) === ""
+    ? s.embedding_model === null && !s.has_embedding
+    : s.has_embedding && s.embedding_model === CURRENT_NOTE_EMBEDDING_MODEL)
 export const updateNoteForNotesApp = async (
-  request: UpdateNoteRequest
+  r: ReturnType<typeof parseUpdateNoteRequest>,
 ): Promise<NoteResponse | null> => {
-  const stored = await selectNoteEmbeddingStateById(
-    request.noteId,
-    request.userId
-  );
-
-  // Sidebar moves and due-date edits are description-preserving, and they were
-  // previously paying for a full re-embed.
-  const reuseStored = canReuseStoredEmbedding(stored, request.note.description);
-
-  if (reuseStored) {
+  const stored = await selectNoteEmbeddingStateById(r.noteId, r.userId)
+  if (canReuse(stored, r.note.description)) {
     const note = await updateNoteForUser(
-      request.noteId,
-      request.userId,
-      request.note,
+      r.noteId,
+      r.userId,
+      r.note,
       null,
-      stored?.description ?? null
-    );
-
-    // The row still matched the description the skip was decided from, so the
-    // stored vector genuinely describes the stored text.
-    if (note) return { note };
-
-    // Either the note is gone or another client changed its description
-    // between the read above and this write. Falling through re-embeds, which
-    // is correct in the first case (it simply finds nothing) and required in
-    // the second, where reusing the old vector would leave the note and its
-    // embedding describing different text.
+      stored?.description ?? null,
+    )
+    if (note) return { note }
   }
-
-  const embeddings = await createNoteEmbeddingInput({
-    description: request.note.description,
-  });
   const note = await updateNoteForUser(
-    request.noteId,
-    request.userId,
-    request.note,
-    embeddings
-  );
-
-  return note ? { note } : null;
-};
-
+    r.noteId,
+    r.userId,
+    r.note,
+    await createNoteEmbeddingInput({ description: r.note.description }),
+  )
+  return note ? { note } : null
+}
 export const deleteNoteForNotesApp = async (
-  request: DeleteNoteRequest
-): Promise<DeleteResponse | null> => {
-  const deleted = await deleteNoteForUser(request.noteId, request.userId);
-
-  return deleted ? { ok: true } : null;
-};
-
-export const searchNotesForNotesApp = async (
-  request: SearchRequest
-): Promise<SearchResponse> => {
-  const queryEmbedding = await createQueryEmbedding(request.query);
-  const results = await searchNotesByEmbedding(
-    request.userId,
-    queryEmbedding,
-    request.limit
-  );
-
-  return { results };
-};
+  r: DeleteNoteRequest,
+): Promise<DeleteResponse | null> =>
+  (await deleteNoteForUser(r.noteId, r.userId)) ? { ok: true } : null
+export const searchNotesForNotesApp = async (r: SearchRequest): Promise<SearchResponse> => ({
+  results: await searchNotesByEmbedding(
+    r.userId,
+    r.workspaceId,
+    await createQueryEmbedding(r.query),
+    r.limit,
+  ),
+})
 
 export const maintainNoteEmbeddingsForNotesApp = async (
-  request: EmbeddingMaintenanceRequest
+  r: EmbeddingMaintenanceRequest,
 ): Promise<EmbeddingMaintenanceResponse> => {
-  const categories =
-    request.mode === NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE
-      ? await listCategoriesStaleEmbeddingsByUser(request.userId, request.limit)
-      : await listCategoriesMissingEmbeddingsByUser(request.userId, request.limit);
-
-  let categoriesUpdated = 0;
-
-  if (categories.length > 0) {
-    const categoryJobs = await createBackfillTagEmbeddings(categories);
-
-    for (const job of categoryJobs) {
-      await updateCategoryEmbeddingById(
-        job.tagId,
-        request.userId,
-        job.vectorLiteral,
-        job.embeddingModel
-      );
-    }
-
-    categoriesUpdated = categoryJobs.length;
+  const stale = r.mode === "stale"
+  const categories = await (
+    stale ? listCategoriesStaleEmbeddingsByUser : listCategoriesMissingEmbeddingsByUser
+  )(r.userId, r.limit)
+  let categoriesUpdated = 0
+  for (const job of await createBackfillTagEmbeddings(categories)) {
+    if (
+      await updateCategoryEmbeddingById(r.userId, job.tagId, job.vectorLiteral, job.embeddingModel)
+    )
+      categoriesUpdated++
   }
-
-  const tags =
-    request.mode === NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE
-      ? await listTagsStaleEmbeddingsByUser(request.userId, request.limit)
-      : await listTagsMissingEmbeddingsByUser(request.userId, request.limit);
-
-  let tagsUpdated = 0;
-
-  if (tags.length > 0) {
-    const tagJobs = await createBackfillTagEmbeddings(tags);
-
-    for (const job of tagJobs) {
-      await updateTagEmbeddingById(
-        job.tagId,
-        request.userId,
-        job.vectorLiteral,
-        job.embeddingModel
-      );
-    }
-
-    tagsUpdated = tagJobs.length;
+  const tags = await (stale ? listTagsStaleEmbeddingsByUser : listTagsMissingEmbeddingsByUser)(
+    r.userId,
+    r.limit,
+  )
+  let tagsUpdated = 0
+  for (const job of await createBackfillTagEmbeddings(tags)) {
+    if (await updateTagEmbeddingById(r.userId, job.tagId, job.vectorLiteral, job.embeddingModel))
+      tagsUpdated++
   }
-
-  const notes =
-    request.mode === NOTES_APP_EMBEDDING_MAINTENANCE_STALE_MODE
-      ? await listNotesStaleEmbeddingsByUser(request.userId, request.limit)
-      : await listNotesMissingEmbeddingsByUser(request.userId, request.limit);
-
-  if (notes.length === 0 && tagsUpdated === 0 && categoriesUpdated === 0) {
-    return {
-      mode: request.mode,
-      processed: 0,
-      updated: 0,
-      categoriesUpdated: 0,
-      tagsUpdated: 0,
-      hasMore: false,
-    };
+  const notes = await (stale ? listNotesStaleEmbeddingsByUser : listNotesMissingEmbeddingsByUser)(
+    r.userId,
+    r.limit,
+  )
+  let updated = 0
+  for (const job of await createBackfillEmbeddingInputs(notes)) {
+    await updateNoteEmbeddingsForUser(job.noteId, r.userId, job.input)
+    updated++
   }
-
-  let notesUpdated = 0;
-
-  if (notes.length > 0) {
-    const jobs = await createBackfillEmbeddingInputs(notes);
-
-    for (const job of jobs) {
-      await updateNoteEmbeddingsForUser(job.noteId, request.userId, job.input);
-    }
-
-    notesUpdated = jobs.length;
-  }
-
   return {
-    mode: request.mode,
+    mode: r.mode,
     processed: notes.length,
-    updated: notesUpdated,
+    updated,
     categoriesUpdated,
     tagsUpdated,
-    hasMore:
-      notes.length === request.limit ||
-      tags.length === request.limit ||
-      categories.length === request.limit,
-  };
-};
-
-export const createAnonymousNotesAppSession = async (): Promise<SessionResponse> => {
-  const user = await createAnonymousUser();
-  return { user };
-};
-
-export const claimAnonymousNotesAppSession = async (request: {
-  anonUserId: number;
-  username: string;
-  password: string;
-  email?: string;
-}): Promise<SessionResponse> => {
-  const user = await claimAnonymousUser(request.anonUserId, {
-    username: request.username,
-    password: request.password,
-    email: request.email,
-  });
-
-  return { user };
-};
-
-export const mergeAnonymousNotesAppSession = async (request: {
-  anonUserId: number;
-  realUserId: number;
-}): Promise<SessionResponse> => {
-  await mergeAnonymousUserInto(request.anonUserId, request.realUserId);
-
-  // Categories/tags inserted by the merge bypass the embed-on-write service
-  // paths, so their embeddings are NULL and they would be invisible to
-  // semantic search until maintenance runs. Backfill them now, best-effort:
-  // the merge has already committed and must stay successful even when Jina
-  // is unconfigured (missing JINA_API_KEY) or unavailable.
-  try {
-    await maintainNoteEmbeddingsForNotesApp({
-      userId: request.realUserId,
-      mode: NOTES_APP_EMBEDDING_MAINTENANCE_MISSING_MODE,
-      limit: 100,
-    });
-  } catch (error) {
-    console.warn(
-      `Embedding backfill after anonymous merge failed for user ${request.realUserId}; ` +
-        "merged categories/tags stay unsearchable until embedding maintenance runs.",
-      error
-    );
+    hasMore: [categories.length, tags.length, notes.length].some((n) => n === r.limit),
   }
-
-  const user = await getUserById(request.realUserId);
-  if (!user) {
-    throw new Error("Real user not found after merge.");
-  }
-
-  return { user };
-};
+}
+export const createAnonymousNotesAppSession = async (): Promise<SessionResponse> => ({
+  user: await createAnonymousUser(),
+})
+export const claimAnonymousNotesAppSession = async (r: {
+  anonUserId: number
+  username: string
+  password: string
+  email?: string
+}): Promise<SessionResponse> => ({
+  user: await claimAnonymousUser(r.anonUserId, {
+    username: r.username,
+    password: r.password,
+    email: r.email,
+  }),
+})
+export const mergeAnonymousNotesAppSession = async (r: {
+  anonUserId: number
+  realUserId: number
+}): Promise<SessionResponse> => {
+  await mergeAnonymousUserInto(r.anonUserId, r.realUserId)
+  const user = await getUserById(r.realUserId)
+  if (!user) throw new Error("Real user not found after merge.")
+  return { user }
+}
 
 export const notesAppService = {
   getNotesAppErrorStatus,
@@ -1055,15 +655,22 @@ export const notesAppService = {
   getNotesAppUserIdForToken,
   revokeNotesAppToken,
   updateNotesAppUserPreferences,
+  listWorkspacesForNotesApp,
+  createWorkspaceForNotesApp,
+  updateWorkspaceForNotesApp,
+  deleteWorkspaceForNotesApp,
   listNotesForNotesApp,
   listCategoriesForNotesApp,
+  listStatusesForNotesApp,
   listTagsForNotesApp,
   createCategoryForNotesApp,
+  createStatusForNotesApp,
   createTagForNotesApp,
   updateCategoryForNotesApp,
+  updateStatusForNotesApp,
   updateTagForNotesApp,
   deleteCategoryForNotesApp,
-  deleteCategoryWithNotesForNotesApp,
+  deleteStatusForNotesApp,
   deleteTagForNotesApp,
   createNoteForNotesApp,
   updateNoteForNotesApp,
@@ -1073,11 +680,6 @@ export const notesAppService = {
   createAnonymousNotesAppSession,
   claimAnonymousNotesAppSession,
   mergeAnonymousNotesAppSession,
-};
-
-export type NotesAppService = typeof notesAppService;
-
-export {
-  EmbeddingConfigurationError,
-  EmbeddingRequestError,
-} from "./notes-embeddings";
+}
+export type NotesAppService = typeof notesAppService
+export { EmbeddingConfigurationError, EmbeddingRequestError } from "./notes-embeddings"

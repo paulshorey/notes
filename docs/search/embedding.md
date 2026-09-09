@@ -14,13 +14,14 @@ ranks notes by cosine similarity between the query vector and stored vectors.
 
 Embeddings are stored on three entity types:
 
-| Entity   | Table                   | Embedded text | Column                  |
-| -------- | ----------------------- | ------------- | ----------------------- |
-| Note     | `user_note_v1`          | `description` | `description_embedding` |
-| Category | `user_note_category_v1` | `label`       | `category_embedding`    |
-| Tag      | `user_note_tag_v1`      | `label`       | `tag_embedding`         |
+| Entity   | Table                        | Embedded text | Column                  |
+| -------- | ---------------------------- | ------------- | ----------------------- |
+| Note     | `user_note_v1`               | `description` | `description_embedding` |
+| Category | `workspace_note_category_v1` | `label`       | `category_embedding`    |
+| Tag      | `workspace_note_tag_v1`      | `label`       | `tag_embedding`         |
 
-Every note belongs to exactly one category and may have zero or more tags.
+Every note belongs to one workspace, may have zero or more categories, may have
+one status, and may have zero or more tags.
 Category and tag labels are still embedded on write, but search ranking uses
 only the note's description embedding.
 
@@ -76,7 +77,7 @@ CREATE INDEX ... USING hnsw (tag_embedding vector_cosine_ops);
 ```
 
 These indexes support fast top-k nearest-neighbor queries on a single column.
-The current search query in `sql/note/gets.ts` scans all of a user's notes,
+The current search query in `sql/note/gets.ts` scans the active workspace's notes,
 compares each note's `description_embedding` to the query, and sorts in SQL.
 This is appropriate for per-user note counts but would need revisiting if
 cross-user or very large per-user search becomes a requirement.
@@ -123,7 +124,7 @@ Relevant columns on each table:
 | `embedding_model`       | `text`         | model version tag |
 | `embedding_updated_at`  | `timestamptz`  | last write        |
 
-### `user_note_category_v1`
+### `workspace_note_category_v1`
 
 | Column                 | Type           | Source text       |
 | ---------------------- | -------------- | ----------------- |
@@ -131,7 +132,7 @@ Relevant columns on each table:
 | `embedding_model`      | `text`         | model version tag |
 | `embedding_updated_at` | `timestamptz`  | last write        |
 
-### `user_note_tag_v1`
+### `workspace_note_tag_v1`
 
 | Column                 | Type           | Source text       |
 | ---------------------- | -------------- | ----------------- |
@@ -289,8 +290,8 @@ excluded.
 }
 ```
 
-| Field        | Meaning                                                  |
-| ------------ | -------------------------------------------------------- |
+| Field        | Meaning                                                        |
+| ------------ | -------------------------------------------------------------- |
 | `similarity` | Query ↔ note description cosine similarity (used for ranking) |
 
 ## Client behavior

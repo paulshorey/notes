@@ -115,58 +115,6 @@
   filter: brightness(0.95);
 }
 
-.categoryPicker {
-  position: relative;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.categoryTrigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  max-width: min(280px, 40vw);
-  gap: 3px;
-  margin: 0;
-  padding: 2px 0;
-  border: none;
-  background: none;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  font-size: 1rem;
-  line-height: inherit;
-  text-align: right;
-}
-
-.categoryTrigger:hover,
-.categoryTrigger:hover .categoryTriggerValue {
-  /* background: var(--g-color-base-generic-hover, rgba(255, 255, 255, 0.08)); */
-  color: var(--g-color-text-link-hover, #7abaff);
-}
-
-.categoryTrigger:focus-visible {
-  border-radius: 4px;
-  outline: 2px solid var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
-  outline-offset: 2px;
-}
-
-.categoryTrigger:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.categoryTriggerLabel {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.categoryTriggerValue {
-  color: var(--g-color-text-link);
-}
-
 .selectedTag {
   display: inline-flex;
   align-items: center;
@@ -232,10 +180,32 @@
 }
 
 .moreTrigger {
+  display: inline-flex;
+  align-items: center;
   width: 24px;
   max-width: 24px;
   justify-content: center;
+  margin: 0;
   padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.moreTrigger:hover {
+  color: var(--g-color-text-link-hover, #7abaff);
+}
+
+.moreTrigger:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
+  outline-offset: 2px;
+}
+
+.moreTrigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .morePanel {
@@ -331,7 +301,6 @@
     gap: 6px;
   }
 
-  .categoryTrigger,
   .selectedTag {
     max-width: calc(100vw - 28px);
   }

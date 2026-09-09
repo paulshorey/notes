@@ -3,6 +3,7 @@ import type { NoteRef } from "@/stores/openNotes"
 
 export const snapshotNoteForm = (form: NoteFormState): NoteFormState => ({
   ...form,
+  selectedCategoryIds: [...form.selectedCategoryIds],
   selectedTagIds: [...form.selectedTagIds],
 })
 
@@ -16,21 +17,23 @@ export const snapshotNoteForm = (form: NoteFormState): NoteFormState => ({
 export const serializeNoteDraft = (noteId: NoteRef | null, form: NoteFormState) =>
   JSON.stringify({
     noteId,
-    categoryId: form.selectedCategoryId,
+    categoryIds: [...form.selectedCategoryIds].sort((left, right) => left - right),
+    statusId: form.selectedStatusId,
     tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
     description: form.description,
     timeDue: form.dueExpanded ? form.timeDue : null,
     timeRemind: form.remindExpanded ? form.timeRemind : null,
   })
 
-export const noteRequestBody = (form: NoteFormState) => ({
-  categoryId: form.selectedCategoryId,
-  tagIds: form.selectedTagIds,
+export const noteRequestBody = (form: NoteFormState, workspaceId: number) => ({
+  workspaceId,
+  categoryIds: [...form.selectedCategoryIds].sort((left, right) => left - right),
+  statusId: form.selectedStatusId,
+  tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
   description: form.description,
   timeDue: form.dueExpanded ? form.timeDue : null,
   timeRemind: form.remindExpanded ? form.timeRemind : null,
 })
 
 /** Whether an entry holds anything worth sending to the server. */
-export const isSaveableForm = (form: NoteFormState) =>
-  form.description.trim() !== "" && form.selectedCategoryId !== null
+export const isSaveableForm = (form: NoteFormState) => form.description.trim() !== ""

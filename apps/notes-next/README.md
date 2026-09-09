@@ -4,10 +4,11 @@
 
 ## Environment variables
 
-| Variable       | Required | Purpose                                                 |
-| -------------- | -------- | ------------------------------------------------------- |
-| `DB_NOTES_URL` | Yes      | PostgreSQL connection string for Notes                  |
-| `JINA_API_KEY` | Yes      | Jina embeddings key for semantic search and maintenance |
+| Variable       | Required | Purpose                                                                                |
+| -------------- | -------- | -------------------------------------------------------------------------------------- |
+| `DB_NOTES_URL` | Yes      | PostgreSQL connection string for Notes                                                 |
+| `JINA_API_KEY` | Yes      | Jina embeddings key for semantic search and maintenance                                |
+| `PG_POOL_MAX`  | No       | Process-wide PostgreSQL connection limit; defaults to `1` for remote-proxy reliability |
 
 Create `apps/notes-next/.env.local` or export the values in your shell:
 
@@ -26,7 +27,12 @@ pnpm --filter notes-next dev
 
 The app runs at `http://localhost:3000`.
 
-On startup, returning sessions are seeded by the server and the UI loads its initial session, notes, categories, and tags through `GET /api/bootstrap`. A database or network failure shows a retryable error instead of repeatedly issuing requests. The service worker is disabled and cleaned up on local hosts so old app shells or development chunks cannot survive a server restart.
+For a read-only check of the current checkout, app health, database target, and
+migration ledger, run `pnpm run diagnose:notes` from the repository root. The
+full environment matrix and Railway troubleshooting flow are in
+[`docs/operations/notes-environments.md`](../../docs/operations/notes-environments.md).
+
+On startup, returning sessions are seeded by the server and the UI loads the user's workspace list plus one active workspace's notes, categories, statuses, and tags through `GET /api/bootstrap`. A database or network failure shows a retryable error instead of repeatedly issuing requests. The service worker is disabled and cleaned up on local hosts so old app shells or development chunks cannot survive a server restart.
 
 ## Relevant scripts
 
@@ -44,10 +50,13 @@ This package only validates the Notes contract. It does not own migration script
 
 | Method                | Path                                | Purpose                                       |
 | --------------------- | ----------------------------------- | --------------------------------------------- |
-| GET                   | `/api/bootstrap`                    | Load authenticated web startup data           |
+| GET                   | `/api/bootstrap`                    | Load workspaces and the active workspace      |
 | GET/POST              | `/api/session`                      | Look up user by userId or login by identifier |
 | GET/POST/PATCH/DELETE | `/api/notes`                        | List, create, update, delete notes            |
-| GET/POST              | `/api/tags`                         | List, create tags                             |
+| GET/POST/PATCH/DELETE | `/api/categories`                   | Manage workspace categories                   |
+| GET/POST/PATCH/DELETE | `/api/statuses`                     | Manage workspace statuses                     |
+| GET/POST/PATCH/DELETE | `/api/tags`                         | Manage workspace tags                         |
+| GET/POST/PATCH/DELETE | `/api/workspaces`                   | Manage user workspaces                        |
 | POST                  | `/api/notes/search`                 | Semantic search                               |
 | POST                  | `/api/notes/maintenance/embeddings` | Backfill or repair stale embeddings           |
 | GET                   | `/api/health`                       | Railway liveness probe                        |
@@ -62,14 +71,15 @@ When promoting Notes to production:
    pnpm run release:notes:prepare
    ```
 
-2. Run Notes DB migrations through `lib/db-notes`:
+2. Deploy `apps/notes-next` on Railway. Railway runs the package-owned migration command before activating the release:
 
    ```bash
-   pnpm run db:migrate
+   pnpm --filter @lib/db-notes db:migrate
    ```
 
-3. Deploy `apps/notes-next` on Railway.
-4. If search data is stale after the deploy, run `pnpm run db:embeddings:regenerate` or call the maintenance endpoint:
+   A failed migration blocks deployment, and the health endpoint rejects a connected but outdated database. Run `pnpm run db:migrate` manually only for local/shared development or an intentional target-database preflight.
+
+3. If search data is stale after the deploy, run `pnpm run db:embeddings:regenerate` or call the maintenance endpoint:
 
    ```text
    POST /api/notes/maintenance/embeddings

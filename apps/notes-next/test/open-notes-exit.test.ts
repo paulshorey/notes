@@ -17,7 +17,7 @@ import {
 const formWith = (description: string, categoryId: number | null = 7): NoteFormState => ({
   ...createDefaultNoteForm(),
   description,
-  selectedCategoryId: categoryId,
+  selectedCategoryIds: categoryId === null ? [] : [categoryId],
 })
 
 const entry = (
@@ -48,10 +48,9 @@ const entry = (
 const isDirty = (item: OpenNoteEntry) =>
   JSON.stringify({ d: item.form.description }) !== item.savedSignature
 
-const isSaveable = (form: NoteFormState) =>
-  form.description.trim() !== "" && form.selectedCategoryId !== null
+const isSaveable = (form: NoteFormState) => form.description.trim() !== ""
 
-test("session flush ignores an untouched default-group draft but keeps real work", () => {
+test("session flush ignores an untouched default-category draft but keeps real work", () => {
   const untouchedDefaultDraft = entry("draft:0", null, "", null)
   const dirtySavedNote = entry("note:1", 1, "edited", "original")
   const blockedDraft = {
@@ -67,7 +66,7 @@ test("session flush ignores an untouched default-group draft but keeps real work
       isDirty,
     ).map((item) => item.key),
     ["note:1", "draft:2"],
-    "started drafts stay guarded even when their missing group prevents a save",
+    "started drafts stay guarded even when their missing workspace prevents a save",
   )
 })
 

@@ -7,6 +7,8 @@ import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.NoteTagRef
 import com.eighthbrain.notesandroid.app.model.SemanticSearchResult
 import com.eighthbrain.notesandroid.app.model.TagRecord
+import com.eighthbrain.notesandroid.app.model.StatusRecord
+import com.eighthbrain.notesandroid.app.model.WorkspaceRecord
 import com.eighthbrain.notesandroid.app.model.UserPreferences
 import com.eighthbrain.notesandroid.app.model.UserSummary
 import org.json.JSONArray
@@ -87,7 +89,7 @@ fun userFromJson(json: JSONObject): UserSummary =
 fun categoryToJson(category: CategoryRecord): JSONObject =
     JSONObject()
         .put("id", category.id)
-        .put("userId", category.userId)
+        .put("workspaceId", category.workspaceId)
         .put("label", category.label)
         .put("noteCount", category.noteCount)
         .put("lastUsedAt", category.lastUsedAt)
@@ -95,7 +97,7 @@ fun categoryToJson(category: CategoryRecord): JSONObject =
 fun categoryFromJson(json: JSONObject): CategoryRecord =
     CategoryRecord(
         id = json.getInt("id"),
-        userId = json.getInt("userId"),
+        workspaceId = json.getInt("workspaceId"),
         label = json.getString("label"),
         noteCount = json.optInt("noteCount", 0),
         lastUsedAt = json.stringOrNull("lastUsedAt"),
@@ -104,7 +106,7 @@ fun categoryFromJson(json: JSONObject): CategoryRecord =
 fun tagToJson(tag: TagRecord): JSONObject =
     JSONObject()
         .put("id", tag.id)
-        .put("userId", tag.userId)
+        .put("workspaceId", tag.workspaceId)
         .put("label", tag.label)
         .put("noteCount", tag.noteCount)
         .put("lastUsedAt", tag.lastUsedAt)
@@ -112,8 +114,42 @@ fun tagToJson(tag: TagRecord): JSONObject =
 fun tagFromJson(json: JSONObject): TagRecord =
     TagRecord(
         id = json.getInt("id"),
+        workspaceId = json.getInt("workspaceId"),
+        label = json.getString("label"),
+        noteCount = json.optInt("noteCount", 0),
+        lastUsedAt = json.stringOrNull("lastUsedAt"),
+    )
+
+fun workspaceToJson(workspace: WorkspaceRecord): JSONObject =
+    JSONObject()
+        .put("id", workspace.id)
+        .put("userId", workspace.userId)
+        .put("label", workspace.label)
+        .put("noteCount", workspace.noteCount)
+
+fun workspaceFromJson(json: JSONObject): WorkspaceRecord =
+    WorkspaceRecord(
+        id = json.getInt("id"),
         userId = json.getInt("userId"),
         label = json.getString("label"),
+        noteCount = json.optInt("noteCount", 0),
+    )
+
+fun statusToJson(status: StatusRecord): JSONObject =
+    JSONObject()
+        .put("id", status.id)
+        .put("workspaceId", status.workspaceId)
+        .put("label", status.label)
+        .put("position", status.position)
+        .put("noteCount", status.noteCount)
+        .put("lastUsedAt", status.lastUsedAt)
+
+fun statusFromJson(json: JSONObject): StatusRecord =
+    StatusRecord(
+        id = json.getInt("id"),
+        workspaceId = json.getInt("workspaceId"),
+        label = json.getString("label"),
+        position = json.getInt("position"),
         noteCount = json.optInt("noteCount", 0),
         lastUsedAt = json.stringOrNull("lastUsedAt"),
     )
@@ -135,19 +171,9 @@ private fun noteCategoryRefFromJson(json: JSONObject): NoteCategoryRef =
         label = json.getString("label"),
     )
 
-private fun noteCategoryRefFromLegacyJson(json: JSONObject): NoteCategoryRef =
-    NoteCategoryRef(
-        id = json.getInt("id"),
-        label = json.getString("label"),
-    )
-
 private fun tagsArrayFromJson(json: JSONObject): List<NoteTagRef> {
-    val array =
-        when {
-            json.has("tags") && !json.isNull("tags") -> json.getJSONArray("tags")
-            json.has("categories") && !json.isNull("categories") -> json.getJSONArray("categories")
-            else -> return emptyList()
-        }
+    if (!json.has("tags") || json.isNull("tags")) return emptyList()
+    val array = json.getJSONArray("tags")
     return buildList {
         for (index in 0 until array.length()) {
             add(noteTagRefFromJson(array.getJSONObject(index)))
@@ -155,18 +181,18 @@ private fun tagsArrayFromJson(json: JSONObject): List<NoteTagRef> {
     }
 }
 
-private fun categoryFromNoteJson(json: JSONObject): NoteCategoryRef {
-    if (json.has("category") && !json.isNull("category")) {
-        return noteCategoryRefFromJson(json.getJSONObject("category"))
-    }
-    if (json.has("categories") && !json.isNull("categories")) {
-        val categories = json.getJSONArray("categories")
-        if (categories.length() > 0) {
-            return noteCategoryRefFromLegacyJson(categories.getJSONObject(0))
+private fun categoriesArrayFromJson(json: JSONObject): List<NoteCategoryRef> {
+    if (!json.has("categories") || json.isNull("categories")) return emptyList()
+    val array = json.getJSONArray("categories")
+    return buildList {
+        for (index in 0 until array.length()) {
+            add(noteCategoryRefFromJson(array.getJSONObject(index)))
         }
     }
-    return NoteCategoryRef(id = -1, label = "Unknown")
 }
+
+private fun statusFromNoteJson(json: JSONObject): NoteCategoryRef? =
+    if (json.isNull("status")) null else noteCategoryRefFromJson(json.getJSONObject("status"))
 
 private fun <T> safeDecodeList(
     raw: String?,
@@ -184,6 +210,8 @@ private fun <T> safeDecodeList(
 }
 
 fun noteToJson(note: NoteRecord): JSONObject {
+    val categoriesJson = JSONArray()
+    note.categories.forEach { categoriesJson.put(noteCategoryRefToJson(it)) }
     val tagsJson = JSONArray()
     note.tags.forEach { ref ->
         tagsJson.put(
@@ -194,8 +222,9 @@ fun noteToJson(note: NoteRecord): JSONObject {
     }
     return JSONObject()
         .put("id", note.id)
-        .put("userId", note.userId)
-        .put("category", noteCategoryRefToJson(note.category))
+        .put("workspaceId", note.workspaceId)
+        .put("categories", categoriesJson)
+        .put("status", note.status?.let(::noteCategoryRefToJson))
         .put("tags", tagsJson)
         .put("description", note.description)
         .put("timeDue", note.timeDue)
@@ -207,8 +236,9 @@ fun noteToJson(note: NoteRecord): JSONObject {
 fun noteFromJson(json: JSONObject): NoteRecord =
     NoteRecord(
         id = json.getInt("id"),
-        userId = json.getInt("userId"),
-        category = categoryFromNoteJson(json),
+        workspaceId = json.getInt("workspaceId"),
+        categories = categoriesArrayFromJson(json),
+        status = statusFromNoteJson(json),
         tags = tagsArrayFromJson(json),
         description = json.stringOrNull("description"),
         timeDue = json.stringOrNull("timeDue"),
@@ -266,6 +296,26 @@ fun categoriesFromJson(raw: String?): List<CategoryRecord> {
         }
     }
 }
+
+fun workspacesToJson(workspaces: List<WorkspaceRecord>): String =
+    JSONArray().apply { workspaces.forEach { put(workspaceToJson(it)) } }.toString()
+
+fun workspacesFromJson(raw: String?): List<WorkspaceRecord> =
+    safeDecodeList(raw) { array ->
+        buildList {
+            for (index in 0 until array.length()) add(workspaceFromJson(array.getJSONObject(index)))
+        }
+    }
+
+fun statusesToJson(statuses: List<StatusRecord>): String =
+    JSONArray().apply { statuses.forEach { put(statusToJson(it)) } }.toString()
+
+fun statusesFromJson(raw: String?): List<StatusRecord> =
+    safeDecodeList(raw) { array ->
+        buildList {
+            for (index in 0 until array.length()) add(statusFromJson(array.getJSONObject(index)))
+        }
+    }
 
 fun searchResultsToJson(results: List<SemanticSearchResult>): String =
     JSONArray().apply { results.forEach { put(searchResultToJson(it)) } }.toString()

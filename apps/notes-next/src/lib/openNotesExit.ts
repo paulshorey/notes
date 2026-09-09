@@ -26,10 +26,10 @@ export interface ExitFlushItem {
  * Dirty ring entries that must land before the acting session changes.
  *
  * A new draft starts with `savedSignature: null`, so assigning its default
- * group makes the untouched editor technically dirty even though it contains
+ * category makes the untouched editor technically dirty even though it contains
  * nothing to persist. Trying to save that slot returns false and would block
  * sign-in, sign-up, and sign-out. Started drafts remain included — even when
- * they have no group and cannot save — so the caller still refuses to replace
+ * they have no workspace and cannot save — so the caller still refuses to replace
  * the session rather than lose their content.
  */
 export const collectSessionFlushEntries = (
@@ -107,5 +107,4 @@ export const collectExitFlushItems = (
 export const selectKeepaliveExitItems = (
   items: ExitFlushItem[],
   alreadySent: ReadonlySet<OpenNoteKey>,
-): ExitFlushItem[] =>
-  items.filter((item) => item.noteId !== null && !alreadySent.has(item.key))
+): ExitFlushItem[] => items.filter((item) => item.noteId !== null && !alreadySent.has(item.key))

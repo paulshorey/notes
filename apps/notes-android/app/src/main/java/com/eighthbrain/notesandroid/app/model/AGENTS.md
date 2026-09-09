@@ -4,11 +4,12 @@ Shared domain types and formatting helpers used by the main app, overlay activit
 
 ## File map
 
-- `Models.kt` - core data classes (`UserSummary`, `TagRecord`, `NoteRecord`, `SemanticSearchResult`, `AppSnapshot`, `NoteDraft`) plus date parsing, headline/body extraction, sort helpers, and similarity formatting.
+- `Models.kt` - core data classes (`UserSummary`, `WorkspaceRecord`, `CategoryRecord`, `StatusRecord`, `TagRecord`, `NoteRecord`, `SemanticSearchResult`, `AppSnapshot`, `NoteDraft`) plus date parsing, headline/body extraction, sort helpers, and similarity formatting.
 
 ## Non-obvious rules
 
 - `AppSnapshot` is the durable app-state shape saved by `SessionStore`; treat it as the canonical snapshot for persisted data.
+- Android persists one active workspace snapshot. Its editor temporarily exposes the first category as `NoteRecord.category` for compatibility, while API payloads use the canonical category array and nullable status.
 - The field order and types of the contract-backed data classes matter because `tools/validate-notes-contract.mjs` checks them against `@lib/db-notes/generated/contracts/notes-app.json`.
 - `WidgetMode` is persisted with the snapshot, but the current widget list still renders from `snapshot.notes`; Glance-only preferences hold widget UI state like expansion plus category/tag filters.
 - `parseLocalInputToIso(...)` and `isoToLocalInput(...)` define the expected `yyyy-MM-dd'T'HH:mm` editor format; keep note editors and API payloads aligned with these helpers.

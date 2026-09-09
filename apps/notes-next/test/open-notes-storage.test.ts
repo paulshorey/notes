@@ -4,14 +4,51 @@ import type { NoteRecord } from "@lib/db-notes"
 import { serializeNoteDraft } from "../src/lib/noteDraft"
 import { noteToFormState, createDefaultNoteForm } from "../src/types/notes"
 import {
+  readOpenNotesSnapshot,
   reconcileOpenNotes,
+  toSnapshot,
+  upgradeOpenNotesSnapshot,
   type OpenNotesSnapshot,
+  type StoredOpenNotesSnapshot,
 } from "../src/lib/openNotesStorage"
 
-const makeNote = (id: number, description: string, timeModified = "2026-03-01T00:00:00.000Z"): NoteRecord => ({
+class MemoryStorage implements Storage {
+  private readonly values = new Map<string, string>()
+
+  get length() {
+    return this.values.size
+  }
+
+  clear() {
+    this.values.clear()
+  }
+
+  getItem(key: string) {
+    return this.values.get(key) ?? null
+  }
+
+  key(index: number) {
+    return [...this.values.keys()][index] ?? null
+  }
+
+  removeItem(key: string) {
+    this.values.delete(key)
+  }
+
+  setItem(key: string, value: string) {
+    this.values.set(key, value)
+  }
+}
+
+const makeNote = (
+  id: number,
+  description: string,
+  timeModified = "2026-03-01T00:00:00.000Z",
+): NoteRecord => ({
   id,
-  userId: 1,
-  category: { id: 7, label: "inbox" },
+  workspaceId: 1,
+  categories: [{ id: 7, label: "inbox" }],
+  status: null,
   tags: [],
   description,
   timeDue: null,
@@ -28,7 +65,7 @@ const cleanEntry = (note: NoteRecord) => {
     baseTimeModified: note.timeModified,
     form,
     savedSignature: serializeNoteDraft(note.id, form),
-    categoryInputValue: note.category.label,
+    categoryInputValue: note.categories[0]?.label ?? "",
     pendingTagLabels: [],
     openedAt: Date.now(),
     lastActivatedAt: Date.now(),
@@ -41,8 +78,9 @@ const dirtyEntry = (note: NoteRecord, typed: string) => {
 }
 
 const snapshotOf = (entries: OpenNotesSnapshot["entries"]): OpenNotesSnapshot => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   userId: 1,
+  workspaceId: 1,
   activeKey: entries[0]?.key ?? null,
   backStack: [],
   nextDraftSequence: 0,
@@ -130,7 +168,20 @@ test("a form referencing a deleted category is remapped to the fallback", () => 
     fallbackCategoryId: 99,
   })
 
-  assert.equal(state.openNotes[0]?.form.selectedCategoryId, 99)
+  assert.deepEqual(state.openNotes[0]?.form.selectedCategoryIds, [99])
+})
+
+test("a form referencing a deleted status is reset to no status", () => {
+  const note = { ...makeNote(1, "text"), status: { id: 8, label: "todo" } }
+  const { state } = reconcileOpenNotes(snapshotOf([cleanEntry(note)]), lookupFrom([note]), {
+    statusExists: () => false,
+  })
+
+  assert.equal(state.openNotes[0]?.form.selectedStatusId, null)
+  assert.equal(
+    state.openNotes[0]?.savedSignature,
+    serializeNoteDraft(note.id, state.openNotes[0]!.form),
+  )
 })
 
 test("a clean entry untouched for 90 days is dropped", () => {
@@ -209,9 +260,83 @@ test("reconciling twice matches reconciling once", () => {
   )
 })
 
-test("a wrong-user, wrong-version, or malformed snapshot never reaches reconcile", async () => {
-  const { readOpenNotesSnapshot } = await import("../src/lib/openNotesStorage")
+test("legacy single-category snapshots upgrade without making clean entries dirty", () => {
+  const note = makeNote(1, "legacy")
+  const form = noteToFormState(note)
+  const legacyForm = {
+    ...form,
+    selectedCategoryId: form.selectedCategoryIds[0],
+    selectedCategoryIds: undefined,
+    selectedStatusId: undefined,
+  }
+  const legacy = {
+    ...snapshotOf([]),
+    schemaVersion: 1,
+    workspaceId: undefined,
+    entries: [
+      {
+        ...cleanEntry(note),
+        form: legacyForm,
+        savedSignature: JSON.stringify({
+          noteId: note.id,
+          categoryId: 7,
+          tagIds: [],
+          description: "legacy",
+          timeDue: null,
+          timeRemind: null,
+        }),
+      },
+    ],
+  } as unknown as StoredOpenNotesSnapshot
+
+  const upgraded = upgradeOpenNotesSnapshot(legacy, 1, 9)
+  assert.equal(upgraded.workspaceId, 9)
+  assert.deepEqual(upgraded.entries[0]?.form.selectedCategoryIds, [7])
+  assert.equal(
+    upgraded.entries[0]?.savedSignature,
+    serializeNoteDraft(note.id, upgraded.entries[0]!.form),
+  )
+})
+
+test("workspace snapshots carry separate workspace identities", () => {
+  const emptyState = {
+    openNotes: [],
+    activeKey: null,
+    backStack: [],
+    nextDraftSequence: 0,
+  }
+  assert.equal(toSnapshot(1, 10, emptyState).workspaceId, 10)
+  assert.equal(toSnapshot(1, 20, emptyState).workspaceId, 20)
+})
+
+test("a legacy browser snapshot migrates to only the first workspace that reads it", () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window")
+  const localStorage = new MemoryStorage()
+  Object.defineProperty(globalThis, "window", {
+    value: { localStorage },
+    configurable: true,
+  })
+
+  try {
+    const legacy = {
+      ...snapshotOf([]),
+      schemaVersion: 1,
+      workspaceId: undefined,
+    }
+    localStorage.setItem("notes-open-notes-v1", JSON.stringify(legacy))
+
+    assert.equal(readOpenNotesSnapshot(1, 10)?.workspaceId, 10)
+    assert.equal(localStorage.getItem("notes-open-notes-v1"), null)
+    assert.notEqual(localStorage.getItem("notes-open-notes-v2:1:10"), null)
+    assert.equal(readOpenNotesSnapshot(1, 20), null)
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow)
+    else Reflect.deleteProperty(globalThis, "window")
+  }
+})
+
+test("a wrong-user or malformed browser snapshot never reaches reconcile", async () => {
   // No window in the node test runner, so the reader must degrade to null
   // rather than throwing.
-  assert.equal(readOpenNotesSnapshot(1), null)
+  assert.equal(readOpenNotesSnapshot(1, 1), null)
 })

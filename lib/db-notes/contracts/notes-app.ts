@@ -1,241 +1,325 @@
 export interface TokenLoginRequest {
-  identifier: string;
-  password: string;
+  identifier: string
+  password: string
 }
 
 export interface NotesAppPreferences {
-  markdownEditorMode?: string;
-  resultsColumnWidth?: number;
-  pasteUrlAsMarkdown?: boolean;
+  markdownEditorMode?: string
+  resultsColumnWidth?: number
+  pasteUrlAsMarkdown?: boolean
   /** How many notes stay open at once in the web editor. */
-  maxOpenNotes?: number;
+  maxOpenNotes?: number
+  /** Last workspace used by the web app. The server always re-authorizes it. */
+  currentWorkspaceId?: number
 }
 
 export interface UserPreferences {
-  notesApp?: NotesAppPreferences;
+  notesApp?: NotesAppPreferences
 }
 
 export interface UserSummary {
-  id: number;
-  username: string;
-  email: string | null;
-  phone: string | null;
-  preferences: UserPreferences;
+  id: number
+  username: string
+  email: string | null
+  phone: string | null
+  preferences: UserPreferences
 }
 
 export interface CategoryRecord {
-  id: number;
-  userId: number;
-  label: string;
-  noteCount: number;
-  lastUsedAt: string | null;
+  id: number
+  workspaceId: number
+  label: string
+  noteCount: number
+  lastUsedAt: string | null
 }
 
 export interface TagRecord {
-  id: number;
-  userId: number;
-  label: string;
-  noteCount: number;
-  lastUsedAt: string | null;
+  id: number
+  workspaceId: number
+  label: string
+  noteCount: number
+  lastUsedAt: string | null
+}
+
+export interface WorkspaceRecord {
+  id: number
+  userId: number
+  label: string
+  noteCount: number
+}
+
+export interface StatusRecord {
+  id: number
+  workspaceId: number
+  label: string
+  position: number
+  noteCount: number
+  lastUsedAt: string | null
 }
 
 export interface NoteCategoryRef {
-  id: number;
-  label: string;
+  id: number
+  label: string
 }
 
 export interface NoteTagRef {
-  id: number;
-  label: string;
+  id: number
+  label: string
 }
 
 export interface NoteRecord {
-  id: number;
-  userId: number;
-  category: NoteCategoryRef;
-  tags: NoteTagRef[];
-  description: string | null;
-  timeDue: string | null;
-  timeRemind: string | null;
-  timeCreated: string;
-  timeModified: string;
+  id: number
+  workspaceId: number
+  categories: NoteCategoryRef[]
+  status: NoteCategoryRef | null
+  tags: NoteTagRef[]
+  description: string | null
+  timeDue: string | null
+  timeRemind: string | null
+  timeCreated: string
+  timeModified: string
 }
 
 export interface SemanticSearchResult {
-  note: NoteRecord;
-  similarity: number;
+  note: NoteRecord
+  similarity: number
 }
 
 export interface NoteInput {
-  categoryId: number;
-  tagIds: number[];
-  description: string;
-  timeDue: string | null;
-  timeRemind: string | null;
+  workspaceId: number
+  categoryIds: number[]
+  statusId: number | null
+  tagIds: number[]
+  description: string
+  timeDue: string | null
+  timeRemind: string | null
 }
 
 export interface SessionRequest {
-  userId: number;
+  userId: number
 }
 
 export interface UpdateUserPreferencesRequest {
-  userId: number;
-  preferences: UserPreferences;
+  userId: number
+  preferences: UserPreferences
 }
 
 export interface NotesRequest {
-  userId: number;
+  userId: number
+  workspaceId: number
 }
 
 export interface TagsRequest {
-  userId: number;
+  userId: number
+  workspaceId: number
 }
 
 export interface CategoriesRequest {
-  userId: number;
+  userId: number
+  workspaceId: number
+}
+
+export interface StatusesRequest {
+  userId: number
+  workspaceId: number
+}
+export interface WorkspacesRequest {
+  userId: number
 }
 
 export interface CreateCategoryRequest {
-  userId: number;
-  label: string;
+  userId: number
+  workspaceId: number
+  label: string
 }
 
 export interface UpdateCategoryRequest {
-  userId: number;
-  categoryId: number;
-  label: string;
+  userId: number
+  workspaceId: number
+  categoryId: number
+  label: string
 }
 
 export interface DeleteCategoryRequest {
-  userId: number;
-  categoryId: number;
+  userId: number
+  workspaceId: number
+  categoryId: number
 }
 
 export interface CreateTagRequest {
-  userId: number;
-  label: string;
+  userId: number
+  workspaceId: number
+  label: string
 }
 
 export interface UpdateTagRequest {
-  userId: number;
-  tagId: number;
-  label: string;
+  userId: number
+  workspaceId: number
+  tagId: number
+  label: string
 }
 
 export interface DeleteTagRequest {
-  userId: number;
-  tagId: number;
+  userId: number
+  workspaceId: number
+  tagId: number
 }
 
 export interface CreateNoteRequest {
-  userId: number;
-  note: NoteInput;
+  userId: number
+  note: NoteInput
 }
 
 export interface UpdateNoteRequest {
-  userId: number;
-  noteId: number;
-  note: NoteInput;
+  userId: number
+  noteId: number
+  note: NoteInput
 }
 
 export interface DeleteNoteRequest {
-  userId: number;
-  noteId: number;
+  userId: number
+  noteId: number
 }
 
 export interface SearchRequest {
-  userId: number;
-  query: string;
-  limit: number;
+  userId: number
+  workspaceId: number
+  query: string
+  limit: number
 }
 
 export interface EmbeddingMaintenanceRequest {
-  userId: number;
-  mode: string;
-  limit: number;
+  userId: number
+  mode: string
+  limit: number
 }
 
 export interface SessionResponse {
-  user: UserSummary;
+  user: UserSummary
 }
 
 export interface TokenLoginResponse {
-  token: string;
-  user: UserSummary;
+  token: string
+  user: UserSummary
 }
 
 export interface TokenRevokeResponse {
-  ok: true;
+  ok: true
 }
 
 export interface NotesResponse {
-  notes: NoteRecord[];
+  notes: NoteRecord[]
+}
+
+export interface WorkspacesResponse {
+  workspaces: WorkspaceRecord[]
+}
+export interface WorkspaceResponse {
+  workspace: WorkspaceRecord
+}
+export interface StatusesResponse {
+  statuses: StatusRecord[]
+}
+export interface StatusResponse {
+  status: StatusRecord
+}
+
+export interface CreateWorkspaceRequest {
+  userId: number
+  label: string
+}
+export interface UpdateWorkspaceRequest {
+  userId: number
+  workspaceId: number
+  label: string
+}
+export interface DeleteWorkspaceRequest {
+  userId: number
+  workspaceId: number
+  confirmation: string
+}
+export interface CreateStatusRequest {
+  userId: number
+  workspaceId: number
+  label: string
+}
+export interface UpdateStatusRequest {
+  userId: number
+  workspaceId: number
+  statusId: number
+  label: string
+  position?: number
+}
+export interface DeleteStatusRequest {
+  userId: number
+  workspaceId: number
+  statusId: number
+}
+
+export interface BootstrapResponse {
+  user: UserSummary
+  workspaces: WorkspaceRecord[]
+  activeWorkspaceId: number
+  notes: NoteRecord[]
+  categories: CategoryRecord[]
+  statuses: StatusRecord[]
+  tags: TagRecord[]
 }
 
 export interface TagsResponse {
-  tags: TagRecord[];
+  tags: TagRecord[]
 }
 
 export interface CategoriesResponse {
-  categories: CategoryRecord[];
+  categories: CategoryRecord[]
 }
 
 export interface CreateCategoryResponse {
-  category: CategoryRecord;
+  category: CategoryRecord
 }
 
 export interface UpdateCategoryResponse {
-  category: CategoryRecord;
+  category: CategoryRecord
 }
 
 export interface DeleteCategoryResponse {
-  ok: true;
-}
-
-export interface DeleteCategoryWithNotesRequest {
-  userId: number;
-  categoryId: number;
-}
-
-export interface DeleteCategoryWithNotesResponse {
-  ok: true;
-  deletedNotes: number;
+  ok: true
 }
 
 export interface CreateTagResponse {
-  tag: TagRecord;
+  tag: TagRecord
 }
 
 export interface UpdateTagResponse {
-  tag: TagRecord;
+  tag: TagRecord
 }
 
 export interface DeleteTagResponse {
-  ok: true;
-  deletedLinks: number;
+  ok: true
+  deletedLinks: number
 }
 
 export interface NoteResponse {
-  note: NoteRecord;
+  note: NoteRecord
 }
 
 export interface SearchResponse {
-  results: SemanticSearchResult[];
+  results: SemanticSearchResult[]
 }
 
 export interface EmbeddingMaintenanceResponse {
-  mode: string;
-  processed: number;
-  updated: number;
-  categoriesUpdated: number;
-  tagsUpdated: number;
-  hasMore: boolean;
+  mode: string
+  processed: number
+  updated: number
+  categoriesUpdated: number
+  tagsUpdated: number
+  hasMore: boolean
 }
 
 export interface DeleteResponse {
-  ok: true;
+  ok: true
 }
 
 export interface ErrorResponse {
-  error: string;
+  error: string
 }

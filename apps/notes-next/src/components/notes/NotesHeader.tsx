@@ -15,7 +15,8 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react"
-import type { UserSummary } from "@lib/db-notes"
+import type { UserSummary, WorkspaceRecord } from "@lib/db-notes"
+import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { noteHeadline, toLowercaseInput } from "@/lib/strings"
 import {
   selectActiveSaveStatus,
@@ -134,7 +135,8 @@ function RecentNotesMenu({
                   >
                     <span className={styles.recentTitle}>{title}</span>
                     <span className={styles.recentMeta}>
-                      {categoryLabelById(entry.form.selectedCategoryId)}
+                      {entry.form.selectedCategoryIds.map(categoryLabelById).join(", ") ||
+                        "uncategorized"}
                     </span>
                   </button>
                   <span
@@ -180,6 +182,10 @@ interface NotesHeaderProps {
   pasteUrlAsMarkdown: boolean
   onPasteUrlAsMarkdownChange: (enabled: boolean) => void
   onAddNote: () => void
+  workspaces: WorkspaceRecord[]
+  activeWorkspaceId: number
+  onWorkspaceChange: (id: number) => void | Promise<void>
+  onCreateWorkspace: (label: string) => void | Promise<void>
   onLogout: () => void
   maxOpenNotes: number
   onMaxOpenNotesChange: (value: number) => void
@@ -206,6 +212,10 @@ export function NotesHeader({
   pasteUrlAsMarkdown,
   onPasteUrlAsMarkdownChange,
   onAddNote,
+  workspaces,
+  activeWorkspaceId,
+  onWorkspaceChange,
+  onCreateWorkspace,
   onLogout,
   maxOpenNotes,
   onMaxOpenNotesChange,
@@ -239,6 +249,8 @@ export function NotesHeader({
   const goBack = useNotesAppStore((state) => state.goBack)
   const trimmedSearchQuery = searchQuery.trim()
   const searchExpanded = searchOpen || trimmedSearchQuery !== ""
+  const activeWorkspaceLabel =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.label ?? "Workspace"
 
   useEffect(() => {
     if (!searchExpanded) return
@@ -357,6 +369,19 @@ export function NotesHeader({
           jot.new
         </span>
         <SaveStatusIndicator />
+        <FilterablePicker
+          variant="header"
+          value={activeWorkspaceLabel}
+          triggerAriaLabel="Current workspace"
+          listboxAriaLabel="Workspace options"
+          options={workspaces}
+          selectedIds={[activeWorkspaceId]}
+          onSelectOption={(workspace) => onWorkspaceChange(Number(workspace.id))}
+          onCreateOption={onCreateWorkspace}
+          emptyWithoutQueryMessage="No workspaces yet"
+          inputPlaceholder="Enter new workspace..."
+          placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
+        />
 
         <Button
           view="flat"

@@ -6,6 +6,7 @@
     "watchPatterns": ["apps/notes-next/**", "lib/db-notes/**", "lib/atomic-editor/**"]
   },
   "deploy": {
+    "preDeployCommand": ["pnpm --filter @lib/db-notes db:migrate"],
     "startCommand": "pnpm --filter notes-next start",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 30,
