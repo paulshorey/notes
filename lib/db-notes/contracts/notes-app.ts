@@ -64,8 +64,6 @@ export interface NoteRecord {
 export interface SemanticSearchResult {
   note: NoteRecord;
   similarity: number;
-  tagSimilarity: number | null;
-  descriptionSimilarity: number | null;
 }
 
 export interface NoteInput {

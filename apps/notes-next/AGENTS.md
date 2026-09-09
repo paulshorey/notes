@@ -139,7 +139,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 
 - Select **Search task** (default: `retrieval.query`) and **Passage task** (default: `retrieval.passage`) to control the Jina `task` parameter sent for each embedding call.
 - These defaults match what the production app uses. Select `(none)` to omit `task` entirely and observe baseline behavior.
-- The debug route is standalone — it does not use `notesAppService` or write to the DB.
+- The debug route is standalone — it does not use `notesAppService` or write to the DB. Search score is cosine similarity between the query embedding and the note description embedding.
 
 ## Environment variables
 

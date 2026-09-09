@@ -103,13 +103,11 @@ export async function POST(request: Request) {
     const {
       search,
       description,
-      tags: rawTags,
       searchTask: rawSearchTask,
       passageTask: rawPassageTask,
     } = body as {
       search: string
       description: string
-      tags: string[]
       searchTask: string
       passageTask: string
     }
@@ -119,9 +117,6 @@ export async function POST(request: Request) {
 
     const searchText = normalizeText(search)
     const descText = normalizeText(description)
-    const catRaw = (Array.isArray(rawTags) ? rawTags : []).map(
-      (c) => normalizeText(c),
-    )
 
     if (searchText === "") {
       return NextResponse.json({ error: "Search query is required." }, { status: 400 })
@@ -130,25 +125,10 @@ export async function POST(request: Request) {
     const searchEmbeddings = await fetchEmbeddings([searchText], searchTask)
     const searchEmb = searchEmbeddings[0]!
 
-    const passageTexts = [descText, ...catRaw]
-    const passageEmbeddings = await fetchEmbeddings(passageTexts, passageTask)
-
-    const descEmb = passageEmbeddings[0]!
-    const catEmbs = catRaw.map((_, i) => passageEmbeddings[1 + i]!)
+    const descriptionEmbeddings = await fetchEmbeddings([descText], passageTask)
+    const descEmb = descriptionEmbeddings[0]!
 
     const descSim = descEmb.length > 0 ? dotSimilarity(searchEmb, descEmb) : null
-    const catSims = catEmbs.map((emb, i) =>
-      catRaw[i] && emb.length > 0 ? dotSimilarity(searchEmb, emb) : null,
-    )
-
-    const nonNullCatSims = catSims.filter((s): s is number => s !== null)
-    const avgTagSim =
-      nonNullCatSims.length > 0
-        ? nonNullCatSims.reduce((sum, v) => sum + v, 0) / nonNullCatSims.length
-        : null
-
-    const compositeScore =
-      (descSim ?? 0) * 0.67 + (avgTagSim ?? 0) * 0.33
 
     return NextResponse.json({
       searchTask,
@@ -156,23 +136,18 @@ export async function POST(request: Request) {
       inputs: {
         search: searchText,
         description: descText,
-        tags: catRaw,
       },
       embeddings: {
         search: searchEmb.slice(0, 8),
         description: descEmb.slice(0, 8),
-        tags: catEmbs.map((emb) => emb.slice(0, 8)),
       },
       similarities: {
         description: descSim,
-        tags: catSims,
-        avgTag: avgTagSim,
       },
       scoring: {
         description: descSim ?? 0,
-        avgTag: avgTagSim ?? 0,
-        formula: "description * 0.67 + avg_tag * 0.33",
-        compositeScore,
+        formula: "note description cosine similarity",
+        score: descSim ?? 0,
       },
     })
   } catch (error) {

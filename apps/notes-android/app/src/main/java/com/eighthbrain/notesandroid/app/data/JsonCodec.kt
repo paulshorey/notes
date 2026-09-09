@@ -221,15 +221,11 @@ fun searchResultToJson(result: SemanticSearchResult): JSONObject =
     JSONObject()
         .put("note", noteToJson(result.note))
         .put("similarity", result.similarity)
-        .put("tagSimilarity", result.tagSimilarity)
-        .put("descriptionSimilarity", result.descriptionSimilarity)
 
 fun searchResultFromJson(json: JSONObject): SemanticSearchResult =
     SemanticSearchResult(
         note = noteFromJson(json.getJSONObject("note")),
         similarity = json.getDouble("similarity"),
-        tagSimilarity = json.doubleOrNull("tagSimilarity"),
-        descriptionSimilarity = json.doubleOrNull("descriptionSimilarity"),
     )
 
 fun notesToJson(notes: List<NoteRecord>): String =

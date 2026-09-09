@@ -12,7 +12,7 @@ embedded into a 1024-dimensional vector using the Jina AI Embeddings API
 embedded with the same model (using a different task adapter). Postgres then
 ranks notes by cosine similarity between the query vector and stored vectors.
 
-Search spans three entity types:
+Embeddings are stored on three entity types:
 
 | Entity   | Table                   | Embedded text | Column                  |
 | -------- | ----------------------- | ------------- | ----------------------- |
@@ -20,9 +20,9 @@ Search spans three entity types:
 | Category | `user_note_category_v1` | `label`       | `category_embedding`    |
 | Tag      | `user_note_tag_v1`      | `label`       | `tag_embedding`         |
 
-Every note belongs to exactly one category and may have zero or more tags. The
-ranking formula combines description similarity with taxonomy similarity
-(category + tags).
+Every note belongs to exactly one category and may have zero or more tags.
+Category and tag labels are still embedded on write, but search ranking uses
+only the note's description embedding.
 
 ## PostgreSQL: pgvector extension
 
@@ -76,11 +76,10 @@ CREATE INDEX ... USING hnsw (tag_embedding vector_cosine_ops);
 ```
 
 These indexes support fast top-k nearest-neighbor queries on a single column.
-The current search query in `sql/note/gets.ts` does **not** use them directly:
-it scans all of a user's notes, computes a composite score across description +
-category + tags, and sorts in SQL. This is appropriate for per-user note counts
-but would need revisiting if cross-user or very large per-user search becomes a
-requirement.
+The current search query in `sql/note/gets.ts` scans all of a user's notes,
+compares each note's `description_embedding` to the query, and sorts in SQL.
+This is appropriate for per-user note counts but would need revisiting if
+cross-user or very large per-user search becomes a requirement.
 
 ## Embedding model (Jina AI)
 
@@ -183,9 +182,8 @@ the normalized label and `task: "retrieval.passage"`, then writes the vector to
 ### On search
 
 `searchNotesForNotesApp()` embeds the query and runs the ranking SQL. **Search
-does not backfill missing embeddings.** Notes or taxonomy rows with `NULL`
-embeddings contribute zero to their similarity component but still appear in
-results (ranked lower).
+does not backfill missing embeddings.** Notes with a `NULL` description
+embedding score 0 but still appear in results (ranked lower).
 
 ### Maintenance endpoint
 
@@ -257,33 +255,24 @@ Request body:
 
 1. **Normalize** the query string (`parseSearchRequest` / `normalizeSearchQuery`).
 2. **Embed** via Jina with `task: "retrieval.query"` → single 1024-dim vector.
-3. **Rank** in Postgres: for each user note, compute per-field cosine
-   similarities using pgvector's `<=>` operator.
-4. **Combine** into a composite score, sort descending, apply `LIMIT`.
+3. **Rank** in Postgres: for each user note, compute cosine similarity between
+   the query vector and `description_embedding` using pgvector's `<=>`
+   operator.
+4. **Sort** descending by that score and apply `LIMIT`.
 
 ### Ranking formula
 
 From `sql/note/gets.ts`:
 
 ```
-taxonomy_similarity =
-  category_similarity                          -- if only category has embedding
-  tag_similarity                               -- if only tags have embeddings
-  (category_similarity + tag_similarity) / 2   -- if both present
-  NULL                                         -- if neither present
-
-score = description_similarity * 0.67 + taxonomy_similarity * 0.33
+score = cosine_similarity(query, description_embedding)
+      = 1 - (description_embedding <=> query_embedding)
 ```
 
-- **Description** (67%): cosine similarity between query and
-  `description_embedding`.
-- **Taxonomy** (33%): average of the note's category similarity and the average
-  tag similarity across linked tags. When only one side has embeddings, that
-  side alone contributes.
-
-NULL similarities are treated as 0 in the final score. All user notes are
-included in the result set (up to `limit`), so low-relevance matches appear
-after stronger ones rather than being excluded.
+Notes with a `NULL` description embedding score 0. Category and tag embeddings
+are not consulted. All user notes are included in the result set (up to
+`limit`), so low-relevance matches appear after stronger ones rather than being
+excluded.
 
 **Ordering:** `semantic_similarity DESC, time_modified DESC`.
 
@@ -294,22 +283,15 @@ after stronger ones rather than being excluded.
   "results": [
     {
       "note": { "id": 41, "description": "...", "...": "..." },
-      "similarity": 0.87,
-      "tagSimilarity": 0.79,
-      "descriptionSimilarity": 0.82
+      "similarity": 0.87
     }
   ]
 }
 ```
 
-| Field                   | Meaning                                     |
-| ----------------------- | ------------------------------------------- |
-| `similarity`            | Composite score used for ordering           |
-| `descriptionSimilarity` | Query ↔ note description cosine similarity |
-| `tagSimilarity`         | Average query ↔ linked tag similarities    |
-
-`categorySimilarity` is computed in SQL for ranking but is not part of the
-public `SemanticSearchResult` contract.
+| Field        | Meaning                                                  |
+| ------------ | -------------------------------------------------------- |
+| `similarity` | Query ↔ note description cosine similarity (used for ranking) |
 
 ## Client behavior
 
