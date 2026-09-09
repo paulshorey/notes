@@ -27,6 +27,11 @@ pnpm --filter notes-next dev
 
 The app runs at `http://localhost:3000`.
 
+For a read-only check of the current checkout, app health, database target, and
+migration ledger, run `pnpm run diagnose:notes` from the repository root. The
+full environment matrix and Railway troubleshooting flow are in
+[`docs/operations/notes-environments.md`](../../docs/operations/notes-environments.md).
+
 On startup, returning sessions are seeded by the server and the UI loads the user's workspace list plus one active workspace's notes, categories, statuses, and tags through `GET /api/bootstrap`. A database or network failure shows a retryable error instead of repeatedly issuing requests. The service worker is disabled and cleaned up on local hosts so old app shells or development chunks cannot survive a server restart.
 
 ## Relevant scripts

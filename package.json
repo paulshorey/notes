@@ -13,6 +13,7 @@
     "db:verify": "pnpm --filter @lib/db-notes db:verify",
     "db:embeddings:regenerate": "pnpm --filter @lib/db-notes db:embeddings:regenerate",
     "db:anon:cleanup": "pnpm --filter @lib/db-notes db:anon:cleanup",
+    "diagnose:notes": "bash scripts/diagnose-notes-env.sh",
     "test": "turbo run test",
     "verify:db-contracts": "pnpm --filter @lib/db-notes check-types",
     "verify:notes-web": "pnpm --filter notes-next verify",
