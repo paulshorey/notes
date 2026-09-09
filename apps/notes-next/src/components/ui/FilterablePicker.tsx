@@ -1,7 +1,7 @@
 "use client"
 
 import { CaretDown } from "@phosphor-icons/react"
-import { type ComponentProps, type ReactNode, useMemo, useRef, useState } from "react"
+import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { FilterablePickerPopup, type FilterablePickerOption } from "./FilterablePickerPopup"
 import styles from "./FilterablePicker.module.css"
 
@@ -66,6 +66,10 @@ export function FilterablePicker({
     })
   }, [excludeSelected, inputValue, options, selectedIdSet])
 
+  useEffect(() => {
+    if (!open) setInputValue("")
+  }, [open])
+
   const setOpen = (nextOpen: boolean) => {
     if (controlledOpen === undefined) setInternalOpen(nextOpen)
     onOpenChange?.(nextOpen)
@@ -95,11 +99,21 @@ export function FilterablePicker({
     const label = inputValue.trim()
     if (label === "" || interactionDisabled) return
     const normalized = label.toLocaleLowerCase()
-    const matchingOption = options.find(
+    const matchingOption = filteredOptions.find(
       (option) => option.label.trim().toLocaleLowerCase() === normalized,
     )
     if (matchingOption) {
       selectOption(matchingOption)
+      return
+    }
+    // An exact option excluded because it is already selected should not be
+    // submitted as a duplicate. Otherwise Enter follows the list the user can
+    // see, choosing its first match and creating only when there are no matches.
+    if (options.some((option) => option.label.trim().toLocaleLowerCase() === normalized)) {
+      return
+    }
+    if (filteredOptions[0]) {
+      selectOption(filteredOptions[0])
       return
     }
 

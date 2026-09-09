@@ -10,6 +10,12 @@ test("database connection failures are reported as service unavailable", () => {
 
   const connectionError = Object.assign(new Error("connection failure"), { code: "08006" })
   assert.equal(getNotesAppErrorStatus(connectionError), 503)
+
+  for (const code of ["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH"]) {
+    assert.equal(getNotesAppErrorStatus(Object.assign(new Error(`connect ${code}`), { code })), 503)
+  }
+
+  assert.equal(getNotesAppErrorStatus(new Error("timeout exceeded when trying to connect")), 503)
 })
 
 test("ordinary request validation failures remain bad requests", () => {

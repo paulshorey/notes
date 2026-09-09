@@ -2395,6 +2395,25 @@ export default function NotesApp() {
       setCategories(data.categories)
       setStatuses(data.statuses)
       setTags(data.tags)
+      const nextUserPreferences: UserPreferences = {
+        ...userPreferencesRef.current,
+        notesApp: {
+          ...(isPreferencesObject(userPreferencesRef.current.notesApp)
+            ? userPreferencesRef.current.notesApp
+            : {}),
+          currentWorkspaceId: data.activeWorkspaceId,
+        },
+      }
+      writeNotesCache({
+        userId: user.id,
+        user: { ...user, preferences: nextUserPreferences },
+        workspaces: data.workspaces,
+        activeWorkspaceId: data.activeWorkspaceId,
+        notes: data.notes,
+        categories: data.categories,
+        statuses: data.statuses,
+        tags: data.tags,
+      })
       detachedSavesRef.current.clear()
       resetNotesAppStore()
       didRehydrateOpenNotesRef.current = false
@@ -2414,13 +2433,7 @@ export default function NotesApp() {
           categoryLabel: data.categories.find((c) => c.id === defaultCategory)?.label ?? "",
         })
       }
-      setUserPreferences((current) => ({
-        ...current,
-        notesApp: {
-          ...(isPreferencesObject(current.notesApp) ? current.notesApp : {}),
-          currentWorkspaceId: data.activeWorkspaceId,
-        },
-      }))
+      setUserPreferences(nextUserPreferences)
       setSearchQuery("")
       setStatusMessage(
         `Switched to “${data.workspaces.find((w) => w.id === data.activeWorkspaceId)?.label ?? "workspace"}”.`,

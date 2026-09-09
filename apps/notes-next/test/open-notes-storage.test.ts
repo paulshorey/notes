@@ -4,12 +4,41 @@ import type { NoteRecord } from "@lib/db-notes"
 import { serializeNoteDraft } from "../src/lib/noteDraft"
 import { noteToFormState, createDefaultNoteForm } from "../src/types/notes"
 import {
+  readOpenNotesSnapshot,
   reconcileOpenNotes,
   toSnapshot,
   upgradeOpenNotesSnapshot,
   type OpenNotesSnapshot,
   type StoredOpenNotesSnapshot,
 } from "../src/lib/openNotesStorage"
+
+class MemoryStorage implements Storage {
+  private readonly values = new Map<string, string>()
+
+  get length() {
+    return this.values.size
+  }
+
+  clear() {
+    this.values.clear()
+  }
+
+  getItem(key: string) {
+    return this.values.get(key) ?? null
+  }
+
+  key(index: number) {
+    return [...this.values.keys()][index] ?? null
+  }
+
+  removeItem(key: string) {
+    this.values.delete(key)
+  }
+
+  setItem(key: string, value: string) {
+    this.values.set(key, value)
+  }
+}
 
 const makeNote = (
   id: number,
@@ -280,8 +309,33 @@ test("workspace snapshots carry separate workspace identities", () => {
   assert.equal(toSnapshot(1, 20, emptyState).workspaceId, 20)
 })
 
+test("a legacy browser snapshot migrates to only the first workspace that reads it", () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window")
+  const localStorage = new MemoryStorage()
+  Object.defineProperty(globalThis, "window", {
+    value: { localStorage },
+    configurable: true,
+  })
+
+  try {
+    const legacy = {
+      ...snapshotOf([]),
+      schemaVersion: 1,
+      workspaceId: undefined,
+    }
+    localStorage.setItem("notes-open-notes-v1", JSON.stringify(legacy))
+
+    assert.equal(readOpenNotesSnapshot(1, 10)?.workspaceId, 10)
+    assert.equal(localStorage.getItem("notes-open-notes-v1"), null)
+    assert.notEqual(localStorage.getItem("notes-open-notes-v2:1:10"), null)
+    assert.equal(readOpenNotesSnapshot(1, 20), null)
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow)
+    else Reflect.deleteProperty(globalThis, "window")
+  }
+})
+
 test("a wrong-user or malformed browser snapshot never reaches reconcile", async () => {
-  const { readOpenNotesSnapshot } = await import("../src/lib/openNotesStorage")
   // No window in the node test runner, so the reader must degrade to null
   // rather than throwing.
   assert.equal(readOpenNotesSnapshot(1, 1), null)

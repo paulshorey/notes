@@ -160,7 +160,12 @@ const isDatabaseAvailabilityError = (error: unknown) => {
     code === "57P01" ||
     code === "57P02" ||
     code === "57P03" ||
-    /connection (?:terminated|timeout|timed out|refused|reset)|connect etimedout/i.test(
+    code === "ECONNREFUSED" ||
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    code === "EHOSTUNREACH" ||
+    code === "ENETUNREACH" ||
+    /connection (?:terminated|timeout|timed out|refused|reset)|connect econn(?:refused|reset)|connect etimedout|timeout exceeded when trying to connect/i.test(
       error.message,
     )
   )
@@ -415,6 +420,10 @@ const createLabelEntity = async (
 ) => {
   if (!value) throw new Error("label is required.")
   if (!(await getWorkspaceByIdForUser(userId, workspaceId))) throw new Error("Workspace not found.")
+  // Embedding generation is an external request and may take tens of seconds.
+  // Finish it before checking out a client so the small DB pool remains
+  // available to ordinary note reads and writes while that request is pending.
+  const e = await createTagLabelEmbedding(value)
   const client = await getDb().connect()
   try {
     await client.query("BEGIN")
@@ -423,7 +432,6 @@ const createLabelEntity = async (
         ? await resolveCategoryIdForWorkspace(client, workspaceId, value)
         : await resolveTagIdForWorkspace(client, workspaceId, value)
     if (!id) throw new Error("Failed to resolve label.")
-    const e = await createTagLabelEmbedding(value)
     const table = kind === "category" ? "workspace_note_category_v1" : "workspace_note_tag_v1"
     const column = kind === "category" ? "category_embedding" : "tag_embedding"
     await client.query(

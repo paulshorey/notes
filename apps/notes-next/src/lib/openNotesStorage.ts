@@ -137,9 +137,8 @@ export const readOpenNotesSnapshot = (
   if (!isBrowser()) return null
 
   try {
-    const raw =
-      window.localStorage.getItem(storageKey(expectedUserId, expectedWorkspaceId)) ??
-      window.localStorage.getItem(LEGACY_STORAGE_KEY)
+    const scopedRaw = window.localStorage.getItem(storageKey(expectedUserId, expectedWorkspaceId))
+    const raw = scopedRaw ?? window.localStorage.getItem(LEGACY_STORAGE_KEY)
     if (!raw) return null
 
     const parsed: unknown = JSON.parse(raw)
@@ -147,7 +146,9 @@ export const readOpenNotesSnapshot = (
     if (parsed.userId !== expectedUserId) return null
     if (parsed.workspaceId !== undefined && parsed.workspaceId !== expectedWorkspaceId) return null
 
-    return upgradeOpenNotesSnapshot(parsed, expectedUserId, expectedWorkspaceId)
+    const snapshot = upgradeOpenNotesSnapshot(parsed, expectedUserId, expectedWorkspaceId)
+    if (scopedRaw === null) migrateLegacySnapshot(snapshot)
+    return snapshot
   } catch {
     return null
   }
@@ -168,15 +169,16 @@ export const readOpenNotesSnapshotForAnyUser = (
 
   try {
     const lastKey = window.localStorage.getItem(LAST_STORAGE_KEY)
-    const raw =
-      (lastKey ? window.localStorage.getItem(lastKey) : null) ??
-      window.localStorage.getItem(LEGACY_STORAGE_KEY)
+    const scopedRaw = lastKey ? window.localStorage.getItem(lastKey) : null
+    const raw = scopedRaw ?? window.localStorage.getItem(LEGACY_STORAGE_KEY)
     if (!raw) return null
 
     const parsed: unknown = JSON.parse(raw)
     if (!isSnapshot(parsed)) return null
 
-    return upgradeOpenNotesSnapshot(parsed, userId, workspaceId)
+    const snapshot = upgradeOpenNotesSnapshot(parsed, userId, workspaceId)
+    if (scopedRaw === null) migrateLegacySnapshot(snapshot)
+    return snapshot
   } catch {
     return null
   }
@@ -204,6 +206,17 @@ const writeRaw = (snapshot: OpenNotesSnapshot) => {
   const key = storageKey(snapshot.userId, snapshot.workspaceId)
   window.localStorage.setItem(key, JSON.stringify(snapshot))
   window.localStorage.setItem(LAST_STORAGE_KEY, key)
+}
+
+const migrateLegacySnapshot = (snapshot: OpenNotesSnapshot) => {
+  try {
+    writeRaw(snapshot)
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY)
+  } catch {
+    // Keep the legacy copy when migration cannot be persisted. Returning the
+    // upgraded snapshot still restores the draft for this session without
+    // risking the only durable copy of unsaved text.
+  }
 }
 
 export const upgradeOpenNotesSnapshot = (

@@ -296,11 +296,11 @@ else
   if [[ -z "$psql_bin" ]]; then
     warn "psql is unavailable; install a PostgreSQL client to check the target database"
   else
-    if server_version="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_setting('server_version')" 2>"$db_error_file")"; then
+    if server_version="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_setting('server_version')" 2>"$db_error_file")"; then
       pass "Connected with $($psql_bin --version) to PostgreSQL $server_version"
 
       relation_query_succeeded=0
-      if missing_relations="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" -X -qAt -v ON_ERROR_STOP=1 <<'SQL' 2>"$db_error_file"
+      if missing_relations="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 <<'SQL' 2>"$db_error_file"
 WITH required(name) AS (
   VALUES
     ('public.user_v1'),
@@ -330,7 +330,7 @@ SQL
       fi
 
       if [[ $relation_query_succeeded -eq 1 && "$missing_relations" != *"public.schema_migrations_cursor"* ]]; then
-        if ! migration_ledger="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" -X -qAt -v ON_ERROR_STOP=1 -F '|' -c "SELECT filename, checksum FROM public.schema_migrations_cursor ORDER BY filename" 2>"$db_error_file")"; then
+        if ! migration_ledger="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 -F '|' -c "SELECT filename, checksum FROM public.schema_migrations_cursor ORDER BY filename" 2>"$db_error_file")"; then
           db_error="$(tr '\n' ' ' < "$db_error_file" | cut -c1-500)"
           db_error="$(sanitize_db_error "$db_error" "$notes_db_url")"
           fail "Migration-ledger query failed${db_error:+: $db_error}"
