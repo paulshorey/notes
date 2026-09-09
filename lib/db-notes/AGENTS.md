@@ -23,7 +23,7 @@ Database-first package for the `DB_NOTES_URL` database.
 
 ## TypeScript adapter
 
-- `lib/db/postgres.ts`: connection accessor for app/runtime code
+- `lib/db/postgres.ts`: process-wide connection pool for app/runtime code. It defaults to one connection so cold, parallel Next.js requests do not burst connections through a remote proxy; set `PG_POOL_MAX` explicitly when a deployment needs more concurrency.
 - `services/notes-app.ts`: shared Notes app workflow layer for web and Android servers
 
 ## Notes

@@ -4,10 +4,11 @@
 
 ## Environment variables
 
-| Variable       | Required | Purpose                                                 |
-| -------------- | -------- | ------------------------------------------------------- |
-| `DB_NOTES_URL` | Yes      | PostgreSQL connection string for Notes                  |
-| `JINA_API_KEY` | Yes      | Jina embeddings key for semantic search and maintenance |
+| Variable       | Required | Purpose                                                                                |
+| -------------- | -------- | -------------------------------------------------------------------------------------- |
+| `DB_NOTES_URL` | Yes      | PostgreSQL connection string for Notes                                                 |
+| `JINA_API_KEY` | Yes      | Jina embeddings key for semantic search and maintenance                                |
+| `PG_POOL_MAX`  | No       | Process-wide PostgreSQL connection limit; defaults to `1` for remote-proxy reliability |
 
 Create `apps/notes-next/.env.local` or export the values in your shell:
 

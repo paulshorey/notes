@@ -55,21 +55,23 @@ export const getWorkspaceByIdForUser = async (userId: number, id: number) => {
 }
 export const createWorkspaceForUser = async (userId: number, label: string) => {
   const client = await getDb().connect()
+  let workspaceId: number
   try {
     await client.query("BEGIN")
     const { rows } = await client.query<{ id: number }>(
       `INSERT INTO public.user_workspace_v1(user_id,label) VALUES($1,$2) RETURNING id`,
       [userId, label],
     )
-    await seedWorkspaceDefaults(client, rows[0]!.id)
+    workspaceId = rows[0]!.id
+    await seedWorkspaceDefaults(client, workspaceId)
     await client.query("COMMIT")
-    return (await getWorkspaceByIdForUser(userId, rows[0]!.id))!
   } catch (e) {
     await client.query("ROLLBACK")
     throw e
   } finally {
     client.release()
   }
+  return (await getWorkspaceByIdForUser(userId, workspaceId))!
 }
 export const updateWorkspaceForUser = async (userId: number, id: number, label: string) => {
   const r = await getDb().query(

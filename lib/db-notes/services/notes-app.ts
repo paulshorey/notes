@@ -150,6 +150,21 @@ export const parsePositiveInteger = (
     )
   return parsed
 }
+const isDatabaseAvailabilityError = (error: unknown) => {
+  if (!(error instanceof Error)) return false
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code.toUpperCase() : undefined
+  return (
+    code?.startsWith("08") === true ||
+    code === "53300" ||
+    code === "57P01" ||
+    code === "57P02" ||
+    code === "57P03" ||
+    /connection (?:terminated|timeout|timed out|refused|reset)|connect etimedout/i.test(
+      error.message,
+    )
+  )
+}
 const workspaceRequest = (userId: unknown, workspaceId: unknown) => ({
   userId: parsePositiveInteger(userId, "userId"),
   workspaceId: parsePositiveInteger(workspaceId, "workspaceId"),
@@ -159,15 +174,17 @@ const labelRequest = (value: unknown) => {
   return { ...workspaceRequest(b.userId, b.workspaceId), label: label(b.label) }
 }
 export const getNotesAppErrorStatus = (error: unknown) =>
-  error instanceof EmbeddingConfigurationError
-    ? 500
-    : error instanceof EmbeddingRequestError
-      ? error.status >= 400 && error.status < 500
-        ? 502
-        : error.status
-      : error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR
-        ? 409
-        : 400
+  isDatabaseAvailabilityError(error)
+    ? 503
+    : error instanceof EmbeddingConfigurationError
+      ? 500
+      : error instanceof EmbeddingRequestError
+        ? error.status >= 400 && error.status < 500
+          ? 502
+          : error.status
+        : error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR
+          ? 409
+          : 400
 export const parseSessionRequest = (userId: unknown): SessionRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 })
