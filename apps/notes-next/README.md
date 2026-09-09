@@ -65,14 +65,15 @@ When promoting Notes to production:
    pnpm run release:notes:prepare
    ```
 
-2. Run Notes DB migrations through `lib/db-notes`:
+2. Deploy `apps/notes-next` on Railway. Railway runs the package-owned migration command before activating the release:
 
    ```bash
-   pnpm run db:migrate
+   pnpm --filter @lib/db-notes db:migrate
    ```
 
-3. Deploy `apps/notes-next` on Railway.
-4. If search data is stale after the deploy, run `pnpm run db:embeddings:regenerate` or call the maintenance endpoint:
+   A failed migration blocks deployment, and the health endpoint rejects a connected but outdated database. Run `pnpm run db:migrate` manually only for local/shared development or an intentional target-database preflight.
+
+3. If search data is stale after the deploy, run `pnpm run db:embeddings:regenerate` or call the maintenance endpoint:
 
    ```text
    POST /api/notes/maintenance/embeddings

@@ -218,7 +218,8 @@ So when testing anything that claims to save:
 ## Release rules
 
 - Notes DB migration commands belong in `lib/db-notes/package.json`, with root-level wrappers in the repo `package.json`.
-- For Notes production changes, the normal order is: repo verify, Notes DB migration if needed, then Railway deploy.
+- For Notes production changes, the normal order is: repo verify, then Railway deploy; Railway applies pending Notes migrations before activating the release.
+- Both Railway config files run `pnpm --filter @lib/db-notes db:migrate` as a pre-deploy command. A migration failure blocks the new release, and `/api/health` returns `DATABASE_SCHEMA_OUTDATED` until the required workspace tables exist. Keep this protection aligned with schema changes rather than allowing code and database deployments to drift.
 - Use `db:verify` deliberately; it is not read-only and is mainly for branch validation and controlled contract checks.
 
 ## UI
