@@ -107,19 +107,19 @@ Provider: **Jina AI** — Model: `jina-embeddings-v5-text-small` (1024 dims, nor
 ### Key files
 
 - `services/notes-embeddings.ts` — canonical Jina client, embedding constants, and text builders
-- `services/notes-app.ts` — orchestrates embed-on-write (notes + tags) and search
-- `sql/note/gets.ts` — `searchNotesByEmbedding` SQL: composite score = `description * 0.67 + avg_tag * 0.33`
+- `services/notes-app.ts` — orchestrates embed-on-write (notes, categories, tags) and search
+- `sql/note/gets.ts` — `searchNotesByEmbedding` SQL: cosine similarity of query vs note `description_embedding`
 - `scripts/regenerate-embeddings.mjs` — CLI bulk regeneration (must stay in sync with `notes-embeddings.ts`)
 
 ### How it works
 
-- **Storing** descriptions/tags: Jina API with `task: "retrieval.passage"` → `vector(1024)` in PostgreSQL (HNSW cosine index).
-- **Searching**: user query embedded with `task: "retrieval.query"` → cosine similarity in SQL.
+- **Storing** note descriptions, category labels, and tag labels: Jina API with `task: "retrieval.passage"` → `vector(1024)` in PostgreSQL (HNSW cosine index).
+- **Searching**: user query embedded with `task: "retrieval.query"` → cosine similarity against note `description_embedding` in SQL.
 - **No text prefix** is added to inputs. Jina v5's `task` parameter selects the asymmetric LoRA adapter internally — manual `Query:`/`Document:` prefixes are unnecessary and harmful when using the API.
 
 ### Debug page
 
-`apps/notes-next/app/embeddings/page.tsx` → `POST /api/embeddings/debug` — standalone Jina calls with the same scoring formula. Separate **Search task** and **Passage task** selects map to the Jina `task` field (defaults: `retrieval.query` / `retrieval.passage`, matching production); you can pick `(none)` to omit `task` and compare behavior.
+`apps/notes-next/app/embeddings/page.tsx` → `POST /api/embeddings/debug` — standalone Jina calls that compare a search query embedding to a note description embedding (the same score production search uses). Separate **Search task** and **Passage task** selects map to the Jina `task` field (defaults: `retrieval.query` / `retrieval.passage`, matching production); you can pick `(none)` to omit `task` and compare behavior.
 
 ### Environment
 

@@ -299,20 +299,6 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
-        },
-        {
-          "name": "tagSimilarity",
-          "optional": false,
-          "kind": "scalar",
-          "type": "number",
-          "nullable": true
-        },
-        {
-          "name": "descriptionSimilarity",
-          "optional": false,
-          "kind": "scalar",
-          "type": "number",
-          "nullable": true
         }
       ]
     },

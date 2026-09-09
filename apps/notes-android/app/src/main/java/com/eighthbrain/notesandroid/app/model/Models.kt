@@ -78,8 +78,6 @@ fun List<NoteRecord>.sortedByLastUpdated(): List<NoteRecord> =
 data class SemanticSearchResult(
     val note: NoteRecord,
     val similarity: Double,
-    val tagSimilarity: Double?,
-    val descriptionSimilarity: Double?,
 )
 
 data class NoteDraft(

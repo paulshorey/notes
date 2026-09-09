@@ -52,8 +52,6 @@ const sampleNote = {
 const sampleSearchResult = {
   note: sampleNote,
   similarity: 0.94,
-  tagSimilarity: 0.89,
-  descriptionSimilarity: 0.85,
 }
 
 const sampleTag = {
