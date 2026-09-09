@@ -44,10 +44,6 @@
   white-space: nowrap;
 }
 
-.triggerValue {
-  color: var(--g-color-text-link);
-}
-
 .caret {
   flex: 0 0 auto;
 }
@@ -60,13 +56,17 @@
   font-size: 1rem;
 }
 
+.inline .triggerValue {
+  color: var(--g-color-text-link);
+}
+
 .header {
   flex: 0 1 auto;
 }
 
 .header .trigger {
   max-width: min(200px, 24vw);
-  font-size: 0.875rem;
+  font-size: 1rem;
 }
 
 .menu {

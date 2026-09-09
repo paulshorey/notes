@@ -368,7 +368,6 @@ export function NotesHeader({
         >
           jot.new
         </span>
-        <SaveStatusIndicator />
         <FilterablePicker
           variant="header"
           value={activeWorkspaceLabel}
@@ -382,7 +381,8 @@ export function NotesHeader({
           inputPlaceholder="Enter new workspace..."
           placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
         />
-
+        <span>&nbsp;</span>
+        <SaveStatusIndicator />
         <Button
           view="flat"
           size="m"

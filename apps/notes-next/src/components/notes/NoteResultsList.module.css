@@ -9,16 +9,15 @@
   min-height: 0;
   height: 100%;
   overflow-y: auto;
-  padding: 3px 0;
+  padding: 0 0 3px 0;
 }
 
 .noteItem {
   position: relative;
-  padding: 3px 0 3px 12px;
+  padding: 0 0 0 12px;
   cursor: pointer;
   border-radius: 0;
   user-select: none;
-  border: 1px solid transparent;
 }
 
 .noteItem:hover {
@@ -31,23 +30,27 @@
   color: var(--g-color-base-brand);
 }
 
-/* Open in the ring (including the note on screen): a rule rather than a color,
-   so it reads as "loaded" without competing with the active row's text color. */
+/* Open in the ring: a bullet rather than a row color. Inactive tabs use
+   text-primary so the mark matches the title; the active note stays brand. */
 .noteItemOpen::before {
-  content: "";
+  content: "∙";
   position: absolute;
   inset-block: 3px;
-  left: 3px;
+  left: 1.5px;
   width: 2px;
   border-radius: 1px;
-  background: var(--g-color-base-brand);
-  opacity: 0.45;
+  color: var(--g-color-text-primary);
+  opacity: 0.75;
+  line-height: 22px;
+}
+
+.noteItemActive.noteItemOpen::before {
+  color: var(--g-color-base-brand);
 }
 
 .noteLine {
   display: flex;
   align-items: center;
-  gap: 6px;
   padding-right: 1px;
 }
 
@@ -58,8 +61,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-height: 24px;
-  line-height: 24px;
+  min-height: 0;
+  line-height: 28px;
 }
 
 .similarityBadge {
