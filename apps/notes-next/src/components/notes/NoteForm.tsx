@@ -13,7 +13,7 @@ import {
   useRef,
   useState,
 } from "react"
-import type { CategoryRecord, TagRecord } from "@lib/db-notes"
+import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-notes"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
@@ -34,6 +34,7 @@ interface NoteFormProps {
   userPresent: boolean
   pasteUrlAsMarkdown?: boolean
   categories: CategoryRecord[]
+  statuses: StatusRecord[]
   tags: TagRecord[]
   pendingTagLabels: string[]
   descriptionEditorSessionId: string | number
@@ -44,6 +45,7 @@ interface NoteFormProps {
   createCategoryPending: boolean
   createTagPending: boolean
   onSelectCategoryId: (rawId: string) => void
+  onSelectStatusId: (rawId: string) => void
   onCreateCategory: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
@@ -58,6 +60,7 @@ export function NoteForm({
   userPresent,
   pasteUrlAsMarkdown = false,
   categories,
+  statuses,
   tags,
   pendingTagLabels,
   descriptionEditorSessionId,
@@ -68,6 +71,7 @@ export function NoteForm({
   createCategoryPending,
   createTagPending,
   onSelectCategoryId,
+  onSelectStatusId,
   onCreateCategory,
   onTagValuesChange,
   onCancelEdit,
@@ -84,10 +88,10 @@ export function NoteForm({
   const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [tagInputValue, setTagInputValue] = useState("")
 
-  const selectedCategoryLabel =
-    form.selectedCategoryId === null
-      ? ""
-      : (categories.find((category) => category.id === form.selectedCategoryId)?.label ?? "")
+  const selectedCategoryLabel = form.selectedCategoryIds
+    .map((id) => categories.find((category) => category.id === id)?.label)
+    .filter((value): value is string => Boolean(value))
+    .join(", ")
 
   const filteredCategoryOptions = useMemo(() => {
     const query = normalizeLabel(categoryInputValue)
@@ -130,6 +134,8 @@ export function NoteForm({
 
   const newNoteHasUserInput =
     form.description !== "" ||
+    form.selectedCategoryIds.length > 0 ||
+    form.selectedStatusId !== null ||
     form.selectedTagIds.length > 0 ||
     pendingTagLabels.length > 0 ||
     form.dueExpanded ||
@@ -180,7 +186,6 @@ export function NoteForm({
 
   const selectCategory = (categoryId: number) => {
     onSelectCategoryId(String(categoryId))
-    setCategoryPickerOpen(false)
   }
 
   const submitCategoryInput = () => {
@@ -391,11 +396,26 @@ export function NoteForm({
               onInputKeyDown={handleCategoryInputKeyDown}
               onInputSubmit={submitCategoryInput}
               onSelectOption={(category) => selectCategory(Number(category.id))}
-              isOptionActive={(category) => form.selectedCategoryId === Number(category.id)}
-              isOptionSelected={(category) => form.selectedCategoryId === Number(category.id)}
+              isOptionActive={(category) => form.selectedCategoryIds.includes(Number(category.id))}
+              isOptionSelected={(category) =>
+                form.selectedCategoryIds.includes(Number(category.id))
+              }
               emptyWithoutQueryMessage="No categories yet"
             />
           </div>
+          <select
+            className={styles.categoryTrigger}
+            value={form.selectedStatusId ?? ""}
+            onChange={(event) => onSelectStatusId(event.target.value)}
+            aria-label="Status"
+          >
+            <option value="">No status</option>
+            {statuses.map((status) => (
+              <option key={status.id} value={status.id}>
+                {status.label}
+              </option>
+            ))}
+          </select>
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {form.remindExpanded &&
             renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}

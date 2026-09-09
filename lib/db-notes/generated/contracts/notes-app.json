@@ -47,6 +47,13 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
+        },
+        {
+          "name": "currentWorkspaceId",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
         }
       ]
     },
@@ -110,7 +117,7 @@
           "nullable": false
         },
         {
-          "name": "userId",
+          "name": "workspaceId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -149,6 +156,45 @@
           "nullable": false
         },
         {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "noteCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "lastUsedAt",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
+    "WorkspaceRecord": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
           "name": "userId",
           "optional": false,
           "kind": "scalar",
@@ -160,6 +206,45 @@
           "optional": false,
           "kind": "scalar",
           "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "noteCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "StatusRecord": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "position",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
           "nullable": false
         },
         {
@@ -224,18 +309,28 @@
           "nullable": false
         },
         {
-          "name": "userId",
+          "name": "workspaceId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
           "nullable": false
         },
         {
-          "name": "category",
+          "name": "categories",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "NoteCategoryRef"
+          },
+          "nullable": false
+        },
+        {
+          "name": "status",
           "optional": false,
           "kind": "model",
           "type": "NoteCategoryRef",
-          "nullable": false
+          "nullable": true
         },
         {
           "name": "tags",
@@ -305,11 +400,28 @@
     "NoteInput": {
       "fields": [
         {
-          "name": "categoryId",
+          "name": "workspaceId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
           "nullable": false
+        },
+        {
+          "name": "categoryIds",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "scalar",
+            "type": "number"
+          },
+          "nullable": false
+        },
+        {
+          "name": "statusId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
         },
         {
           "name": "tagIds",
@@ -381,6 +493,13 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
         }
       ]
     },
@@ -392,10 +511,53 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
         }
       ]
     },
     "CategoriesRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "StatusesRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "WorkspacesRequest": {
       "fields": [
         {
           "name": "userId",
@@ -416,6 +578,13 @@
           "nullable": false
         },
         {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
           "name": "label",
           "optional": false,
           "kind": "scalar",
@@ -428,6 +597,13 @@
       "fields": [
         {
           "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -459,6 +635,13 @@
           "nullable": false
         },
         {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
           "name": "categoryId",
           "optional": false,
           "kind": "scalar",
@@ -477,6 +660,13 @@
           "nullable": false
         },
         {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
           "name": "label",
           "optional": false,
           "kind": "scalar",
@@ -489,6 +679,13 @@
       "fields": [
         {
           "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -514,6 +711,13 @@
       "fields": [
         {
           "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -593,6 +797,13 @@
       "fields": [
         {
           "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -693,6 +904,281 @@
         }
       ]
     },
+    "WorkspacesResponse": {
+      "fields": [
+        {
+          "name": "workspaces",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "WorkspaceRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "WorkspaceResponse": {
+      "fields": [
+        {
+          "name": "workspace",
+          "optional": false,
+          "kind": "model",
+          "type": "WorkspaceRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "StatusesResponse": {
+      "fields": [
+        {
+          "name": "statuses",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "StatusRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "StatusResponse": {
+      "fields": [
+        {
+          "name": "status",
+          "optional": false,
+          "kind": "model",
+          "type": "StatusRecord",
+          "nullable": false
+        }
+      ]
+    },
+    "CreateWorkspaceRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateWorkspaceRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteWorkspaceRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "confirmation",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "CreateStatusRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "UpdateStatusRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "statusId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "position",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteStatusRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "statusId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "BootstrapResponse": {
+      "fields": [
+        {
+          "name": "user",
+          "optional": false,
+          "kind": "model",
+          "type": "UserSummary",
+          "nullable": false
+        },
+        {
+          "name": "workspaces",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "WorkspaceRecord"
+          },
+          "nullable": false
+        },
+        {
+          "name": "activeWorkspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "notes",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "NoteRecord"
+          },
+          "nullable": false
+        },
+        {
+          "name": "categories",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "CategoryRecord"
+          },
+          "nullable": false
+        },
+        {
+          "name": "statuses",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "StatusRecord"
+          },
+          "nullable": false
+        },
+        {
+          "name": "tags",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "TagRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
     "TagsResponse": {
       "fields": [
         {
@@ -750,42 +1236,6 @@
           "optional": false,
           "kind": "scalar",
           "type": "true",
-          "nullable": false
-        }
-      ]
-    },
-    "DeleteCategoryWithNotesRequest": {
-      "fields": [
-        {
-          "name": "userId",
-          "optional": false,
-          "kind": "scalar",
-          "type": "number",
-          "nullable": false
-        },
-        {
-          "name": "categoryId",
-          "optional": false,
-          "kind": "scalar",
-          "type": "number",
-          "nullable": false
-        }
-      ]
-    },
-    "DeleteCategoryWithNotesResponse": {
-      "fields": [
-        {
-          "name": "ok",
-          "optional": false,
-          "kind": "scalar",
-          "type": "true",
-          "nullable": false
-        },
-        {
-          "name": "deletedNotes",
-          "optional": false,
-          "kind": "scalar",
-          "type": "number",
           "nullable": false
         }
       ]

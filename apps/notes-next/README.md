@@ -26,7 +26,7 @@ pnpm --filter notes-next dev
 
 The app runs at `http://localhost:3000`.
 
-On startup, returning sessions are seeded by the server and the UI loads its initial session, notes, categories, and tags through `GET /api/bootstrap`. A database or network failure shows a retryable error instead of repeatedly issuing requests. The service worker is disabled and cleaned up on local hosts so old app shells or development chunks cannot survive a server restart.
+On startup, returning sessions are seeded by the server and the UI loads the user's workspace list plus one active workspace's notes, categories, statuses, and tags through `GET /api/bootstrap`. A database or network failure shows a retryable error instead of repeatedly issuing requests. The service worker is disabled and cleaned up on local hosts so old app shells or development chunks cannot survive a server restart.
 
 ## Relevant scripts
 
@@ -44,10 +44,13 @@ This package only validates the Notes contract. It does not own migration script
 
 | Method                | Path                                | Purpose                                       |
 | --------------------- | ----------------------------------- | --------------------------------------------- |
-| GET                   | `/api/bootstrap`                    | Load authenticated web startup data           |
+| GET                   | `/api/bootstrap`                    | Load workspaces and the active workspace      |
 | GET/POST              | `/api/session`                      | Look up user by userId or login by identifier |
 | GET/POST/PATCH/DELETE | `/api/notes`                        | List, create, update, delete notes            |
-| GET/POST              | `/api/tags`                         | List, create tags                             |
+| GET/POST/PATCH/DELETE | `/api/categories`                   | Manage workspace categories                   |
+| GET/POST/PATCH/DELETE | `/api/statuses`                     | Manage workspace statuses                     |
+| GET/POST/PATCH/DELETE | `/api/tags`                         | Manage workspace tags                         |
+| GET/POST/PATCH/DELETE | `/api/workspaces`                   | Manage user workspaces                        |
 | POST                  | `/api/notes/search`                 | Semantic search                               |
 | POST                  | `/api/notes/maintenance/embeddings` | Backfill or repair stale embeddings           |
 | GET                   | `/api/health`                       | Railway liveness probe                        |

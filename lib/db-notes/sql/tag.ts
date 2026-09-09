@@ -1,301 +1,111 @@
-import type { UserNoteTagV1Row } from "../generated/typescript/db-types";
-import { getDb } from "../lib/db/postgres";
-import type { TagRecord } from "../contracts/notes-app";
-import { CURRENT_NOTE_EMBEDDING_MODEL } from "../services/notes-embeddings";
-import type { PoolClient } from "pg";
-
-export const DEFAULT_TAG_LABEL = "important";
-
+import type { PoolClient } from "pg"
+import type { TagRecord } from "../contracts/notes-app"
+import { getDb } from "../lib/db/postgres"
+import { CURRENT_NOTE_EMBEDDING_MODEL } from "../services/notes-embeddings"
+export const DEFAULT_TAG_LABEL = "important"
 export interface TagEmbeddingBackfillRow {
-  id: number;
-  label: string;
-}
-
-interface TagWithCountRow extends UserNoteTagV1Row {
-  note_count: number | string | null;
-  last_used_at: Date | string | null;
-}
-
-const tagSelect = `
-  SELECT
-    c.id,
-    c.user_id,
-    c.label,
-    (
-      SELECT COUNT(*)::int
-      FROM public.user_note_tag_link_v1 l
-      WHERE l.tag_id = c.id
-    ) AS note_count,
-    (
-      SELECT MAX(n.time_modified)
-      FROM public.user_note_tag_link_v1 l
-      JOIN public.user_note_v1 n
-        ON n.id = l.note_id
-       AND n.user_id = c.user_id
-      WHERE l.tag_id = c.id
-    ) AS last_used_at
-  FROM public.user_note_tag_v1 c
-`;
-
-const toIsoStringOrNull = (value: Date | string | null): string | null => {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-
-  return new Date(value).toISOString();
-};
-
-const mapTag = (row: TagWithCountRow): TagRecord => ({
-  id: row.id,
-  userId: row.user_id,
-  label: row.label,
-  noteCount: Number(row.note_count ?? 0),
-  lastUsedAt: toIsoStringOrNull(row.last_used_at),
-});
-
-export const getFirstTagForUser = async (
-  client: PoolClient,
-  userId: number
-): Promise<{ id: number; label: string } | null> => {
-  const { rows } = await client.query<{ id: number; label: string }>(
-    `
-      SELECT id, label
-      FROM public.user_note_tag_v1
-      WHERE user_id = $1
-      ORDER BY id ASC
-      LIMIT 1
-    `,
-    [userId]
-  );
-  return rows[0] ?? null;
-};
-
-export const ensureDefaultTagForUser = async (
-  client: PoolClient,
-  userId: number
-) => {
-  await client.query(
-    `
-      INSERT INTO public.user_note_tag_v1 (user_id, label)
-      VALUES ($1, $2)
-      ON CONFLICT (user_id, label) DO NOTHING
-    `,
-    [userId, DEFAULT_TAG_LABEL]
-  );
-};
-
-export const listTagsByUser = async (userId: number) => {
-  const { rows } = await getDb().query<TagWithCountRow>(
-    `
-      ${tagSelect}
-      WHERE c.user_id = $1
-      ORDER BY last_used_at DESC NULLS LAST, lower(c.label) ASC, c.id ASC
-    `,
-    [userId]
-  );
-
-  return rows.map(mapTag);
-};
-
-export const getTagByIdForUser = async (
-  userId: number,
-  tagId: number
-) => {
-  const { rows } = await getDb().query<TagWithCountRow>(
-    `
-      ${tagSelect}
-      WHERE c.user_id = $1
-        AND c.id = $2
-      LIMIT 1
-    `,
-    [userId, tagId]
-  );
-
-  return rows[0] ? mapTag(rows[0]) : null;
-};
-
-export const listTagLabelsForUserIds = async (
-  userId: number,
-  tagIds: number[]
-) => {
-  const uniqueIds = [...new Set(tagIds)];
-
-  if (uniqueIds.length === 0) {
-    return [];
-  }
-
-  const { rows } = await getDb().query<{ label: string }>(
-    `
-      SELECT label
-      FROM public.user_note_tag_v1
-      WHERE user_id = $1
-        AND id = ANY($2::int[])
-      ORDER BY lower(label), id
-    `,
-    [userId, uniqueIds]
-  );
-
-  if (rows.length !== uniqueIds.length) {
-    throw new Error("One or more tags were not found for this user.");
-  }
-
-  return rows.map((row) => row.label);
-};
-
-export const listTagsMissingEmbeddingsByUser = async (
-  userId: number,
-  limit: number
-) => {
-  const { rows } = await getDb().query<TagEmbeddingBackfillRow>(
-    `
-      SELECT id, label
-      FROM public.user_note_tag_v1
-      WHERE user_id = $1
-        AND NULLIF(btrim(label), '') IS NOT NULL
-        AND tag_embedding IS NULL
-      ORDER BY id ASC
-      LIMIT $2
-    `,
-    [userId, limit]
-  );
-
-  return rows;
-};
-
-export const listTagsStaleEmbeddingsByUser = async (
-  userId: number,
-  limit: number
-) => {
-  const { rows } = await getDb().query<TagEmbeddingBackfillRow>(
-    `
-      SELECT id, label
-      FROM public.user_note_tag_v1
-      WHERE user_id = $1
-        AND NULLIF(btrim(label), '') IS NOT NULL
-        AND (
-          embedding_model IS DISTINCT FROM $2
-          OR tag_embedding IS NULL
-        )
-      ORDER BY id ASC
-      LIMIT $3
-    `,
-    [userId, CURRENT_NOTE_EMBEDDING_MODEL, limit]
-  );
-
-  return rows;
-};
-
-export const updateTagEmbeddingById = async (
-  tagId: number,
-  userId: number,
-  vectorLiteral: string | null,
-  embeddingModel: string | null
-) => {
-  await getDb().query(
-    `
-      UPDATE public.user_note_tag_v1
-      SET
-        tag_embedding = $1::vector,
-        embedding_model = $2,
-        embedding_updated_at = $3
-      WHERE id = $4
-        AND user_id = $5
-    `,
-    [
-      vectorLiteral,
-      embeddingModel,
-      embeddingModel ? new Date().toISOString() : null,
-      tagId,
-      userId,
-    ]
-  );
-};
-
-export const updateTagLabelForUser = async (
-  client: PoolClient,
-  userId: number,
-  tagId: number,
+  id: number
   label: string
-) => {
-  const { rows } = await client.query<{ id: number }>(
-    `
-      UPDATE public.user_note_tag_v1
-      SET label = $1
-      WHERE id = $2
-        AND user_id = $3
-      RETURNING id
-    `,
-    [label, tagId, userId]
-  );
-
-  return rows[0]?.id ?? null;
-};
-
-export const deleteTagForUser = async (
+}
+interface Row {
+  id: number
+  workspace_id: number
+  label: string
+  note_count: number | string | null
+  last_used_at: Date | string | null
+}
+const map = (r: Row): TagRecord => ({
+  id: r.id,
+  workspaceId: r.workspace_id,
+  label: r.label,
+  noteCount: Number(r.note_count ?? 0),
+  lastUsedAt: r.last_used_at ? new Date(r.last_used_at).toISOString() : null,
+})
+const select = `SELECT t.id,t.workspace_id,t.label,(SELECT COUNT(*)::int FROM public.user_note_tag_link_v1 l WHERE l.tag_id=t.id) note_count,
+ (SELECT MAX(n.time_modified) FROM public.user_note_tag_link_v1 l JOIN public.user_note_v1 n ON n.id=l.note_id WHERE l.tag_id=t.id) last_used_at FROM public.workspace_note_tag_v1 t`
+export const ensureDefaultTagForWorkspace = async (client: PoolClient, workspaceId: number) => {
+  await client.query(
+    `INSERT INTO public.workspace_note_tag_v1(workspace_id,label) SELECT $1,$2
+ WHERE NOT EXISTS(SELECT 1 FROM public.workspace_note_tag_v1 WHERE workspace_id=$1) ON CONFLICT(workspace_id,label) DO NOTHING`,
+    [workspaceId, DEFAULT_TAG_LABEL],
+  )
+}
+export const getFirstTagForWorkspace = async (client: PoolClient, workspaceId: number) => {
+  const { rows } = await client.query<{ id: number; label: string }>(
+    `SELECT id,label FROM public.workspace_note_tag_v1 WHERE workspace_id=$1 ORDER BY id LIMIT 1`,
+    [workspaceId],
+  )
+  return rows[0] ?? null
+}
+export const listTagsByWorkspace = async (userId: number, workspaceId: number) => {
+  const { rows } = await getDb().query<Row>(
+    `${select} JOIN public.user_workspace_v1 w ON w.id=t.workspace_id
+ WHERE w.user_id=$1 AND t.workspace_id=$2 ORDER BY last_used_at DESC NULLS LAST,lower(t.label),t.id`,
+    [userId, workspaceId],
+  )
+  return rows.map(map)
+}
+export const getTagByIdForWorkspace = async (userId: number, workspaceId: number, id: number) => {
+  const { rows } = await getDb().query<Row>(
+    `${select} JOIN public.user_workspace_v1 w ON w.id=t.workspace_id
+ WHERE w.user_id=$1 AND t.workspace_id=$2 AND t.id=$3`,
+    [userId, workspaceId, id],
+  )
+  return rows[0] ? map(rows[0]) : null
+}
+export const listTagsMissingEmbeddingsByUser = async (userId: number, limit: number) => {
+  const { rows } = await getDb().query<TagEmbeddingBackfillRow>(
+    `SELECT t.id,t.label FROM public.workspace_note_tag_v1 t
+ JOIN public.user_workspace_v1 w ON w.id=t.workspace_id WHERE w.user_id=$1 AND t.tag_embedding IS NULL ORDER BY t.id LIMIT $2`,
+    [userId, limit],
+  )
+  return rows
+}
+export const listTagsStaleEmbeddingsByUser = async (userId: number, limit: number) => {
+  const { rows } = await getDb().query<TagEmbeddingBackfillRow>(
+    `SELECT t.id,t.label FROM public.workspace_note_tag_v1 t
+ JOIN public.user_workspace_v1 w ON w.id=t.workspace_id WHERE w.user_id=$1 AND (t.embedding_model IS DISTINCT FROM $2 OR t.tag_embedding IS NULL) ORDER BY t.id LIMIT $3`,
+    [userId, CURRENT_NOTE_EMBEDDING_MODEL, limit],
+  )
+  return rows
+}
+export const updateTagEmbeddingById = async (
   userId: number,
-  tagId: number,
-  protectedTagId: number
+  id: number,
+  embedding: string | null,
+  model: string | null,
 ) => {
-  const client = await getDb().connect();
-
-  try {
-    await client.query("BEGIN");
-
-    if (tagId === protectedTagId) {
-      throw new Error("Cannot delete the fallback tag.");
-    }
-
-    const protectedResult = await client.query<{ count: number | string }>(
-      `
-        SELECT COUNT(*)::int AS count
-        FROM public.user_note_tag_v1
-        WHERE user_id = $1
-          AND id = $2
-      `,
-      [userId, protectedTagId]
-    );
-
-    if (Number(protectedResult.rows[0]?.count ?? 0) !== 1) {
-      throw new Error("Fallback tag was not found for this user.");
-    }
-
-    const linkResult = await client.query<{ count: number | string }>(
-      `
-        SELECT COUNT(*)::int AS count
-        FROM public.user_note_tag_link_v1 l
-        JOIN public.user_note_tag_v1 c
-          ON c.id = l.tag_id
-         AND c.user_id = $1
-        WHERE l.tag_id = $2
-      `,
-      [userId, tagId]
-    );
-
-    const linkCount = Number(linkResult.rows[0]?.count ?? 0);
-
-    const deleteResult = await client.query(
-      `
-        DELETE FROM public.user_note_tag_v1
-        WHERE id = $1
-          AND user_id = $2
-      `,
-      [tagId, userId]
-    );
-
-    await client.query("COMMIT");
-
-    return {
-      deleted: (deleteResult.rowCount ?? 0) > 0,
-      deletedLinks: linkCount,
-    };
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-};
+  const r = await getDb().query(
+    `UPDATE public.workspace_note_tag_v1 t SET tag_embedding=$3::vector,embedding_model=$4,embedding_updated_at=now()
+ FROM public.user_workspace_v1 w WHERE t.id=$1 AND w.id=t.workspace_id AND w.user_id=$2`,
+    [id, userId, embedding, model],
+  )
+  return r.rowCount === 1
+}
+export const updateTagLabelForWorkspace = async (
+  userId: number,
+  workspaceId: number,
+  id: number,
+  label: string,
+  embedding: string | null,
+  model: string | null,
+) => {
+  const r = await getDb().query(
+    `UPDATE public.workspace_note_tag_v1 t SET label=$4,tag_embedding=$5::vector,embedding_model=$6,embedding_updated_at=CASE WHEN $6::text IS NULL THEN NULL ELSE now() END
+ FROM public.user_workspace_v1 w WHERE t.id=$3 AND t.workspace_id=$2 AND w.id=$2 AND w.user_id=$1`,
+    [userId, workspaceId, id, label, embedding, model],
+  )
+  return r.rowCount === 1 ? getTagByIdForWorkspace(userId, workspaceId, id) : null
+}
+export const deleteTagForWorkspace = async (userId: number, workspaceId: number, id: number) => {
+  const links = await getDb().query<{ count: number }>(
+    `SELECT COUNT(*)::int count FROM public.user_note_tag_link_v1 WHERE tag_id=$1`,
+    [id],
+  )
+  const r = await getDb().query(
+    `DELETE FROM public.workspace_note_tag_v1 t USING public.user_workspace_v1 w
+ WHERE t.id=$3 AND t.workspace_id=$2 AND w.id=$2 AND w.user_id=$1`,
+    [userId, workspaceId, id],
+  )
+  return r.rowCount === 1 ? Number(links.rows[0]?.count ?? 0) : null
+}

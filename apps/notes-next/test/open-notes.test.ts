@@ -22,8 +22,9 @@ import {
 
 const makeNote = (id: number, description = `note ${id}`): NoteRecord => ({
   id,
-  userId: 1,
-  category: { id: 7, label: "inbox" },
+  workspaceId: 1,
+  categories: [{ id: 7, label: "inbox" }],
+  status: null,
   tags: [],
   description,
   timeDue: null,
@@ -181,7 +182,7 @@ test("deleting a note closes its entry wherever it sits", () => {
 })
 
 test("a draft keeps its key across the transition to a real note id", () => {
-  const { state: opened } = openNewDraft(createEmptyOpenNotesState(), { categoryId: 7 })
+  const { state: opened } = openNewDraft(createEmptyOpenNotesState(), { categoryIds: [7] })
   const draftKey = opened.activeKey!
   assert.ok(draftKey.startsWith("draft:"))
 
@@ -196,16 +197,16 @@ test("a draft keeps its key across the transition to a real note id", () => {
 })
 
 test("openNewDraft reuses an untouched draft instead of minting another", () => {
-  const { state: first } = openNewDraft(createEmptyOpenNotesState(), { categoryId: 7 })
-  const { state: second } = openNewDraft(first, { categoryId: 9 })
+  const { state: first } = openNewDraft(createEmptyOpenNotesState(), { categoryIds: [7] })
+  const { state: second } = openNewDraft(first, { categoryIds: [9] })
 
   assert.equal(second.openNotes.length, 1)
   assert.equal(second.nextDraftSequence, first.nextDraftSequence)
-  assert.equal(getActiveEntry(second)?.form.selectedCategoryId, 9)
+  assert.deepEqual(getActiveEntry(second)?.form.selectedCategoryIds, [9])
 })
 
 test("openNewDraft mints a new entry once the active draft has content", () => {
-  const { state: first } = openNewDraft(createEmptyOpenNotesState(), { categoryId: 7 })
+  const { state: first } = openNewDraft(createEmptyOpenNotesState(), { categoryIds: [7] })
   const withText = patchEntry(first, first.activeKey!, (entry) => ({
     form: { ...entry.form, description: "started writing" },
   }))

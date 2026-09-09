@@ -15,7 +15,7 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react"
-import type { UserSummary } from "@lib/db-notes"
+import type { UserSummary, WorkspaceRecord } from "@lib/db-notes"
 import { noteHeadline, toLowercaseInput } from "@/lib/strings"
 import {
   selectActiveSaveStatus,
@@ -134,7 +134,8 @@ function RecentNotesMenu({
                   >
                     <span className={styles.recentTitle}>{title}</span>
                     <span className={styles.recentMeta}>
-                      {categoryLabelById(entry.form.selectedCategoryId)}
+                      {entry.form.selectedCategoryIds.map(categoryLabelById).join(", ") ||
+                        "uncategorized"}
                     </span>
                   </button>
                   <span
@@ -180,6 +181,10 @@ interface NotesHeaderProps {
   pasteUrlAsMarkdown: boolean
   onPasteUrlAsMarkdownChange: (enabled: boolean) => void
   onAddNote: () => void
+  workspaces: WorkspaceRecord[]
+  activeWorkspaceId: number
+  onWorkspaceChange: (id: number) => void
+  onCreateWorkspace: () => void
   onLogout: () => void
   maxOpenNotes: number
   onMaxOpenNotesChange: (value: number) => void
@@ -206,6 +211,10 @@ export function NotesHeader({
   pasteUrlAsMarkdown,
   onPasteUrlAsMarkdownChange,
   onAddNote,
+  workspaces,
+  activeWorkspaceId,
+  onWorkspaceChange,
+  onCreateWorkspace,
   onLogout,
   maxOpenNotes,
   onMaxOpenNotesChange,
@@ -357,6 +366,26 @@ export function NotesHeader({
           jot.new
         </span>
         <SaveStatusIndicator />
+        <select
+          value={activeWorkspaceId}
+          onChange={(event) => onWorkspaceChange(Number(event.target.value))}
+          aria-label="Current workspace"
+        >
+          {workspaces.map((workspace) => (
+            <option key={workspace.id} value={workspace.id}>
+              {workspace.label}
+            </option>
+          ))}
+        </select>
+        <Button
+          view="flat"
+          size="s"
+          onClick={onCreateWorkspace}
+          aria-label="Create workspace"
+          title="Create workspace"
+        >
+          +
+        </Button>
 
         <Button
           view="flat"

@@ -1,6 +1,6 @@
 "use client"
 
-import type { CategoryRecord, NoteRecord, TagRecord } from "@lib/db-notes"
+import type { CategoryRecord, NoteRecord, StatusRecord, TagRecord } from "@lib/db-notes"
 import {
   ArrowsLeftRight,
   DotsThreeVertical,
@@ -52,24 +52,30 @@ export interface TagNoteGroup {
   items: DisplayNoteItem[]
   sortTime: number
 }
+export interface StatusNoteGroup {
+  status: StatusRecord
+  items: DisplayNoteItem[]
+}
 
 interface ResultsColumnProps {
   visible: boolean
   columnStyle: CSSProperties
   tags: TagRecord[]
-  notesCount: number
   notesLoading: boolean
   categories: CategoryRecord[]
+  statuses: StatusRecord[]
+  statusNoteGroups: StatusNoteGroup[]
+  activeStatusId: number | null
+  onCreateStatus: () => void
   fallbackCategoryId: number | null
   fallbackTagId: number | null
   selectedTag: TagRecord | null
   searchMode: boolean
   searchItems: DisplayNoteItem[]
   searchLoading: boolean
-  allCategoryItems: DisplayNoteItem[]
-  allCategoriesNoteCount: number
   categoryNoteGroups: CategoryNoteGroup[]
-  allTagItems: DisplayNoteItem[]
+  uncategorizedItems: DisplayNoteItem[]
+  noStatusItems: DisplayNoteItem[]
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
   /** Notes with an open entry, marked distinctly from the active one. */
@@ -93,19 +99,21 @@ export function ResultsColumn({
   visible,
   columnStyle,
   tags,
-  notesCount,
   notesLoading,
   categories,
+  statuses,
+  statusNoteGroups,
+  activeStatusId,
+  onCreateStatus,
   fallbackCategoryId,
   fallbackTagId,
   selectedTag,
   searchMode,
   searchItems,
   searchLoading,
-  allCategoryItems,
-  allCategoriesNoteCount,
   categoryNoteGroups,
-  allTagItems,
+  uncategorizedItems,
+  noStatusItems,
   tagNoteGroups,
   activeNoteId,
   openNoteIds,
@@ -124,6 +132,9 @@ export function ResultsColumn({
   onDeleteTag,
 }: ResultsColumnProps) {
   const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
+  const [expandedStatusId, setExpandedStatusId] = useState<number | null>(null)
+  const [uncategorizedExpanded, setUncategorizedExpanded] = useState(false)
+  const [noStatusExpanded, setNoStatusExpanded] = useState(false)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
   const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
   const didExpandActiveCategoryOnLoadRef = useRef(false)
@@ -295,7 +306,7 @@ export function ResultsColumn({
         <NoteMovePicker
           mode="category"
           options={categories}
-          currentOptionIds={[note.category.id]}
+          currentOptionIds={note.categories.map((category) => category.id)}
           inputPlaceholder="Enter new..."
           emptyMessage="No other categories."
           onClose={closeMovePicker}
@@ -402,7 +413,7 @@ export function ResultsColumn({
                           <NoteResultsList
                             items={items}
                             activeNoteId={activeNoteId}
-                openNoteIds={openNoteIds}
+                            openNoteIds={openNoteIds}
                             loading={false}
                             emptyMessage=""
                             onEdit={handleResultEdit}
@@ -422,7 +433,111 @@ export function ResultsColumn({
                 })}
               </>
             )}
+            {!notesLoading && uncategorizedItems.length > 0 && (
+              <div className={styles.categoryGroup} role="listitem">
+                <div className={styles.categoryRow}>
+                  <SectionTitle
+                    count={uncategorizedItems.length}
+                    label="No category"
+                    expanded={uncategorizedExpanded}
+                    panelId="uncategorized-notes"
+                    onToggle={() => setUncategorizedExpanded((value) => !value)}
+                  >
+                    <span />
+                  </SectionTitle>
+                </div>
+                {uncategorizedExpanded && (
+                  <ScrollableNotesPanel id="uncategorized-notes">
+                    <NoteResultsList
+                      items={uncategorizedItems}
+                      activeNoteId={activeNoteId}
+                      openNoteIds={openNoteIds}
+                      loading={false}
+                      emptyMessage=""
+                      onEdit={handleResultEdit}
+                    />
+                  </ScrollableNotesPanel>
+                )}
+              </div>
+            )}
           </div>
+          {!notesLoading && (
+            <div className={styles.tagAccordion} role="list" aria-label="Notes by status">
+              <div className={styles.accordionHeading}>
+                Statuses{" "}
+                <button type="button" onClick={onCreateStatus} aria-label="Create status">
+                  +
+                </button>
+              </div>
+              {statusNoteGroups.map(({ status, items }) => {
+                const expanded = expandedStatusId === status.id
+                const panelId = `status-notes-${status.id}`
+                return (
+                  <div className={styles.categoryGroup} key={status.id} role="listitem">
+                    <div className={styles.categoryRow}>
+                      <SectionTitle
+                        count={status.noteCount}
+                        label={status.label}
+                        selected={activeStatusId === status.id}
+                        expanded={expanded}
+                        panelId={panelId}
+                        onToggle={() => setExpandedStatusId(expanded ? null : status.id)}
+                      >
+                        <span />
+                      </SectionTitle>
+                    </div>
+                    {expanded && items.length > 0 && (
+                      <ScrollableNotesPanel id={panelId}>
+                        <NoteResultsList
+                          items={items}
+                          activeNoteId={activeNoteId}
+                          openNoteIds={openNoteIds}
+                          loading={false}
+                          emptyMessage=""
+                          onEdit={handleResultEdit}
+                        />
+                      </ScrollableNotesPanel>
+                    )}
+                  </div>
+                )
+              })}
+              {statuses.length === 0 && (
+                <div className={styles.categoryAccordionStatus}>
+                  <Text variant="body-1" color="secondary">
+                    &ensp;No statuses yet
+                  </Text>
+                </div>
+              )}
+              {noStatusItems.length > 0 && (
+                <div className={styles.categoryGroup} role="listitem">
+                  <div className={styles.categoryRow}>
+                    <SectionTitle
+                      count={noStatusItems.length}
+                      label="No status"
+                      selected={activeStatusId === null}
+                      expanded={noStatusExpanded}
+                      panelId="no-status-notes"
+                      onToggle={() => setNoStatusExpanded((value) => !value)}
+                    >
+                      <span />
+                    </SectionTitle>
+                  </div>
+                  {noStatusExpanded && (
+                    <ScrollableNotesPanel id="no-status-notes">
+                      <NoteResultsList
+                        items={noStatusItems}
+                        activeNoteId={activeNoteId}
+                        openNoteIds={openNoteIds}
+                        loading={false}
+                        emptyMessage=""
+                        onEdit={handleResultEdit}
+                      />
+                    </ScrollableNotesPanel>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           {!notesLoading && (
             <div className={styles.tagAccordion} role="list" aria-label="Notes by tag">
               <div className={styles.accordionHeading}>Tags</div>
@@ -467,7 +582,7 @@ export function ResultsColumn({
                         <NoteResultsList
                           items={items}
                           activeNoteId={activeNoteId}
-                openNoteIds={openNoteIds}
+                          openNoteIds={openNoteIds}
                           loading={false}
                           emptyMessage=""
                           onEdit={handleResultEdit}

@@ -60,7 +60,8 @@ type Actions = {
   setMaxOpenNotes: (value: number) => OpenNoteEntry[]
   openExistingNote: (note: NoteRecord) => OpenNoteEntry[]
   openNewDraft: (options?: {
-    categoryId?: number | null
+    categoryIds?: number[]
+    statusId?: number | null
     tagIds?: number[]
     categoryLabel?: string
   }) => OpenNoteEntry[]
@@ -76,9 +77,7 @@ type Actions = {
     key: OpenNoteKey,
     form: NoteFormState | ((current: NoteFormState) => NoteFormState),
   ) => void
-  patchEveryEntry: (
-    patch: (entry: OpenNoteEntry) => Partial<OpenNoteEntry>,
-  ) => void
+  patchEveryEntry: (patch: (entry: OpenNoteEntry) => Partial<OpenNoteEntry>) => void
   replaceOpenNotes: (next: OpenNotesState) => void
 }
 
@@ -183,8 +182,7 @@ export const selectActiveEntry = (state: NotesAppStore): OpenNoteEntry | null =>
 export const selectActiveSaveStatus = (state: NotesAppStore): NoteSaveStatus =>
   getActiveEntry(state)?.saveStatus ?? "idle"
 
-export const selectBackTarget = (state: NotesAppStore): OpenNoteEntry | null =>
-  getBackTarget(state)
+export const selectBackTarget = (state: NotesAppStore): OpenNoteEntry | null => getBackTarget(state)
 
 /**
  * True when a note the user is not looking at is mid-save or failed to save,

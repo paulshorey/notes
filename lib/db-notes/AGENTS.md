@@ -6,6 +6,13 @@
 
 Database-first package for the `DB_NOTES_URL` database.
 
+## Workspace ownership model
+
+- `user_v1` owns `user_workspace_v1`; notes and all note vocabulary are owned through a workspace.
+- Every note has one `workspace_id`, zero or more category links, one nullable `status_id`, and zero or more tag links.
+- Categories, statuses, and tags are independent flat vocabularies, unique by normalized label within a workspace. They are not a hierarchy.
+- Composite foreign keys enforce that every note relation comes from the note's own workspace.
+
 ## Source of truth
 
 - `migrations/`: canonical schema change history
@@ -61,18 +68,13 @@ Database-first package for the `DB_NOTES_URL` database.
   This is safe because `user_v1.preferences` defaults to `{}` and the app only
   writes a key when the user explicitly changes that setting — key presence
   means "customized", key absence means "still default".
-- `mergeAnonymousNotesAppSession` (`services/notes-app.ts`) runs a best-effort
-  `mode: "missing"` embedding backfill for the destination user after the
-  merge commits, because categories/tags inserted by the merge SQL bypass the
-  embed-on-write paths. A missing `JINA_API_KEY` or a Jina failure logs a
-  warning and never fails the merge.
 - Tests: `pnpm --filter @lib/db-notes test` (node test runner via tsx).
-  The merge regression suite (`testing/anonymous-merge.test.ts`) only touches
+  DB regression suites only touch
   a database when `DB_NOTES_TEST_URL` is set, and it connects to that URL
   — never to `DB_NOTES_URL`. Cursor Cloud presets both to local throwaway
   databases; CI's verify-notes job runs it against its throwaway migrated
   container.
-- `user_v1` and `user_note_v1` share the `apply_row_timestamps_v1()` trigger
+- Users, workspaces, workspace vocabulary, and notes share the `apply_row_timestamps_v1()` trigger
   function so `time_modified` refreshes automatically on insert/update while
   `time_created` stays stable after insert.
 - Fresh empty DB: run `pnpm --filter @lib/db-notes db:migrate`, then
