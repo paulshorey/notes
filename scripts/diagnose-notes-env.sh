@@ -299,7 +299,8 @@ else
     if server_version="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_setting('server_version')" 2>"$db_error_file")"; then
       pass "Connected with $($psql_bin --version) to PostgreSQL $server_version"
 
-      missing_relations="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" -X -qAt -v ON_ERROR_STOP=1 <<'SQL' 2>"$db_error_file"
+      relation_query_succeeded=0
+      if missing_relations="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" -X -qAt -v ON_ERROR_STOP=1 <<'SQL' 2>"$db_error_file"
 WITH required(name) AS (
   VALUES
     ('public.user_v1'),
@@ -315,15 +316,31 @@ WITH required(name) AS (
 )
 SELECT name FROM required WHERE to_regclass(name) IS NULL ORDER BY name;
 SQL
-)"
-      if [[ -z "$missing_relations" ]]; then
-        pass "All required Notes relations exist"
+)"; then
+        relation_query_succeeded=1
+        if [[ -z "$missing_relations" ]]; then
+          pass "All required Notes relations exist"
+        else
+          fail "Missing Notes relations: $(printf '%s' "$missing_relations" | tr '\n' ' ')"
+        fi
       else
-        fail "Missing Notes relations: $(printf '%s' "$missing_relations" | tr '\n' ' ')"
+        db_error="$(tr '\n' ' ' < "$db_error_file" | cut -c1-500)"
+        db_error="$(sanitize_db_error "$db_error" "$notes_db_url")"
+        fail "Required-relation query failed${db_error:+: $db_error}"
       fi
 
-      if [[ "$missing_relations" != *"public.schema_migrations_cursor"* ]]; then
-        migration_ledger="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" -X -qAt -v ON_ERROR_STOP=1 -F '|' -c "SELECT filename, checksum FROM public.schema_migrations_cursor ORDER BY filename" 2>"$db_error_file" || true)"
+      if [[ $relation_query_succeeded -eq 1 && "$missing_relations" != *"public.schema_migrations_cursor"* ]]; then
+        if ! migration_ledger="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" -X -qAt -v ON_ERROR_STOP=1 -F '|' -c "SELECT filename, checksum FROM public.schema_migrations_cursor ORDER BY filename" 2>"$db_error_file")"; then
+          db_error="$(tr '\n' ' ' < "$db_error_file" | cut -c1-500)"
+          db_error="$(sanitize_db_error "$db_error" "$notes_db_url")"
+          fail "Migration-ledger query failed${db_error:+: $db_error}"
+          migration_ledger=""
+          continue_migration_check=0
+        else
+          continue_migration_check=1
+        fi
+
+        if [[ $continue_migration_check -eq 1 ]]; then
         repo_migration_count="$(find lib/db-notes/migrations -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
         applied_migration_count=0
         if [[ -n "$migration_ledger" ]]; then
@@ -363,6 +380,7 @@ SQL
           warn "All repository migrations are applied, but the database is ahead of this checkout (repo=$repo_migration_count applied=$applied_migration_count)"
           info "Only in database: ${extra_migrations[*]}"
         fi
+        fi
       fi
     else
       db_error="$(tr '\n' ' ' < "$db_error_file" | cut -c1-500)"
@@ -375,11 +393,10 @@ fi
 section "Railway"
 if command -v railway >/dev/null 2>&1; then
   info "Railway CLI: $(railway --version 2>/dev/null | head -n 1)"
-  railway_status="$(railway status 2>&1 || true)"
-  if [[ -n "$railway_status" ]]; then
+  if railway_status="$(railway status 2>&1)"; then
     info "$(printf '%s' "$railway_status" | tr '\n' ' ' | cut -c1-500)"
   else
-    warn "Railway CLI is installed but this checkout is not linked or authenticated"
+    warn "Railway CLI is installed but this checkout is not linked or authenticated: $(printf '%s' "$railway_status" | tr '\n' ' ' | cut -c1-300)"
   fi
 else
   warn "Railway CLI is not installed; use the PR deployment check or Railway dashboard for deploy logs"
