@@ -59,7 +59,7 @@ export function NoteResultsList({
     <div className={styles.noteList}>
       {items.map(({ note, relevance }) => {
         const isActive = activeNoteId === note.id
-        const isOpen = !isActive && openNoteIds.includes(note.id)
+        const isOpen = openNoteIds.includes(note.id)
         const relevanceLabel = formatSimilarity(relevance)
 
         return (

@@ -31,8 +31,8 @@
   color: var(--g-color-base-brand);
 }
 
-/* Open in the ring but not the note on screen: a rule rather than a color, so
-   it reads as "loaded" without competing with the active row. */
+/* Open in the ring (including the note on screen): a rule rather than a color,
+   so it reads as "loaded" without competing with the active row's text color. */
 .noteItemOpen::before {
   content: "";
   position: absolute;
