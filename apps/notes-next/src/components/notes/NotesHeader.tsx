@@ -16,6 +16,7 @@ import {
   X,
 } from "@phosphor-icons/react"
 import type { UserSummary, WorkspaceRecord } from "@lib/db-notes"
+import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { noteHeadline, toLowercaseInput } from "@/lib/strings"
 import {
   selectActiveSaveStatus,
@@ -183,8 +184,8 @@ interface NotesHeaderProps {
   onAddNote: () => void
   workspaces: WorkspaceRecord[]
   activeWorkspaceId: number
-  onWorkspaceChange: (id: number) => void
-  onCreateWorkspace: () => void
+  onWorkspaceChange: (id: number) => void | Promise<void>
+  onCreateWorkspace: (label: string) => void | Promise<void>
   onLogout: () => void
   maxOpenNotes: number
   onMaxOpenNotesChange: (value: number) => void
@@ -248,6 +249,8 @@ export function NotesHeader({
   const goBack = useNotesAppStore((state) => state.goBack)
   const trimmedSearchQuery = searchQuery.trim()
   const searchExpanded = searchOpen || trimmedSearchQuery !== ""
+  const activeWorkspaceLabel =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.label ?? "Workspace"
 
   useEffect(() => {
     if (!searchExpanded) return
@@ -366,26 +369,19 @@ export function NotesHeader({
           jot.new
         </span>
         <SaveStatusIndicator />
-        <select
-          value={activeWorkspaceId}
-          onChange={(event) => onWorkspaceChange(Number(event.target.value))}
-          aria-label="Current workspace"
-        >
-          {workspaces.map((workspace) => (
-            <option key={workspace.id} value={workspace.id}>
-              {workspace.label}
-            </option>
-          ))}
-        </select>
-        <Button
-          view="flat"
-          size="s"
-          onClick={onCreateWorkspace}
-          aria-label="Create workspace"
-          title="Create workspace"
-        >
-          +
-        </Button>
+        <FilterablePicker
+          variant="header"
+          value={activeWorkspaceLabel}
+          triggerAriaLabel="Current workspace"
+          listboxAriaLabel="Workspace options"
+          options={workspaces}
+          selectedIds={[activeWorkspaceId]}
+          onSelectOption={(workspace) => onWorkspaceChange(Number(workspace.id))}
+          onCreateOption={onCreateWorkspace}
+          emptyWithoutQueryMessage="No workspaces yet"
+          inputPlaceholder="Enter new workspace..."
+          placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
+        />
 
         <Button
           view="flat"

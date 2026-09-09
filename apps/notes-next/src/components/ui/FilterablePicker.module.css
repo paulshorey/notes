@@ -1,0 +1,113 @@
+.picker {
+  position: relative;
+  min-width: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  max-width: min(280px, 40vw);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin: 0;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  text-align: right;
+}
+
+.trigger:hover,
+.trigger:hover .triggerValue {
+  color: var(--g-color-text-link-hover, #7abaff);
+}
+
+.trigger:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
+  outline-offset: 2px;
+}
+
+.trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.triggerLabel,
+.triggerValue {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.triggerValue {
+  color: var(--g-color-text-link);
+}
+
+.caret {
+  flex: 0 0 auto;
+}
+
+.inline {
+  flex: 0 1 auto;
+}
+
+.inline .trigger {
+  font-size: 1rem;
+}
+
+.header {
+  flex: 0 1 auto;
+}
+
+.header .trigger {
+  max-width: min(200px, 24vw);
+  font-size: 0.875rem;
+}
+
+.menu {
+  width: 100%;
+}
+
+.menu .trigger {
+  width: 100%;
+  max-width: min(280px, 70vw);
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.menu .trigger:hover,
+.menu .trigger:focus-visible {
+  background: var(--g-color-base-generic-hover, rgba(255, 255, 255, 0.08));
+  color: inherit;
+  outline: none;
+}
+
+.menu .triggerLabel {
+  flex: 0 0 auto;
+}
+
+.menu .triggerValue {
+  flex: 1 1 auto;
+  color: var(--g-color-text-secondary, rgba(255, 255, 255, 0.62));
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .trigger {
+    max-width: calc(100vw - 28px);
+  }
+
+  .header .trigger {
+    max-width: min(160px, 28vw);
+  }
+}

@@ -461,6 +461,7 @@ export default function NotesApp() {
   const [embeddingMaintenancePending, setEmbeddingMaintenancePending] =
     useState<EmbeddingMaintenanceMode | null>(null)
   const [createCategoryPending, setCreateCategoryPending] = useState(false)
+  const [createStatusPending, setCreateStatusPending] = useState(false)
   const [createTagPending, setCreateTagPending] = useState(false)
   const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -1599,15 +1600,6 @@ export default function NotesApp() {
     [detachRemovedEntries, setMaxOpenNotesInStore],
   )
 
-  const handleCategoryInputValueChange = useCallback(
-    (value: string) => {
-      const key = useNotesAppStore.getState().activeKey
-      if (key === null) return
-      patchEntry(key, { categoryInputValue: value })
-    },
-    [patchEntry],
-  )
-
   /**
    * Refresh category and tag records after saves, coalesced across all of them
    * so a burst of autosaves costs one round-trip rather than one each.
@@ -2440,10 +2432,9 @@ export default function NotesApp() {
     }
   }
 
-  const handleCreateWorkspace = async () => {
+  const handleCreateWorkspace = async (rawLabel: string) => {
     if (!user) return
-    const raw = window.prompt("Workspace name")
-    const label = raw?.trim().toLocaleLowerCase() ?? ""
+    const label = rawLabel.trim().toLocaleLowerCase()
     if (!label) return
     try {
       const response = await fetch("/api/workspaces", {
@@ -2462,11 +2453,21 @@ export default function NotesApp() {
     }
   }
 
-  const handleCreateStatus = async () => {
-    if (!user || activeWorkspaceId === null) return
-    const raw = window.prompt("Status name")
-    const label = raw?.trim().toLocaleLowerCase() ?? ""
+  const handleCreateStatus = async (
+    rawLabel: string,
+    targetKey: OpenNoteKey | null = activeKey,
+  ) => {
+    if (!user || activeWorkspaceId === null || targetKey === null) return
+    const label = rawLabel.trim().toLocaleLowerCase()
     if (!label) return
+    const existingStatus = statuses.find(
+      (status) => normalizeLabel(status.label) === normalizeLabel(label),
+    )
+    if (existingStatus) {
+      patchEntryForm(targetKey, (form) => ({ ...form, selectedStatusId: existingStatus.id }))
+      return
+    }
+    setCreateStatusPending(true)
     try {
       const response = await fetch("/api/statuses", {
         method: "POST",
@@ -2479,9 +2480,12 @@ export default function NotesApp() {
           (a, b) => a.position - b.position,
         ),
       )
+      patchEntryForm(targetKey, (form) => ({ ...form, selectedStatusId: data.status.id }))
       setStatusMessage(`Status “${data.status.label}” added.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
+    } finally {
+      setCreateStatusPending(false)
     }
   }
 
@@ -3196,8 +3200,8 @@ export default function NotesApp() {
           onAddNote={handleCancelEdit}
           workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId ?? workspaces[0]!.id}
-          onWorkspaceChange={(id) => void handleSwitchWorkspace(id)}
-          onCreateWorkspace={() => void handleCreateWorkspace()}
+          onWorkspaceChange={handleSwitchWorkspace}
+          onCreateWorkspace={handleCreateWorkspace}
           onLogout={handleLogout}
           maxOpenNotes={maxOpenNotes}
           onMaxOpenNotesChange={handleMaxOpenNotesChange}
@@ -3234,13 +3238,13 @@ export default function NotesApp() {
           descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
           editorAutofocus={activeEntry?.autofocus ?? false}
           editorRevealText={activeEntry?.revealText ?? null}
-          categoryInputValue={activeEntry?.categoryInputValue ?? ""}
-          onCategoryInputValueChange={handleCategoryInputValueChange}
           createCategoryPending={createCategoryPending}
+          createStatusPending={createStatusPending}
           createTagPending={createTagPending}
           onSelectCategoryId={handleSelectCategory}
           onSelectStatusId={handleSelectStatus}
           onCreateCategory={handleCreateCategory}
+          onCreateStatus={handleCreateStatus}
           onTagValuesChange={handleTagValuesChange}
           onCancelEdit={handleCancelEdit}
           onAddNote={handleCancelEdit}
@@ -3293,7 +3297,6 @@ export default function NotesApp() {
           statuses={statuses}
           statusNoteGroups={statusNoteGroups}
           activeStatusId={activeForm.selectedStatusId}
-          onCreateStatus={() => void handleCreateStatus()}
           fallbackCategoryId={fallbackCategoryId}
           fallbackTagId={fallbackTagId}
           selectedTag={selectedTag}

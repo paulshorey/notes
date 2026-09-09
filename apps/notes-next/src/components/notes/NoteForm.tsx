@@ -2,20 +2,12 @@
 
 import dynamic from "next/dynamic"
 import { Button, Popup, Text } from "@gravity-ui/uikit"
-import { FilterablePickerPopup } from "@/components/ui/FilterablePickerPopup"
-import { CalendarBlank, CaretDown, DotsThree, Plus, X } from "@phosphor-icons/react"
-import {
-  type Dispatch,
-  type KeyboardEvent,
-  type SetStateAction,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
+import { FilterablePicker } from "@/components/ui/FilterablePicker"
+import { CalendarBlank, DotsThree, Plus, X } from "@phosphor-icons/react"
+import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
 import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-notes"
 import type { NoteFormState } from "@/types/notes"
-import { normalizeLabel, toLowercaseInput } from "@/lib/strings"
+import { normalizeLabel } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/notes"
 import type { AtomicEditorProps } from "@/components/editor/AtomicEditor"
 import styles from "./NoteForm.module.css"
@@ -40,13 +32,13 @@ interface NoteFormProps {
   descriptionEditorSessionId: string | number
   editorAutofocus: boolean
   editorRevealText?: string | null
-  categoryInputValue: string
-  onCategoryInputValueChange: (value: string) => void
   createCategoryPending: boolean
+  createStatusPending: boolean
   createTagPending: boolean
   onSelectCategoryId: (rawId: string) => void
   onSelectStatusId: (rawId: string) => void
   onCreateCategory: (label: string) => void | Promise<void>
+  onCreateStatus: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
@@ -66,40 +58,26 @@ export function NoteForm({
   descriptionEditorSessionId,
   editorAutofocus,
   editorRevealText = null,
-  categoryInputValue,
-  onCategoryInputValueChange,
   createCategoryPending,
+  createStatusPending,
   createTagPending,
   onSelectCategoryId,
   onSelectStatusId,
   onCreateCategory,
+  onCreateStatus,
   onTagValuesChange,
   onCancelEdit,
   onDeleteEditingNote,
   onAddNote,
 }: NoteFormProps) {
-  const categoryTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const categoryInputRef = useRef<HTMLInputElement | null>(null)
-  const tagTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const tagInputRef = useRef<HTMLInputElement | null>(null)
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false)
-  const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [morePickerOpen, setMorePickerOpen] = useState(false)
-  const [tagInputValue, setTagInputValue] = useState("")
+  const [activeMorePicker, setActiveMorePicker] = useState<"status" | "tag" | null>(null)
 
   const selectedCategoryLabel = form.selectedCategoryIds
     .map((id) => categories.find((category) => category.id === id)?.label)
     .filter((value): value is string => Boolean(value))
     .join(", ")
-
-  const filteredCategoryOptions = useMemo(() => {
-    const query = normalizeLabel(categoryInputValue)
-    if (query === "") {
-      return categories
-    }
-    return categories.filter((category) => normalizeLabel(category.label).includes(query))
-  }, [categories, categoryInputValue])
 
   const selectedTagLabels = useMemo(() => {
     const next = [
@@ -121,16 +99,8 @@ export function NoteForm({
     return new Set(selectedTagLabels.map((label) => normalizeLabel(label)))
   }, [selectedTagLabels])
 
-  const filteredTagOptions = useMemo(() => {
-    const query = normalizeLabel(tagInputValue)
-    return tags.filter((tag) => {
-      const normalized = normalizeLabel(tag.label)
-      if (selectedTagLabelSet.has(normalized)) {
-        return false
-      }
-      return query === "" || normalized.includes(query)
-    })
-  }, [selectedTagLabelSet, tagInputValue, tags])
+  const selectedStatusLabel =
+    statuses.find((status) => status.id === form.selectedStatusId)?.label ?? "No status"
 
   const newNoteHasUserInput =
     form.description !== "" ||
@@ -144,95 +114,25 @@ export function NoteForm({
     form.timeRemind !== null
   const showCancelButton = editingNoteId !== null || newNoteHasUserInput
 
-  useEffect(() => {
-    if (!categoryPickerOpen) {
-      onCategoryInputValueChange(selectedCategoryLabel)
-    }
-  }, [categoryPickerOpen, onCategoryInputValueChange, selectedCategoryLabel])
-
-  const openCategoryDropdown = () => {
-    onCategoryInputValueChange("")
-    setCategoryPickerOpen(true)
-    setTagPickerOpen(false)
-    setMorePickerOpen(false)
-  }
-
-  const restoreCategoryInputValue = () => {
-    onCategoryInputValueChange(selectedCategoryLabel)
-  }
-
-  const closeCategoryDropdown = () => {
-    setCategoryPickerOpen(false)
-    restoreCategoryInputValue()
-  }
-
-  const openTagDropdown = () => {
-    setTagInputValue("")
-    setTagPickerOpen(true)
-    setCategoryPickerOpen(false)
-    setMorePickerOpen(true)
-    restoreCategoryInputValue()
-  }
-
-  const closeTagDropdown = () => {
-    setTagPickerOpen(false)
-    setTagInputValue("")
-  }
-
   const closeMoreDropdown = () => {
     setMorePickerOpen(false)
-    closeTagDropdown()
+    setActiveMorePicker(null)
+  }
+
+  const updateMorePicker = (picker: "status" | "tag", open: boolean) => {
+    setActiveMorePicker((current) => (open ? picker : current === picker ? null : current))
   }
 
   const selectCategory = (categoryId: number) => {
     onSelectCategoryId(String(categoryId))
   }
 
-  const submitCategoryInput = () => {
-    const label = categoryInputValue.trim()
-    if (label === "") {
-      return
-    }
-    const matchingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
-    )
-    if (matchingCategory) {
-      selectCategory(matchingCategory.id)
-      return
-    }
-    if (filteredCategoryOptions.length === 0) {
-      void (async () => {
-        try {
-          await onCreateCategory(label)
-        } finally {
-          setCategoryPickerOpen(false)
-        }
-      })()
-    }
-  }
-
-  const handleCategoryInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault()
-      closeCategoryDropdown()
-      return
-    }
-    if (event.key !== "Enter") {
-      return
-    }
-    event.preventDefault()
-    submitCategoryInput()
-  }
-
   const addTagLabel = (label: string) => {
     const normalized = normalizeLabel(label)
     if (normalized === "" || selectedTagLabelSet.has(normalized)) {
-      setTagInputValue("")
       return
     }
     onTagValuesChange([...selectedTagLabels, label])
-    setTagInputValue("")
-    window.setTimeout(() => tagInputRef.current?.focus(), 0)
   }
 
   const removeTagLabel = (label: string) => {
@@ -240,30 +140,6 @@ export function NoteForm({
     onTagValuesChange(
       selectedTagLabels.filter((selectedLabel) => normalizeLabel(selectedLabel) !== normalized),
     )
-  }
-
-  const submitTagInput = () => {
-    const label = tagInputValue.trim()
-    if (label === "") {
-      return
-    }
-    const matchingTag = filteredTagOptions.find(
-      (tag) => normalizeLabel(tag.label) === normalizeLabel(label),
-    )
-    addTagLabel(matchingTag?.label ?? label)
-  }
-
-  const handleTagInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault()
-      closeTagDropdown()
-      return
-    }
-    if (event.key !== "Enter") {
-      return
-    }
-    event.preventDefault()
-    submitTagInput()
   }
 
   const expandDateField = (field: "due" | "remind") => {
@@ -364,58 +240,24 @@ export function NoteForm({
           >
             <Plus size={16} weight="bold" aria-hidden />
           </button>
-          <div className={styles.categoryPicker}>
-            <button
-              ref={categoryTriggerRef}
-              type="button"
-              className={styles.categoryTrigger}
-              onClick={categoryPickerOpen ? closeCategoryDropdown : openCategoryDropdown}
-              disabled={!userPresent || createCategoryPending}
-              aria-expanded={categoryPickerOpen}
-              aria-haspopup="dialog"
-            >
-              <span className={styles.categoryTriggerLabel}>
-                <span className={styles.categoryTriggerValue}>
-                  {selectedCategoryLabel || "uncategorized"}
-                </span>
-              </span>
-              <CaretDown size={14} weight="regular" />
-            </button>
-
-            <FilterablePickerPopup
-              anchorRef={categoryTriggerRef}
-              open={categoryPickerOpen}
-              onClose={closeCategoryDropdown}
-              placement={["top-start", "top-end", "bottom-start", "bottom-end"]}
-              listboxAriaLabel="Category options"
-              options={filteredCategoryOptions}
-              inputValue={categoryInputValue}
-              inputRef={categoryInputRef}
-              inputDisabled={!userPresent || createCategoryPending}
-              onInputChange={(value) => onCategoryInputValueChange(toLowercaseInput(value))}
-              onInputKeyDown={handleCategoryInputKeyDown}
-              onInputSubmit={submitCategoryInput}
-              onSelectOption={(category) => selectCategory(Number(category.id))}
-              isOptionActive={(category) => form.selectedCategoryIds.includes(Number(category.id))}
-              isOptionSelected={(category) =>
-                form.selectedCategoryIds.includes(Number(category.id))
-              }
-              emptyWithoutQueryMessage="No categories yet"
-            />
-          </div>
-          <select
-            className={styles.categoryTrigger}
-            value={form.selectedStatusId ?? ""}
-            onChange={(event) => onSelectStatusId(event.target.value)}
-            aria-label="Status"
-          >
-            <option value="">No status</option>
-            {statuses.map((status) => (
-              <option key={status.id} value={status.id}>
-                {status.label}
-              </option>
-            ))}
-          </select>
+          <FilterablePicker
+            variant="inline"
+            value={selectedCategoryLabel || "uncategorized"}
+            triggerAriaLabel="Categories"
+            listboxAriaLabel="Category options"
+            options={categories}
+            selectedIds={form.selectedCategoryIds}
+            disabled={!userPresent}
+            pending={createCategoryPending}
+            closeOnSelect={false}
+            onOpenChange={(open) => {
+              if (open) closeMoreDropdown()
+            }}
+            onSelectOption={(category) => selectCategory(Number(category.id))}
+            onCreateOption={onCreateCategory}
+            emptyWithoutQueryMessage="No categories yet"
+            inputPlaceholder="Enter new category..."
+          />
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {form.remindExpanded &&
             renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
@@ -424,12 +266,10 @@ export function NoteForm({
             <button
               ref={moreTriggerRef}
               type="button"
-              className={`${styles.categoryTrigger} ${styles.moreTrigger}`}
+              className={styles.moreTrigger}
               onClick={() => {
                 setMorePickerOpen((open) => !open)
-                setCategoryPickerOpen(false)
-                setTagPickerOpen(false)
-                restoreCategoryInputValue()
+                setActiveMorePicker(null)
               }}
               disabled={!userPresent}
               aria-label="More note settings"
@@ -464,34 +304,44 @@ export function NoteForm({
                 {!form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
                 {!form.remindExpanded &&
                   renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
-                <button
-                  ref={tagTriggerRef}
-                  type="button"
-                  className={styles.moreMenuItem}
-                  onClick={tagPickerOpen ? closeTagDropdown : openTagDropdown}
-                  disabled={!userPresent || createTagPending}
-                  aria-expanded={tagPickerOpen}
-                  aria-haspopup="dialog"
-                  role="menuitem"
-                >
-                  <span>Tag</span>
-                  <Plus size={12} weight="regular" />
-                </button>
-                <FilterablePickerPopup
-                  anchorRef={tagTriggerRef}
-                  open={tagPickerOpen}
-                  onClose={closeTagDropdown}
+                <FilterablePicker
+                  variant="menu"
+                  triggerLabel="Status"
+                  triggerRole="menuitem"
+                  value={selectedStatusLabel}
+                  triggerAriaLabel="Status"
+                  listboxAriaLabel="Status options"
+                  options={[{ id: "", label: "No status" }, ...statuses]}
+                  selectedIds={[form.selectedStatusId ?? ""]}
+                  pending={createStatusPending}
+                  open={activeMorePicker === "status"}
+                  onOpenChange={(open) => updateMorePicker("status", open)}
                   placement={["left-start", "right-start", "top-start", "bottom-start"]}
+                  onSelectOption={(status) => onSelectStatusId(String(status.id))}
+                  onCreateOption={onCreateStatus}
+                  emptyWithoutQueryMessage="No statuses yet"
+                  inputPlaceholder="Enter new status..."
+                />
+                <FilterablePicker
+                  variant="menu"
+                  triggerLabel="Tag"
+                  triggerRole="menuitem"
+                  value={selectedTagLabels.join(", ") || "None"}
+                  triggerAriaLabel="Tags"
                   listboxAriaLabel="Tag options"
-                  options={filteredTagOptions}
-                  inputValue={tagInputValue}
-                  inputRef={tagInputRef}
-                  inputDisabled={!userPresent || createTagPending}
-                  onInputChange={(value) => setTagInputValue(toLowercaseInput(value))}
-                  onInputKeyDown={handleTagInputKeyDown}
-                  onInputSubmit={submitTagInput}
+                  options={tags}
+                  selectedIds={form.selectedTagIds}
+                  pending={createTagPending}
+                  open={activeMorePicker === "tag"}
+                  onOpenChange={(open) => updateMorePicker("tag", open)}
+                  placement={["left-start", "right-start", "top-start", "bottom-start"]}
+                  closeOnSelect={false}
+                  closeOnCreate={false}
+                  excludeSelected
                   onSelectOption={(tag) => addTagLabel(tag.label)}
+                  onCreateOption={addTagLabel}
                   emptyWithoutQueryMessage="No more tags."
+                  inputPlaceholder="Enter new tag..."
                 />
               </div>
             </Popup>

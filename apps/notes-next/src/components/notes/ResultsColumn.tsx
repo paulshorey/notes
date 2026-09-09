@@ -66,7 +66,6 @@ interface ResultsColumnProps {
   statuses: StatusRecord[]
   statusNoteGroups: StatusNoteGroup[]
   activeStatusId: number | null
-  onCreateStatus: () => void
   fallbackCategoryId: number | null
   fallbackTagId: number | null
   selectedTag: TagRecord | null
@@ -104,7 +103,6 @@ export function ResultsColumn({
   statuses,
   statusNoteGroups,
   activeStatusId,
-  onCreateStatus,
   fallbackCategoryId,
   fallbackTagId,
   selectedTag,
@@ -463,12 +461,7 @@ export function ResultsColumn({
           </div>
           {!notesLoading && (
             <div className={styles.tagAccordion} role="list" aria-label="Notes by status">
-              <div className={styles.accordionHeading}>
-                Statuses{" "}
-                <button type="button" onClick={onCreateStatus} aria-label="Create status">
-                  +
-                </button>
-              </div>
+              <div className={styles.accordionHeading}>Statuses</div>
               {statusNoteGroups.map(({ status, items }) => {
                 const expanded = expandedStatusId === status.id
                 const panelId = `status-notes-${status.id}`
