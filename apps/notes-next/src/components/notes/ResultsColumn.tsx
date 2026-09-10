@@ -3,6 +3,7 @@
 import type { CategoryRecord, NoteRecord, StatusRecord, TagRecord } from "@lib/db-notes"
 import {
   ArrowsLeftRight,
+  CaretRight,
   DotsThreeVertical,
   PencilSimple,
   Plus,
@@ -20,13 +21,24 @@ import {
   useRef,
   useState,
 } from "react"
-import { useNotesAppStore } from "@/stores/notesAppStore"
+import type { OpenNoteKey } from "@/stores/openNotes"
 import { NoteResultsList, type DisplayNoteItem } from "./NoteResultsList"
 import styles from "./ResultsColumn.module.css"
 
-const ALL_TAGS_EXPANDED_ID = "all-tags"
+type ResultsAccordionId = "search" | "categories" | "statuses" | "tags"
 
-type ExpandedTagId = number | typeof ALL_TAGS_EXPANDED_ID
+const addUniqueIds = (current: number[], ids: number[]) => {
+  const missing = ids.filter((id) => !current.includes(id))
+  return missing.length === 0 ? current : [...current, ...missing]
+}
+
+const toggleId = (current: number[], id: number) =>
+  current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+
+const retainValidIds = (current: number[], validIds: ReadonlySet<number>) => {
+  const next = current.filter((id) => validIds.has(id))
+  return next.length === current.length ? current : next
+}
 
 type MovePickerState =
   | {
@@ -79,7 +91,8 @@ interface ResultsColumnProps {
   activeNoteId: number | null
   /** Notes with an open entry, marked distinctly from the active one. */
   openNoteIds: number[]
-  activeCategoryId: number | null
+  activeKey: OpenNoteKey | null
+  activeCategoryIds: number[]
   activeTagIds: number[]
   onEditNote: (note: NoteRecord) => void
   onAddNoteForCategory: (category: CategoryRecord) => void
@@ -115,7 +128,8 @@ export function ResultsColumn({
   tagNoteGroups,
   activeNoteId,
   openNoteIds,
-  activeCategoryId,
+  activeKey,
+  activeCategoryIds,
   activeTagIds,
   onEditNote,
   onAddNoteForCategory,
@@ -129,79 +143,92 @@ export function ResultsColumn({
   onEditTag,
   onDeleteTag,
 }: ResultsColumnProps) {
-  const [expandedTagId, setExpandedTagId] = useState<ExpandedTagId | null>(null)
-  const [expandedStatusId, setExpandedStatusId] = useState<number | null>(null)
+  const [expandedSection, setExpandedSection] = useState<ResultsAccordionId>(
+    searchMode ? "search" : "categories",
+  )
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<number[]>([])
+  const [expandedTagIds, setExpandedTagIds] = useState<number[]>([])
+  const [expandedStatusIds, setExpandedStatusIds] = useState<number[]>([])
   const [uncategorizedExpanded, setUncategorizedExpanded] = useState(false)
   const [noStatusExpanded, setNoStatusExpanded] = useState(false)
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
   const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
-  const didExpandActiveCategoryOnLoadRef = useRef(false)
-  const {
-    manuallyExpandedCategoryId,
-    setManuallyExpandedCategoryId,
-    selectedTagId,
-    setSelectedTagId,
-  } = useNotesAppStore()
+  const prevActiveKeyRef = useRef<OpenNoteKey | null | undefined>(undefined)
+  const prevCategoryIdsRef = useRef<number[]>([])
+  const prevStatusIdRef = useRef<number | null | undefined>(undefined)
+  const prevTagIdsRef = useRef<number[]>([])
   const visibleCategoryNoteGroups = categoryNoteGroups
 
   useEffect(() => {
-    if (didExpandActiveCategoryOnLoadRef.current) {
-      return
-    }
-
-    if (activeCategoryId === null) {
-      return
-    }
-
-    if (!categories.some((category) => category.id === activeCategoryId)) {
-      return
-    }
-
-    didExpandActiveCategoryOnLoadRef.current = true
-    setManuallyExpandedCategoryId(activeCategoryId)
-  }, [activeCategoryId, categories, setManuallyExpandedCategoryId])
+    const validIds = new Set(categories.map((category) => category.id))
+    setExpandedCategoryIds((current) => retainValidIds(current, validIds))
+  }, [categories])
 
   useEffect(() => {
-    if (manuallyExpandedCategoryId === null) {
-      return
-    }
-
-    if (categories.some((category) => category.id === manuallyExpandedCategoryId)) {
-      return
-    }
-
-    setManuallyExpandedCategoryId(null)
-  }, [categories, manuallyExpandedCategoryId, setManuallyExpandedCategoryId])
+    const validIds = new Set(statuses.map((status) => status.id))
+    setExpandedStatusIds((current) => retainValidIds(current, validIds))
+  }, [statuses])
 
   useEffect(() => {
-    setExpandedTagId((current) => {
-      if (current === null) {
-        return current
-      }
-
-      if (current === ALL_TAGS_EXPANDED_ID) {
-        return current
-      }
-
-      if (tags.some((tag) => tag.id === current)) {
-        return current
-      }
-
-      return null
-    })
+    const validIds = new Set(tags.map((tag) => tag.id))
+    setExpandedTagIds((current) => retainValidIds(current, validIds))
   }, [tags])
 
   useEffect(() => {
-    if (selectedTagId === null) {
+    const noteChanged = prevActiveKeyRef.current !== activeKey
+
+    if (noteChanged) {
+      if (activeCategoryIds.length === 0) {
+        setUncategorizedExpanded(true)
+      } else {
+        setExpandedCategoryIds((current) => addUniqueIds(current, activeCategoryIds))
+      }
+
+      if (activeStatusId === null) {
+        setNoStatusExpanded(true)
+      } else {
+        setExpandedStatusIds((current) => addUniqueIds(current, [activeStatusId]))
+      }
+
+      if (activeTagIds.length > 0) {
+        setExpandedTagIds((current) => addUniqueIds(current, activeTagIds))
+      }
+    } else {
+      const addedCategoryIds = activeCategoryIds.filter(
+        (id) => !prevCategoryIdsRef.current.includes(id),
+      )
+      if (addedCategoryIds.length > 0) {
+        setExpandedCategoryIds((current) => addUniqueIds(current, addedCategoryIds))
+      }
+
+      if (activeStatusId !== prevStatusIdRef.current) {
+        if (activeStatusId === null) {
+          setNoStatusExpanded(true)
+        } else {
+          setExpandedStatusIds((current) => addUniqueIds(current, [activeStatusId]))
+        }
+      }
+
+      const addedTagIds = activeTagIds.filter((id) => !prevTagIdsRef.current.includes(id))
+      if (addedTagIds.length > 0) {
+        setExpandedTagIds((current) => addUniqueIds(current, addedTagIds))
+      }
+    }
+
+    prevActiveKeyRef.current = activeKey
+    prevCategoryIdsRef.current = [...activeCategoryIds]
+    prevStatusIdRef.current = activeStatusId
+    prevTagIdsRef.current = [...activeTagIds]
+  }, [activeCategoryIds, activeKey, activeStatusId, activeTagIds])
+
+  useEffect(() => {
+    if (searchMode) {
+      setExpandedSection("search")
       return
     }
 
-    if (tags.some((tag) => tag.id === selectedTagId)) {
-      setExpandedTagId(selectedTagId)
-    } else {
-      setSelectedTagId(null)
-    }
-  }, [selectedTagId, setSelectedTagId, tags])
+    setExpandedSection((current) => (current === "search" ? "categories" : current))
+  }, [searchMode])
 
   useEffect(() => {
     if (openActionMenuId === null) {
@@ -223,28 +250,24 @@ export function ResultsColumn({
   const getFilteredNoteCount = (category: CategoryRecord, items: DisplayNoteItem[]) =>
     selectedTag === null ? category.noteCount : items.length
 
-  const isCategoryExpanded = (categoryId: number) => manuallyExpandedCategoryId === categoryId
+  const isCategoryExpanded = (categoryId: number) => expandedCategoryIds.includes(categoryId)
 
   const toggleCategory = (categoryId: number) => {
     setOpenActionMenuId(null)
     setActiveMovePicker(null)
-    setManuallyExpandedCategoryId(manuallyExpandedCategoryId === categoryId ? null : categoryId)
+    setExpandedCategoryIds((current) => toggleId(current, categoryId))
   }
 
-  const toggleTag = (tagId: ExpandedTagId) => {
+  const toggleStatus = (statusId: number) => {
     setOpenActionMenuId(null)
     setActiveMovePicker(null)
+    setExpandedStatusIds((current) => toggleId(current, statusId))
+  }
 
-    if (expandedTagId === tagId) {
-      setExpandedTagId(null)
-      if (tagId !== ALL_TAGS_EXPANDED_ID && selectedTagId === tagId) {
-        setSelectedTagId(null)
-      }
-      return
-    }
-
-    setExpandedTagId(tagId)
-    setSelectedTagId(tagId === ALL_TAGS_EXPANDED_ID ? null : tagId)
+  const toggleTag = (tagId: number) => {
+    setOpenActionMenuId(null)
+    setActiveMovePicker(null)
+    setExpandedTagIds((current) => toggleId(current, tagId))
   }
 
   const handleResultEdit = (note: NoteRecord) => {
@@ -335,8 +358,12 @@ export function ResultsColumn({
       <section className={styles.resultsColumn} style={columnStyle}>
         <div className={styles.noteResults}>
           {searchMode && (
-            <div className={styles.searchResultsSection}>
-              <div className={styles.accordionHeading}>Search Results</div>
+            <AccordionSection
+              id="search"
+              title="Search Results"
+              expanded={expandedSection === "search"}
+              onExpand={() => setExpandedSection("search")}
+            >
               <NoteResultsList
                 items={searchItems}
                 activeNoteId={activeNoteId}
@@ -349,18 +376,24 @@ export function ResultsColumn({
                 }
                 onEdit={handleResultEdit}
               />
-            </div>
+            </AccordionSection>
           )}
-          <div className={styles.categoryAccordion} role="list" aria-label="Notes by category">
-            <div className={styles.accordionHeading}>Categories</div>
+          <AccordionSection
+            id="categories"
+            title="Categories"
+            expanded={expandedSection === "categories"}
+            onExpand={() => setExpandedSection("categories")}
+            contentRole="list"
+            contentLabel="Notes by category"
+          >
             {notesLoading ? (
-              <div className={styles.categoryAccordionStatus}>
+              <div className={styles.accordionStatus}>
                 <Text variant="body-1" color="secondary">
                   Loading…
                 </Text>
               </div>
             ) : categories.length === 0 ? (
-              <div className={styles.categoryAccordionStatus}>
+              <div className={styles.accordionStatus}>
                 <Text variant="body-1" color="secondary">
                   &ensp;No categories yet
                 </Text>
@@ -378,7 +411,7 @@ export function ResultsColumn({
                           count={getFilteredNoteCount(category, items)}
                           label={category.label}
                           active={expanded}
-                          selected={activeCategoryId === category.id}
+                          selected={activeCategoryIds.includes(category.id)}
                           expanded={expanded}
                           panelId={panelId}
                           onToggle={() => toggleCategory(category.id)}
@@ -386,9 +419,9 @@ export function ResultsColumn({
                           <SectionAddNoteButton
                             label={`Add note in ${category.label}`}
                             active={expanded}
-                            selected={activeCategoryId === category.id}
+                            selected={activeCategoryIds.includes(category.id)}
                             onClick={() => {
-                              setManuallyExpandedCategoryId(category.id)
+                              setExpandedCategoryIds((current) => addUniqueIds(current, [category.id]))
                               onAddNoteForCategory(category)
                             }}
                           />
@@ -458,31 +491,80 @@ export function ResultsColumn({
                 )}
               </div>
             )}
-          </div>
-          {!notesLoading && (
-            <div className={styles.tagAccordion} role="list" aria-label="Notes by status">
-              <div className={styles.accordionHeading}>Statuses</div>
-              {statusNoteGroups.map(({ status, items }) => {
-                const expanded = expandedStatusId === status.id
-                const panelId = `status-notes-${status.id}`
-                return (
-                  <div className={styles.categoryGroup} key={status.id} role="listitem">
+          </AccordionSection>
+          <AccordionSection
+            id="statuses"
+            title="Statuses"
+            expanded={expandedSection === "statuses"}
+            onExpand={() => setExpandedSection("statuses")}
+            contentRole="list"
+            contentLabel="Notes by status"
+          >
+            {notesLoading ? (
+              <div className={styles.accordionStatus}>
+                <Text variant="body-1" color="secondary">
+                  Loading…
+                </Text>
+              </div>
+            ) : (
+              <>
+                {statusNoteGroups.map(({ status, items }) => {
+                  const expanded = expandedStatusIds.includes(status.id)
+                  const panelId = `status-notes-${status.id}`
+                  return (
+                    <div className={styles.categoryGroup} key={status.id} role="listitem">
+                      <div className={styles.categoryRow}>
+                        <SectionTitle
+                          count={status.noteCount}
+                          label={status.label}
+                          selected={activeStatusId === status.id}
+                          expanded={expanded}
+                          panelId={panelId}
+                          onToggle={() => toggleStatus(status.id)}
+                        >
+                          <span />
+                        </SectionTitle>
+                      </div>
+                      {expanded && items.length > 0 && (
+                        <ScrollableNotesPanel id={panelId}>
+                          <NoteResultsList
+                            items={items}
+                            activeNoteId={activeNoteId}
+                            openNoteIds={openNoteIds}
+                            loading={false}
+                            emptyMessage=""
+                            onEdit={handleResultEdit}
+                          />
+                        </ScrollableNotesPanel>
+                      )}
+                    </div>
+                  )
+                })}
+                {statuses.length === 0 && (
+                  <div className={styles.accordionStatus}>
+                    <Text variant="body-1" color="secondary">
+                      &ensp;No statuses yet
+                    </Text>
+                  </div>
+                )}
+                {noStatusItems.length > 0 && (
+                  <div className={styles.categoryGroup} role="listitem">
                     <div className={styles.categoryRow}>
                       <SectionTitle
-                        count={status.noteCount}
-                        label={status.label}
-                        selected={activeStatusId === status.id}
-                        expanded={expanded}
-                        panelId={panelId}
-                        onToggle={() => setExpandedStatusId(expanded ? null : status.id)}
+                        count={noStatusItems.length}
+                        label="No status"
+                        selected={activeStatusId === null}
+                        expanded={noStatusExpanded}
+                        panelId="no-status-notes"
+                        onToggle={() => setNoStatusExpanded((value) => !value)}
                       >
                         <span />
                       </SectionTitle>
                     </div>
-                    {expanded && items.length > 0 && (
-                      <ScrollableNotesPanel id={panelId}>
+                    {noStatusExpanded && (
+                      <ScrollableNotesPanel id="no-status-notes">
                         <NoteResultsList
-                          items={items}
+                          items={noStatusItems}
                           activeNoteId={activeNoteId}
                           openNoteIds={openNoteIds}
                           loading={false}
@@ -492,118 +574,156 @@ export function ResultsColumn({
                       </ScrollableNotesPanel>
                     )}
                   </div>
-                )
-              })}
-              {statuses.length === 0 && (
-                <div className={styles.categoryAccordionStatus}>
-                  <Text variant="body-1" color="secondary">
-                    &ensp;No statuses yet
-                  </Text>
-                </div>
-              )}
-              {noStatusItems.length > 0 && (
-                <div className={styles.categoryGroup} role="listitem">
-                  <div className={styles.categoryRow}>
-                    <SectionTitle
-                      count={noStatusItems.length}
-                      label="No status"
-                      selected={activeStatusId === null}
-                      expanded={noStatusExpanded}
-                      panelId="no-status-notes"
-                      onToggle={() => setNoStatusExpanded((value) => !value)}
-                    >
-                      <span />
-                    </SectionTitle>
-                  </div>
-                  {noStatusExpanded && (
-                    <ScrollableNotesPanel id="no-status-notes">
-                      <NoteResultsList
-                        items={noStatusItems}
-                        activeNoteId={activeNoteId}
-                        openNoteIds={openNoteIds}
-                        loading={false}
-                        emptyMessage=""
-                        onEdit={handleResultEdit}
-                      />
-                    </ScrollableNotesPanel>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {!notesLoading && (
-            <div className={styles.tagAccordion} role="list" aria-label="Notes by tag">
-              <div className={styles.accordionHeading}>Tags</div>
+                )}
+              </>
+            )}
+          </AccordionSection>
+          <AccordionSection
+            id="tags"
+            title="Tags"
+            expanded={expandedSection === "tags"}
+            onExpand={() => setExpandedSection("tags")}
+            contentRole="list"
+            contentLabel="Notes by tag"
+          >
+            {notesLoading ? (
+              <div className={styles.accordionStatus}>
+                <Text variant="body-1" color="secondary">
+                  Loading…
+                </Text>
+              </div>
+            ) : (
+              <>
+                {tagNoteGroups.map(({ tag, items }) => {
+                  const expanded = expandedTagIds.includes(tag.id)
+                  const panelId = `tag-notes-${tag.id}`
+                  const deleteDisabled = tag.id === fallbackTagId
 
-              {tagNoteGroups.map(({ tag, items }) => {
-                const expanded = expandedTagId === tag.id
-                const panelId = `tag-notes-${tag.id}`
-                const deleteDisabled = tag.id === fallbackTagId
-
-                return (
-                  <div className={styles.categoryGroup} key={tag.id} role="listitem">
-                    <div className={styles.categoryRow}>
-                      <SectionTitle
-                        count={tag.noteCount}
-                        label={tag.label}
-                        selected={activeTagIds.includes(tag.id)}
-                        expanded={expanded}
-                        panelId={panelId}
-                        onToggle={() => toggleTag(tag.id)}
-                      >
-                        <SectionAddNoteButton
-                          label={`Add note tagged ${tag.label}`}
-                          selected={activeTagIds.includes(tag.id)}
-                          onClick={() => onAddNoteForTag(tag)}
-                        />
-                        <SectionActionMenu
-                          id={`tag-${tag.id}`}
+                  return (
+                    <div className={styles.categoryGroup} key={tag.id} role="listitem">
+                      <div className={styles.categoryRow}>
+                        <SectionTitle
+                          count={tag.noteCount}
                           label={tag.label}
-                          openActionMenuId={openActionMenuId}
-                          onOpenActionMenuChange={setOpenActionMenuId}
-                          onEdit={() => onEditTag(tag)}
-                          onDelete={() => onDeleteTag(tag)}
-                          deleteDisabled={deleteDisabled}
-                          deleteTitle={
-                            deleteDisabled ? "The default tag cannot be deleted" : undefined
-                          }
-                        />
-                      </SectionTitle>
+                          selected={activeTagIds.includes(tag.id)}
+                          expanded={expanded}
+                          panelId={panelId}
+                          onToggle={() => toggleTag(tag.id)}
+                        >
+                          <SectionAddNoteButton
+                            label={`Add note tagged ${tag.label}`}
+                            selected={activeTagIds.includes(tag.id)}
+                            onClick={() => {
+                              setExpandedTagIds((current) => addUniqueIds(current, [tag.id]))
+                              onAddNoteForTag(tag)
+                            }}
+                          />
+                          <SectionActionMenu
+                            id={`tag-${tag.id}`}
+                            label={tag.label}
+                            openActionMenuId={openActionMenuId}
+                            onOpenActionMenuChange={setOpenActionMenuId}
+                            onEdit={() => onEditTag(tag)}
+                            onDelete={() => onDeleteTag(tag)}
+                            deleteDisabled={deleteDisabled}
+                            deleteTitle={
+                              deleteDisabled ? "The default tag cannot be deleted" : undefined
+                            }
+                          />
+                        </SectionTitle>
+                      </div>
+                      {expanded && items.length > 0 && (
+                        <ScrollableNotesPanel id={panelId}>
+                          <NoteResultsList
+                            items={items}
+                            activeNoteId={activeNoteId}
+                            openNoteIds={openNoteIds}
+                            loading={false}
+                            emptyMessage=""
+                            onEdit={handleResultEdit}
+                            renderAction={(note) =>
+                              renderNoteRowAction(
+                                note,
+                                `tag-${tag.id}-note-${note.id}`,
+                                `tag-${tag.id}-note-${note.id}`,
+                                () => openTagMovePicker(note, tag.id),
+                              )
+                            }
+                          />
+                        </ScrollableNotesPanel>
+                      )}
                     </div>
-                    {expanded && items.length > 0 && (
-                      <ScrollableNotesPanel id={panelId}>
-                        <NoteResultsList
-                          items={items}
-                          activeNoteId={activeNoteId}
-                          openNoteIds={openNoteIds}
-                          loading={false}
-                          emptyMessage=""
-                          onEdit={handleResultEdit}
-                          renderAction={(note) =>
-                            renderNoteRowAction(
-                              note,
-                              `tag-${tag.id}-note-${note.id}`,
-                              `tag-${tag.id}-note-${note.id}`,
-                              () => openTagMovePicker(note, tag.id),
-                            )
-                          }
-                        />
-                      </ScrollableNotesPanel>
-                    )}
+                  )
+                })}
+                {tags.length === 0 && (
+                  <div className={styles.accordionStatus}>
+                    <Text variant="body-1" color="secondary">
+                      &ensp;No tags yet
+                    </Text>
                   </div>
-                )
-              })}
-              {tags.length === 0 && (
-                <div className={styles.categoryAccordionStatus}>
-                  <Text variant="body-1" color="secondary">
-                    &ensp;No tags yet
-                  </Text>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </>
+            )}
+          </AccordionSection>
         </div>
       </section>
+    </div>
+  )
+}
+
+interface AccordionSectionProps {
+  id: string
+  title: string
+  expanded: boolean
+  onExpand: () => void
+  children: ReactNode
+  contentRole?: "list"
+  contentLabel?: string
+}
+
+function AccordionSection({
+  id,
+  title,
+  expanded,
+  onExpand,
+  children,
+  contentRole,
+  contentLabel,
+}: AccordionSectionProps) {
+  const headingId = `${id}-heading`
+  const panelId = `${id}-panel`
+
+  return (
+    <div
+      className={`${styles.accordionSection} ${expanded ? styles.accordionSectionExpanded : ""}`}
+    >
+      <button
+        type="button"
+        id={headingId}
+        className={styles.accordionHeading}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={onExpand}
+      >
+        {title}
+        <CaretRight
+          className={`${styles.accordionHeadingIcon} ${
+            expanded ? styles.accordionHeadingIconExpanded : ""
+          }`}
+          size={12}
+          aria-hidden
+        />
+      </button>
+      <div
+        id={panelId}
+        role={contentRole ?? "region"}
+        aria-labelledby={headingId}
+        aria-label={contentLabel}
+        className={styles.accordionContent}
+        hidden={expanded ? undefined : true}
+      >
+        {children}
+      </div>
     </div>
   )
 }

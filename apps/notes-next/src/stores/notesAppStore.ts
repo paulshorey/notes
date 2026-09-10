@@ -29,11 +29,6 @@ type State = OpenNotesState & {
    */
   resultsListVisible: boolean
   /**
-   * Category currently expanded in the notes results accordion.
-   * Only one category can be expanded at a time; null means all collapsed.
-   */
-  manuallyExpandedCategoryId: number | null
-  /**
    * Tag filter currently selected in the notes results footer.
    * Null means all tags are visible.
    */
@@ -53,7 +48,6 @@ type State = OpenNotesState & {
 type Actions = {
   resetDefaultState: () => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
-  setManuallyExpandedCategoryId: (categoryId: number | null) => void
   setSelectedTagId: (tagId: number | null) => void
   setSearchQuery: (query: string) => void
   /** Lowering the cap evicts immediately; the dropped entries are returned. */
@@ -86,7 +80,6 @@ export type NotesAppStore = State & Actions
 const defaultState: State = {
   ...createEmptyOpenNotesState(),
   resultsListVisible: true,
-  manuallyExpandedCategoryId: null,
   selectedTagId: null,
   searchQuery: "",
   maxOpenNotes: MAX_OPEN_NOTES_DEFAULT,
@@ -109,9 +102,6 @@ export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
       resultsListVisible:
         typeof visible === "function" ? visible(current.resultsListVisible) : visible,
     }))
-  },
-  setManuallyExpandedCategoryId: (categoryId) => {
-    set({ manuallyExpandedCategoryId: categoryId })
   },
   setSelectedTagId: (tagId) => {
     set({ selectedTagId: tagId })
