@@ -25,6 +25,7 @@
     max-width 0.18s ease,
     min-width 0.18s ease,
     flex-basis 0.18s ease;
+  color: var(--g-color-text-secondary);
 }
 
 .noteResults {
