@@ -95,7 +95,7 @@ pnpm run deps:install -- notes-android...
 ### Local app entry points
 
 ```bash
-pnpm --filter notes-next dev         # http://localhost:3000
+pnpm --filter notes-next dev         # http://localhost:6000
 pnpm --filter notes-android build    # contract validation + debug APK
 ```
 

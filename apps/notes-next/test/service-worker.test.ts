@@ -107,7 +107,7 @@ const createWorkerHarness = (origin: string) => {
 }
 
 test("localhost worker unregisters and never intercepts requests", async () => {
-  const worker = createWorkerHarness("http://localhost:3000")
+  const worker = createWorkerHarness("http://localhost:6000")
 
   await worker.dispatchLifetimeEvent("install")
   await worker.dispatchLifetimeEvent("activate")
@@ -121,7 +121,7 @@ test("localhost worker unregisters and never intercepts requests", async () => {
     await worker.dispatchFetch({
       method: "GET",
       mode: "navigate",
-      url: "http://localhost:3000/",
+      url: "http://localhost:6000/",
     }),
     false,
   )

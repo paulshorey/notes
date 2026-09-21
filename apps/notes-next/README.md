@@ -25,7 +25,7 @@ pnpm run db:migrate
 pnpm --filter notes-next dev
 ```
 
-The app runs at `http://localhost:3000`.
+The app runs at `http://localhost:6000`.
 
 For a read-only check of the current checkout, app health, database target, and
 migration ledger, run `pnpm run diagnose:notes` from the repository root. The

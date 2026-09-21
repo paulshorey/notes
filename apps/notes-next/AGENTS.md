@@ -157,7 +157,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 ## Build and dev
 
 ```bash
-pnpm --filter notes-next dev          # http://localhost:3000
+pnpm --filter notes-next dev          # http://localhost:6000
 pnpm --filter notes-next build
 pnpm --filter notes-next check-types
 pnpm --filter notes-next verify

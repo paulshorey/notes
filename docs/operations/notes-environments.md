@@ -16,7 +16,7 @@ credentials.
 
 | Environment            | App and API                                                                          | Database                                                                                                                            | Lifecycle                                                         | Migration owner                                                                          |
 | ---------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Local laptop           | `http://localhost:3000`; UI and `/api/*` are served by the same `notes-next` process | `DB_NOTES_URL` from the process, then `apps/notes-next/.env.local` or `.env`; this may be a persistent Railway development database | App process is disposable; the configured database usually is not | Developer runs `pnpm run db:migrate` intentionally                                       |
+| Local laptop           | `http://localhost:6000`; UI and `/api/*` are served by the same `notes-next` process | `DB_NOTES_URL` from the process, then `apps/notes-next/.env.local` or `.env`; this may be a persistent Railway development database | App process is disposable; the configured database usually is not | Developer runs `pnpm run db:migrate` intentionally                                       |
 | Cursor Cloud           | `notes-next` runs inside the cloud workspace                                         | `.cursor/environment.json` provides local socket URLs for throwaway `notes` and `notes_test` PostgreSQL 17 databases                | Databases belong to the cloud workspace and start empty           | Run `pnpm run db:migrate` before app or DB work                                          |
 | Railway PR preview     | Preview URL created by the Railway GitHub deployment check                           | Railway injects `DB_NOTES_URL`; confirm in Railway that the preview references the intended preview database rather than production | Preview app and, when configured, its database are temporary      | Railway `preDeployCommand` applies pending migrations before the preview starts          |
 | Railway production     | Production Railway domain; UI and API deploy together                                | Production `DB_NOTES_URL`, injected by Railway                                                                                      | Persistent production data                                        | Railway `preDeployCommand` applies pending migrations before the release becomes healthy |
@@ -69,7 +69,7 @@ In another terminal:
 pnpm run diagnose:notes
 ```
 
-The default health check is `http://localhost:3000/api/health`. To inspect a
+The default health check is `http://localhost:6000/api/health`. To inspect a
 preview or production deployment instead:
 
 ```bash
