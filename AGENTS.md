@@ -125,10 +125,10 @@ bash scripts/agent-env-setup.sh
 source .agent-env.sh
 ```
 
-That command is idempotent. It installs system tools and Node.js if needed, pnpm workspace dependencies, PostgreSQL 17 + pgvector, writes local throwaway DB URLs plus an `AUTH_SECRET`, starts the cluster, and applies Notes migrations. Do not point `DB_NOTES_URL` at a deployed Railway database from an agent VM.
+That command is idempotent. It installs system tools and Node.js if needed, pnpm workspace dependencies, PostgreSQL 17 + pgvector, writes local throwaway DB URLs plus an `AUTH_SECRET`, starts the cluster, and applies Notes migrations to both `notes` and `notes_test`. Do not point `DB_NOTES_URL` at a deployed Railway database from an agent VM.
 
 - `--android` also provisions the repo-local JDK/SDK (only needed to build the APK).
-- `--dev` starts `notes-next` on port 6000 and waits for `/api/health`.
+- `--dev` starts `notes-next` and waits for `/api/health`. Next.js 16 rejects port 6000 (X11), so the script falls back to 6100.
 - `--verify` runs `pnpm run diagnose:notes`.
 - Semantic search needs `JINA_API_KEY` in the environment; core CRUD, tests, and builds do not.
 
