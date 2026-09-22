@@ -59,9 +59,18 @@ as_postgres() {
 }
 
 run_apt_quiet() {
-  local apt_log
+  local apt_log apt_pid
   apt_log="$(mktemp)"
-  if ! as_root env DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 "$@" >"${apt_log}" 2>&1; then
+  as_root env DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 \
+    "$@" >"${apt_log}" 2>&1 &
+  apt_pid=$!
+  while kill -0 "${apt_pid}" 2>/dev/null; do
+    sleep 20
+    if kill -0 "${apt_pid}" 2>/dev/null; then
+      echo "apt-get $1 is still running."
+    fi
+  done
+  if ! wait "${apt_pid}"; then
     cat "${apt_log}" >&2
     rm -f "${apt_log}"
     return 1

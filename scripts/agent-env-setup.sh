@@ -120,6 +120,26 @@ as_root() {
   fi
 }
 
+run_apt_quiet() {
+  local apt_log apt_pid
+  apt_log="$(mktemp)"
+  as_root env DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 \
+    "$@" >"${apt_log}" 2>&1 &
+  apt_pid=$!
+  while kill -0 "${apt_pid}" 2>/dev/null; do
+    sleep 20
+    if kill -0 "${apt_pid}" 2>/dev/null; then
+      log "apt-get $1 is still running."
+    fi
+  done
+  if ! wait "${apt_pid}"; then
+    cat "${apt_log}" >&2
+    rm -f "${apt_log}"
+    return 1
+  fi
+  rm -f "${apt_log}"
+}
+
 append_path() {
   local dir="$1"
   [[ -d "$dir" ]] || return 0
@@ -192,8 +212,8 @@ ensure_system_packages() {
   fi
 
   log "Installing system packages: ${missing[*]}"
-  as_root apt-get update -qq
-  as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
+  run_apt_quiet update -y
+  run_apt_quiet install -y "${missing[@]}"
 }
 
 install_node_tarball() {
