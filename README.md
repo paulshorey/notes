@@ -95,7 +95,7 @@ pnpm run deps:install -- notes-android...
 ### Local app entry points
 
 ```bash
-pnpm --filter notes-next dev         # http://localhost:6000
+pnpm --filter notes-next dev         # http://localhost:5500
 pnpm --filter notes-android build    # contract validation + debug APK
 ```
 
@@ -229,7 +229,7 @@ pnpm run release:notes:prepare
  pnpm run db:migrate
 ```
 
-4. Deploy `apps/notes-next` on Railway. Railway build/start behavior is defined in `apps/notes-next/railway.json`.
+4. Deploy `apps/notes-next` on Railway. Railway build/start behavior is defined in the root `.railway/railway.ts`.
 5. If Notes embeddings are stale after the deploy, run one of these maintenance paths:
 
 ```bash

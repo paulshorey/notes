@@ -8,7 +8,7 @@ set -u
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-base_url="${NOTES_BASE_URL:-http://localhost:6000}"
+base_url="${NOTES_BASE_URL:-http://localhost:5500}"
 base_url_was_explicit=0
 skip_db=0
 warning_count=0
@@ -26,7 +26,7 @@ Read-only checks for the Notes git checkout, app health, database schema and
 migration ledger, GitHub PR checks, and optional Railway CLI linkage.
 
 Options:
-  --base-url URL  Check URL/api/health (default: http://localhost:6000)
+  --base-url URL  Check URL/api/health (default: http://localhost:5500)
   --skip-db       Do not connect to DB_NOTES_URL
   --help          Show this help
 

@@ -107,7 +107,7 @@ const createWorkerHarness = (origin: string) => {
 }
 
 test("localhost worker unregisters and never intercepts requests", async () => {
-  const worker = createWorkerHarness("http://localhost:6000")
+  const worker = createWorkerHarness("http://localhost:5500")
 
   await worker.dispatchLifetimeEvent("install")
   await worker.dispatchLifetimeEvent("activate")
@@ -121,7 +121,7 @@ test("localhost worker unregisters and never intercepts requests", async () => {
     await worker.dispatchFetch({
       method: "GET",
       mode: "navigate",
-      url: "http://localhost:6000/",
+      url: "http://localhost:5500/",
     }),
     false,
   )
@@ -133,9 +133,7 @@ test("production worker never intercepts HTML, API, or Next.js chunks", async ()
   await worker.dispatchLifetimeEvent("install")
   await worker.dispatchLifetimeEvent("activate")
 
-  assert.deepEqual(worker.addedUrls, [
-    ["/icons/icon-192x192.png", "/icons/icon-512x512.png"],
-  ])
+  assert.deepEqual(worker.addedUrls, [["/icons/icon-192x192.png", "/icons/icon-512x512.png"]])
   assert.deepEqual(worker.deletedCaches.sort(), ["notes-pwa-v1", "notes-pwa-v2"])
   assert.equal(worker.claimCalls, 1)
 

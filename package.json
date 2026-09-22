@@ -21,8 +21,7 @@
     "verify:apps": "pnpm run verify:notes-web && pnpm run verify:android",
     "verify": "pnpm run verify:db-contracts && pnpm run verify:apps",
     "release:notes:prepare": "pnpm run verify:db-contracts && pnpm run verify:notes-web",
-    "dev": "turbo run dev",
-    "dev:app": "pnpm --filter notes-next dev",
+    "dev": "pnpm --filter notes-next dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "init": "node scripts/fetch-infisical.mjs --all",
@@ -33,6 +32,7 @@
   "devDependencies": {
     "@infisical/sdk": "^4.0.0",
     "prettier": "^3.6.2",
+    "railway": "3.11.0",
     "turbo": "^2.5.5",
     "typescript": "5.8.3"
   },
