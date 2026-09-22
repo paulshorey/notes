@@ -27,7 +27,8 @@ AGENT_ENV_FILE="$ROOT_DIR/.agent-env.sh"
 APP_ENV_FILE="$ROOT_DIR/apps/notes-next/.env.local"
 DEV_LOG_FILE="$ROOT_DIR/.agent-notes-next.log"
 DEV_PID_FILE="$ROOT_DIR/.agent-notes-next.pid"
-DEV_PORT=6000
+DEV_PORT="${NOTES_DEV_PORT:-6000}"
+DEV_FALLBACK_PORT=6100
 
 DO_INSTALL=0
 DO_START=0
@@ -53,11 +54,11 @@ Phase flags (when any are passed, only those phases run):
   --install     System packages, Node.js, pnpm, workspace dependencies
   --start       Start PostgreSQL 17 and create notes / notes_test
   --env         Write .agent-env.sh and apps/notes-next/.env.local
-  --migrate     Apply Notes schema to the local notes database
+  --migrate     Apply Notes schema to local notes and notes_test
 
 Modifiers (always additive):
   --android     Also provision the repo-local JDK / Android SDK
-  --dev         Start notes-next on port 6000 after setup
+  --dev         Start notes-next after setup (6000, or 6100 if Next.js rejects 6000)
   --verify      Run pnpm run diagnose:notes after setup
   --skip-deps   Skip pnpm install during --install
   -h, --help    Show this help
@@ -399,16 +400,29 @@ port_in_use() {
   return 1
 }
 
-wait_for_health() {
-  local url="http://127.0.0.1:${DEV_PORT}/api/health"
+wait_for_dev() {
+  local port="$1"
+  local pid="$2"
+  local url="http://127.0.0.1:${port}/api/health"
   local i
-  for i in $(seq 1 60); do
+  for i in $(seq 1 90); do
     if curl -fsS "$url" >/dev/null 2>&1; then
       return 0
+    fi
+    if ! kill -0 "$pid" 2>/dev/null; then
+      return 1
     fi
     sleep 1
   done
   return 1
+}
+
+launch_next_dev() {
+  local port="$1"
+  : > "$DEV_LOG_FILE"
+  log "Starting notes-next on http://127.0.0.1:${port}"
+  nohup pnpm --filter notes-next exec next dev --port "$port" > "$DEV_LOG_FILE" 2>&1 &
+  echo $! > "$DEV_PID_FILE"
 }
 
 start_dev_server() {
@@ -423,21 +437,41 @@ start_dev_server() {
     log "notes-next already running (pid $(cat "$DEV_PID_FILE"))"
     return 0
   fi
-  if port_in_use "$DEV_PORT"; then
-    log "Port ${DEV_PORT} is already in use; not starting a second notes-next."
+
+  command -v pnpm >/dev/null 2>&1 || die "pnpm is required to start notes-next"
+
+  local port="$DEV_PORT"
+  if port_in_use "$port"; then
+    log "Port ${port} is already in use; not starting a second notes-next."
     return 0
   fi
 
-  command -v pnpm >/dev/null 2>&1 || die "pnpm is required to start notes-next"
-  log "Starting notes-next on http://127.0.0.1:${DEV_PORT}"
-  nohup pnpm --filter notes-next dev > "$DEV_LOG_FILE" 2>&1 &
-  echo $! > "$DEV_PID_FILE"
-  if wait_for_health; then
-    log "notes-next is healthy at http://127.0.0.1:${DEV_PORT}/api/health"
-  else
-    warn "notes-next did not become healthy. Inspect ${DEV_LOG_FILE}"
-    return 1
+  launch_next_dev "$port"
+  if wait_for_dev "$port" "$(cat "$DEV_PID_FILE")"; then
+    log "notes-next is healthy at http://127.0.0.1:${port}/api/health"
+    return 0
   fi
+
+  if grep -q 'reserved for x11' "$DEV_LOG_FILE" 2>/dev/null; then
+    warn "Next.js rejects port ${port} (reserved for X11). Retrying on ${DEV_FALLBACK_PORT}."
+    port="$DEV_FALLBACK_PORT"
+    if port_in_use "$port"; then
+      die "Fallback port ${port} is already in use."
+    fi
+    launch_next_dev "$port"
+    if wait_for_dev "$port" "$(cat "$DEV_PID_FILE")"; then
+      DEV_PORT="$port"
+      if [[ -f "$AGENT_ENV_FILE" ]]; then
+        printf 'export NOTES_BASE_URL=%q\n' "http://127.0.0.1:${port}" >> "$AGENT_ENV_FILE"
+      fi
+      log "notes-next is healthy at http://127.0.0.1:${port}/api/health"
+      return 0
+    fi
+  fi
+
+  warn "notes-next did not become healthy. Last log lines:"
+  tail -n 40 "$DEV_LOG_FILE" >&2 || true
+  return 1
 }
 
 print_ready() {
@@ -515,6 +549,10 @@ if [[ $DO_MIGRATE -eq 1 ]]; then
   export DB_NOTES_URL="${DB_NOTES_URL:-$LOCAL_NOTES_URL}"
   export DB_NOTES_TEST_URL="${DB_NOTES_TEST_URL:-$LOCAL_TEST_URL}"
   pnpm run db:migrate
+  if [[ "$DB_NOTES_TEST_URL" != "$DB_NOTES_URL" ]]; then
+    log "Applying Notes migrations to the local test database"
+    DB_NOTES_URL="$DB_NOTES_TEST_URL" pnpm --filter @lib/db-notes db:migrate
+  fi
 fi
 
 if [[ $DO_DEV -eq 1 ]]; then

@@ -25,7 +25,7 @@ on the same VM.
 | PostgreSQL | Server 17, client tools, and `pgvector` via `scripts/cloud-agent-postgres.sh` |
 | Databases | Throwaway `notes` and `notes_test` on the local Unix socket |
 | App env | `.agent-env.sh` (source in new shells) and `apps/notes-next/.env.local` |
-| Schema | `pnpm run db:migrate` against the local `notes` database |
+| Schema | `pnpm run db:migrate` against local `notes`, then the same migrations on `notes_test` |
 
 `AUTH_SECRET` is generated once and reused on later runs so Auth.js sessions
 stay valid. `JINA_API_KEY` is copied through when already present; it is
@@ -55,6 +55,7 @@ Useful variants:
 bash scripts/agent-env-setup.sh --android
 
 # Default, then start notes-next and wait for /api/health
+# (falls back to port 6100 because Next.js reserves 6000 for X11)
 bash scripts/agent-env-setup.sh --dev
 
 # Default, then the read-only environment diagnostic
@@ -77,13 +78,15 @@ gitignored.
 
 ```bash
 source .agent-env.sh
-pnpm --filter notes-next dev          # http://localhost:6000
+bash scripts/agent-env-setup.sh --dev # Next.js 16 rejects port 6000; --dev uses 6100
 pnpm --filter notes-next test
 pnpm --filter notes-next build
 pnpm --filter @lib/db-notes test      # uses DB_NOTES_TEST_URL
-pnpm run diagnose:notes
+NOTES_BASE_URL=http://127.0.0.1:6100 pnpm run diagnose:notes
 pnpm run verify:notes-web
 ```
+
+`pnpm --filter notes-next dev` still uses `--port 6000` from `apps/notes-next/package.json` and exits with Next.js's reserved-port error. Prefer `scripts/agent-env-setup.sh --dev` in agent VMs until that package script changes.
 
 Android is optional and slow:
 
