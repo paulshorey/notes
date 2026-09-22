@@ -58,6 +58,17 @@ as_postgres() {
   fi
 }
 
+run_apt_quiet() {
+  local apt_log
+  apt_log="$(mktemp)"
+  if ! as_root env DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 "$@" >"${apt_log}" 2>&1; then
+    cat "${apt_log}" >&2
+    rm -f "${apt_log}"
+    return 1
+  fi
+  rm -f "${apt_log}"
+}
+
 add_pg17_to_path() {
   if [[ -d "$PG17_BINDIR" ]]; then
     case ":$PATH:" in
@@ -84,8 +95,8 @@ has_pgvector() {
 }
 
 ensure_pgdg_repo() {
-  as_root apt-get update -qq
-  as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql-common ca-certificates
+  run_apt_quiet update -y
+  run_apt_quiet install -y postgresql-common ca-certificates
   if [[ -x /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh ]]; then
     as_root /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
   fi
@@ -103,7 +114,7 @@ install_postgres() {
   ensure_pgdg_repo
   # Do not rely on systemd to start the cluster during apt; cloud VMs often
   # report systemd as offline. Start happens in the `start` subcommand.
-  as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  run_apt_quiet install -y \
     "postgresql-client-${PG_MAJOR}" \
     "postgresql-${PG_MAJOR}" \
     "postgresql-${PG_MAJOR}-pgvector"

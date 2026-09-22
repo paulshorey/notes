@@ -14,6 +14,8 @@ source .agent-env.sh
 
 The script is idempotent. It is safe to rerun after a reboot or a new checkout
 on the same VM.
+PostgreSQL package output is captured and printed only on failure so verbose
+`apt`/`dpkg` progress cannot stall a cloud agent's browser terminal.
 
 ## What it prepares
 
