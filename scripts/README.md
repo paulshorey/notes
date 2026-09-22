@@ -1,6 +1,24 @@
 # Scripts
 
-Repo-local utilities. This document covers the Notes database backup and restore scripts in `scripts/db/`.
+Repo-local utilities.
+
+## AI agent environment
+
+`scripts/agent-env-setup.sh` is the portable startup command for a Linux cloud
+coding-agent VM. It installs Node/pnpm if needed, PostgreSQL 17 + pgvector,
+workspace dependencies, local throwaway Notes databases, and applies schema.
+
+```bash
+bash scripts/agent-env-setup.sh
+source .agent-env.sh
+```
+
+Cursor Cloud continues to use `cloud-agent-install.sh` / `cloud-agent-start.sh`
+via `.cursor/environment.json`. See `docs/operations/agent-environment.md`.
+
+## Database backup and restore
+
+This section covers the Notes database backup and restore scripts in `scripts/db/`.
 
 ## Prerequisites
 

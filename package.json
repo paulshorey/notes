@@ -28,6 +28,7 @@
     "init": "node scripts/fetch-infisical.mjs --all",
     "cloud:install": "bash scripts/cloud-agent-install.sh",
     "cloud:start": "bash scripts/cloud-agent-start.sh",
+    "agent:setup": "bash scripts/agent-env-setup.sh",
     "create:next-app": "node scripts/create-next-app.js"
   },
   "devDependencies": {
