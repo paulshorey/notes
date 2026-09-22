@@ -116,6 +116,24 @@ These databases start empty. Run `pnpm run db:migrate` before anything that need
 
 If Postgres is not running, `bash scripts/cloud-agent-postgres.sh status` reports what is missing; `install` adds the packages and `start` brings up the cluster and databases.
 
+## Generic AI agent environments
+
+Other cloud coding-agent VMs (or a fresh Debian/Ubuntu box) should run this after checkout, from the repository root:
+
+```bash
+bash scripts/agent-env-setup.sh
+source .agent-env.sh
+```
+
+That command is idempotent. It installs system tools and Node.js if needed, pnpm workspace dependencies, PostgreSQL 17 + pgvector, writes local throwaway DB URLs plus an `AUTH_SECRET`, starts the cluster, and applies Notes migrations to both `notes` and `notes_test`. Do not point `DB_NOTES_URL` at a deployed Railway database from an agent VM.
+
+- `--android` also provisions the repo-local JDK/SDK (only needed to build the APK).
+- `--dev` starts `notes-next` and waits for `/api/health`. Next.js 16 rejects port 6000 (X11), so the script falls back to 6100.
+- `--verify` runs `pnpm run diagnose:notes`.
+- Semantic search needs `JINA_API_KEY` in the environment; core CRUD, tests, and builds do not.
+
+Full flag list and service-hook examples: `docs/operations/agent-environment.md`.
+
 ## Maintenance
 
 Keep this file up to date after major workspace-level changes. Edit it when app boundaries, release workflows, script ownership, or shared contracts change.
