@@ -11,6 +11,9 @@ node_modules
 **/.env.development.local
 **/.env.test.local
 **/.env.production.local
+.agent-env.sh
+.agent-notes-next.log
+.agent-notes-next.pid
 
 # Testing
 coverage
