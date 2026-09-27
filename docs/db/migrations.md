@@ -9,7 +9,7 @@ Run these in this exact order:
 ```bash
 # 1) Set connection strings as env vars (quote to preserve ? and &)
 export OLD_DATABASE_URL='postgresql://neondb_owner:npg_yKfHca6urAh1@ep-fancy-resonance-ad6zxgez-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
-export NEW_DATABASE_URL='postgresql://postgres:SGalwZYCPBxcvvbdXwiURFNFpXcbTaHv@tramway.proxy.rlwy.net:58028/railway'
+export NEW_DATABASE_URL='postgresql://postgres:***@tramway.proxy.rlwy.net:58028/railway'
 # 2) (Optional but recommended) Check source row count before migration
 psql "$OLD_DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT COUNT(*) AS old_count FROM public.order_v1;"
 # 3) Dump schema+data for only order_v1 into a retryable file
