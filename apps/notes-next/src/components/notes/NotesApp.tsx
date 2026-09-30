@@ -574,6 +574,18 @@ export default function NotesApp() {
     mobileResultsOverlayTimeoutRef.current = null
   }, [])
 
+  const updateResultsColumnWidth = (width: number) => {
+    const nextPreferredWidth = clampStoredResultsColumnWidth(width)
+    setResultsListVisible(true)
+    setPreferredResultsColumnWidth(nextPreferredWidth)
+    setResultsColumnWidth(clampResultsColumnWidth(nextPreferredWidth))
+    setUserPreferences((current) =>
+      getStoredResultsColumnWidth(current) === nextPreferredWidth
+        ? current
+        : withResultsColumnWidthPreference(current, nextPreferredWidth),
+    )
+  }
+
   const handleResizePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
     resizeStateRef.current = {
@@ -595,24 +607,12 @@ export default function NotesApp() {
     if (!resizeState.dragged && Math.abs(delta) < RESIZE_DRAG_THRESHOLD) return
 
     resizeState.dragged = true
-    const nextPreferredWidth = clampStoredResultsColumnWidth(resizeState.startWidth + delta)
-    setResultsListVisible(true)
-    setPreferredResultsColumnWidth(nextPreferredWidth)
-    setResultsColumnWidth(clampResultsColumnWidth(nextPreferredWidth))
-    setUserPreferences((current) =>
-      getStoredResultsColumnWidth(current) === nextPreferredWidth
-        ? current
-        : withResultsColumnWidthPreference(current, nextPreferredWidth),
-    )
+    updateResultsColumnWidth(resizeState.startWidth + delta)
   }
 
   const handleResizePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
     const resizeState = resizeStateRef.current
     if (!resizeState || resizeState.pointerId !== event.pointerId) return
-
-    if (!resizeState.dragged) {
-      setResultsListVisible((visible) => !visible)
-    }
 
     resizeStateRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -956,6 +956,18 @@ export default function NotesApp() {
       ].filter((id): id is number => id !== null),
     })
   }, [activeKey, clearMessages, openDraftEntry])
+
+  const handleAddDefaultNote = useCallback(() => {
+    clearMessages()
+    const categoryList = categoriesRef.current
+    const defaultCategory = categoryList.find(
+      (category) => category.id === getDefaultCategoryId(categoryList),
+    )
+    openDraftEntry({
+      categoryIds: defaultCategory ? [defaultCategory.id] : [],
+      categoryLabel: defaultCategory?.label ?? "",
+    })
+  }, [clearMessages, openDraftEntry])
 
   const loadNotes = useCallback(
     async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
@@ -3203,70 +3215,77 @@ export default function NotesApp() {
         onDismissSearchError={() => setSearchErrorMessage(null)}
       />
 
-      <div className={styles.header}>
-        <NotesHeader
-          user={user}
-          isAnonymous={authSession?.user?.isAnonymous ?? false}
-          resultsListVisible={resultsListVisible}
-          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
-          onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
-          onAddNote={handleCancelEdit}
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId ?? workspaces[0]!.id}
-          onWorkspaceChange={handleSwitchWorkspace}
-          onCreateWorkspace={handleCreateWorkspace}
-          onLogout={handleLogout}
-          maxOpenNotes={maxOpenNotes}
-          onMaxOpenNotesChange={handleMaxOpenNotesChange}
-          categoryLabelById={categoryLabelById}
-          onSelectOpenNote={activateEntryInStore}
-          onCloseOpenNote={handleCloseOpenNote}
-          embeddingMaintenancePending={embeddingMaintenancePending}
-          onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
-          identifier={identifier}
-          password={password}
-          onIdentifierChange={setIdentifier}
-          onPasswordChange={setPassword}
-          onLoginSubmit={handleLogin}
-          onSignupSubmit={handleSignup}
-          authPending={authPending}
-          loginErrorMessage={authPending ? null : errorMessage}
-          onDismissLoginError={() => setErrorMessage(null)}
-        />
-      </div>
-
       <div className={styles.content} ref={contentRef}>
-        <NoteForm
-          form={activeForm}
-          setForm={setActiveForm}
-          editingNoteId={activeEntry?.noteId ?? null}
-          userPresent={Boolean(user)}
-          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
-          categories={categories}
-          statuses={statuses}
-          tags={tags}
-          pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
-          // Keying the editor on the entry as well as the session id is what
-          // makes switching notes swap documents: same entry, same document.
-          descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
-          editorAutofocus={activeEntry?.autofocus ?? false}
-          editorRevealText={activeEntry?.revealText ?? null}
-          createCategoryPending={createCategoryPending}
-          createStatusPending={createStatusPending}
-          createTagPending={createTagPending}
-          onSelectCategoryId={handleSelectCategory}
-          onSelectStatusId={handleSelectStatus}
-          onCreateCategory={handleCreateCategory}
-          onCreateStatus={handleCreateStatus}
-          onTagValuesChange={handleTagValuesChange}
-          onCancelEdit={handleCancelEdit}
-          onAddNote={handleCancelEdit}
-          onDeleteEditingNote={() => {
-            if (activeEntry?.noteId != null) {
-              void handleDeleteNote(activeEntry.noteId)
+        <div className={styles.editorColumn}>
+          <div className={styles.header}>
+            <NotesHeader
+              user={user}
+              isAnonymous={authSession?.user?.isAnonymous ?? false}
+              resultsListVisible={resultsListVisible}
+              pasteUrlAsMarkdown={pasteUrlAsMarkdown}
+              onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
+              onAddNote={handleCancelEdit}
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId ?? workspaces[0]!.id}
+              onWorkspaceChange={handleSwitchWorkspace}
+              onCreateWorkspace={handleCreateWorkspace}
+              onLogout={handleLogout}
+              maxOpenNotes={maxOpenNotes}
+              onMaxOpenNotesChange={handleMaxOpenNotesChange}
+              categoryLabelById={categoryLabelById}
+              onSelectOpenNote={activateEntryInStore}
+              onCloseOpenNote={handleCloseOpenNote}
+              embeddingMaintenancePending={embeddingMaintenancePending}
+              onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
+              identifier={identifier}
+              password={password}
+              onIdentifierChange={setIdentifier}
+              onPasswordChange={setPassword}
+              onLoginSubmit={handleLogin}
+              onSignupSubmit={handleSignup}
+              authPending={authPending}
+              loginErrorMessage={authPending ? null : errorMessage}
+              onDismissLoginError={() => setErrorMessage(null)}
+            />
+          </div>
+
+          <NoteForm
+            form={activeForm}
+            setForm={setActiveForm}
+            editingNoteId={activeEntry?.noteId ?? null}
+            userPresent={Boolean(user)}
+            pasteUrlAsMarkdown={pasteUrlAsMarkdown}
+            categories={categories}
+            statuses={statuses}
+            tags={tags}
+            pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
+            // Keying the editor on the entry as well as the session id is what
+            // makes switching notes swap documents: same entry, same document.
+            descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
+            editorAutofocus={activeEntry?.autofocus ?? false}
+            editorRevealText={activeEntry?.revealText ?? null}
+            createCategoryPending={createCategoryPending}
+            createStatusPending={createStatusPending}
+            createTagPending={createTagPending}
+            onSelectCategoryId={handleSelectCategory}
+            onSelectStatusId={handleSelectStatus}
+            onCreateCategory={handleCreateCategory}
+            onCreateStatus={handleCreateStatus}
+            onTagValuesChange={handleTagValuesChange}
+            onCancelEdit={handleCancelEdit}
+            defaultCategoryLabel={
+              categories.find((category) => category.id === fallbackCategoryId)?.label ??
+              "uncategorized"
             }
-          }}
-        />
+            onAddDefaultNote={handleAddDefaultNote}
+            onAddNoteInCategory={handleCancelEdit}
+            onDeleteEditingNote={() => {
+              if (activeEntry?.noteId != null) {
+                void handleDeleteNote(activeEntry.noteId)
+              }
+            }}
+          />
+        </div>
 
         {mobileResultsOverlayMounted && (
           <button
@@ -3281,22 +3300,19 @@ export default function NotesApp() {
 
         <button
           type="button"
-          className={`${styles.resizeHandle} ${
-            resultsListVisible ? "" : styles.resizeHandleCollapsed
-          }`}
-          aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
-          aria-pressed={!resultsListVisible}
-          title={
-            resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"
-          }
+          className={styles.resizeHandle}
+          aria-label="Resize notes list"
+          title="Drag or use arrow keys to resize notes list"
           onPointerDown={handleResizePointerDown}
           onPointerMove={handleResizePointerMove}
           onPointerUp={handleResizePointerUp}
           onPointerCancel={handleResizePointerCancel}
           onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault()
-              setResultsListVisible((visible) => !visible)
+              updateResultsColumnWidth(
+                preferredResultsColumnWidth + (event.key === "ArrowLeft" ? 16 : -16),
+              )
             }
           }}
         />

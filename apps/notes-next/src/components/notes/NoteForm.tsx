@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { Button, Popup, Text } from "@gravity-ui/uikit"
+import { Button, Popup } from "@gravity-ui/uikit"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { CalendarBlank, DotsThree, Plus, X } from "@phosphor-icons/react"
 import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
@@ -42,7 +42,9 @@ interface NoteFormProps {
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
-  onAddNote: () => void
+  defaultCategoryLabel: string
+  onAddDefaultNote: () => void
+  onAddNoteInCategory: () => void
 }
 
 export function NoteForm({
@@ -68,7 +70,9 @@ export function NoteForm({
   onTagValuesChange,
   onCancelEdit,
   onDeleteEditingNote,
-  onAddNote,
+  defaultCategoryLabel,
+  onAddDefaultNote,
+  onAddNoteInCategory,
 }: NoteFormProps) {
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [morePickerOpen, setMorePickerOpen] = useState(false)
@@ -78,6 +82,9 @@ export function NoteForm({
     .map((id) => categories.find((category) => category.id === id)?.label)
     .filter((value): value is string => Boolean(value))
     .join(", ")
+  const addNoteCategoryLabel =
+    categories.find((category) => category.id === form.selectedCategoryIds[0])?.label ??
+    defaultCategoryLabel
 
   const selectedTagLabels = useMemo(() => {
     const next = [
@@ -181,9 +188,7 @@ export function NoteForm({
 
     return (
       <label className={styles.dateField}>
-        <Text variant="caption-1" color="secondary">
-          {label}
-        </Text>
+        <span className={styles.dateFieldLabel}>{label}</span>
         <input
           type="datetime-local"
           value={value ?? ""}
@@ -234,30 +239,54 @@ export function NoteForm({
         <div className={styles.formToolbar}>
           <button
             type="button"
-            className={styles.addNoteButton}
-            onClick={onAddNote}
-            aria-label="Add new note"
+            className={`${styles.addNoteButton} ${styles.addDefaultNoteButton}`}
+            onClick={onAddDefaultNote}
+            aria-label={`Add new note in default category ${defaultCategoryLabel}`}
           >
             <Plus size={16} weight="bold" aria-hidden />
+            <span>{defaultCategoryLabel}</span>
           </button>
-          <FilterablePicker
-            variant="inline"
-            value={selectedCategoryLabel || "uncategorized"}
-            triggerAriaLabel="Categories"
-            listboxAriaLabel="Category options"
-            options={categories}
-            selectedIds={form.selectedCategoryIds}
-            disabled={!userPresent}
-            pending={createCategoryPending}
-            closeOnSelect={false}
-            onOpenChange={(open) => {
-              if (open) closeMoreDropdown()
-            }}
-            onSelectOption={(category) => selectCategory(Number(category.id))}
-            onCreateOption={onCreateCategory}
-            emptyWithoutQueryMessage="No categories yet"
-            inputPlaceholder="Enter new category..."
-          />
+          <div className={styles.categoryControls}>
+            <button
+              type="button"
+              className={styles.addNoteButton}
+              onClick={onAddNoteInCategory}
+              aria-label={`Add new note in current category ${addNoteCategoryLabel}`}
+              title={`Add new note in current category ${addNoteCategoryLabel}`}
+            >
+              <Plus size={16} weight="bold" aria-hidden />
+            </button>
+            <FilterablePicker
+              variant="inline"
+              value={selectedCategoryLabel || defaultCategoryLabel}
+              triggerAriaLabel="Categories"
+              listboxAriaLabel="Category options"
+              options={categories}
+              selectedIds={form.selectedCategoryIds}
+              disabled={!userPresent}
+              pending={createCategoryPending}
+              closeOnSelect={false}
+              onOpenChange={(open) => {
+                if (open) closeMoreDropdown()
+              }}
+              onSelectOption={(category) => selectCategory(Number(category.id))}
+              onCreateOption={onCreateCategory}
+              emptyWithoutQueryMessage="No categories yet"
+              inputPlaceholder="Enter new category..."
+            />
+          </div>
+          {selectedTagLabels.map((label) => (
+            <button
+              key={normalizeLabel(label)}
+              type="button"
+              className={styles.selectedTag}
+              onClick={() => removeTagLabel(label)}
+              aria-label={`Remove tag ${label}`}
+            >
+              <X size={14} weight="bold" aria-hidden />
+              <span>{label}</span>
+            </button>
+          ))}
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {form.remindExpanded &&
             renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
@@ -281,6 +310,7 @@ export function NoteForm({
 
             <Popup
               anchorRef={moreTriggerRef}
+              className={styles.morePopup}
               open={morePickerOpen}
               onClose={closeMoreDropdown}
               placement={["top-end", "top-start", "bottom-end", "bottom-start"]}
@@ -346,19 +376,6 @@ export function NoteForm({
               </div>
             </Popup>
           </div>
-
-          {selectedTagLabels.map((label) => (
-            <button
-              key={normalizeLabel(label)}
-              type="button"
-              className={styles.selectedTag}
-              onClick={() => removeTagLabel(label)}
-              aria-label={`Remove tag ${label}`}
-            >
-              <span>{label}</span>
-              <X size={10} weight="regular" />
-            </button>
-          ))}
         </div>
       </form>
     </section>

@@ -18,6 +18,7 @@
   font: inherit;
   line-height: inherit;
   text-align: right;
+  color: var(--g-color-text-link);
 }
 
 .trigger:hover,
@@ -53,11 +54,18 @@
 }
 
 .inline .trigger {
+  box-sizing: border-box;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--g-color-line-generic);
+  border-radius: 9999px;
+  color: var(--g-color-text-link);
   font-size: 1rem;
+  line-height: 1.25;
 }
 
-.inline .triggerValue {
-  color: var(--g-color-text-link);
+.inline .trigger:hover {
+  color: var(--g-color-text-link-hover, #7abaff);
 }
 
 .header {
@@ -66,6 +74,8 @@
 
 .header .trigger {
   max-width: min(200px, 24vw);
+  height: 32px;
+  padding: 0 9px;
   font-size: 1rem;
 }
 
@@ -105,6 +115,10 @@
 @media (max-width: 720px) {
   .trigger {
     max-width: calc(100vw - 28px);
+  }
+
+  .inline .trigger {
+    max-width: min(280px, 40vw);
   }
 
   .header .trigger {

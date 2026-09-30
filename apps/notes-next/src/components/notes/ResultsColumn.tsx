@@ -5,12 +5,15 @@ import {
   ArrowsLeftRight,
   CaretRight,
   DotsThreeVertical,
+  MagnifyingGlass,
   PencilSimple,
   Plus,
   Trash,
+  X,
 } from "@phosphor-icons/react"
-import { Button, Popup, Text } from "@gravity-ui/uikit"
+import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
 import { firstLineLabel, normalizeLabel, toLowercaseInput } from "@/lib/strings"
+import { useNotesAppStore } from "@/stores/notesAppStore"
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -143,9 +146,10 @@ export function ResultsColumn({
   onEditTag,
   onDeleteTag,
 }: ResultsColumnProps) {
-  const [expandedSection, setExpandedSection] = useState<ResultsAccordionId>(
-    searchMode ? "search" : "categories",
-  )
+  const [expandedSection, setExpandedSection] = useState<ResultsAccordionId>("categories")
+  const searchQuery = useNotesAppStore((state) => state.searchQuery)
+  const setSearchQuery = useNotesAppStore((state) => state.setSearchQuery)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<number[]>([])
   const [expandedTagIds, setExpandedTagIds] = useState<number[]>([])
   const [expandedStatusIds, setExpandedStatusIds] = useState<number[]>([])
@@ -222,13 +226,10 @@ export function ResultsColumn({
   }, [activeCategoryIds, activeKey, activeStatusId, activeTagIds])
 
   useEffect(() => {
-    if (searchMode) {
-      setExpandedSection("search")
-      return
-    }
-
-    setExpandedSection((current) => (current === "search" ? "categories" : current))
-  }, [searchMode])
+    if (expandedSection !== "search") return
+    const frameId = window.requestAnimationFrame(() => searchInputRef.current?.focus())
+    return () => window.cancelAnimationFrame(frameId)
+  }, [expandedSection])
 
   useEffect(() => {
     if (openActionMenuId === null) {
@@ -357,27 +358,68 @@ export function ResultsColumn({
     >
       <section className={styles.resultsColumn} style={columnStyle}>
         <div className={styles.noteResults}>
-          {searchMode && (
-            <AccordionSection
-              id="search"
-              title="Search Results"
-              expanded={expandedSection === "search"}
-              onExpand={() => setExpandedSection("search")}
-            >
-              <NoteResultsList
-                items={searchItems}
-                activeNoteId={activeNoteId}
-                openNoteIds={openNoteIds}
-                loading={searchLoading || notesLoading}
-                emptyMessage={
-                  selectedTag
-                    ? `No search results in “${selectedTag.label}”.`
-                    : "No search results."
+          <AccordionSection
+            id="search"
+            title="Search"
+            expanded={expandedSection === "search"}
+            onExpand={() => setExpandedSection("search")}
+          >
+            <div className={styles.searchField}>
+              <TextInput
+                size="m"
+                placeholder="AI Search"
+                value={searchQuery}
+                onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  if (searchQuery.trim() !== "") {
+                    setSearchQuery("")
+                  } else {
+                    setExpandedSection("categories")
+                  }
+                }}
+                controlRef={searchInputRef}
+                startContent={<MagnifyingGlass size={16} weight="regular" aria-hidden />}
+                endContent={
+                  searchMode ? (
+                    <button
+                      type="button"
+                      className={styles.searchClearButton}
+                      aria-label="Clear search"
+                      title="Clear search"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setSearchQuery("")
+                        searchInputRef.current?.focus()
+                      }}
+                    >
+                      <X size={14} weight="bold" />
+                    </button>
+                  ) : undefined
                 }
-                onEdit={handleResultEdit}
+                className={styles.searchInput}
+                controlProps={{ "aria-label": "AI Search" }}
               />
-            </AccordionSection>
-          )}
+            </div>
+            {searchMode && (
+              <div className={styles.searchResults}>
+                <NoteResultsList
+                  items={searchItems}
+                  activeNoteId={activeNoteId}
+                  openNoteIds={openNoteIds}
+                  loading={searchLoading || notesLoading}
+                  emptyMessage={
+                    selectedTag
+                      ? `No search results in “${selectedTag.label}”.`
+                      : "No search results."
+                  }
+                  onEdit={handleResultEdit}
+                />
+              </div>
+            )}
+          </AccordionSection>
           <AccordionSection
             id="categories"
             title="Categories"
@@ -421,7 +463,9 @@ export function ResultsColumn({
                             active={expanded}
                             selected={activeCategoryIds.includes(category.id)}
                             onClick={() => {
-                              setExpandedCategoryIds((current) => addUniqueIds(current, [category.id]))
+                              setExpandedCategoryIds((current) =>
+                                addUniqueIds(current, [category.id]),
+                              )
                               onAddNoteForCategory(category)
                             }}
                           />

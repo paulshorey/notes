@@ -83,7 +83,6 @@
   display: flex;
   width: 100%;
   flex: 0 0 auto;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -91,20 +90,55 @@
   text-align: right;
 }
 
+.categoryControls {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .addNoteButton {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  margin-right: auto;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  border: none;
-  border-radius: 50%;
+  border: 1px solid var(--g-color-line-generic);
+  border-radius: 9999px;
   color: var(--g-color-text-link);
   cursor: pointer;
   background-color: transparent;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.addNoteButton svg {
+  flex: 0 0 16px;
+}
+
+.addDefaultNoteButton {
+  width: auto;
+  max-width: min(220px, 45vw);
+  gap: 4px;
+  margin-right: auto;
+  padding: 0 6px;
+  color: var(--g-color-text-hint);
+}
+@media (max-width: 720px) {
+  .addDefaultNoteButton {
+    display: none;
+  }
+}
+
+.addDefaultNoteButton span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .addNoteButton:hover {
@@ -115,20 +149,33 @@
   filter: brightness(0.95);
 }
 
+.addNoteButton:focus-visible {
+  outline: 2px solid var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
+  outline-offset: 2px;
+}
+
 .selectedTag {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
+  height: 28px;
   max-width: min(220px, 40vw);
-  gap: 3px;
+  gap: 4px;
   margin: 0;
-  padding: 2px 0;
-  border: 0;
+  padding: 0 8px;
+  border: 1px solid var(--g-color-line-generic);
+  border-radius: 9999px;
   background: transparent;
   color: inherit;
   cursor: pointer;
   font: inherit;
   font-size: 1rem;
-  line-height: inherit;
+  line-height: 1.25;
+  color: var(--g-color-text-link);
+}
+
+.selectedTag svg {
+  flex: 0 0 auto;
 }
 
 .selectedTag span {
@@ -143,17 +190,27 @@
 }
 
 .selectedTag:focus-visible {
-  border-radius: 4px;
   outline: 2px solid var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
   outline-offset: 2px;
 }
 
 .dateField {
+  box-sizing: border-box;
   display: flex;
   min-width: 160px;
+  height: 28px;
   flex: 1 1 180px;
   align-items: center;
   gap: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--g-color-line-generic);
+  border-radius: 9999px;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.dateFieldLabel {
+  color: var(--g-color-text-secondary);
 }
 
 .dateLinkButton {
@@ -177,20 +234,27 @@
   position: relative;
   flex: 0 0 auto;
   display: flex;
+  color: var(--g-color-text-secondary);
 }
 
 .moreTrigger {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  width: 24px;
-  max-width: 24px;
+  width: 28px;
+  height: 28px;
+  max-width: 28px;
   justify-content: center;
   margin: 0;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--g-color-line-generic);
+  border-radius: 9999px;
   background: transparent;
   color: inherit;
   cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.25;
 }
 
 .moreTrigger:hover {
@@ -198,7 +262,6 @@
 }
 
 .moreTrigger:focus-visible {
-  border-radius: 4px;
   outline: 2px solid var(--g-color-line-focus, rgba(59, 130, 246, 0.55));
   outline-offset: 2px;
 }
@@ -208,6 +271,10 @@
   opacity: 0.6;
 }
 
+.morePopup:global(.g-popup) {
+  border-radius: 14px;
+}
+
 .morePanel {
   display: flex;
   min-width: 132px;
@@ -215,7 +282,7 @@
   gap: 1px;
   padding: 6px;
   border: 1px solid var(--g-color-line-generic, rgba(255, 255, 255, 0.12));
-  border-radius: 6px;
+  border-radius: 14px;
   background: var(--g-color-base-float, #1f1f1f);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
   text-align: left;
@@ -264,15 +331,18 @@
 }
 
 .dateInput {
+  box-sizing: border-box;
   min-width: 0;
+  height: 26px;
   flex: 1 1 auto;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 9999px;
   color: inherit;
-  padding: 3px 4px;
+  padding: 0 4px;
   font: inherit;
   font-size: 1rem;
+  line-height: 1.25;
 }
 
 .dateInput:hover {
@@ -298,6 +368,10 @@
 
   .formToolbar {
     padding: 0 8px 6px;
+    gap: 6px;
+  }
+
+  .categoryControls {
     gap: 6px;
   }
 

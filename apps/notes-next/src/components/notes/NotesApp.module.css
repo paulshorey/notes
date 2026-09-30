@@ -20,10 +20,10 @@
 
 .header {
   display: flex;
-  flex: 0 0 44px;
+  flex: 0 0 47px;
   align-items: center;
   justify-content: flex-start;
-  height: 44px;
+  height: 47px;
   gap: 0;
   overflow: hidden;
   background: var(--g-color-line-generic);
@@ -41,9 +41,18 @@
   overflow-y: hidden;
 }
 
+.editorColumn {
+  display: flex;
+  min-width: 333px;
+  min-height: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .resizeHandle {
   position: relative;
-  width: 12px;
+  width: 9px;
   align-self: stretch;
   padding: 0;
   border: 0;
@@ -53,25 +62,38 @@
   background: var(--g-color-line-generic);
 }
 
-.resizeHandle:hover,
-.resizeHandleCollapsed {
-  /* background: var(--g-color-line-brand, #60a5fa); */
-  /* opacity: 0.75; */
-}
-
 .mobileResultsOverlay {
   display: none;
 }
 
 @media (max-width: 720px) {
   .content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 47px minmax(0, 1fr);
     overflow: hidden;
+  }
+
+  .editorColumn {
+    display: contents;
+  }
+
+  .header {
+    position: relative;
+    z-index: 40;
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .editorColumn > section {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 
   .mobileResultsOverlay {
     position: absolute;
     z-index: 20;
-    top: 0;
+    top: 47px;
     right: 0;
     bottom: 0;
     left: 0;
@@ -99,7 +121,6 @@
   }
 
   .resizeHandle {
-    width: 12px;
-    cursor: pointer;
+    display: none;
   }
 }
