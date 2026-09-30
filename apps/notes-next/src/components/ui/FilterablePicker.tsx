@@ -143,7 +143,7 @@ export function FilterablePicker({
         aria-haspopup="dialog"
         role={triggerRole}
       >
-        <CaretDown size={14} weight="regular" className={styles.caret} aria-hidden />
+        <CaretDown size={16} weight="bold" className={styles.caret} aria-hidden />
         {triggerLabel ? <span className={styles.triggerLabel}>{triggerLabel}</span> : null}
         <span className={styles.triggerValue}>{value}</span>
       </button>

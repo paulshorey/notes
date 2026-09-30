@@ -283,7 +283,7 @@ export function NoteForm({
               onClick={() => removeTagLabel(label)}
               aria-label={`Remove tag ${label}`}
             >
-              <X size={12} weight="regular" aria-hidden />
+              <X size={14} weight="bold" aria-hidden />
               <span>{label}</span>
             </button>
           ))}
@@ -310,6 +310,7 @@ export function NoteForm({
 
             <Popup
               anchorRef={moreTriggerRef}
+              className={styles.morePopup}
               open={morePickerOpen}
               onClose={closeMoreDropdown}
               placement={["top-end", "top-start", "bottom-end", "bottom-start"]}
