@@ -386,7 +386,9 @@ export function NotesHeader({
           <SidebarSimple
             size={18}
             weight="regular"
-            className={`${styles.headerIcon} ${styles.resultsToggleIcon}`}
+            className={`${styles.headerIcon} ${styles.resultsToggleIcon} ${
+              resultsListVisible ? styles.resultsToggleIconExpanded : ""
+            }`}
           />
         </Button>
       </span>

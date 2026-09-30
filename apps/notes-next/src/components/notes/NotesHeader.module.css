@@ -93,6 +93,10 @@
 }
 
 .resultsToggleIcon {
+  transition: transform 0.24s ease-in-out;
+}
+
+.resultsToggleIconExpanded {
   transform: scaleX(-1);
 }
 
