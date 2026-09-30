@@ -94,6 +94,12 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 ## Pull requests
 
+PRs into `main` and `prod` use the completion gate in
+`docs/operations/pr-check-completion.md`. Only `PR checks finished` is required;
+failed checks remain visible for the developer to judge. When adding a CI
+workflow, include its name in the completion workflow's `workflow_run` list.
+Never mark an aggregate successful while its checks are pending.
+
 - After completing a feature request, create or update the PR and include the PR link in the final response.
 - The PR description serves as a handoff to the next AI agent or engineer. Always write a comprehensive PR description that includes the full details of what was done and why. Include:
   - A summary of the change and its motivation.
