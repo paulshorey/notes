@@ -23,9 +23,14 @@ and successful results all count as finished.
 The observer is excluded from its own assessment to avoid a deadlock. Its policy
 test job is assessed like any other check. Two completed observations one minute
 apart let asynchronous providers register their checks before the gate opens.
-Successful observations are written to both PR revisions; changing either revision
-starts a fresh assessment. It re-reads the PR before releasing a gate to avoid
-publishing a result based on an obsolete head.
+The gate is published only to the test merge commit when available, or to the
+head when GitHub has no test merge commit. Publishing a status on the test merge
+commit makes that commit GitHub's merge-evaluation revision. Both revisions are
+still inspected, but receive a single visible aggregate report. Changing either
+revision starts a fresh assessment. The observer re-reads the PR before releasing
+a gate to avoid publishing a result based on an obsolete head. Historical statuses
+from the former two-revision implementation remain on old commits; new revisions
+use the single-report policy.
 
 The observer checks all open PRs into the protected branches, including PRs opened
 before the policy was installed. It polls every minute while any are unfinished.
@@ -61,9 +66,10 @@ App integration. Do not treat the green completion status as a quality approval.
 ## Installation and recovery
 
 Merge this workflow into `main` for repository-wide event handlers. Promote the
-workflow and its script to `prod` as well so fork PRs into `prod` can use trusted
-base code. The initial same-repository PR workflow can report completion before
-its installation on the default branch.
+workflow and its script to `prod` through the normal release flow so fork PRs into
+`prod` can use trusted base code; a separate policy-only PR to `prod` is unnecessary.
+The initial same-repository PR workflow can report completion before its
+installation on the default branch.
 
 The live repository ruleset is [Wait for PR check completion](https://github.com/paulshorey/notes/rules/24278400) (ID `24278400`). It targets both `main` and `prod`. The checked-in ruleset document is desired configuration, not automatically
 applied by a source push. After observing the status from GitHub Actions, an admin
@@ -80,7 +86,9 @@ a duplicate:
 ```sh
 gh api --method PUT repos/paulshorey/notes/rulesets/24278400 \
   --input .github/pr-check-completion-ruleset.json
-``` A stuck external check must finish or be cancelled, or the gate must
+```
+
+A stuck external check must finish or be cancelled, or the gate must
 remain pending. Investigate provider/API errors and rerun the observer. Avoid
 manually setting a successful aggregate without inspecting the current checks.
 

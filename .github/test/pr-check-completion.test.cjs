@@ -76,7 +76,13 @@ test("queued workflows block completion before their jobs register", () => {
   )
 })
 
-function harness({ initial = "in_progress", changeHead = false, apiFailure = false } = {}) {
+function harness({
+  initial = "in_progress",
+  changeHead = false,
+  apiFailure = false,
+  mergeAvailable = true,
+  checksOn = ["head", "merge", "new-head", "new-merge"],
+} = {}) {
   let tick = 0
   const writes = [],
     states = new Map()
@@ -85,7 +91,7 @@ function harness({ initial = "in_progress", changeHead = false, apiFailure = fal
     state: "open",
     base: { ref: "main" },
     head: { sha: changeHead && tick ? "new-head" : "head" },
-    merge_commit_sha: changeHead && tick ? "new-merge" : "merge",
+    merge_commit_sha: mergeAvailable ? (changeHead && tick ? "new-merge" : "merge") : null,
   })
   const rest = {
     pulls: { list: "pulls", get: async () => ({ data: pr() }) },
@@ -105,7 +111,9 @@ function harness({ initial = "in_progress", changeHead = false, apiFailure = fal
       if (route === "pulls") return [pr()]
       if (route === "checks") {
         if (apiFailure) throw new Error("provider API unavailable")
-        return [{ name: "CI", status: tick ? "completed" : initial, conclusion: "failure" }]
+        return checksOn.includes(args.ref)
+          ? [{ name: "CI", status: tick ? "completed" : initial, conclusion: "failure" }]
+          : []
       }
       if (route === "statuses") return states.has(args.ref) ? [states.get(args.ref)] : []
       return []
@@ -125,15 +133,37 @@ function harness({ initial = "in_progress", changeHead = false, apiFailure = fal
   }
 }
 
-test("publishes pending until failures are complete and settled, then success for both revisions", async () => {
+test("publishes a single gate on the merge revision after checks finish and settle", async () => {
   const { options, writes } = harness()
   await observe(options)
   assert.equal(writes[0].state, "pending")
+  assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["merge"])
   assert.deepEqual(
     writes.filter((s) => s.state === "success").map((s) => s.sha),
-    ["head", "merge"],
+    ["merge"],
   )
 })
+test("falls back to one head gate when GitHub has no test merge revision", async () => {
+  const { options, writes } = harness({ mergeAvailable: false })
+  await observe(options)
+  assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["head"])
+  assert.equal(writes.at(-1).state, "success")
+})
+for (const ref of ["head", "merge"]) {
+  test(`unfinished checks only on ${ref} still block the single merge gate`, async () => {
+    const { options, writes } = harness({ checksOn: [ref] })
+    // Observe again while this revision's check is still running, then stop.
+    options.sleep = async () => {
+      throw new Error("stop while check is running")
+    }
+    await assert.rejects(observe(options), /stop while check is running/)
+    assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["merge"])
+    assert.equal(
+      writes.every((s) => s.state === "pending"),
+      true,
+    )
+  })
+}
 test("new commits must acquire their own completion gate", async () => {
   const { options, writes } = harness({ changeHead: true })
   await observe(options)
@@ -143,7 +173,7 @@ test("new commits must acquire their own completion gate", async () => {
   )
   assert.deepEqual(
     writes.filter((s) => s.state === "success").map((s) => s.sha),
-    ["new-head", "new-merge"],
+    ["new-merge"],
   )
 })
 test("provider API errors leave a pending gate instead of permitting a merge", async () => {

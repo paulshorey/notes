@@ -26,6 +26,12 @@ function completion({ checks, statuses, runs }) {
   return { state: pending.length ? "pending" : "success", pending: [...new Set(pending)] }
 }
 
+// Reporting on the test merge commit makes it GitHub's merge-evaluation
+// revision. Fall back to the head when no test merge commit is available.
+function gateRevision(pr) {
+  return pr.merge_commit_sha || pr.head.sha
+}
+
 async function snapshot(github, repo, pr) {
   const refs = [...new Set([pr.head.sha, pr.merge_commit_sha].filter(Boolean))]
   const checks = [],
@@ -84,20 +90,19 @@ async function observe({
     for (const pull of pulls.filter((pr) => BRANCHES.has(pr.base.ref))) {
       const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: pull.number })
       if (pr.state !== "open") continue
+      const sha = gateRevision(pr)
       const identity = `${pr.number}:${pr.head.sha}:${pr.merge_commit_sha}`
       if (!initialized.has(identity)) {
         // Reset a previous successful gate before reading provider APIs. If a
         // provider/API fails, this observation must leave the PR blocked.
-        for (const sha of [...new Set([pr.head.sha, pr.merge_commit_sha].filter(Boolean))]) {
-          await github.rest.repos.createCommitStatus({
-            ...repo,
-            sha,
-            context: GATE,
-            state: "pending",
-            target_url: targetUrl,
-            description: "Checking whether all PR checks have finished.",
-          })
-        }
+        await github.rest.repos.createCommitStatus({
+          ...repo,
+          sha,
+          context: GATE,
+          state: "pending",
+          target_url: targetUrl,
+          description: "Checking whether all PR checks have finished.",
+        })
         initialized.add(identity)
       }
       const { refs, result } = await snapshot(github, repo, pr)
@@ -117,13 +122,12 @@ async function observe({
         waiting = true
         continue
       }
-      for (const sha of refs) {
-        const existing = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
-          ...repo,
-          ref: sha,
-          per_page: 100,
-        })
-        if (existing.find((status) => status.context === GATE)?.state === state) continue
+      const existing = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
+        ...repo,
+        ref: sha,
+        per_page: 100,
+      })
+      if (existing.find((status) => status.context === GATE)?.state !== state) {
         await github.rest.repos.createCommitStatus({
           ...repo,
           sha,
