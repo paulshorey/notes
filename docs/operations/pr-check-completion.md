@@ -65,7 +65,7 @@ workflow and its script to `prod` as well so fork PRs into `prod` can use truste
 base code. The initial same-repository PR workflow can report completion before
 its installation on the default branch.
 
-The checked-in ruleset document is desired configuration, not automatically
+The live repository ruleset is [Wait for PR check completion](https://github.com/paulshorey/notes/rules/24278400) (ID `24278400`). It targets both `main` and `prod`. The checked-in ruleset document is desired configuration, not automatically
 applied by a source push. After observing the status from GitHub Actions, an admin
 can create the rule using:
 
@@ -74,8 +74,13 @@ gh api --method POST repos/paulshorey/notes/rulesets \
   --input .github/pr-check-completion-ruleset.json
 ```
 
-Inspect existing rulesets first; update a matching ruleset rather than creating
-a duplicate. A stuck external check must finish or be cancelled, or the gate must
+The rule was enabled after verifying that the bootstrap workflow posted the status as `github-actions[bot]`. Inspect existing rulesets first; update the current ruleset rather than creating
+a duplicate:
+
+```sh
+gh api --method PUT repos/paulshorey/notes/rulesets/24278400 \
+  --input .github/pr-check-completion-ruleset.json
+``` A stuck external check must finish or be cancelled, or the gate must
 remain pending. Investigate provider/API errors and rerun the observer. Avoid
 manually setting a successful aggregate without inspecting the current checks.
 
