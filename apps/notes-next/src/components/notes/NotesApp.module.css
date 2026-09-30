@@ -20,10 +20,10 @@
 
 .header {
   display: flex;
-  flex: 0 0 44px;
+  flex: 0 0 47px;
   align-items: center;
   justify-content: flex-start;
-  height: 44px;
+  height: 47px;
   gap: 0;
   overflow: hidden;
   background: var(--g-color-line-generic);
@@ -70,7 +70,7 @@
   .content {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 44px minmax(0, 1fr);
+    grid-template-rows: 47px minmax(0, 1fr);
     overflow: hidden;
   }
 
@@ -93,7 +93,7 @@
   .mobileResultsOverlay {
     position: absolute;
     z-index: 20;
-    top: 44px;
+    top: 47px;
     right: 0;
     bottom: 0;
     left: 0;
