@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { Button, Popup, Text } from "@gravity-ui/uikit"
+import { Button, Popup } from "@gravity-ui/uikit"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { CalendarBlank, DotsThree, Plus, X } from "@phosphor-icons/react"
 import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
@@ -188,9 +188,7 @@ export function NoteForm({
 
     return (
       <label className={styles.dateField}>
-        <Text variant="caption-1" color="secondary">
-          {label}
-        </Text>
+        <span className={styles.dateFieldLabel}>{label}</span>
         <input
           type="datetime-local"
           value={value ?? ""}
