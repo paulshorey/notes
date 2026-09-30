@@ -11,7 +11,7 @@
 .headerBrand {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
   min-width: 0;
   flex: 0 0 auto;
   margin-left: 8px;
@@ -52,9 +52,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
   color: var(--g-color-text-secondary);
   transition: color 0.15s ease;
 }
@@ -76,14 +73,18 @@
   margin-right: 8px;
 }
 
+.saveIndicator,
 .headerButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 32px;
   width: 32px;
   height: 32px;
   padding: 0;
+}
+
+.headerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .headerIcon {
@@ -107,6 +108,14 @@
 @media (min-width: 721px) {
   .resultsToggleButton {
     display: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .headerActions,
+  .headerBrand,
+  .headerButtons {
+    gap: 4px;
   }
 }
 
