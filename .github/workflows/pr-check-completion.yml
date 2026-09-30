@@ -1,0 +1,66 @@
+name: PR check completion
+
+on:
+  # Same-repository PRs bootstrap the policy before it is installed on main.
+  pull_request:
+    branches: [main, prod]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  # Fork PRs use trusted base code and never execute the contributor's code.
+  pull_request_target:
+    branches: [main, prod]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  status:
+  check_run:
+    types: [created, completed, rerequested]
+  # GitHub suppresses check_run events originating in Actions. Keep this list
+  # aligned with the names of CI workflows added to this repository.
+  workflow_run:
+    workflows: [DB Contracts, WebArts infrastructure]
+    types: [requested, in_progress, completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy-tests:
+    name: Test PR completion policy
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node --test .github/test/pr-check-completion.test.cjs
+
+  observe:
+    name: Observe PR check completion
+    if: >-
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
+      (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository) &&
+      (github.event_name != 'status' || github.event.context != 'PR checks finished')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    concurrency:
+      group: pr-check-completion-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      actions: read
+      statuses: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Only same-repository PRs use PR code. Privileged fork/event runs
+          # always use the trusted base/default branch, never PR artifacts.
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await require('./.github/scripts/pr-check-completion.cjs').observe({ github, context, core });
