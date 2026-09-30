@@ -84,6 +84,8 @@ Every note belongs to exactly one active workspace, has multiple categories and 
 
 The local server-data snapshot may paint immediately for a returning user, but a failed refresh must not clear workspace-scoped open-note storage or other draft state. A first visit with no usable snapshot must finish in a visible, retryable error state; startup must never retry automatically in a loop.
 
+A confirmed bootstrap `401` ends the expired Auth.js session on both cached and uncached startup, then uses the normal single visitor-session attempt. Persist open-note drafts before resetting session state; network errors and `5xx` must never trigger logout. Bootstrap must confirm the user still exists before loading workspaces, because workspace loading can insert defaults.
+
 `public/sw.js` caches install icons only. It must never intercept navigation, `/api/*`, or `/_next/*`: HTML and Next.js build output from different deployments are incompatible. Localhost registrations and `notes-pwa-*` caches are removed by `ServiceWorkerRegistration`; `/sw.js` itself is always served with no-cache headers so deployed workers update promptly.
 
 ## Note saving lifecycle
