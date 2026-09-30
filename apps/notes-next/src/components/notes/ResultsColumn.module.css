@@ -197,15 +197,17 @@
   gap: 0;
   overflow: hidden;
   white-space: nowrap;
-  text-transform: uppercase;
-  line-height: 26px;
-  font-size: 90%;
+  /* text-transform: uppercase; */
+  /* line-height: 26px; */
+  /* font-size: 90%; */
+  font-size: 1rem;
+  padding-bottom: 5px;
 }
 
 .categoryCountText,
 .categoryPreposition {
   flex: 0 0 auto;
-  color: var(--g-color-text-hint, #8a8a8a);
+  /* color: var(--g-color-text-hint, #8a8a8a); */
   font-weight: 400;
 }
 
@@ -220,21 +222,21 @@
 .categoryNameText {
   min-width: 0;
   overflow: hidden;
-  color: var(--g-color-text-secondary);
-  font-weight: 700;
+  /* color: var(--g-color-text-secondary); */
+  /* font-weight: 700; */
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .categoryNameTextActive {
-  color: var(--g-color-base-brand);
+  /* color: var(--g-color-base-brand); */
 }
 
 .sectionTitleActions {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  color: var(--g-color-text-secondary);
+  /* color: var(--g-color-text-secondary); */
 }
 .sectionTitleActions * {
   display: inline-flex;
@@ -279,7 +281,7 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--g-color-text-primary);
+  /* color: var(--g-color-text-primary); */
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -310,6 +312,7 @@
   min-width: 0;
   max-height: 200px;
   padding-left: 10px;
+  /* color: var(--g-color-text-primary); */
 }
 
 .categoryResultsScroll {
@@ -344,7 +347,7 @@
 }
 
 .categoryResultsMoreHint {
-  color: var(--g-color-text-hint, #8a8a8a);
+  /* color: var(--g-color-text-hint, #8a8a8a); */
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.12em;
