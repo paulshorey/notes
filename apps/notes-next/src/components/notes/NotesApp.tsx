@@ -3203,70 +3203,72 @@ export default function NotesApp() {
         onDismissSearchError={() => setSearchErrorMessage(null)}
       />
 
-      <div className={styles.header}>
-        <NotesHeader
-          user={user}
-          isAnonymous={authSession?.user?.isAnonymous ?? false}
-          resultsListVisible={resultsListVisible}
-          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
-          onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
-          onAddNote={handleCancelEdit}
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId ?? workspaces[0]!.id}
-          onWorkspaceChange={handleSwitchWorkspace}
-          onCreateWorkspace={handleCreateWorkspace}
-          onLogout={handleLogout}
-          maxOpenNotes={maxOpenNotes}
-          onMaxOpenNotesChange={handleMaxOpenNotesChange}
-          categoryLabelById={categoryLabelById}
-          onSelectOpenNote={activateEntryInStore}
-          onCloseOpenNote={handleCloseOpenNote}
-          embeddingMaintenancePending={embeddingMaintenancePending}
-          onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
-          identifier={identifier}
-          password={password}
-          onIdentifierChange={setIdentifier}
-          onPasswordChange={setPassword}
-          onLoginSubmit={handleLogin}
-          onSignupSubmit={handleSignup}
-          authPending={authPending}
-          loginErrorMessage={authPending ? null : errorMessage}
-          onDismissLoginError={() => setErrorMessage(null)}
-        />
-      </div>
-
       <div className={styles.content} ref={contentRef}>
-        <NoteForm
-          form={activeForm}
-          setForm={setActiveForm}
-          editingNoteId={activeEntry?.noteId ?? null}
-          userPresent={Boolean(user)}
-          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
-          categories={categories}
-          statuses={statuses}
-          tags={tags}
-          pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
-          // Keying the editor on the entry as well as the session id is what
-          // makes switching notes swap documents: same entry, same document.
-          descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
-          editorAutofocus={activeEntry?.autofocus ?? false}
-          editorRevealText={activeEntry?.revealText ?? null}
-          createCategoryPending={createCategoryPending}
-          createStatusPending={createStatusPending}
-          createTagPending={createTagPending}
-          onSelectCategoryId={handleSelectCategory}
-          onSelectStatusId={handleSelectStatus}
-          onCreateCategory={handleCreateCategory}
-          onCreateStatus={handleCreateStatus}
-          onTagValuesChange={handleTagValuesChange}
-          onCancelEdit={handleCancelEdit}
-          onAddNote={handleCancelEdit}
-          onDeleteEditingNote={() => {
-            if (activeEntry?.noteId != null) {
-              void handleDeleteNote(activeEntry.noteId)
-            }
-          }}
-        />
+        <div className={styles.editorColumn}>
+          <div className={styles.header}>
+            <NotesHeader
+              user={user}
+              isAnonymous={authSession?.user?.isAnonymous ?? false}
+              resultsListVisible={resultsListVisible}
+              pasteUrlAsMarkdown={pasteUrlAsMarkdown}
+              onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
+              onAddNote={handleCancelEdit}
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId ?? workspaces[0]!.id}
+              onWorkspaceChange={handleSwitchWorkspace}
+              onCreateWorkspace={handleCreateWorkspace}
+              onLogout={handleLogout}
+              maxOpenNotes={maxOpenNotes}
+              onMaxOpenNotesChange={handleMaxOpenNotesChange}
+              categoryLabelById={categoryLabelById}
+              onSelectOpenNote={activateEntryInStore}
+              onCloseOpenNote={handleCloseOpenNote}
+              embeddingMaintenancePending={embeddingMaintenancePending}
+              onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
+              identifier={identifier}
+              password={password}
+              onIdentifierChange={setIdentifier}
+              onPasswordChange={setPassword}
+              onLoginSubmit={handleLogin}
+              onSignupSubmit={handleSignup}
+              authPending={authPending}
+              loginErrorMessage={authPending ? null : errorMessage}
+              onDismissLoginError={() => setErrorMessage(null)}
+            />
+          </div>
+
+          <NoteForm
+            form={activeForm}
+            setForm={setActiveForm}
+            editingNoteId={activeEntry?.noteId ?? null}
+            userPresent={Boolean(user)}
+            pasteUrlAsMarkdown={pasteUrlAsMarkdown}
+            categories={categories}
+            statuses={statuses}
+            tags={tags}
+            pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
+            // Keying the editor on the entry as well as the session id is what
+            // makes switching notes swap documents: same entry, same document.
+            descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
+            editorAutofocus={activeEntry?.autofocus ?? false}
+            editorRevealText={activeEntry?.revealText ?? null}
+            createCategoryPending={createCategoryPending}
+            createStatusPending={createStatusPending}
+            createTagPending={createTagPending}
+            onSelectCategoryId={handleSelectCategory}
+            onSelectStatusId={handleSelectStatus}
+            onCreateCategory={handleCreateCategory}
+            onCreateStatus={handleCreateStatus}
+            onTagValuesChange={handleTagValuesChange}
+            onCancelEdit={handleCancelEdit}
+            onAddNote={handleCancelEdit}
+            onDeleteEditingNote={() => {
+              if (activeEntry?.noteId != null) {
+                void handleDeleteNote(activeEntry.noteId)
+              }
+            }}
+          />
+        </div>
 
         {mobileResultsOverlayMounted && (
           <button
