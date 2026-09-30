@@ -39,6 +39,7 @@ import { Button, Text } from "@gravity-ui/uikit"
 import { signIn, signOut, useSession } from "next-auth/react"
 import { STORAGE_KEY } from "@/constants/notes"
 import { fetchWithTimeout, getErrorMessage, readJson, RequestError } from "@/lib/api"
+import { recoverExpiredSession } from "@/lib/sessionRecovery"
 import { normalizeLabel } from "@/lib/strings"
 import {
   createDefaultNoteForm,
@@ -1128,6 +1129,35 @@ export default function NotesApp() {
       }
     }
 
+    const recoverSession = (error: unknown) =>
+      recoverExpiredSession(error, {
+        persistDrafts: () => persistOpenNotesRef.current(),
+        resetSession: () => {
+          setUser(null)
+          setStartupErrorMessage("Your session expired. Starting a new visitor session…")
+          window.localStorage.removeItem(STORAGE_KEY)
+          clearNotesCache()
+          preferenceSaveRequestIdRef.current += 1
+          lastSavedPreferencesRef.current = serializeUserPreferences({})
+          setUserPreferences({})
+          setCategories([])
+          setStatuses([])
+          setTags([])
+          setWorkspaces([])
+          setActiveWorkspaceId(null)
+          setNotes([])
+          detachedSavesRef.current.clear()
+          didRehydrateOpenNotesRef.current = false
+          resetNotesAppStore()
+          setSearchResults([])
+          setSearchErrorMessage(null)
+          setResultsListVisible(!isMobileResultsLayout())
+          setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+          setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+        },
+        signOut: () => signOut({ redirect: false }),
+      })
+
     const restoreSession = async () => {
       if (authStatus === "loading") {
         return
@@ -1245,11 +1275,15 @@ export default function NotesApp() {
             pendingMerge: false,
             force: true,
           })
-        } catch {
-          // Background refresh failure - user keeps the cached view. We do
-          // NOT sign them out here, because the cause is most often a flaky
-          // mobile connection rather than an invalid session. Subsequent
-          // mutations will surface a real error if the session truly expired.
+        } catch (error) {
+          if (!active) return
+          try {
+            await recoverSession(error)
+          } catch (recoveryError) {
+            setStartupErrorMessage(getErrorMessage(recoveryError))
+          }
+          // Network and server failures keep the cached view and its drafts.
+          // A confirmed 401 ends the stale session on this path too.
         }
         return
       }
@@ -1273,42 +1307,18 @@ export default function NotesApp() {
         })
       } catch (error) {
         if (!active) return
-        const isUnauthorized = error instanceof RequestError && error.status === 401
-
-        if (isUnauthorized) {
-          window.localStorage.removeItem(STORAGE_KEY)
-          clearNotesCache()
-          preferenceSaveRequestIdRef.current += 1
-          lastSavedPreferencesRef.current = serializeUserPreferences({})
-          setUserPreferences({})
-          setCategories([])
-          setStatuses([])
-          setTags([])
-          setWorkspaces([])
-          setActiveWorkspaceId(null)
-          setNotes([])
-          detachedSavesRef.current.clear()
-          setResultsListVisible(!isMobileResultsLayout())
-          setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-          setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+        try {
+          if (await recoverSession(error)) return
+        } catch (recoveryError) {
+          setUser(null)
+          setStartupErrorMessage(getErrorMessage(recoveryError))
+          return
         }
 
-        // A network, database, or server failure is not evidence that the
-        // user's persisted drafts are invalid. Keep both caches intact and
-        // offer an explicit retry instead of silently deleting local work.
+        // An outage is not evidence that the session or persisted drafts are
+        // invalid. Keep them intact and offer an explicit retry.
         setUser(null)
-        setStartupErrorMessage(
-          isUnauthorized
-            ? "Your session is no longer valid. Retry to start a new visitor session."
-            : getErrorMessage(error),
-        )
-
-        if (isUnauthorized) {
-          // A signed token for a deleted user cannot recover by repeating the
-          // same bootstrap request. End that session once; the unauthenticated
-          // effect then makes one normal visitor-session attempt.
-          await signOut({ redirect: false })
-        }
+        setStartupErrorMessage(getErrorMessage(error))
       } finally {
         if (active) setSessionLoading(false)
       }
@@ -1329,6 +1339,7 @@ export default function NotesApp() {
     loadNotes,
     applyNotesUrlSelection,
     rehydrateOpenNotes,
+    resetNotesAppStore,
     setResultsListVisible,
   ])
 
