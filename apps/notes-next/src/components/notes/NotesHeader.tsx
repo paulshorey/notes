@@ -5,7 +5,6 @@ import { useRef, useState } from "react"
 import { Button, Checkbox, Popup, Select, Spin, Text, TextInput } from "@gravity-ui/uikit"
 import { Notification } from "@mantine/core"
 import {
-  ArrowLeft,
   Check,
   ClockCounterClockwise,
   Cloud,
@@ -19,7 +18,6 @@ import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { noteHeadline } from "@/lib/strings"
 import {
   selectActiveSaveStatus,
-  selectBackTarget,
   selectHasBackgroundSaveActivity,
   useNotesAppStore,
 } from "@/stores/notesAppStore"
@@ -30,7 +28,7 @@ import styles from "./NotesHeader.module.css"
 const OPEN_NOTES_CHOICES = [1, 3, 5, 10, 15, 20, 25]
 
 const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
-  idle: "",
+  idle: "Ready to save",
   unsaved: "Unsaved changes",
   saving: "Saving…",
   saved: "All changes saved",
@@ -39,10 +37,6 @@ const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
 
 function SaveStatusIndicator() {
   const saveStatus = useNotesAppStore(selectActiveSaveStatus)
-
-  if (saveStatus === "idle") {
-    return null
-  }
 
   const label = SAVE_STATUS_LABELS[saveStatus]
 
@@ -57,7 +51,9 @@ function SaveStatusIndicator() {
     >
       {saveStatus === "saving" && <Spin size="xs" />}
       {saveStatus === "saved" && <Check size={14} weight="bold" aria-hidden />}
-      {saveStatus === "unsaved" && <Cloud size={15} weight="regular" aria-hidden />}
+      {(saveStatus === "idle" || saveStatus === "unsaved") && (
+        <Cloud size={15} weight="regular" aria-hidden />
+      )}
       {saveStatus === "error" && <WarningCircle size={15} weight="bold" aria-hidden />}
     </span>
   )
@@ -240,8 +236,6 @@ export function NotesHeader({
   const [signupEmail, setSignupEmail] = useState("")
   const [signupPassword, setSignupPassword] = useState("")
   const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
-  const backTarget = useNotesAppStore(selectBackTarget)
-  const goBack = useNotesAppStore((state) => state.goBack)
   const activeWorkspaceLabel =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.label ?? "Workspace"
 
@@ -338,24 +332,7 @@ export function NotesHeader({
           inputPlaceholder="Enter new workspace..."
           placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
         />
-        <span>&nbsp;</span>
         <SaveStatusIndicator />
-        <Button
-          view="flat"
-          size="m"
-          onClick={goBack}
-          disabled={backTarget === null}
-          aria-label="Back to the previous note"
-          title={
-            backTarget
-              ? `Back to “${noteHeadline(backTarget.form.description)}”`
-              : "No previous note"
-          }
-          className={`${styles.headerButton} ${styles.backButton}`}
-        >
-          <ArrowLeft size={18} weight="regular" className={styles.headerIcon} />
-        </Button>
-
         <RecentNotesMenu
           categoryLabelById={categoryLabelById}
           onSelect={onSelectOpenNote}

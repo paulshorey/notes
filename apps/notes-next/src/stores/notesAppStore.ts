@@ -9,8 +9,6 @@ import {
   createEmptyOpenNotesState,
   evictToCap,
   getActiveEntry,
-  getBackTarget,
-  goBack as goBackIn,
   openExistingNote as openExistingNoteIn,
   openNewDraft as openNewDraftIn,
   patchEntry as patchEntryIn,
@@ -60,7 +58,6 @@ type Actions = {
     categoryLabel?: string
   }) => OpenNoteEntry[]
   activateEntry: (key: OpenNoteKey) => void
-  goBack: () => void
   closeEntry: (key: OpenNoteKey) => OpenNoteEntry[]
   closeEntriesForNote: (noteId: NoteRef) => OpenNoteEntry[]
   patchEntry: (
@@ -128,9 +125,6 @@ export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
   activateEntry: (key) => {
     set(activateEntryIn(openNotesSlice(get()), key, get().maxOpenNotes))
   },
-  goBack: () => {
-    set(goBackIn(openNotesSlice(get())))
-  },
   closeEntry: (key) => {
     const { state, removed } = closeEntryIn(openNotesSlice(get()), key, get().maxOpenNotes)
     set(state)
@@ -171,8 +165,6 @@ export const selectActiveEntry = (state: NotesAppStore): OpenNoteEntry | null =>
 
 export const selectActiveSaveStatus = (state: NotesAppStore): NoteSaveStatus =>
   getActiveEntry(state)?.saveStatus ?? "idle"
-
-export const selectBackTarget = (state: NotesAppStore): OpenNoteEntry | null => getBackTarget(state)
 
 /**
  * True when a note the user is not looking at is mid-save or failed to save,
