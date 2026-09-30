@@ -1,25 +1,23 @@
 "use client"
 
-import type { FormEvent, KeyboardEvent } from "react"
-import { useEffect, useRef, useState } from "react"
+import type { FormEvent } from "react"
+import { useRef, useState } from "react"
 import { Button, Checkbox, Popup, Select, Spin, Text, TextInput } from "@gravity-ui/uikit"
 import { Notification } from "@mantine/core"
 import {
-  ArrowLeft,
   Check,
   ClockCounterClockwise,
   Cloud,
-  MagnifyingGlass,
   SidebarSimple,
   User,
   WarningCircle,
   X,
 } from "@phosphor-icons/react"
-import type { UserSummary } from "@lib/db-notes"
-import { noteHeadline, toLowercaseInput } from "@/lib/strings"
+import type { UserSummary, WorkspaceRecord } from "@lib/db-notes"
+import { FilterablePicker } from "@/components/ui/FilterablePicker"
+import { noteHeadline } from "@/lib/strings"
 import {
   selectActiveSaveStatus,
-  selectBackTarget,
   selectHasBackgroundSaveActivity,
   useNotesAppStore,
 } from "@/stores/notesAppStore"
@@ -30,7 +28,7 @@ import styles from "./NotesHeader.module.css"
 const OPEN_NOTES_CHOICES = [1, 3, 5, 10, 15, 20, 25]
 
 const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
-  idle: "",
+  idle: "Ready to save",
   unsaved: "Unsaved changes",
   saving: "Saving…",
   saved: "All changes saved",
@@ -39,10 +37,6 @@ const SAVE_STATUS_LABELS: Record<NoteSaveStatus, string> = {
 
 function SaveStatusIndicator() {
   const saveStatus = useNotesAppStore(selectActiveSaveStatus)
-
-  if (saveStatus === "idle") {
-    return null
-  }
 
   const label = SAVE_STATUS_LABELS[saveStatus]
 
@@ -57,7 +51,9 @@ function SaveStatusIndicator() {
     >
       {saveStatus === "saving" && <Spin size="xs" />}
       {saveStatus === "saved" && <Check size={14} weight="bold" aria-hidden />}
-      {saveStatus === "unsaved" && <Cloud size={15} weight="regular" aria-hidden />}
+      {(saveStatus === "idle" || saveStatus === "unsaved") && (
+        <Cloud size={15} weight="regular" aria-hidden />
+      )}
       {saveStatus === "error" && <WarningCircle size={15} weight="bold" aria-hidden />}
     </span>
   )
@@ -134,7 +130,8 @@ function RecentNotesMenu({
                   >
                     <span className={styles.recentTitle}>{title}</span>
                     <span className={styles.recentMeta}>
-                      {categoryLabelById(entry.form.selectedCategoryId)}
+                      {entry.form.selectedCategoryIds.map(categoryLabelById).join(", ") ||
+                        "uncategorized"}
                     </span>
                   </button>
                   <span
@@ -180,6 +177,10 @@ interface NotesHeaderProps {
   pasteUrlAsMarkdown: boolean
   onPasteUrlAsMarkdownChange: (enabled: boolean) => void
   onAddNote: () => void
+  workspaces: WorkspaceRecord[]
+  activeWorkspaceId: number
+  onWorkspaceChange: (id: number) => void | Promise<void>
+  onCreateWorkspace: (label: string) => void | Promise<void>
   onLogout: () => void
   maxOpenNotes: number
   onMaxOpenNotesChange: (value: number) => void
@@ -206,6 +207,10 @@ export function NotesHeader({
   pasteUrlAsMarkdown,
   onPasteUrlAsMarkdownChange,
   onAddNote,
+  workspaces,
+  activeWorkspaceId,
+  onWorkspaceChange,
+  onCreateWorkspace,
   onLogout,
   maxOpenNotes,
   onMaxOpenNotesChange,
@@ -225,28 +230,14 @@ export function NotesHeader({
   onDismissLoginError,
 }: NotesHeaderProps) {
   const userBtnRef = useRef<HTMLButtonElement>(null)
-  const searchInputControlRef = useRef<HTMLInputElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [signupUsername, setSignupUsername] = useState("")
   const [signupEmail, setSignupEmail] = useState("")
   const [signupPassword, setSignupPassword] = useState("")
-  const [searchOpen, setSearchOpen] = useState(false)
-  const searchQuery = useNotesAppStore((state) => state.searchQuery)
-  const setSearchQuery = useNotesAppStore((state) => state.setSearchQuery)
   const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
-  const backTarget = useNotesAppStore(selectBackTarget)
-  const goBack = useNotesAppStore((state) => state.goBack)
-  const trimmedSearchQuery = searchQuery.trim()
-  const searchExpanded = searchOpen || trimmedSearchQuery !== ""
-
-  useEffect(() => {
-    if (!searchExpanded) return
-    const frameId = window.requestAnimationFrame(() => {
-      searchInputControlRef.current?.focus()
-    })
-    return () => window.cancelAnimationFrame(frameId)
-  }, [searchExpanded])
+  const activeWorkspaceLabel =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.label ?? "Workspace"
 
   const resetAuthPopupState = () => {
     setAuthMode("signin")
@@ -277,34 +268,6 @@ export function NotesHeader({
     if (success) {
       closeAuthMenu()
     }
-  }
-
-  const openSearch = () => {
-    setSearchOpen(true)
-  }
-
-  const collapseSearchIfEmpty = () => {
-    if (trimmedSearchQuery === "") {
-      setSearchOpen(false)
-    }
-  }
-
-  const clearSearch = () => {
-    setSearchQuery("")
-    setSearchOpen(true)
-    window.requestAnimationFrame(() => {
-      searchInputControlRef.current?.focus()
-    })
-  }
-
-  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Escape") return
-    event.preventDefault()
-    if (trimmedSearchQuery !== "") {
-      setSearchQuery("")
-      return
-    }
-    setSearchOpen(false)
   }
 
   const pasteUrlPreference = (
@@ -356,24 +319,20 @@ export function NotesHeader({
         >
           jot.new
         </span>
+        <FilterablePicker
+          variant="header"
+          value={activeWorkspaceLabel}
+          triggerAriaLabel="Current workspace"
+          listboxAriaLabel="Workspace options"
+          options={workspaces}
+          selectedIds={[activeWorkspaceId]}
+          onSelectOption={(workspace) => onWorkspaceChange(Number(workspace.id))}
+          onCreateOption={onCreateWorkspace}
+          emptyWithoutQueryMessage="No workspaces yet"
+          inputPlaceholder="Enter new workspace..."
+          placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
+        />
         <SaveStatusIndicator />
-
-        <Button
-          view="flat"
-          size="m"
-          onClick={goBack}
-          disabled={backTarget === null}
-          aria-label="Back to the previous note"
-          title={
-            backTarget
-              ? `Back to “${noteHeadline(backTarget.form.description)}”`
-              : "No previous note"
-          }
-          className={`${styles.headerButton} ${styles.backButton}`}
-        >
-          <ArrowLeft size={18} weight="regular" className={styles.headerIcon} />
-        </Button>
-
         <RecentNotesMenu
           categoryLabelById={categoryLabelById}
           onSelect={onSelectOpenNote}
@@ -382,62 +341,6 @@ export function NotesHeader({
       </div>
 
       <span className={styles.headerButtons}>
-        <div
-          className={`${styles.headerSearch} ${searchExpanded ? styles.headerSearchExpanded : ""}`}
-        >
-          <Button
-            view="flat"
-            size="m"
-            onClick={openSearch}
-            aria-label="Open search"
-            title="AI Search"
-            tabIndex={searchExpanded ? -1 : 0}
-            aria-hidden={searchExpanded}
-            className={`${styles.headerButton} ${styles.searchToggleButton}`}
-          >
-            <MagnifyingGlass size={18} weight="regular" className={styles.headerIcon} />
-          </Button>
-          <div className={styles.searchField} aria-hidden={!searchExpanded}>
-            <TextInput
-              size="l"
-              placeholder="AI Search"
-              value={searchQuery}
-              onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
-              onBlur={collapseSearchIfEmpty}
-              onKeyDown={handleSearchKeyDown}
-              controlRef={searchInputControlRef}
-              startContent={
-                <span className={styles.searchLeadingIcon} aria-hidden>
-                  <MagnifyingGlass size={18} weight="regular" className={styles.headerIcon} />
-                </span>
-              }
-              endContent={
-                trimmedSearchQuery !== "" ? (
-                  <button
-                    type="button"
-                    className={styles.searchClearButton}
-                    aria-label="Clear search"
-                    title="Clear search"
-                    tabIndex={searchExpanded ? 0 : -1}
-                    onMouseDown={(event) => {
-                      // Keep focus in the field; avoid blur-collapse before clear.
-                      event.preventDefault()
-                    }}
-                    onClick={clearSearch}
-                  >
-                    <X size={14} weight="bold" />
-                  </button>
-                ) : undefined
-              }
-              className={styles.searchInput}
-              controlProps={{
-                "aria-label": "AI Search",
-                tabIndex: searchExpanded ? 0 : -1,
-              }}
-            />
-          </div>
-        </div>
-
         <Button
           ref={userBtnRef}
           view="flat"
@@ -457,7 +360,13 @@ export function NotesHeader({
           title={resultsListVisible ? "Hide notes list" : "Show notes list"}
           className={`${styles.headerButton} ${styles.resultsToggleButton}`}
         >
-          <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
+          <SidebarSimple
+            size={18}
+            weight="regular"
+            className={`${styles.headerIcon} ${styles.resultsToggleIcon} ${
+              resultsListVisible ? styles.resultsToggleIconExpanded : ""
+            }`}
+          />
         </Button>
       </span>
       <Popup anchorRef={userBtnRef} open={menuOpen} onClose={closeAuthMenu} placement="bottom-end">

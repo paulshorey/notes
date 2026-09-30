@@ -79,6 +79,19 @@ For Android, run `pnpm run build:android:dist:dev` or `pnpm run build:android:di
 - PostgreSQL 17 client tools (`psql`, `pg_dump`) for `db:verify` and schema snapshots
 - Android Studio / Android SDK only if you are building the Android app
 
+### Cloud AI agent VM
+
+On a fresh Debian/Ubuntu coding-agent machine, one command prepares the
+toolchain, local PostgreSQL 17 + pgvector, throwaway Notes databases, and
+schema:
+
+```bash
+bash scripts/agent-env-setup.sh
+source .agent-env.sh
+```
+
+See [`docs/operations/agent-environment.md`](docs/operations/agent-environment.md).
+
 ### Install dependencies
 
 ```bash
@@ -95,7 +108,7 @@ pnpm run deps:install -- notes-android...
 ### Local app entry points
 
 ```bash
-pnpm --filter notes-next dev         # http://localhost:3000
+pnpm --filter notes-next dev         # http://localhost:5500
 pnpm --filter notes-android build    # contract validation + debug APK
 ```
 
@@ -229,7 +242,7 @@ pnpm run release:notes:prepare
  pnpm run db:migrate
 ```
 
-4. Deploy `apps/notes-next` on Railway. Railway build/start behavior is defined in `apps/notes-next/railway.json`.
+4. Deploy `apps/notes-next` on Railway. Railway build/start behavior is defined in the root `.railway/railway.ts`.
 5. If Notes embeddings are stale after the deploy, run one of these maintenance paths:
 
 ```bash

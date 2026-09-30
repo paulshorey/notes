@@ -6,6 +6,13 @@
 
 Database-first package for the `DB_NOTES_URL` database.
 
+## Workspace ownership model
+
+- `user_v1` owns `user_workspace_v1`; notes and all note vocabulary are owned through a workspace.
+- Every note has one `workspace_id`, zero or more category links, one nullable `status_id`, and zero or more tag links.
+- Categories, statuses, and tags are independent flat vocabularies, unique by normalized label within a workspace. They are not a hierarchy.
+- Composite foreign keys enforce that every note relation comes from the note's own workspace.
+
 ## Source of truth
 
 - `migrations/`: canonical schema change history
@@ -16,7 +23,7 @@ Database-first package for the `DB_NOTES_URL` database.
 
 ## TypeScript adapter
 
-- `lib/db/postgres.ts`: connection accessor for app/runtime code
+- `lib/db/postgres.ts`: process-wide connection pool for app/runtime code. It defaults to one connection so cold, parallel Next.js requests do not burst connections through a remote proxy; set `PG_POOL_MAX` explicitly when a deployment needs more concurrency.
 - `services/notes-app.ts`: shared Notes app workflow layer for web and Android servers
 
 ## Notes
@@ -61,18 +68,13 @@ Database-first package for the `DB_NOTES_URL` database.
   This is safe because `user_v1.preferences` defaults to `{}` and the app only
   writes a key when the user explicitly changes that setting — key presence
   means "customized", key absence means "still default".
-- `mergeAnonymousNotesAppSession` (`services/notes-app.ts`) runs a best-effort
-  `mode: "missing"` embedding backfill for the destination user after the
-  merge commits, because categories/tags inserted by the merge SQL bypass the
-  embed-on-write paths. A missing `JINA_API_KEY` or a Jina failure logs a
-  warning and never fails the merge.
 - Tests: `pnpm --filter @lib/db-notes test` (node test runner via tsx).
-  The merge regression suite (`testing/anonymous-merge.test.ts`) only touches
+  DB regression suites only touch
   a database when `DB_NOTES_TEST_URL` is set, and it connects to that URL
   — never to `DB_NOTES_URL`. Cursor Cloud presets both to local throwaway
   databases; CI's verify-notes job runs it against its throwaway migrated
   container.
-- `user_v1` and `user_note_v1` share the `apply_row_timestamps_v1()` trigger
+- Users, workspaces, workspace vocabulary, and notes share the `apply_row_timestamps_v1()` trigger
   function so `time_modified` refreshes automatically on insert/update while
   `time_created` stays stable after insert.
 - Fresh empty DB: run `pnpm --filter @lib/db-notes db:migrate`, then
@@ -107,19 +109,19 @@ Provider: **Jina AI** — Model: `jina-embeddings-v5-text-small` (1024 dims, nor
 ### Key files
 
 - `services/notes-embeddings.ts` — canonical Jina client, embedding constants, and text builders
-- `services/notes-app.ts` — orchestrates embed-on-write (notes + tags) and search
-- `sql/note/gets.ts` — `searchNotesByEmbedding` SQL: composite score = `description * 0.67 + avg_tag * 0.33`
+- `services/notes-app.ts` — orchestrates embed-on-write (notes, categories, tags) and search
+- `sql/note/gets.ts` — `searchNotesByEmbedding` SQL: cosine similarity of query vs note `description_embedding`
 - `scripts/regenerate-embeddings.mjs` — CLI bulk regeneration (must stay in sync with `notes-embeddings.ts`)
 
 ### How it works
 
-- **Storing** descriptions/tags: Jina API with `task: "retrieval.passage"` → `vector(1024)` in PostgreSQL (HNSW cosine index).
-- **Searching**: user query embedded with `task: "retrieval.query"` → cosine similarity in SQL.
+- **Storing** note descriptions, category labels, and tag labels: Jina API with `task: "retrieval.passage"` → `vector(1024)` in PostgreSQL (HNSW cosine index).
+- **Searching**: user query embedded with `task: "retrieval.query"` → cosine similarity against note `description_embedding` in SQL.
 - **No text prefix** is added to inputs. Jina v5's `task` parameter selects the asymmetric LoRA adapter internally — manual `Query:`/`Document:` prefixes are unnecessary and harmful when using the API.
 
 ### Debug page
 
-`apps/notes-next/app/embeddings/page.tsx` → `POST /api/embeddings/debug` — standalone Jina calls with the same scoring formula. Separate **Search task** and **Passage task** selects map to the Jina `task` field (defaults: `retrieval.query` / `retrieval.passage`, matching production); you can pick `(none)` to omit `task` and compare behavior.
+`apps/notes-next/app/embeddings/page.tsx` → `POST /api/embeddings/debug` — standalone Jina calls that compare a search query embedding to a note description embedding (the same score production search uses). Separate **Search task** and **Passage task** selects map to the Jina `task` field (defaults: `retrieval.query` / `retrieval.passage`, matching production); you can pick `(none)` to omit `task` and compare behavior.
 
 ### Environment
 

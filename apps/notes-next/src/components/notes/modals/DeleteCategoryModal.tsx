@@ -4,25 +4,20 @@ import { Button, Modal, Text } from "@gravity-ui/uikit"
 import type { CategoryRecord } from "@lib/db-notes"
 import styles from "./DeleteCategoryModal.module.css"
 
-export type DeleteCategoryAction = "delete-notes" | "keep-uncategorized"
-
 interface DeleteCategoryModalProps {
   category: CategoryRecord | null
   onClose: () => void
-  onDeleteWithNotes: () => void
-  onKeepUncategorized: () => void
-  pendingAction: DeleteCategoryAction | null
+  onDelete: () => void
+  pending: boolean
 }
 
 export function DeleteCategoryModal({
   category,
   onClose,
-  onDeleteWithNotes,
-  onKeepUncategorized,
-  pendingAction,
+  onDelete,
+  pending,
 }: DeleteCategoryModalProps) {
   const count = category?.noteCount ?? 0
-  const pending = pendingAction !== null
 
   return (
     <Modal open={category !== null} onClose={pending ? () => {} : onClose}>
@@ -31,28 +26,11 @@ export function DeleteCategoryModal({
         <Text variant="body-1" color="secondary">
           {count === 0
             ? "This category has no notes."
-            : `${count} ${count === 1 ? "note uses" : "notes use"} this category. Choose what to do with them.`}
+            : `${count} ${count === 1 ? "note uses" : "notes use"} this category. The notes will be kept.`}
         </Text>
         <div className={styles.modalActions}>
-          <Button
-            view="action"
-            size="m"
-            width="max"
-            loading={pendingAction === "delete-notes"}
-            disabled={pending && pendingAction !== "delete-notes"}
-            onClick={onDeleteWithNotes}
-          >
-            Delete category including all notes
-          </Button>
-          <Button
-            view="outlined"
-            size="m"
-            width="max"
-            loading={pendingAction === "keep-uncategorized"}
-            disabled={pending && pendingAction !== "keep-uncategorized"}
-            onClick={onKeepUncategorized}
-          >
-            Delete category, keep items as uncategorized
+          <Button view="action" size="m" width="max" loading={pending} onClick={onDelete}>
+            Delete category
           </Button>
           <Button view="flat" size="m" width="max" disabled={pending} onClick={onClose}>
             Cancel

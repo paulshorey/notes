@@ -22,9 +22,20 @@ const modelsContent = await fs.readFile(modelsPath, "utf8")
 const jsonCodecContent = await fs.readFile(jsonCodecPath, "utf8")
 const apiClientContent = await fs.readFile(apiClientPath, "utf8")
 
-const requiredModels = ["UserSummary", "TagRecord", "NoteRecord", "SemanticSearchResult"]
+const requiredModels = [
+  "UserSummary",
+  "WorkspaceRecord",
+  "CategoryRecord",
+  "StatusRecord",
+  "TagRecord",
+  "NoteRecord",
+  "SemanticSearchResult",
+]
 const jsonCodecBindings = [
   { functionName: "userFromJson", modelName: "UserSummary" },
+  { functionName: "workspaceFromJson", modelName: "WorkspaceRecord" },
+  { functionName: "categoryFromJson", modelName: "CategoryRecord" },
+  { functionName: "statusFromJson", modelName: "StatusRecord" },
   { functionName: "tagFromJson", modelName: "TagRecord" },
   { functionName: "noteFromJson", modelName: "NoteRecord" },
   { functionName: "searchResultFromJson", modelName: "SemanticSearchResult" },
@@ -266,8 +277,8 @@ for (const binding of jsonCodecBindings) {
     const pattern = expectedCodecPattern(expectedField)
 
     const compatibilityPattern =
-      binding.functionName === "noteFromJson" && expectedField.name === "category"
-        ? /^categoryFromNoteJson\(json\)$/
+      binding.functionName === "noteFromJson" && expectedField.name === "status"
+        ? /^statusFromNoteJson\(json\)$/
         : null
 
     if (
@@ -289,6 +300,9 @@ const requiredApiSnippets = [
   'val tagsArray = response.getJSONArray("tags")',
   "add(tagFromJson(tagsArray.getJSONObject(index)))",
   '.put("tagIds", tagIdsJson)',
+  '.put("workspaceId", workspaceId)',
+  '.put("categoryIds", categoryIdsJson)',
+  '.put("statusId", noteDraft.selectedStatusId ?: NULL)',
   '.put("description", noteDraft.description)',
   '.put("timeDue", parseOptionalLocalInputToIso(noteDraft.dueInput, "Due time") ?: NULL)',
   '.put("timeRemind", parseOptionalLocalInputToIso(noteDraft.remindInput, "Reminder time") ?: NULL)',

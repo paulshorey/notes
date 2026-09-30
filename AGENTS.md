@@ -64,16 +64,21 @@ This codebase is developed by AI agents.
 
 ## Railway infrastructure
 
-Use `.railway/README.md` for the WebArts `notes` partial, credentials, target IDs,
-CI and previews. The legacy Config File field stays empty. Settings require an
-explicit apply; branch pushes apply through the WebArts workflow. Preserve exact
-live service identities and all Railway variable values. Database migrations are
-now a tracked pre-deploy command and health checks gate release activation.
+Use `.railway/README.md` for WebArts IaC. This repository exports the `notes` partial;
+never replace it with a whole-project graph containing only Notes. Preserve Railway
+variables and exact live service names. Settings changes require an explicit apply;
+the GitHub workflow applies `main` to dev and `prod` to production. Existing previews
+require their environment ID and explicit `RAILWAY_IAC_BRANCH`.
 
 ## Release model
 
-- `notes-next`: run `release:notes:prepare`, then deploy on Railway; the tracked pre-deploy command applies pending migrations.
+- `notes-next`: run `release:notes:prepare`, then deploy on Railway. The committed Railway pre-deploy command applies tracked Notes migrations before a release becomes healthy; run `db:migrate` manually for local/shared development or an intentional target-database preflight.
 - `notes-android`: run `build:android:dist:dev` or `build:android:dist:prod`, then share the APK download link in the PR; no Railway deploy.
+
+## Deployment diagnostics
+
+- Use `docs/operations/notes-environments.md` for the local, Cursor Cloud, Railway preview, production, and CI environment matrix and troubleshooting runbook.
+- Run `pnpm run diagnose:notes` for read-only checks of the checkout, app health, sanitized database target, required relations, migration ledger, PR checks, and Railway CLI linkage. It must remain read-only and must never print connection credentials.
 
 ## Database rules
 
@@ -118,6 +123,24 @@ Cloud workspaces run their own PostgreSQL 17 server with pgvector. `DB_NOTES_URL
 These databases start empty. Run `pnpm run db:migrate` before anything that needs schema.
 
 If Postgres is not running, `bash scripts/cloud-agent-postgres.sh status` reports what is missing; `install` adds the packages and `start` brings up the cluster and databases.
+
+## Generic AI agent environments
+
+Other cloud coding-agent VMs (or a fresh Debian/Ubuntu box) should run this after checkout, from the repository root:
+
+```bash
+bash scripts/agent-env-setup.sh
+source .agent-env.sh
+```
+
+That command is idempotent. It installs system tools and Node.js if needed, pnpm workspace dependencies, PostgreSQL 17 + pgvector, writes local throwaway DB URLs plus an `AUTH_SECRET`, starts the cluster, and applies Notes migrations to both `notes` and `notes_test`. Do not point `DB_NOTES_URL` at a deployed Railway database from an agent VM.
+
+- `--android` also provisions the repo-local JDK/SDK (only needed to build the APK).
+- `--dev` starts `notes-next` and waits for `/api/health`. Next.js 16 rejects port 6000 (X11), so the script falls back to 6100.
+- `--verify` runs `pnpm run diagnose:notes`.
+- Semantic search needs `JINA_API_KEY` in the environment; core CRUD, tests, and builds do not.
+
+Full flag list and service-hook examples: `docs/operations/agent-environment.md`.
 
 ## Maintenance
 

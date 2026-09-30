@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.eighthbrain.notesandroid.app.model.AppSnapshot
@@ -21,7 +22,10 @@ private val Context.notesAndroidDataStore: DataStore<Preferences> by preferences
 private object PreferenceKeys {
     val userJson = stringPreferencesKey("user_json")
     val apiToken = stringPreferencesKey("api_token")
+    val workspacesJson = stringPreferencesKey("workspaces_json")
+    val activeWorkspaceId = intPreferencesKey("active_workspace_id")
     val categoriesJson = stringPreferencesKey("categories_json")
+    val statusesJson = stringPreferencesKey("statuses_json")
     val tagsJson = stringPreferencesKey("tags_json")
     val notesJson = stringPreferencesKey("notes_json")
     val lastSearchQuery = stringPreferencesKey("last_search_query")
@@ -55,7 +59,14 @@ class SessionStore(
                 preferences[PreferenceKeys.apiToken] = snapshot.apiToken
             }
 
+            preferences[PreferenceKeys.workspacesJson] = workspacesToJson(snapshot.workspaces)
+            if (snapshot.activeWorkspaceId == null) {
+                preferences.remove(PreferenceKeys.activeWorkspaceId)
+            } else {
+                preferences[PreferenceKeys.activeWorkspaceId] = snapshot.activeWorkspaceId
+            }
             preferences[PreferenceKeys.categoriesJson] = categoriesToJson(snapshot.categories)
+            preferences[PreferenceKeys.statusesJson] = statusesToJson(snapshot.statuses)
             preferences[PreferenceKeys.tagsJson] = tagsToJson(snapshot.tags)
             preferences[PreferenceKeys.notesJson] = notesToJson(snapshot.notes)
             preferences[PreferenceKeys.lastSearchQuery] = snapshot.lastSearchQuery
@@ -91,8 +102,15 @@ class SessionStore(
                     runCatching { userFromJson(applyUserSummaryDefaults(JSONObject(raw))) }.getOrNull()
                 },
             apiToken = this[PreferenceKeys.apiToken],
+            workspaces =
+                runCatching { workspacesFromJson(this[PreferenceKeys.workspacesJson]) }
+                    .getOrDefault(emptyList()),
+            activeWorkspaceId = this[PreferenceKeys.activeWorkspaceId],
             categories =
                 runCatching { categoriesFromJson(this[PreferenceKeys.categoriesJson]) }
+                    .getOrDefault(emptyList()),
+            statuses =
+                runCatching { statusesFromJson(this[PreferenceKeys.statusesJson]) }
                     .getOrDefault(emptyList()),
             tags = runCatching { tagsFromJson(this[PreferenceKeys.tagsJson]) }.getOrDefault(emptyList()),
             notes = runCatching { notesFromJson(this[PreferenceKeys.notesJson]) }.getOrDefault(emptyList()),

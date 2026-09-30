@@ -9,8 +9,6 @@ import {
   createEmptyOpenNotesState,
   evictToCap,
   getActiveEntry,
-  getBackTarget,
-  goBack as goBackIn,
   openExistingNote as openExistingNoteIn,
   openNewDraft as openNewDraftIn,
   patchEntry as patchEntryIn,
@@ -28,11 +26,6 @@ type State = OpenNotesState & {
    * sliding panel; on desktop it controls the resizable results column.
    */
   resultsListVisible: boolean
-  /**
-   * Category currently expanded in the notes results accordion.
-   * Only one category can be expanded at a time; null means all collapsed.
-   */
-  manuallyExpandedCategoryId: number | null
   /**
    * Tag filter currently selected in the notes results footer.
    * Null means all tags are visible.
@@ -53,19 +46,18 @@ type State = OpenNotesState & {
 type Actions = {
   resetDefaultState: () => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
-  setManuallyExpandedCategoryId: (categoryId: number | null) => void
   setSelectedTagId: (tagId: number | null) => void
   setSearchQuery: (query: string) => void
   /** Lowering the cap evicts immediately; the dropped entries are returned. */
   setMaxOpenNotes: (value: number) => OpenNoteEntry[]
   openExistingNote: (note: NoteRecord) => OpenNoteEntry[]
   openNewDraft: (options?: {
-    categoryId?: number | null
+    categoryIds?: number[]
+    statusId?: number | null
     tagIds?: number[]
     categoryLabel?: string
   }) => OpenNoteEntry[]
   activateEntry: (key: OpenNoteKey) => void
-  goBack: () => void
   closeEntry: (key: OpenNoteKey) => OpenNoteEntry[]
   closeEntriesForNote: (noteId: NoteRef) => OpenNoteEntry[]
   patchEntry: (
@@ -76,9 +68,7 @@ type Actions = {
     key: OpenNoteKey,
     form: NoteFormState | ((current: NoteFormState) => NoteFormState),
   ) => void
-  patchEveryEntry: (
-    patch: (entry: OpenNoteEntry) => Partial<OpenNoteEntry>,
-  ) => void
+  patchEveryEntry: (patch: (entry: OpenNoteEntry) => Partial<OpenNoteEntry>) => void
   replaceOpenNotes: (next: OpenNotesState) => void
 }
 
@@ -87,7 +77,6 @@ export type NotesAppStore = State & Actions
 const defaultState: State = {
   ...createEmptyOpenNotesState(),
   resultsListVisible: true,
-  manuallyExpandedCategoryId: null,
   selectedTagId: null,
   searchQuery: "",
   maxOpenNotes: MAX_OPEN_NOTES_DEFAULT,
@@ -110,9 +99,6 @@ export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
       resultsListVisible:
         typeof visible === "function" ? visible(current.resultsListVisible) : visible,
     }))
-  },
-  setManuallyExpandedCategoryId: (categoryId) => {
-    set({ manuallyExpandedCategoryId: categoryId })
   },
   setSelectedTagId: (tagId) => {
     set({ selectedTagId: tagId })
@@ -138,9 +124,6 @@ export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
   },
   activateEntry: (key) => {
     set(activateEntryIn(openNotesSlice(get()), key, get().maxOpenNotes))
-  },
-  goBack: () => {
-    set(goBackIn(openNotesSlice(get())))
   },
   closeEntry: (key) => {
     const { state, removed } = closeEntryIn(openNotesSlice(get()), key, get().maxOpenNotes)
@@ -182,9 +165,6 @@ export const selectActiveEntry = (state: NotesAppStore): OpenNoteEntry | null =>
 
 export const selectActiveSaveStatus = (state: NotesAppStore): NoteSaveStatus =>
   getActiveEntry(state)?.saveStatus ?? "idle"
-
-export const selectBackTarget = (state: NotesAppStore): OpenNoteEntry | null =>
-  getBackTarget(state)
 
 /**
  * True when a note the user is not looking at is mid-save or failed to save,

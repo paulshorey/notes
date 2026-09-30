@@ -78,16 +78,10 @@ export const createEmptyOpenNotesState = (): OpenNotesState => ({
   nextDraftSequence: 0,
 })
 
-export const findEntry = (
-  state: OpenNotesState,
-  key: OpenNoteKey | null,
-): OpenNoteEntry | null =>
+export const findEntry = (state: OpenNotesState, key: OpenNoteKey | null): OpenNoteEntry | null =>
   key === null ? null : (state.openNotes.find((entry) => entry.key === key) ?? null)
 
-export const findEntryByNoteId = (
-  state: OpenNotesState,
-  noteId: NoteRef,
-): OpenNoteEntry | null =>
+export const findEntryByNoteId = (state: OpenNotesState, noteId: NoteRef): OpenNoteEntry | null =>
   state.openNotes.find((entry) => entry.noteId === noteId) ?? null
 
 export const getActiveEntry = (state: OpenNotesState): OpenNoteEntry | null =>
@@ -259,7 +253,7 @@ export const openExistingNote = (
     noteId: note.id,
     baseTimeModified: note.timeModified,
     form,
-    categoryInputValue: note.category.label,
+    categoryInputValue: note.categories.map((category) => category.label).join(", "),
   })
 
   return insertActivateEvict(state, entry, cap)
@@ -268,7 +262,8 @@ export const openExistingNote = (
 export const openNewDraft = (
   state: OpenNotesState,
   options: {
-    categoryId?: number | null
+    categoryIds?: number[]
+    statusId?: number | null
     tagIds?: number[]
     categoryLabel?: string
   } = {},
@@ -283,7 +278,8 @@ export const openNewDraft = (
       ...active,
       form: {
         ...active.form,
-        selectedCategoryId: options.categoryId ?? active.form.selectedCategoryId,
+        selectedCategoryIds: options.categoryIds ?? active.form.selectedCategoryIds,
+        selectedStatusId: options.statusId ?? active.form.selectedStatusId,
         selectedTagIds: options.tagIds ?? active.form.selectedTagIds,
       },
       categoryInputValue: options.categoryLabel ?? active.categoryInputValue,
@@ -302,13 +298,18 @@ export const openNewDraft = (
   const entry = createEntry(`draft:${state.nextDraftSequence}`, {
     form: {
       ...createDefaultNoteForm(),
-      selectedCategoryId: options.categoryId ?? null,
+      selectedCategoryIds: options.categoryIds ?? [],
+      selectedStatusId: options.statusId ?? null,
       selectedTagIds: options.tagIds ?? [],
     },
     categoryInputValue: options.categoryLabel ?? "",
   })
 
-  return insertActivateEvict({ ...state, nextDraftSequence: state.nextDraftSequence + 1 }, entry, cap)
+  return insertActivateEvict(
+    { ...state, nextDraftSequence: state.nextDraftSequence + 1 },
+    entry,
+    cap,
+  )
 }
 
 /**

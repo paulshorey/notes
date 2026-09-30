@@ -1,4 +1,4 @@
-export { getDb } from "./lib/db/postgres";
+export { getDb } from "./lib/db/postgres"
 
 export {
   createNoteForUser,
@@ -9,23 +9,42 @@ export {
   searchNotesByEmbedding,
   updateNoteEmbeddingsForUser,
   updateNoteForUser,
-} from "./sql/note";
-export { listCategoriesByUser } from "./sql/category";
-export { listTagsByUser } from "./sql/tag";
-export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./sql/user";
+} from "./sql/note"
+export { listCategoriesByWorkspace } from "./sql/category"
+export { listStatusesByWorkspace } from "./sql/status"
+export { listTagsByWorkspace } from "./sql/tag"
+export { listWorkspacesByUser } from "./sql/workspace"
+export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./sql/user"
 
 export type {
-  UserNoteCategoryV1Row,
+  UserNoteCategoryLinkV1Row,
   PostgresDbSchema,
   UserNoteTagLinkV1Row,
-  UserNoteTagV1Row,
+  UserWorkspaceV1Row,
+  WorkspaceNoteCategoryV1Row,
+  WorkspaceNoteStatusV1Row,
+  WorkspaceNoteTagV1Row,
   UserNoteV1Row,
   UserV1Row,
-} from "./generated/typescript/db-types";
+} from "./generated/typescript/db-types"
 export type {
   CategoriesRequest,
   CategoriesResponse,
   CategoryRecord,
+  WorkspaceRecord,
+  StatusRecord,
+  BootstrapResponse,
+  StatusesResponse,
+  StatusResponse,
+  WorkspaceResponse,
+  WorkspacesResponse,
+  WorkspacesRequest,
+  CreateWorkspaceRequest,
+  UpdateWorkspaceRequest,
+  DeleteWorkspaceRequest,
+  CreateStatusRequest,
+  UpdateStatusRequest,
+  DeleteStatusRequest,
   CreateCategoryRequest,
   CreateCategoryResponse,
   TagsRequest,
@@ -37,8 +56,6 @@ export type {
   CreateNoteRequest,
   DeleteCategoryRequest,
   DeleteCategoryResponse,
-  DeleteCategoryWithNotesRequest,
-  DeleteCategoryWithNotesResponse,
   DeleteTagRequest,
   DeleteTagResponse,
   EmbeddingMaintenanceRequest,
@@ -69,5 +86,5 @@ export type {
   UpdateNoteRequest,
   UserSummary,
   NotesAppPreferences,
-} from "./contracts/notes-app";
-export type { NoteEmbeddingBackfillRow, NoteEmbeddingWriteInput } from "./sql/note";
+} from "./contracts/notes-app"
+export type { NoteEmbeddingBackfillRow, NoteEmbeddingWriteInput } from "./sql/note"

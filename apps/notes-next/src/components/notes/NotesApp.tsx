@@ -5,7 +5,6 @@ import type {
   CategoryRecord,
   CreateCategoryResponse,
   DeleteCategoryResponse,
-  DeleteCategoryWithNotesResponse,
   TagsResponse,
   TagRecord,
   CreateTagResponse,
@@ -19,6 +18,9 @@ import type {
   UpdateTagResponse,
   UserPreferences,
   UserSummary,
+  BootstrapResponse,
+  StatusRecord,
+  WorkspaceRecord,
 } from "@lib/db-notes"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-notes/notes-search-constants"
 import {
@@ -33,10 +35,10 @@ import {
   useRef,
   useState,
 } from "react"
-import { Text } from "@gravity-ui/uikit"
+import { Button, Text } from "@gravity-ui/uikit"
 import { signIn, signOut, useSession } from "next-auth/react"
 import { STORAGE_KEY } from "@/constants/notes"
-import { getErrorMessage, readJson } from "@/lib/api"
+import { fetchWithTimeout, getErrorMessage, readJson, RequestError } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import {
   createDefaultNoteForm,
@@ -61,6 +63,7 @@ import {
 } from "@/lib/notesCache"
 import {
   collectExitFlushItems,
+  collectSessionFlushEntries,
   selectKeepaliveExitItems,
   stateWithDetachedSaves,
 } from "@/lib/openNotesExit"
@@ -83,8 +86,13 @@ import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
 import type { DisplayNoteItem } from "./NoteResultsList"
 import { NotesHeader, type SignupFields } from "./NotesHeader"
-import { ResultsColumn, type CategoryNoteGroup, type TagNoteGroup } from "./ResultsColumn"
-import { DeleteCategoryModal, type DeleteCategoryAction } from "./modals/DeleteCategoryModal"
+import {
+  ResultsColumn,
+  type CategoryNoteGroup,
+  type StatusNoteGroup,
+  type TagNoteGroup,
+} from "./ResultsColumn"
+import { DeleteCategoryModal } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
 import { EditTagModal } from "./modals/EditTagModal"
@@ -411,7 +419,10 @@ export default function NotesApp() {
   const [userPreferences, setUserPreferences] = useState<UserPreferences>({})
   const [notes, setNotes] = useState<NoteRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
+  const [statuses, setStatuses] = useState<StatusRecord[]>([])
   const [tags, setTags] = useState<TagRecord[]>([])
+  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([])
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null)
   const fallbackCategoryId = getDefaultCategoryId(categories)
   const fallbackTagId = getDefaultTagId(tags)
   // Selector subscriptions rather than a bulk destructure: with a ring of open
@@ -440,6 +451,9 @@ export default function NotesApp() {
   const resetNotesAppStore = useNotesAppStore((state) => state.resetDefaultState)
   const [searchResults, setSearchResults] = useState<SearchResponse["results"]>([])
   const [sessionLoading, setSessionLoading] = useState(true)
+  const [startupErrorMessage, setStartupErrorMessage] = useState<string | null>(null)
+  const [startupRetryKey, setStartupRetryKey] = useState(0)
+  const [anonymousSignInPending, setAnonymousSignInPending] = useState(false)
   const [notesUrlSelectionReady, setNotesUrlSelectionReady] = useState(false)
   const [notesLoading, setNotesLoading] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -447,6 +461,7 @@ export default function NotesApp() {
   const [embeddingMaintenancePending, setEmbeddingMaintenancePending] =
     useState<EmbeddingMaintenanceMode | null>(null)
   const [createCategoryPending, setCreateCategoryPending] = useState(false)
+  const [createStatusPending, setCreateStatusPending] = useState(false)
   const [createTagPending, setCreateTagPending] = useState(false)
   const [deletingNoteId, setDeletingNoteId] = useState<number | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
@@ -456,8 +471,7 @@ export default function NotesApp() {
   const [editCategoryLabel, setEditCategoryLabel] = useState("")
   const [editCategoryPending, setEditCategoryPending] = useState(false)
   const [deletingCategory, setDeletingCategory] = useState<CategoryRecord | null>(null)
-  const [deleteCategoryPendingAction, setDeleteCategoryPendingAction] =
-    useState<DeleteCategoryAction | null>(null)
+  const [deleteCategoryPending, setDeleteCategoryPending] = useState(false)
   const [editingTag, setEditingTag] = useState<TagRecord | null>(null)
   const [editTagLabel, setEditTagLabel] = useState("")
   const [editTagPending, setEditTagPending] = useState(false)
@@ -474,6 +488,7 @@ export default function NotesApp() {
   const notesRef = useRef<NoteRecord[]>(notes)
   const categoriesRef = useRef<CategoryRecord[]>(categories)
   const tagsRef = useRef<TagRecord[]>(tags)
+  const activeWorkspaceIdRef = useRef<number | null>(activeWorkspaceId)
   // Saves are keyed by entry, so two notes can be in flight at once while a
   // second save of the *same* note still queues behind the first.
   const saveInFlightRef = useRef(new Map<OpenNoteKey, Promise<void>>())
@@ -485,6 +500,7 @@ export default function NotesApp() {
   // twice. The sessionStorage token removal is the primary idempotency guard;
   // this ref covers the in-flight window before that removal is observed.
   const mergeInFlightRef = useRef(false)
+  const anonymousSignInInFlightRef = useRef(false)
   const didRehydrateOpenNotesRef = useRef(false)
   const openNotesPersistTimeoutRef = useRef<number | null>(null)
   const taxonomyRefreshTimeoutRef = useRef<number | null>(null)
@@ -558,6 +574,18 @@ export default function NotesApp() {
     mobileResultsOverlayTimeoutRef.current = null
   }, [])
 
+  const updateResultsColumnWidth = (width: number) => {
+    const nextPreferredWidth = clampStoredResultsColumnWidth(width)
+    setResultsListVisible(true)
+    setPreferredResultsColumnWidth(nextPreferredWidth)
+    setResultsColumnWidth(clampResultsColumnWidth(nextPreferredWidth))
+    setUserPreferences((current) =>
+      getStoredResultsColumnWidth(current) === nextPreferredWidth
+        ? current
+        : withResultsColumnWidthPreference(current, nextPreferredWidth),
+    )
+  }
+
   const handleResizePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
     resizeStateRef.current = {
@@ -579,24 +607,12 @@ export default function NotesApp() {
     if (!resizeState.dragged && Math.abs(delta) < RESIZE_DRAG_THRESHOLD) return
 
     resizeState.dragged = true
-    const nextPreferredWidth = clampStoredResultsColumnWidth(resizeState.startWidth + delta)
-    setResultsListVisible(true)
-    setPreferredResultsColumnWidth(nextPreferredWidth)
-    setResultsColumnWidth(clampResultsColumnWidth(nextPreferredWidth))
-    setUserPreferences((current) =>
-      getStoredResultsColumnWidth(current) === nextPreferredWidth
-        ? current
-        : withResultsColumnWidthPreference(current, nextPreferredWidth),
-    )
+    updateResultsColumnWidth(resizeState.startWidth + delta)
   }
 
   const handleResizePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
     const resizeState = resizeStateRef.current
     if (!resizeState || resizeState.pointerId !== event.pointerId) return
-
-    if (!resizeState.dragged) {
-      setResultsListVisible((visible) => !visible)
-    }
 
     resizeStateRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -681,6 +697,9 @@ export default function NotesApp() {
   useEffect(() => {
     tagsRef.current = tags
   }, [tags])
+  useEffect(() => {
+    activeWorkspaceIdRef.current = activeWorkspaceId
+  }, [activeWorkspaceId])
 
   useEffect(() => {
     userPreferencesRef.current = userPreferences
@@ -783,7 +802,14 @@ export default function NotesApp() {
   )
 
   const openDraftEntry = useCallback(
-    (options: { categoryId?: number | null; tagIds?: number[]; categoryLabel?: string } = {}) => {
+    (
+      options: {
+        categoryIds?: number[]
+        statusId?: number | null
+        tagIds?: number[]
+        categoryLabel?: string
+      } = {},
+    ) => {
       detachRemovedEntries(openNewDraftInStore(options))
     },
     [detachRemovedEntries, openNewDraftInStore],
@@ -798,14 +824,18 @@ export default function NotesApp() {
     (
       userId: number,
       {
+        workspaceId,
         noteList,
         categoryList,
+        statusList,
         tagList,
         pendingMerge,
         force = false,
       }: {
+        workspaceId: number
         noteList: NoteRecord[]
         categoryList: CategoryRecord[]
+        statusList: StatusRecord[]
         tagList: TagRecord[]
         pendingMerge: boolean
         force?: boolean
@@ -813,7 +843,7 @@ export default function NotesApp() {
     ) => {
       if (didRehydrateOpenNotesRef.current && !force) return
 
-      const snapshot = readOpenNotesSnapshot(userId)
+      const snapshot = readOpenNotesSnapshot(userId, workspaceId)
 
       // A merge changes the acting user id, so the snapshot is keyed to the old
       // anonymous account. Note rows are reparented and keep their ids, but
@@ -821,7 +851,7 @@ export default function NotesApp() {
       // reconciliation repair the references. `handleLogin` already flushed
       // everything, so nothing here is unsaved.
       const usable =
-        snapshot ?? (pendingMerge ? readOpenNotesSnapshotForAnyUser(userId) : null)
+        snapshot ?? (pendingMerge ? readOpenNotesSnapshotForAnyUser(userId, workspaceId) : null)
 
       didRehydrateOpenNotesRef.current = true
 
@@ -829,6 +859,7 @@ export default function NotesApp() {
 
       const notesById = new Map(noteList.map((note) => [note.id, note]))
       const categoryIds = new Set(categoryList.map((category) => category.id))
+      const statusIds = new Set(statusList.map((status) => status.id))
       const tagIds = new Set(tagList.map((tag) => tag.id))
 
       const { state, orphanedDraftCount } = reconcileOpenNotes(
@@ -836,6 +867,7 @@ export default function NotesApp() {
         (noteId) => notesById.get(noteId),
         {
           categoryExists: (categoryId) => categoryIds.has(categoryId),
+          statusExists: (statusId) => statusIds.has(statusId),
           tagExists: (tagId) => tagIds.has(tagId),
           fallbackCategoryId: getDefaultCategoryId(categoryList),
         },
@@ -900,7 +932,7 @@ export default function NotesApp() {
           : getDefaultCategoryId(categoryList)
 
       openDraftEntry({
-        categoryId,
+        categoryIds: categoryId === null ? [] : [categoryId],
         tagIds: validTagIds,
         categoryLabel:
           categoryId === null
@@ -918,56 +950,90 @@ export default function NotesApp() {
     // to await here.
     clearMessages()
     openDraftEntry({
-      categoryId:
+      categoryIds: [
         useNotesAppStore.getState().openNotes.find((entry) => entry.key === activeKey)?.form
-          .selectedCategoryId ?? getDefaultCategoryId(categoriesRef.current),
+          .selectedCategoryIds[0] ?? getDefaultCategoryId(categoriesRef.current),
+      ].filter((id): id is number => id !== null),
     })
   }, [activeKey, clearMessages, openDraftEntry])
 
-  const loadNotes = useCallback(async (userId: number) => {
-    // Only show the blocking "Loading…" indicator on the cold path, when we
-    // have nothing to display yet. Background refreshes (post-CRUD and the
-    // stale-while-revalidate startup) should keep showing the existing data.
-    const showLoadingIndicator = notesRef.current.length === 0
-    if (showLoadingIndicator) setNotesLoading(true)
-    try {
-      const response = await fetch(`/api/notes?userId=${userId}`, { cache: "no-store" })
-      const data = await readJson<NotesResponse>(response)
-      setNotes(data.notes)
-      updateNotesCacheList(userId, "notes", data.notes)
-      return data.notes
-    } finally {
-      if (showLoadingIndicator) setNotesLoading(false)
-    }
-  }, [])
+  const handleAddDefaultNote = useCallback(() => {
+    clearMessages()
+    const categoryList = categoriesRef.current
+    const defaultCategory = categoryList.find(
+      (category) => category.id === getDefaultCategoryId(categoryList),
+    )
+    openDraftEntry({
+      categoryIds: defaultCategory ? [defaultCategory.id] : [],
+      categoryLabel: defaultCategory?.label ?? "",
+    })
+  }, [clearMessages, openDraftEntry])
 
-  const loadCategories = useCallback(async (userId: number) => {
-    const response = await fetch(`/api/categories?userId=${userId}`, { cache: "no-store" })
-    const data = await readJson<CategoriesResponse>(response)
-    setCategories(data.categories)
-    updateNotesCacheList(userId, "categories", data.categories)
-    return data.categories
-  }, [])
+  const loadNotes = useCallback(
+    async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
+      if (workspaceId === null) return []
+      // Only show the blocking "Loading…" indicator on the cold path, when we
+      // have nothing to display yet. Background refreshes (post-CRUD and the
+      // stale-while-revalidate startup) should keep showing the existing data.
+      const showLoadingIndicator = notesRef.current.length === 0
+      if (showLoadingIndicator) setNotesLoading(true)
+      try {
+        const response = await fetch(`/api/notes?workspaceId=${workspaceId}`, { cache: "no-store" })
+        const data = await readJson<NotesResponse>(response)
+        if (activeWorkspaceIdRef.current !== workspaceId) return data.notes
+        setNotes(data.notes)
+        updateNotesCacheList(userId, workspaceId, "notes", data.notes)
+        return data.notes
+      } finally {
+        if (showLoadingIndicator) setNotesLoading(false)
+      }
+    },
+    [],
+  )
 
-  const loadTags = useCallback(async (userId: number) => {
-    const response = await fetch(`/api/tags?userId=${userId}`, { cache: "no-store" })
-    const data = await readJson<TagsResponse>(response)
-    setTags(data.tags)
-    updateNotesCacheList(userId, "tags", data.tags)
-    return data.tags
-  }, [])
+  const loadCategories = useCallback(
+    async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
+      if (workspaceId === null) return []
+      const response = await fetch(`/api/categories?workspaceId=${workspaceId}`, {
+        cache: "no-store",
+      })
+      const data = await readJson<CategoriesResponse>(response)
+      if (activeWorkspaceIdRef.current !== workspaceId) return data.categories
+      setCategories(data.categories)
+      updateNotesCacheList(userId, workspaceId, "categories", data.categories)
+      return data.categories
+    },
+    [],
+  )
+
+  const loadTags = useCallback(
+    async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
+      if (workspaceId === null) return []
+      const response = await fetch(`/api/tags?workspaceId=${workspaceId}`, { cache: "no-store" })
+      const data = await readJson<TagsResponse>(response)
+      if (activeWorkspaceIdRef.current !== workspaceId) return data.tags
+      setTags(data.tags)
+      updateNotesCacheList(userId, workspaceId, "tags", data.tags)
+      return data.tags
+    },
+    [],
+  )
 
   const runSearch = useCallback(async (userId: number, query: string, limit: number) => {
+    const workspaceId = activeWorkspaceIdRef.current
+    if (workspaceId === null) return []
     const response = await fetch("/api/notes/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         userId,
+        workspaceId,
         query,
         limit: Math.min(Math.max(limit, 1), NOTES_APP_SEARCH_MAX_RESULTS),
       }),
     })
     const data = await readJson<SearchResponse>(response)
+    if (activeWorkspaceIdRef.current !== workspaceId) return data.results
     setSearchResults(data.results)
     return data.results
   }, [])
@@ -975,22 +1041,40 @@ export default function NotesApp() {
   useEffect(() => {
     let active = true
 
+    setStartupErrorMessage(null)
+    setSessionLoading(true)
+
     const fetchFreshSession = async (
       userId: string | number,
-      { applyUser }: { applyUser: boolean },
+      {
+        applyUser,
+        workspaceId,
+      }: {
+        applyUser: boolean
+        workspaceId?: number
+      },
     ) => {
-      const sessionResponse = await fetch(`/api/session?userId=${userId}`, {
-        cache: "no-store",
-      })
-      const sessionData = await readJson<SessionResponse>(sessionResponse)
+      const bootstrapResponse = await fetchWithTimeout(
+        workspaceId === undefined ? "/api/bootstrap" : `/api/bootstrap?workspaceId=${workspaceId}`,
+        {
+          cache: "no-store",
+        },
+      )
+      const bootstrapData = await readJson<BootstrapResponse>(bootstrapResponse)
+      const expectedUserId = Number(userId)
+      if (Number.isInteger(expectedUserId) && bootstrapData.user.id !== expectedUserId) {
+        throw new RequestError("The active session changed during startup.", 401)
+      }
+      const sessionData: SessionResponse = {
+        user: bootstrapData.user,
+      }
 
       // On the cache-first path the in-memory preferences came from a snapshot
       // that can be arbitrarily old. Whether the fresh server copy may replace
       // them turns on one question: has the user changed a preference that the
       // debounced PATCH has not saved yet?
       const hasUnsavedPreferenceEdit =
-        serializeUserPreferences(userPreferencesRef.current) !==
-        lastSavedPreferencesRef.current
+        serializeUserPreferences(userPreferencesRef.current) !== lastSavedPreferencesRef.current
 
       let userForCache = sessionData.user
 
@@ -1011,21 +1095,37 @@ export default function NotesApp() {
         updateNotesCacheUser(sessionData.user.id, userForCache)
       }
 
-      const [loadedNotes, loadedCategories, loadedTags] = await Promise.all([
-        loadNotes(sessionData.user.id),
-        loadCategories(sessionData.user.id),
-        loadTags(sessionData.user.id),
-      ])
+      const loadedNotes = bootstrapData.notes
+      const loadedCategories = bootstrapData.categories
+      const loadedStatuses = bootstrapData.statuses
+      const loadedTags = bootstrapData.tags
+
+      setNotes(loadedNotes)
+      setCategories(loadedCategories)
+      setStatuses(loadedStatuses)
+      setTags(loadedTags)
+      setWorkspaces(bootstrapData.workspaces)
+      setActiveWorkspaceId(bootstrapData.activeWorkspaceId)
 
       writeNotesCache({
         userId: sessionData.user.id,
         user: userForCache,
+        workspaces: bootstrapData.workspaces,
+        activeWorkspaceId: bootstrapData.activeWorkspaceId,
         notes: loadedNotes,
         categories: loadedCategories,
+        statuses: loadedStatuses,
         tags: loadedTags,
       })
 
-      return { sessionData, loadedNotes, loadedCategories, loadedTags }
+      return {
+        sessionData,
+        activeWorkspaceId: bootstrapData.activeWorkspaceId,
+        loadedNotes,
+        loadedCategories,
+        loadedStatuses,
+        loadedTags,
+      }
     }
 
     const restoreSession = async () => {
@@ -1106,11 +1206,16 @@ export default function NotesApp() {
         applyLoadedUser(cachedSnapshot.user)
         setNotes(cachedSnapshot.notes)
         setCategories(cachedSnapshot.categories)
+        setStatuses(cachedSnapshot.statuses)
         setTags(cachedSnapshot.tags)
+        setWorkspaces(cachedSnapshot.workspaces)
+        setActiveWorkspaceId(cachedSnapshot.activeWorkspaceId)
         // Reconcile against the cached list so the ring paints immediately…
         rehydrateOpenNotes(cachedSnapshot.userId, {
+          workspaceId: cachedSnapshot.activeWorkspaceId,
           noteList: cachedSnapshot.notes,
           categoryList: cachedSnapshot.categories,
+          statusList: cachedSnapshot.statuses,
           tagList: cachedSnapshot.tags,
           pendingMerge: Boolean(pendingMergeToken),
         })
@@ -1122,15 +1227,20 @@ export default function NotesApp() {
         setSessionLoading(false)
 
         try {
-          const refreshed = await fetchFreshSession(cachedSnapshot.userId, { applyUser: false })
+          const refreshed = await fetchFreshSession(cachedSnapshot.userId, {
+            applyUser: false,
+            workspaceId: cachedSnapshot.activeWorkspaceId,
+          })
           if (!active) return
           // …then again once the real data lands. The cached list can be up to
           // two weeks old, so it cannot be trusted to say whether a note still
           // exists. Reconciling is idempotent and never touches a dirty entry,
           // so the second pass only corrects clean ones.
           rehydrateOpenNotes(cachedSnapshot.userId, {
+            workspaceId: refreshed.activeWorkspaceId,
             noteList: refreshed.loadedNotes,
             categoryList: refreshed.loadedCategories,
+            statusList: refreshed.loadedStatuses,
             tagList: refreshed.loadedTags,
             pendingMerge: false,
             force: true,
@@ -1149,8 +1259,10 @@ export default function NotesApp() {
         if (!active) return
 
         rehydrateOpenNotes(result.sessionData.user.id, {
+          workspaceId: result.activeWorkspaceId,
           noteList: result.loadedNotes,
           categoryList: result.loadedCategories,
+          statusList: result.loadedStatuses,
           tagList: result.loadedTags,
           pendingMerge: Boolean(pendingMergeToken),
         })
@@ -1161,22 +1273,42 @@ export default function NotesApp() {
         })
       } catch (error) {
         if (!active) return
-        window.localStorage.removeItem(STORAGE_KEY)
-        clearNotesCache()
-        preferenceSaveRequestIdRef.current += 1
-        lastSavedPreferencesRef.current = serializeUserPreferences({})
+        const isUnauthorized = error instanceof RequestError && error.status === 401
+
+        if (isUnauthorized) {
+          window.localStorage.removeItem(STORAGE_KEY)
+          clearNotesCache()
+          preferenceSaveRequestIdRef.current += 1
+          lastSavedPreferencesRef.current = serializeUserPreferences({})
+          setUserPreferences({})
+          setCategories([])
+          setStatuses([])
+          setTags([])
+          setWorkspaces([])
+          setActiveWorkspaceId(null)
+          setNotes([])
+          detachedSavesRef.current.clear()
+          setResultsListVisible(!isMobileResultsLayout())
+          setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+          setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
+        }
+
+        // A network, database, or server failure is not evidence that the
+        // user's persisted drafts are invalid. Keep both caches intact and
+        // offer an explicit retry instead of silently deleting local work.
         setUser(null)
-        setUserPreferences({})
-        setCategories([])
-        setTags([])
-        setNotes([])
-        clearOpenNotesSnapshot()
-        detachedSavesRef.current.clear()
-        resetNotesAppStore()
-        setResultsListVisible(!isMobileResultsLayout())
-        setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-        setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
-        setErrorMessage(getErrorMessage(error))
+        setStartupErrorMessage(
+          isUnauthorized
+            ? "Your session is no longer valid. Retry to start a new visitor session."
+            : getErrorMessage(error),
+        )
+
+        if (isUnauthorized) {
+          // A signed token for a deleted user cannot recover by repeating the
+          // same bootstrap request. End that session once; the unauthenticated
+          // effect then makes one normal visitor-session attempt.
+          await signOut({ redirect: false })
+        }
       } finally {
         if (active) setSessionLoading(false)
       }
@@ -1190,13 +1322,13 @@ export default function NotesApp() {
     authSession?.user?.notesUserId,
     authSession?.user?.isAnonymous,
     authStatus,
+    startupRetryKey,
     applyLoadedUser,
     loadCategories,
     loadTags,
     loadNotes,
     applyNotesUrlSelection,
     rehydrateOpenNotes,
-    resetNotesAppStore,
     setResultsListVisible,
   ])
 
@@ -1251,12 +1383,12 @@ export default function NotesApp() {
     // Mirrors the *active* entry so the address bar stays copy-pasteable.
     writeNotesUrlSelection({
       noteId: activeEntry?.noteId ?? null,
-      categoryId: activeEntry?.form.selectedCategoryId ?? null,
+      categoryId: activeEntry?.form.selectedCategoryIds[0] ?? null,
       tagIds: activeEntry?.form.selectedTagIds ?? [],
     })
   }, [
     activeEntry?.noteId,
-    activeEntry?.form.selectedCategoryId,
+    activeEntry?.form.selectedCategoryIds,
     activeEntry?.form.selectedTagIds,
     notesUrlSelectionReady,
     user,
@@ -1302,6 +1434,7 @@ export default function NotesApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          workspaceId: activeWorkspaceId,
           query: trimmedSearchQuery,
           limit: NOTES_APP_SEARCH_MAX_RESULTS,
         }),
@@ -1325,7 +1458,7 @@ export default function NotesApp() {
       controller.abort()
       window.clearTimeout(timeoutId)
     }
-  }, [notes.length, trimmedSearchQuery, user])
+  }, [activeWorkspaceId, notes.length, trimmedSearchQuery, user])
 
   /**
    * Point every open entry at a category that still exists. Runs where
@@ -1336,23 +1469,62 @@ export default function NotesApp() {
    * push the remap back to the server as if the user had made it.
    */
   const remapEntriesAfterCategoryChange = useCallback(
-    (categoryList: CategoryRecord[]) => {
+    (
+      noteList: NoteRecord[],
+      categoryList: CategoryRecord[],
+      statusList: StatusRecord[],
+      tagList: TagRecord[],
+    ) => {
       const fallback = getDefaultCategoryId(categoryList)
 
       patchEveryEntry((entry) => {
-        const categoryId = entry.form.selectedCategoryId
-        if (categoryId !== null && categoryList.some((category) => category.id === categoryId)) {
+        const serverNote =
+          entry.noteId === null ? undefined : noteList.find((note) => note.id === entry.noteId)
+        if (serverNote && !isEntryDirty(entry)) {
+          const form = noteToFormState(serverNote)
+          return {
+            form,
+            baseTimeModified: serverNote.timeModified,
+            savedSignature: serializeNoteDraft(serverNote.id, form),
+            categoryInputValue: serverNote.categories.map((category) => category.label).join(", "),
+            pendingTagLabels: [],
+          }
+        }
+
+        const validIds = entry.form.selectedCategoryIds.filter((id) =>
+          categoryList.some((category) => category.id === id),
+        )
+        const validStatusId =
+          entry.form.selectedStatusId === null ||
+          statusList.some((status) => status.id === entry.form.selectedStatusId)
+            ? entry.form.selectedStatusId
+            : null
+        const validTagIds = entry.form.selectedTagIds.filter((id) =>
+          tagList.some((tag) => tag.id === id),
+        )
+        if (
+          validIds.length === entry.form.selectedCategoryIds.length &&
+          validStatusId === entry.form.selectedStatusId &&
+          validTagIds.length === entry.form.selectedTagIds.length
+        ) {
           return {}
         }
 
-        const form = { ...entry.form, selectedCategoryId: fallback }
+        const form = {
+          ...entry.form,
+          selectedCategoryIds: validIds.length ? validIds : fallback === null ? [] : [fallback],
+          selectedStatusId: validStatusId,
+          selectedTagIds: validTagIds,
+        }
         return {
           form,
           savedSignature: isEntryDirty(entry)
             ? entry.savedSignature
             : serializeNoteDraft(entry.noteId, form),
-          categoryInputValue:
-            categoryList.find((category) => category.id === fallback)?.label ?? "",
+          categoryInputValue: form.selectedCategoryIds
+            .map((id) => categoryList.find((category) => category.id === id)?.label)
+            .filter(Boolean)
+            .join(", "),
         }
       })
     },
@@ -1367,9 +1539,7 @@ export default function NotesApp() {
    */
   const applyServerNoteToEntry = useCallback(
     (note: NoteRecord) => {
-      const entry = useNotesAppStore
-        .getState()
-        .openNotes.find((item) => item.noteId === note.id)
+      const entry = useNotesAppStore.getState().openNotes.find((item) => item.noteId === note.id)
       if (!entry) return
 
       const form = noteToFormState(note)
@@ -1377,7 +1547,7 @@ export default function NotesApp() {
         form,
         baseTimeModified: note.timeModified,
         savedSignature: serializeNoteDraft(note.id, form),
-        categoryInputValue: note.category.label,
+        categoryInputValue: note.categories.map((category) => category.label).join(", "),
         pendingTagLabels: [],
       })
     },
@@ -1403,7 +1573,9 @@ export default function NotesApp() {
       const key = useNotesAppStore.getState().activeKey
       if (key === null) return
       patchEntryForm(key, (current) =>
-        typeof value === "function" ? (value as (f: NoteFormState) => NoteFormState)(current) : value,
+        typeof value === "function"
+          ? (value as (f: NoteFormState) => NoteFormState)(current)
+          : value,
       )
     },
     [patchEntryForm],
@@ -1440,15 +1612,6 @@ export default function NotesApp() {
     [detachRemovedEntries, setMaxOpenNotesInStore],
   )
 
-  const handleCategoryInputValueChange = useCallback(
-    (value: string) => {
-      const key = useNotesAppStore.getState().activeKey
-      if (key === null) return
-      patchEntry(key, { categoryInputValue: value })
-    },
-    [patchEntry],
-  )
-
   /**
    * Refresh category and tag records after saves, coalesced across all of them
    * so a burst of autosaves costs one round-trip rather than one each.
@@ -1465,7 +1628,19 @@ export default function NotesApp() {
       }
       taxonomyRefreshTimeoutRef.current = window.setTimeout(() => {
         taxonomyRefreshTimeoutRef.current = null
-        void Promise.all([loadCategories(userId), loadTags(userId)]).catch(() => undefined)
+        const workspaceId = activeWorkspaceIdRef.current
+        if (workspaceId !== null)
+          void Promise.all([
+            loadCategories(userId, workspaceId),
+            loadTags(userId, workspaceId),
+            fetch(`/api/statuses?workspaceId=${workspaceId}`, { cache: "no-store" })
+              .then(readJson<import("@lib/db-notes").StatusesResponse>)
+              .then((data) => {
+                if (activeWorkspaceIdRef.current !== workspaceId) return
+                setStatuses(data.statuses)
+                updateNotesCacheList(userId, workspaceId, "statuses", data.statuses)
+              }),
+          ]).catch(() => undefined)
       }, TAXONOMY_REFRESH_DEBOUNCE_MS)
     },
     [loadCategories, loadTags],
@@ -1473,9 +1648,10 @@ export default function NotesApp() {
 
   /** Merge a saved record into the lists in place, instead of refetching them. */
   const mergeSavedNote = useCallback((userId: number, note: NoteRecord) => {
+    if (activeWorkspaceIdRef.current !== note.workspaceId) return
     setNotes((prev) => {
       const next = [...prev.filter((item) => item.id !== note.id), note]
-      updateNotesCacheList(userId, "notes", next)
+      updateNotesCacheList(userId, note.workspaceId, "notes", next)
       return next
     })
     // The search effect only re-runs when `notes.length` changes, so an edit to
@@ -1489,12 +1665,26 @@ export default function NotesApp() {
 
   const refreshResults = useCallback(
     async (userId: number) => {
-      const [latestNotes, latestCategories, latestTags] = await Promise.all([
+      const workspaceId = activeWorkspaceIdRef.current
+      if (workspaceId === null) return { latestNotes: [], latestCategories: [], latestTags: [] }
+      const [latestNotes, latestCategories, latestTags, statusData] = await Promise.all([
         loadNotes(userId),
         loadCategories(userId),
         loadTags(userId),
+        fetch(`/api/statuses?workspaceId=${workspaceId}`, { cache: "no-store" }).then(
+          readJson<import("@lib/db-notes").StatusesResponse>,
+        ),
       ])
-      remapEntriesAfterCategoryChange(latestCategories)
+      if (activeWorkspaceIdRef.current !== workspaceId)
+        return { latestNotes: [], latestCategories: [], latestTags: [] }
+      setStatuses(statusData.statuses)
+      updateNotesCacheList(userId, workspaceId, "statuses", statusData.statuses)
+      remapEntriesAfterCategoryChange(
+        latestNotes,
+        latestCategories,
+        statusData.statuses,
+        latestTags,
+      )
       if (trimmedSearchQuery) {
         await runSearch(userId, trimmedSearchQuery, NOTES_APP_SEARCH_MAX_RESULTS)
       }
@@ -1518,9 +1708,10 @@ export default function NotesApp() {
   const saveEntry = useCallback(
     async function saveEntry(key: OpenNoteKey, mode: NoteSaveMode): Promise<boolean> {
       const currentUser = userRef.current
+      const workspaceId = activeWorkspaceIdRef.current
       // No session to save into. Not a failure the caller can act on, but not
       // a success either — a sign-in flush must not read this as "all stored".
-      if (!currentUser) return false
+      if (!currentUser || workspaceId === null) return false
 
       // Snapshot before awaiting anything. For a detached entry the snapshot is
       // all that is left of it; for a live one this pins the version being sent
@@ -1570,8 +1761,8 @@ export default function NotesApp() {
       const savePromise = (async () => {
         const requestBody =
           noteId === null
-            ? { userId: currentUser.id, note: noteRequestBody(formSnapshot) }
-            : { userId: currentUser.id, noteId, note: noteRequestBody(formSnapshot) }
+            ? { userId: currentUser.id, note: noteRequestBody(formSnapshot, workspaceId) }
+            : { userId: currentUser.id, noteId, note: noteRequestBody(formSnapshot, workspaceId) }
 
         const response = await fetch("/api/notes", {
           method: noteId === null ? "POST" : "PATCH",
@@ -1656,12 +1847,14 @@ export default function NotesApp() {
   saveEntryRef.current = saveEntry
 
   /**
-   * Persist every dirty entry and wait for all of them. Used only where the
-   * session itself is about to change — sign-in, sign-up, sign-out — since
-   * ordinary note switching no longer needs to block on a save.
+   * Persist every non-empty dirty entry and wait for all of them. Used only
+   * where the session itself is about to change — sign-in, sign-up, sign-out —
+   * since ordinary note switching no longer needs to block on a save. The
+   * default category makes an untouched new slot technically dirty, but there is
+   * no content to save and it must not block the session change.
    */
   const flushAllPendingSaves = useCallback(async () => {
-    const entries = useNotesAppStore.getState().openNotes.filter(isEntryDirty)
+    const entries = collectSessionFlushEntries(useNotesAppStore.getState().openNotes, isEntryDirty)
     // Detached work counts too: text that left the ring is exactly the text
     // nobody is looking at, so it is the easiest to lose in a session change.
     const detachedKeys = [...detachedSavesRef.current.keys()]
@@ -1712,7 +1905,8 @@ export default function NotesApp() {
 
     const flushOnExit = () => {
       const currentUser = userRef.current
-      if (!currentUser) return
+      const workspaceId = activeWorkspaceIdRef.current
+      if (!currentUser || workspaceId === null) return
 
       persistOpenNotesRef.current()
 
@@ -1731,7 +1925,7 @@ export default function NotesApp() {
         const requestBody = {
           userId: currentUser.id,
           noteId,
-          note: noteRequestBody(form),
+          note: noteRequestBody(form, workspaceId),
         }
 
         try {
@@ -1769,15 +1963,19 @@ export default function NotesApp() {
   // whole change exists to remove.
   const persistOpenNotes = useCallback(() => {
     const currentUser = userRef.current
-    if (!currentUser) return
+    const workspaceId = activeWorkspaceIdRef.current
+    if (!currentUser || workspaceId === null) return
 
     const ok = writeOpenNotesSnapshot(
       currentUser.id,
+      workspaceId,
       stateWithDetachedSaves(useNotesAppStore.getState(), detachedSavesRef.current),
       isEntryDirty,
     )
     if (!ok) {
-      setErrorMessage("Running low on browser storage — some unsaved notes may not survive a reload.")
+      setErrorMessage(
+        "Running low on browser storage — some unsaved notes may not survive a reload.",
+      )
     }
   }, [])
 
@@ -1844,8 +2042,6 @@ export default function NotesApp() {
     [allNoteItems, matchesSelectedTag],
   )
 
-  const allCategoriesNoteCount = selectedTagId === null ? notes.length : allCategoryItems.length
-
   const categoryNoteGroups = useMemo<CategoryNoteGroup[]>(() => {
     const notesByCategory = new Map<number, NoteRecord[]>()
     for (const category of categories) {
@@ -1853,10 +2049,7 @@ export default function NotesApp() {
     }
 
     for (const note of notes) {
-      const categoryNotes = notesByCategory.get(note.category.id)
-      if (categoryNotes) {
-        categoryNotes.push(note)
-      }
+      for (const category of note.categories) notesByCategory.get(category.id)?.push(note)
     }
 
     return categories
@@ -1875,6 +2068,11 @@ export default function NotesApp() {
       })
       .sort((left, right) => compareCategoryNoteGroups(left, right, fallbackCategoryId))
   }, [categories, fallbackCategoryId, matchesSelectedTag, notes])
+
+  const uncategorizedItems = useMemo(
+    () => allCategoryItems.filter(({ note }) => note.categories.length === 0),
+    [allCategoryItems],
+  )
 
   const tagNoteGroups = useMemo<TagNoteGroup[]>(() => {
     const notesByTag = new Map<number, DisplayNoteItem[]>()
@@ -1900,6 +2098,20 @@ export default function NotesApp() {
       })
       .sort(compareNoteGroups)
   }, [allNoteItems, tags])
+
+  const statusNoteGroups = useMemo<StatusNoteGroup[]>(
+    () =>
+      statuses.map((status) => ({
+        status,
+        items: allNoteItems.filter(({ note }) => note.status?.id === status.id),
+      })),
+    [allNoteItems, statuses],
+  )
+
+  const noStatusItems = useMemo(
+    () => allNoteItems.filter(({ note }) => note.status === null),
+    [allNoteItems],
+  )
 
   const selectedTag = useMemo(
     () => (selectedTagId === null ? null : (tags.find((c) => c.id === selectedTagId) ?? null)),
@@ -1949,6 +2161,7 @@ export default function NotesApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          workspaceId: activeWorkspaceId,
           mode,
           limit: Math.min(Math.max(notes.length, 100), 500),
         }),
@@ -2157,7 +2370,10 @@ export default function NotesApp() {
     setUser(null)
     setUserPreferences({})
     setCategories([])
+    setStatuses([])
     setTags([])
+    setWorkspaces([])
+    setActiveWorkspaceId(null)
     setNotes([])
     setSearchQuery("")
     setSearchResults([])
@@ -2170,6 +2386,132 @@ export default function NotesApp() {
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     clearMessages()
+  }
+
+  const handleSwitchWorkspace = async (workspaceId: number) => {
+    if (!user || workspaceId === activeWorkspaceId) return
+    if (!(await flushAllPendingSaves())) {
+      setErrorMessage("Couldn't save all notes, so the workspace was not changed.")
+      return
+    }
+    persistOpenNotes()
+    setNotesLoading(true)
+    try {
+      const response = await fetch(`/api/bootstrap?workspaceId=${workspaceId}`, {
+        cache: "no-store",
+      })
+      const data = await readJson<BootstrapResponse>(response)
+      setWorkspaces(data.workspaces)
+      setActiveWorkspaceId(data.activeWorkspaceId)
+      setNotes(data.notes)
+      setCategories(data.categories)
+      setStatuses(data.statuses)
+      setTags(data.tags)
+      const nextUserPreferences: UserPreferences = {
+        ...userPreferencesRef.current,
+        notesApp: {
+          ...(isPreferencesObject(userPreferencesRef.current.notesApp)
+            ? userPreferencesRef.current.notesApp
+            : {}),
+          currentWorkspaceId: data.activeWorkspaceId,
+        },
+      }
+      writeNotesCache({
+        userId: user.id,
+        user: { ...user, preferences: nextUserPreferences },
+        workspaces: data.workspaces,
+        activeWorkspaceId: data.activeWorkspaceId,
+        notes: data.notes,
+        categories: data.categories,
+        statuses: data.statuses,
+        tags: data.tags,
+      })
+      detachedSavesRef.current.clear()
+      resetNotesAppStore()
+      didRehydrateOpenNotesRef.current = false
+      rehydrateOpenNotes(user.id, {
+        workspaceId: data.activeWorkspaceId,
+        noteList: data.notes,
+        categoryList: data.categories,
+        statusList: data.statuses,
+        tagList: data.tags,
+        pendingMerge: false,
+        force: true,
+      })
+      if (useNotesAppStore.getState().openNotes.length === 0) {
+        const defaultCategory = getDefaultCategoryId(data.categories)
+        openDraftEntry({
+          categoryIds: defaultCategory === null ? [] : [defaultCategory],
+          categoryLabel: data.categories.find((c) => c.id === defaultCategory)?.label ?? "",
+        })
+      }
+      setUserPreferences(nextUserPreferences)
+      setSearchQuery("")
+      setStatusMessage(
+        `Switched to “${data.workspaces.find((w) => w.id === data.activeWorkspaceId)?.label ?? "workspace"}”.`,
+      )
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setNotesLoading(false)
+    }
+  }
+
+  const handleCreateWorkspace = async (rawLabel: string) => {
+    if (!user) return
+    const label = rawLabel.trim().toLocaleLowerCase()
+    if (!label) return
+    try {
+      const response = await fetch("/api/workspaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, label }),
+      })
+      const data = await readJson<import("@lib/db-notes").WorkspaceResponse>(response)
+      setWorkspaces((current) => [
+        ...current.filter((w) => w.id !== data.workspace.id),
+        data.workspace,
+      ])
+      await handleSwitchWorkspace(data.workspace.id)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    }
+  }
+
+  const handleCreateStatus = async (
+    rawLabel: string,
+    targetKey: OpenNoteKey | null = activeKey,
+  ) => {
+    if (!user || activeWorkspaceId === null || targetKey === null) return
+    const label = rawLabel.trim().toLocaleLowerCase()
+    if (!label) return
+    const existingStatus = statuses.find(
+      (status) => normalizeLabel(status.label) === normalizeLabel(label),
+    )
+    if (existingStatus) {
+      patchEntryForm(targetKey, (form) => ({ ...form, selectedStatusId: existingStatus.id }))
+      return
+    }
+    setCreateStatusPending(true)
+    try {
+      const response = await fetch("/api/statuses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
+      })
+      const data = await readJson<import("@lib/db-notes").StatusResponse>(response)
+      setStatuses((current) =>
+        [...current.filter((s) => s.id !== data.status.id), data.status].sort(
+          (a, b) => a.position - b.position,
+        ),
+      )
+      patchEntryForm(targetKey, (form) => ({ ...form, selectedStatusId: data.status.id }))
+      setStatusMessage(`Status “${data.status.label}” added.`)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setCreateStatusPending(false)
+    }
   }
 
   const closeResultsListOnMobile = () => {
@@ -2197,25 +2539,29 @@ export default function NotesApp() {
 
   const handleAddNoteForCategory = (category: CategoryRecord) => {
     clearMessages()
-    openDraftEntry({ categoryId: category.id, categoryLabel: category.label })
+    openDraftEntry({ categoryIds: [category.id], categoryLabel: category.label })
     closeResultsListOnMobile()
   }
 
   const handleAddNoteForTag = (tag: TagRecord) => {
     clearMessages()
-    const currentCategoryId = activeEntry?.form.selectedCategoryId ?? null
-    const selectedCategoryId =
-      currentCategoryId !== null && categories.some((category) => category.id === currentCategoryId)
-        ? currentCategoryId
-        : getDefaultCategoryId(categories)
+    const currentCategoryIds =
+      activeEntry?.form.selectedCategoryIds.filter((id) =>
+        categories.some((category) => category.id === id),
+      ) ?? []
+    const selectedCategoryIds = currentCategoryIds.length
+      ? currentCategoryIds
+      : getDefaultCategoryId(categories) === null
+        ? []
+        : [getDefaultCategoryId(categories)!]
 
     openDraftEntry({
-      categoryId: selectedCategoryId,
+      categoryIds: selectedCategoryIds,
       tagIds: [tag.id],
-      categoryLabel:
-        selectedCategoryId === null
-          ? ""
-          : (categories.find((category) => category.id === selectedCategoryId)?.label ?? ""),
+      categoryLabel: selectedCategoryIds
+        .map((id) => categories.find((category) => category.id === id)?.label)
+        .filter(Boolean)
+        .join(", "),
     })
     closeResultsListOnMobile()
   }
@@ -2233,10 +2579,26 @@ export default function NotesApp() {
       return
     }
     if (activeKey === null) return
-    patchEntry(activeKey, (entry) => ({
-      form: { ...entry.form, selectedCategoryId: category.id },
-      categoryInputValue: category.label,
-    }))
+    patchEntry(activeKey, (entry) => {
+      const selected = entry.form.selectedCategoryIds.includes(category.id)
+      const next = selected
+        ? entry.form.selectedCategoryIds.filter((id) => id !== category.id)
+        : [...entry.form.selectedCategoryIds, category.id]
+      return {
+        form: { ...entry.form, selectedCategoryIds: next },
+        categoryInputValue: next
+          .map((id) => categories.find((item) => item.id === id)?.label)
+          .filter(Boolean)
+          .join(", "),
+      }
+    })
+  }
+
+  const handleSelectStatus = (rawId: string) => {
+    if (activeKey === null) return
+    const id = rawId === "" ? null : Number.parseInt(rawId, 10)
+    if (id !== null && !statuses.some((status) => status.id === id)) return
+    patchEntryForm(activeKey, (form) => ({ ...form, selectedStatusId: id }))
   }
 
   // `targetKey` is captured by the caller before this awaits. Without it, a tag
@@ -2289,7 +2651,7 @@ export default function NotesApp() {
       const response = await fetch("/api/tags", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, label }),
+        body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
       })
       const data = await readJson<CreateTagResponse>(response)
       setTags((prev) => {
@@ -2332,7 +2694,12 @@ export default function NotesApp() {
     )
     if (existingCategory) {
       patchEntry(targetKey, (entry) => ({
-        form: { ...entry.form, selectedCategoryId: existingCategory.id },
+        form: {
+          ...entry.form,
+          selectedCategoryIds: entry.form.selectedCategoryIds.includes(existingCategory.id)
+            ? entry.form.selectedCategoryIds
+            : [...entry.form.selectedCategoryIds, existingCategory.id],
+        },
         categoryInputValue: existingCategory.label,
       }))
       return
@@ -2343,7 +2710,7 @@ export default function NotesApp() {
       const response = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, label }),
+        body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
       })
       const data = await readJson<CreateCategoryResponse>(response)
       setCategories((prev) => {
@@ -2353,7 +2720,12 @@ export default function NotesApp() {
         )
       })
       patchEntry(targetKey, (entry) => ({
-        form: { ...entry.form, selectedCategoryId: data.category.id },
+        form: {
+          ...entry.form,
+          selectedCategoryIds: entry.form.selectedCategoryIds.includes(data.category.id)
+            ? entry.form.selectedCategoryIds
+            : [...entry.form.selectedCategoryIds, data.category.id],
+        },
         categoryInputValue: data.category.label,
       }))
       setStatusMessage(`Category “${data.category.label}” added.`)
@@ -2385,7 +2757,7 @@ export default function NotesApp() {
     const response = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id, label }),
+      body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
     })
     const data = await readJson<CreateCategoryResponse>(response)
     setCategories((prev) => {
@@ -2414,7 +2786,7 @@ export default function NotesApp() {
     const response = await fetch("/api/tags", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id, label }),
+      body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
     })
     const data = await readJson<CreateTagResponse>(response)
     setTags((prev) => {
@@ -2428,7 +2800,7 @@ export default function NotesApp() {
 
   const patchNoteFromSidebar = async (
     note: NoteRecord,
-    nextCategoryId: number,
+    nextCategoryIds: number[],
     nextTagIds: number[],
   ) => {
     if (!user) return null
@@ -2441,7 +2813,9 @@ export default function NotesApp() {
           userId: user.id,
           noteId: note.id,
           note: {
-            categoryId: nextCategoryId,
+            workspaceId: activeWorkspaceId,
+            categoryIds: nextCategoryIds,
+            statusId: note.status?.id ?? null,
             tagIds: nextTagIds,
             description: note.description ?? "",
             timeDue: note.timeDue,
@@ -2486,11 +2860,11 @@ export default function NotesApp() {
     try {
       const category = await resolveCategoryForSidebarMove(categoryLabel)
       if (!category) return
-      if (category.id === note.category.id) return
+      if (note.categories.some((item) => item.id === category.id)) return
 
       const updatedNote = await patchNoteFromSidebar(
         note,
-        category.id,
+        [...note.categories.map((item) => item.id), category.id],
         note.tags.map((tag) => tag.id),
       )
       if (updatedNote) applyServerNoteToEntry(updatedNote)
@@ -2512,7 +2886,11 @@ export default function NotesApp() {
         .map((noteTag) => noteTag.id)
       nextTagIds.push(tag.id)
 
-      const updatedNote = await patchNoteFromSidebar(note, note.category.id, nextTagIds)
+      const updatedNote = await patchNoteFromSidebar(
+        note,
+        note.categories.map((item) => item.id),
+        nextTagIds,
+      )
       if (updatedNote) applyServerNoteToEntry(updatedNote)
       setStatusMessage(`Note tag changed to “${tag.label}”.`)
     } catch (error) {
@@ -2546,6 +2924,7 @@ export default function NotesApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          workspaceId: activeWorkspaceId,
           categoryId: editingCategory.id,
           label,
         }),
@@ -2566,16 +2945,17 @@ export default function NotesApp() {
     }
   }
 
-  const performDeleteCategoryKeepUncategorized = async (category: CategoryRecord) => {
+  const performDeleteCategory = async (category: CategoryRecord) => {
     if (!user) return
     clearMessages()
-    setDeleteCategoryPendingAction("keep-uncategorized")
+    setDeleteCategoryPending(true)
     try {
       const response = await fetch("/api/categories", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          workspaceId: activeWorkspaceId,
           categoryId: category.id,
         }),
       })
@@ -2586,53 +2966,7 @@ export default function NotesApp() {
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
-      setDeleteCategoryPendingAction(null)
-    }
-  }
-
-  const performDeleteCategoryWithNotes = async (category: CategoryRecord) => {
-    if (!user) return
-    clearMessages()
-    setDeleteCategoryPendingAction("delete-notes")
-    try {
-      const response = await fetch("/api/categories/with-notes", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          categoryId: category.id,
-        }),
-      })
-      const result = await readJson<DeleteCategoryWithNotesResponse>(response)
-
-      // Every note in the category is gone server-side. Any that were open
-      // would otherwise stay in the ring pointing at dead ids, so the user
-      // could keep typing into a zombie entry whose next autosave 404s. These
-      // are the one removal that must NOT route through a detached save — the
-      // rows they would write to no longer exist.
-      const deletedNoteIds = new Set(
-        notesRef.current
-          .filter((note) => note.category.id === category.id)
-          .map((note) => note.id),
-      )
-      for (const entry of useNotesAppStore.getState().openNotes) {
-        if (entry.noteId === null || !deletedNoteIds.has(entry.noteId)) continue
-        detachedSavesRef.current.delete(entry.key)
-        closeEntryInStore(entry.key)
-      }
-
-      await refreshResults(user.id)
-      const deletedNotes = result.deletedNotes
-      setStatusMessage(
-        deletedNotes > 0
-          ? `Category “${category.label}” and ${deletedNotes} ${deletedNotes === 1 ? "note" : "notes"} deleted.`
-          : `Category “${category.label}” deleted.`,
-      )
-      setDeletingCategory(null)
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
-    } finally {
-      setDeleteCategoryPendingAction(null)
+      setDeleteCategoryPending(false)
     }
   }
 
@@ -2650,18 +2984,13 @@ export default function NotesApp() {
   }
 
   const closeDeleteCategory = () => {
-    if (deleteCategoryPendingAction !== null) return
+    if (deleteCategoryPending) return
     setDeletingCategory(null)
   }
 
-  const handleDeleteCategoryWithNotes = async () => {
+  const handleDeleteCategory = async () => {
     if (!deletingCategory) return
-    await performDeleteCategoryWithNotes(deletingCategory)
-  }
-
-  const handleDeleteCategoryKeepUncategorized = async () => {
-    if (!deletingCategory) return
-    await performDeleteCategoryKeepUncategorized(deletingCategory)
+    await performDeleteCategory(deletingCategory)
   }
 
   const openEditTag = (tag: TagRecord) => {
@@ -2690,6 +3019,7 @@ export default function NotesApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          workspaceId: activeWorkspaceId,
           tagId: editingTag.id,
           label,
         }),
@@ -2720,6 +3050,7 @@ export default function NotesApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
+          workspaceId: activeWorkspaceId,
           tagId: tag.id,
         }),
       })
@@ -2793,17 +3124,82 @@ export default function NotesApp() {
 
   // Auto-create anonymous session if unauthenticated
   useEffect(() => {
-    if (authStatus === "unauthenticated") {
-      void signIn("anonymous", { redirect: false })
+    if (authStatus !== "unauthenticated" || anonymousSignInInFlightRef.current) return
+
+    let active = true
+    anonymousSignInInFlightRef.current = true
+    setAnonymousSignInPending(true)
+    setStartupErrorMessage(null)
+
+    void (async () => {
+      try {
+        const result = await signIn("anonymous", { redirect: false })
+        if (!active) return
+
+        const returnedError = result?.error
+        const redirectError = (() => {
+          if (!result?.url) return null
+          try {
+            return new URL(result.url).searchParams.get("error")
+          } catch {
+            return null
+          }
+        })()
+
+        if (returnedError || redirectError || !result?.ok) {
+          let message = "Notes could not create a visitor session."
+          try {
+            const healthResponse = await fetchWithTimeout("/api/health", {
+              cache: "no-store",
+            })
+            if (healthResponse.status === 503) {
+              message = "The Notes database is unavailable. Check the local connection and retry."
+            }
+          } catch {
+            message = "Notes could not reach the server. Check the connection and retry."
+          }
+          if (active) setStartupErrorMessage(message)
+        }
+      } catch (error) {
+        if (active) setStartupErrorMessage(getErrorMessage(error))
+      } finally {
+        anonymousSignInInFlightRef.current = false
+        if (active) {
+          setAnonymousSignInPending(false)
+          setSessionLoading(false)
+        }
+      }
+    })()
+
+    return () => {
+      active = false
     }
-  }, [authStatus])
+  }, [authStatus, startupRetryKey])
 
   if (authStatus === "loading" || sessionLoading || !user) {
     return (
       <div className={styles.page}>
-        <Text variant="body-1" color="secondary">
-          Loading…
-        </Text>
+        {startupErrorMessage ? (
+          <div className={styles.startupState} role="alert">
+            <Text variant="body-1" color="danger">
+              {startupErrorMessage}
+            </Text>
+            <Button
+              view="action"
+              size="m"
+              loading={anonymousSignInPending}
+              onClick={() => setStartupRetryKey((key) => key + 1)}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className={styles.startupState} aria-live="polite">
+            <Text variant="body-1" color="secondary">
+              Loading…
+            </Text>
+          </div>
+        )}
       </div>
     )
   }
@@ -2819,64 +3215,77 @@ export default function NotesApp() {
         onDismissSearchError={() => setSearchErrorMessage(null)}
       />
 
-      <div className={styles.header}>
-        <NotesHeader
-          user={user}
-          isAnonymous={authSession?.user?.isAnonymous ?? false}
-          resultsListVisible={resultsListVisible}
-          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
-          onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
-          onAddNote={handleCancelEdit}
-          onLogout={handleLogout}
-          maxOpenNotes={maxOpenNotes}
-          onMaxOpenNotesChange={handleMaxOpenNotesChange}
-          categoryLabelById={categoryLabelById}
-          onSelectOpenNote={activateEntryInStore}
-          onCloseOpenNote={handleCloseOpenNote}
-          embeddingMaintenancePending={embeddingMaintenancePending}
-          onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
-          identifier={identifier}
-          password={password}
-          onIdentifierChange={setIdentifier}
-          onPasswordChange={setPassword}
-          onLoginSubmit={handleLogin}
-          onSignupSubmit={handleSignup}
-          authPending={authPending}
-          loginErrorMessage={authPending ? null : errorMessage}
-          onDismissLoginError={() => setErrorMessage(null)}
-        />
-      </div>
-
       <div className={styles.content} ref={contentRef}>
-        <NoteForm
-          form={activeForm}
-          setForm={setActiveForm}
-          editingNoteId={activeEntry?.noteId ?? null}
-          userPresent={Boolean(user)}
-          pasteUrlAsMarkdown={pasteUrlAsMarkdown}
-          categories={categories}
-          tags={tags}
-          pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
-          // Keying the editor on the entry as well as the session id is what
-          // makes switching notes swap documents: same entry, same document.
-          descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
-          editorAutofocus={activeEntry?.autofocus ?? false}
-          editorRevealText={activeEntry?.revealText ?? null}
-          categoryInputValue={activeEntry?.categoryInputValue ?? ""}
-          onCategoryInputValueChange={handleCategoryInputValueChange}
-          createCategoryPending={createCategoryPending}
-          createTagPending={createTagPending}
-          onSelectCategoryId={handleSelectCategory}
-          onCreateCategory={handleCreateCategory}
-          onTagValuesChange={handleTagValuesChange}
-          onCancelEdit={handleCancelEdit}
-          onAddNote={handleCancelEdit}
-          onDeleteEditingNote={() => {
-            if (activeEntry?.noteId != null) {
-              void handleDeleteNote(activeEntry.noteId)
+        <div className={styles.editorColumn}>
+          <div className={styles.header}>
+            <NotesHeader
+              user={user}
+              isAnonymous={authSession?.user?.isAnonymous ?? false}
+              resultsListVisible={resultsListVisible}
+              pasteUrlAsMarkdown={pasteUrlAsMarkdown}
+              onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
+              onAddNote={handleCancelEdit}
+              workspaces={workspaces}
+              activeWorkspaceId={activeWorkspaceId ?? workspaces[0]!.id}
+              onWorkspaceChange={handleSwitchWorkspace}
+              onCreateWorkspace={handleCreateWorkspace}
+              onLogout={handleLogout}
+              maxOpenNotes={maxOpenNotes}
+              onMaxOpenNotesChange={handleMaxOpenNotesChange}
+              categoryLabelById={categoryLabelById}
+              onSelectOpenNote={activateEntryInStore}
+              onCloseOpenNote={handleCloseOpenNote}
+              embeddingMaintenancePending={embeddingMaintenancePending}
+              onRunEmbeddingMaintenance={(mode) => void handleRunEmbeddingMaintenance(mode)}
+              identifier={identifier}
+              password={password}
+              onIdentifierChange={setIdentifier}
+              onPasswordChange={setPassword}
+              onLoginSubmit={handleLogin}
+              onSignupSubmit={handleSignup}
+              authPending={authPending}
+              loginErrorMessage={authPending ? null : errorMessage}
+              onDismissLoginError={() => setErrorMessage(null)}
+            />
+          </div>
+
+          <NoteForm
+            form={activeForm}
+            setForm={setActiveForm}
+            editingNoteId={activeEntry?.noteId ?? null}
+            userPresent={Boolean(user)}
+            pasteUrlAsMarkdown={pasteUrlAsMarkdown}
+            categories={categories}
+            statuses={statuses}
+            tags={tags}
+            pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
+            // Keying the editor on the entry as well as the session id is what
+            // makes switching notes swap documents: same entry, same document.
+            descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
+            editorAutofocus={activeEntry?.autofocus ?? false}
+            editorRevealText={activeEntry?.revealText ?? null}
+            createCategoryPending={createCategoryPending}
+            createStatusPending={createStatusPending}
+            createTagPending={createTagPending}
+            onSelectCategoryId={handleSelectCategory}
+            onSelectStatusId={handleSelectStatus}
+            onCreateCategory={handleCreateCategory}
+            onCreateStatus={handleCreateStatus}
+            onTagValuesChange={handleTagValuesChange}
+            onCancelEdit={handleCancelEdit}
+            defaultCategoryLabel={
+              categories.find((category) => category.id === fallbackCategoryId)?.label ??
+              "uncategorized"
             }
-          }}
-        />
+            onAddDefaultNote={handleAddDefaultNote}
+            onAddNoteInCategory={handleCancelEdit}
+            onDeleteEditingNote={() => {
+              if (activeEntry?.noteId != null) {
+                void handleDeleteNote(activeEntry.noteId)
+              }
+            }}
+          />
+        </div>
 
         {mobileResultsOverlayMounted && (
           <button
@@ -2891,22 +3300,19 @@ export default function NotesApp() {
 
         <button
           type="button"
-          className={`${styles.resizeHandle} ${
-            resultsListVisible ? "" : styles.resizeHandleCollapsed
-          }`}
-          aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
-          aria-pressed={!resultsListVisible}
-          title={
-            resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"
-          }
+          className={styles.resizeHandle}
+          aria-label="Resize notes list"
+          title="Drag or use arrow keys to resize notes list"
           onPointerDown={handleResizePointerDown}
           onPointerMove={handleResizePointerMove}
           onPointerUp={handleResizePointerUp}
           onPointerCancel={handleResizePointerCancel}
           onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault()
-              setResultsListVisible((visible) => !visible)
+              updateResultsColumnWidth(
+                preferredResultsColumnWidth + (event.key === "ArrowLeft" ? 16 : -16),
+              )
             }
           }}
         />
@@ -2915,23 +3321,25 @@ export default function NotesApp() {
           visible={resultsListVisible}
           columnStyle={resultsColumnStyle}
           tags={tags}
-          notesCount={notes.length}
           notesLoading={notesLoading}
           categories={categories}
+          statuses={statuses}
+          statusNoteGroups={statusNoteGroups}
+          activeStatusId={activeForm.selectedStatusId}
           fallbackCategoryId={fallbackCategoryId}
           fallbackTagId={fallbackTagId}
           selectedTag={selectedTag}
           searchMode={searchMode}
           searchItems={searchItems}
           searchLoading={searchLoading}
-          allCategoryItems={allCategoryItems}
-          allCategoriesNoteCount={allCategoriesNoteCount}
           categoryNoteGroups={categoryNoteGroups}
-          allTagItems={allNoteItems}
+          uncategorizedItems={uncategorizedItems}
+          noStatusItems={noStatusItems}
           tagNoteGroups={tagNoteGroups}
           activeNoteId={activeEntry?.noteId ?? null}
           openNoteIds={openNoteIds}
-          activeCategoryId={activeForm.selectedCategoryId}
+          activeKey={activeKey}
+          activeCategoryIds={activeForm.selectedCategoryIds}
           activeTagIds={activeForm.selectedTagIds}
           onEditNote={handleOpenNoteFromResults}
           onAddNoteForCategory={handleAddNoteForCategory}
@@ -2959,9 +3367,8 @@ export default function NotesApp() {
       <DeleteCategoryModal
         category={deletingCategory}
         onClose={closeDeleteCategory}
-        onDeleteWithNotes={() => void handleDeleteCategoryWithNotes()}
-        onKeepUncategorized={() => void handleDeleteCategoryKeepUncategorized()}
-        pendingAction={deleteCategoryPendingAction}
+        onDelete={() => void handleDeleteCategory()}
+        pending={deleteCategoryPending}
       />
 
       <EditTagModal

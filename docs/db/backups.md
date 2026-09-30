@@ -11,13 +11,13 @@ pg_dump "postgresql://neondb_owner:npg_yKfHca6urAh1@ep-fancy-resonance-ad6zxgez-
 Clear new table (keep schema)
 
 ```
-psql "postgresql://postgres:SGalwZYCPBxcvvbdXwiURFNFpXcbTaHv@tramway.proxy.rlwy.net:58028/railway" -c "TRUNCATE public.strength_v1"
+psql "postgresql://postgres:***@tramway.proxy.rlwy.net:58028/railway" -c "TRUNCATE public.strength_v1"
 ```
 
 Restore new table (only data)
 
 ```
-psql "postgresql://postgres:SGalwZYCPBxcvvbdXwiURFNFpXcbTaHv@tramway.proxy.rlwy.net:58028/railway" -v ON_ERROR_STOP=1 -f ./pg_strength_v1_data.sql
+psql "postgresql://postgres:***@tramway.proxy.rlwy.net:58028/railway" -v ON_ERROR_STOP=1 -f ./pg_strength_v1_data.sql
 ```
 
 Then add indexes

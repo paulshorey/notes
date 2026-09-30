@@ -1,6 +1,7 @@
 package com.eighthbrain.notesandroid.app.data
 
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.BootstrapData
 import com.eighthbrain.notesandroid.app.model.LoginSession
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
@@ -80,15 +81,50 @@ class NotesApiClient(
             userFromJson(response.getJSONObject("user"))
         }
 
+    suspend fun bootstrap(
+        baseUrl: String,
+        token: String,
+        workspaceId: Int? = null,
+    ): BootstrapData =
+        withContext(Dispatchers.IO) {
+            val response =
+                execute(
+                    baseUrl = normalizeBaseUrl(baseUrl),
+                    pathSegments = listOf("api", "bootstrap"),
+                    queryParameters = workspaceId?.let { listOf("workspaceId" to it.toString()) }.orEmpty(),
+                    token = token,
+                )
+            applyUserSummaryDefaults(response.getJSONObject("user"))
+
+            fun <T> decode(key: String, mapper: (JSONObject) -> T): List<T> {
+                val array = response.getJSONArray(key)
+                return buildList {
+                    for (index in 0 until array.length()) add(mapper(array.getJSONObject(index)))
+                }
+            }
+
+            BootstrapData(
+                user = userFromJson(response.getJSONObject("user")),
+                workspaces = decode("workspaces", ::workspaceFromJson),
+                activeWorkspaceId = response.getInt("activeWorkspaceId"),
+                categories = decode("categories", ::categoryFromJson),
+                statuses = decode("statuses", ::statusFromJson),
+                tags = decode("tags", ::tagFromJson),
+                notes = decode("notes", ::noteFromJson),
+            )
+        }
+
     suspend fun listNotes(
         baseUrl: String,
         token: String,
+        workspaceId: Int,
     ): List<NoteRecord> =
         withContext(Dispatchers.IO) {
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
                     pathSegments = listOf("api", "notes"),
+                    queryParameters = listOf("workspaceId" to workspaceId.toString()),
                     token = token,
                 )
 
@@ -103,12 +139,14 @@ class NotesApiClient(
     suspend fun listTags(
         baseUrl: String,
         token: String,
+        workspaceId: Int,
     ): List<TagRecord> =
         withContext(Dispatchers.IO) {
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
                     pathSegments = listOf("api", "tags"),
+                    queryParameters = listOf("workspaceId" to workspaceId.toString()),
                     token = token,
                 )
 
@@ -123,12 +161,14 @@ class NotesApiClient(
     suspend fun listCategories(
         baseUrl: String,
         token: String,
+        workspaceId: Int,
     ): List<CategoryRecord> =
         withContext(Dispatchers.IO) {
             val response =
                 execute(
                     baseUrl = normalizeBaseUrl(baseUrl),
                     pathSegments = listOf("api", "categories"),
+                    queryParameters = listOf("workspaceId" to workspaceId.toString()),
                     token = token,
                 )
 
@@ -144,16 +184,21 @@ class NotesApiClient(
         baseUrl: String,
         token: String,
         userId: Int,
+        workspaceId: Int,
         noteId: Int?,
         noteDraft: NoteDraft,
     ): NoteRecord =
         withContext(Dispatchers.IO) {
             val tagIdsJson = JSONArray()
             noteDraft.selectedTagIds.forEach { tagIdsJson.put(it) }
+            val categoryIdsJson = JSONArray()
+            noteDraft.selectedCategoryId?.let { categoryIdsJson.put(it) }
 
             val noteJson =
                 JSONObject()
-                    .put("categoryId", noteDraft.selectedCategoryId)
+                    .put("workspaceId", workspaceId)
+                    .put("categoryIds", categoryIdsJson)
+                    .put("statusId", noteDraft.selectedStatusId ?: NULL)
                     .put("tagIds", tagIdsJson)
                     .put("description", noteDraft.description)
                     .put("timeDue", parseOptionalLocalInputToIso(noteDraft.dueInput, "Due time") ?: NULL)
@@ -184,12 +229,14 @@ class NotesApiClient(
         baseUrl: String,
         token: String,
         userId: Int,
+        workspaceId: Int,
         label: String,
     ): CategoryRecord =
         withContext(Dispatchers.IO) {
             val payload =
                 JSONObject()
                     .put("userId", userId)
+                    .put("workspaceId", workspaceId)
                     .put("label", label.trim())
                     .toString()
                     .toRequestBody(jsonMediaType)
@@ -210,6 +257,7 @@ class NotesApiClient(
         baseUrl: String,
         token: String,
         userId: Int,
+        workspaceId: Int,
         categoryId: Int,
         label: String,
     ): CategoryRecord =
@@ -217,6 +265,7 @@ class NotesApiClient(
             val payload =
                 JSONObject()
                     .put("userId", userId)
+                    .put("workspaceId", workspaceId)
                     .put("categoryId", categoryId)
                     .put("label", label.trim())
                     .toString()
@@ -238,12 +287,14 @@ class NotesApiClient(
         baseUrl: String,
         token: String,
         userId: Int,
+        workspaceId: Int,
         categoryId: Int,
     ) {
         withContext(Dispatchers.IO) {
             val payload =
                 JSONObject()
                     .put("userId", userId)
+                    .put("workspaceId", workspaceId)
                     .put("categoryId", categoryId)
                     .toString()
                     .toRequestBody(jsonMediaType)
@@ -262,12 +313,14 @@ class NotesApiClient(
         baseUrl: String,
         token: String,
         userId: Int,
+        workspaceId: Int,
         label: String,
     ): TagRecord =
         withContext(Dispatchers.IO) {
             val payload =
                 JSONObject()
                     .put("userId", userId)
+                    .put("workspaceId", workspaceId)
                     .put("label", label.trim())
                     .toString()
                     .toRequestBody(jsonMediaType)
@@ -288,6 +341,7 @@ class NotesApiClient(
         baseUrl: String,
         token: String,
         userId: Int,
+        workspaceId: Int,
         tagId: Int,
         label: String,
     ): TagRecord =
@@ -295,6 +349,7 @@ class NotesApiClient(
             val payload =
                 JSONObject()
                     .put("userId", userId)
+                    .put("workspaceId", workspaceId)
                     .put("tagId", tagId)
                     .put("label", label.trim())
                     .toString()
@@ -316,12 +371,14 @@ class NotesApiClient(
         baseUrl: String,
         token: String,
         userId: Int,
+        workspaceId: Int,
         tagId: Int,
     ): Int =
         withContext(Dispatchers.IO) {
             val payload =
                 JSONObject()
                     .put("userId", userId)
+                    .put("workspaceId", workspaceId)
                     .put("tagId", tagId)
                     .toString()
                     .toRequestBody(jsonMediaType)
@@ -366,6 +423,7 @@ class NotesApiClient(
         baseUrl: String,
         token: String,
         userId: Int,
+        workspaceId: Int,
         query: String,
         limit: Int = 12,
     ): List<SemanticSearchResult> =
@@ -373,6 +431,7 @@ class NotesApiClient(
             val payload =
                 JSONObject()
                     .put("userId", userId)
+                    .put("workspaceId", workspaceId)
                     .put("query", query.trim())
                     .put("limit", limit)
                     .toString()

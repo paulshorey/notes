@@ -1,17 +1,14 @@
-export { createNoteForUser } from "./add";
-export { deleteNoteForUser } from "./delete";
+export { createNoteForUser } from "./add"
+export { deleteNoteForUser } from "./delete"
 export {
   listNotesByUser,
   listNotesMissingEmbeddingsByUser,
   listNotesStaleEmbeddingsByUser,
   searchNotesByEmbedding,
   selectNoteEmbeddingStateById,
-} from "./gets";
-export { parseNoteInput } from "./parse";
-export {
-  updateNoteEmbeddingsForUser,
-  updateNoteForUser,
-} from "./update";
+} from "./gets"
+export { parseNoteInput } from "./parse"
+export { updateNoteEmbeddingsForUser, updateNoteForUser } from "./update"
 export type {
   NoteCategoryRef,
   NoteEmbeddingBackfillRow,
@@ -19,4 +16,4 @@ export type {
   NoteInput,
   NoteRecord,
   SemanticSearchResult,
-} from "./types";
+} from "./types"

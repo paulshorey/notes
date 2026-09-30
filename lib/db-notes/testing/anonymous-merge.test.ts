@@ -1,265 +1,164 @@
-/**
- * Regression coverage for the anonymous → existing-account merge
- * (mergeAnonymousUserInto + the mergeAnonymousNotesAppSession service wrapper).
- *
- * The DB-backed tests only run when DB_NOTES_TEST_URL is set, and they
- * connect to THAT database. This is a deliberate opt-in: DB_NOTES_URL is
- * not used, because in deployed/cloud environments it points at the real
- * Notes database and tests must never write there implicitly. CI's
- * verify-notes job sets DB_NOTES_TEST_URL to its throwaway migrated
- * service container; locally point it at your local Postgres. Without it the
- * DB suite is skipped, so `turbo run test` stays green everywhere.
- */
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
 import { getDb } from "../lib/db/postgres"
 import { mergeAnonymousNotesAppSession } from "../services/notes-app"
+import { createNoteForUser, listNotesByUser } from "../sql/note"
 import { createAnonymousUser, mergePreferenceObjects } from "../sql/user/anonymous"
+import { createWorkspaceForUser } from "../sql/workspace"
 
 describe("mergePreferenceObjects", () => {
-  test("anon leaf values win, real-only keys are preserved, objects merge recursively", () => {
+  test("anonymous leaf values win while real-only keys survive", () => {
     const real = {
       notesApp: { markdownEditorMode: "wysiwyg", resultsColumnWidth: 480 },
       otherApp: { keep: true },
     }
-    const anon = {
-      notesApp: { resultsColumnWidth: 321 },
-    }
-
+    const anon = { notesApp: { resultsColumnWidth: 321 } }
     assert.deepEqual(mergePreferenceObjects(real, anon), {
       notesApp: { markdownEditorMode: "wysiwyg", resultsColumnWidth: 321 },
       otherApp: { keep: true },
     })
+    assert.equal(real.notesApp.resultsColumnWidth, 480)
   })
 
-  test("non-object values are replaced, not merged", () => {
+  test("non-object values are replaced instead of recursively merged", () => {
     assert.deepEqual(mergePreferenceObjects({ a: { nested: 1 } }, { a: "flat" }), { a: "flat" })
     assert.deepEqual(mergePreferenceObjects({ a: [1, 2] }, { a: [3] }), { a: [3] })
-  })
-
-  test("does not mutate its inputs", () => {
-    const real = { notesApp: { markdownEditorMode: "wysiwyg" } }
-    const anon = { notesApp: { resultsColumnWidth: 300 } }
-    mergePreferenceObjects(real, anon)
-    assert.deepEqual(real, { notesApp: { markdownEditorMode: "wysiwyg" } })
-    assert.deepEqual(anon, { notesApp: { resultsColumnWidth: 300 } })
   })
 })
 
 const testDbUrl = process.env.DB_NOTES_TEST_URL
-const hasDb = Boolean(testDbUrl)
-if (hasDb) {
-  // getDb() reads DB_NOTES_URL lazily on first use; point it at the
-  // opted-in test database before any query runs.
-  process.env.DB_NOTES_URL = testDbUrl
-}
+if (testDbUrl) process.env.DB_NOTES_URL = testDbUrl
 
-describe("mergeAnonymousNotesAppSession (DB)", { skip: !hasDb }, () => {
+describe("anonymous workspace merge (DB)", { skip: !testDbUrl }, () => {
   after(async () => {
-    if (hasDb) {
-      await getDb().end()
-    }
+    if (testDbUrl) await getDb().end()
   })
 
-  test("reassigns notes, dedupes labels, merges preferences, deletes the anon row", async () => {
-    // The merge's embedding backfill must degrade gracefully when Jina is not
-    // configured; keep the test hermetic by guaranteeing that state.
-    const savedJinaKey = process.env.JINA_API_KEY
-    delete process.env.JINA_API_KEY
+  const createRealUser = async () => {
+    const { rows } = await getDb().query<{ id: number }>(
+      `INSERT INTO public.user_v1(username,is_anonymous,preferences)
+       VALUES($1,false,$2::jsonb) RETURNING id`,
+      [
+        `merge-real-${randomUUID()}`,
+        JSON.stringify({ notesApp: { markdownEditorMode: "wysiwyg" } }),
+      ],
+    )
+    return rows[0]!.id
+  }
 
-    const db = getDb()
-    const suffix = randomUUID().slice(0, 8)
-    const realUsername = `merge-test-real-${suffix}`
-    let realUserId: number | null = null
-    let anonUserId: number | null = null
-
+  test("merges colliding workspaces by vocabulary label and preserves note relations", async () => {
+    const realUserId = await createRealUser()
+    const anon = await createAnonymousUser()
     try {
-      // --- Real (destination) account with pre-existing data. ---
-      const realUser = await db.query<{ id: number }>(
-        `INSERT INTO public.user_v1 (username, is_anonymous, preferences)
-         VALUES ($1, false, $2::jsonb)
-         RETURNING id`,
-        [realUsername, JSON.stringify({ notesApp: { markdownEditorMode: "wysiwyg" } })],
-      )
-      realUserId = realUser.rows[0]!.id
+      const realWorkspace = await createWorkspaceForUser(realUserId, "personal")
+      const anonWorkspace = (
+        await getDb().query<{ id: number }>(
+          `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 AND label='personal'`,
+          [anon.id],
+        )
+      ).rows[0]!
 
-      const realCategory = await db.query<{ id: number }>(
-        `INSERT INTO public.user_note_category_v1 (user_id, label)
-         VALUES ($1, 'shared') RETURNING id`,
-        [realUserId],
-      )
-      const realSharedCategoryId = realCategory.rows[0]!.id
-
-      const realTag = await db.query<{ id: number }>(
-        `INSERT INTO public.user_note_tag_v1 (user_id, label)
-         VALUES ($1, 'important') RETURNING id`,
-        [realUserId],
-      )
-      const realImportantTagId = realTag.rows[0]!.id
-
-      await db.query(
-        `INSERT INTO public.user_note_v1 (user_id, category_id, description)
-         VALUES ($1, $2, 'pre-existing real note')`,
-        [realUserId, realSharedCategoryId],
-      )
-
-      // --- Anonymous (source) account. createAnonymousUser seeds the default
-      // "important" tag, so the dedup path is always exercised. ---
-      const anonUser = await createAnonymousUser()
-      anonUserId = anonUser.id
-
-      await db.query(`UPDATE public.user_v1 SET preferences = $2::jsonb WHERE id = $1`, [
-        anonUserId,
+      await getDb().query(`UPDATE public.user_v1 SET preferences=$2::jsonb WHERE id=$1`, [
+        anon.id,
         JSON.stringify({ notesApp: { resultsColumnWidth: 321 } }),
       ])
-
-      const anonCategories = await db.query<{ id: number; label: string }>(
-        `INSERT INTO public.user_note_category_v1 (user_id, label)
-         VALUES ($1, 'shared'), ($1, 'anon-only')
-         RETURNING id, label`,
-        [anonUserId],
+      await getDb().query(
+        `INSERT INTO public.workspace_note_category_v1(workspace_id,label)
+         VALUES($1,'shared'),($1,'anon-only'),($2,'shared')`,
+        [anonWorkspace.id, realWorkspace.id],
       )
-      const anonSharedCategoryId = anonCategories.rows.find((row) => row.label === "shared")!.id
-      const anonOnlyCategoryId = anonCategories.rows.find((row) => row.label === "anon-only")!.id
-
-      const anonImportantTag = await db.query<{ id: number }>(
-        `SELECT id FROM public.user_note_tag_v1 WHERE user_id = $1 AND label = 'important'`,
-        [anonUserId],
+      await getDb().query(
+        `INSERT INTO public.workspace_note_status_v1(workspace_id,label,position)
+         VALUES($1,'todo',1),($2,'todo',1)`,
+        [anonWorkspace.id, realWorkspace.id],
       )
-      const anonImportantTagId = anonImportantTag.rows[0]!.id
-
-      const anonNotes = await db.query<{ id: number; description: string }>(
-        `INSERT INTO public.user_note_v1 (user_id, category_id, description)
-         VALUES ($1, $2, 'anon note in shared'), ($1, $3, 'anon note in anon-only')
-         RETURNING id, description`,
-        [anonUserId, anonSharedCategoryId, anonOnlyCategoryId],
-      )
-      const anonSharedNoteId = anonNotes.rows.find(
-        (row) => row.description === "anon note in shared",
-      )!.id
-
-      await db.query(`INSERT INTO public.user_note_tag_link_v1 (note_id, tag_id) VALUES ($1, $2)`, [
-        anonSharedNoteId,
-        anonImportantTagId,
-      ])
-
-      // --- Merge. ---
-      const result = await mergeAnonymousNotesAppSession({
-        anonUserId,
-        realUserId,
-      })
-      assert.equal(result.user.id, realUserId)
-
-      // Anon row is gone (CASCADE removed its leftover categories/tags).
-      const anonRow = await db.query(`SELECT id FROM public.user_v1 WHERE id = $1`, [anonUserId])
-      assert.equal(anonRow.rows.length, 0)
-      anonUserId = null
-
-      // All notes belong to the real user; the anon "shared" note was
-      // remapped onto the real user's pre-existing "shared" category.
-      const notes = await db.query<{
-        description: string
-        user_id: number
-        category_id: number
+      const refs = await getDb().query<{
+        categories: number[]
+        status_id: number
+        tag_id: number
       }>(
-        `SELECT description, user_id, category_id FROM public.user_note_v1
-         WHERE user_id = $1 ORDER BY description`,
-        [realUserId],
+        `SELECT
+           ARRAY(SELECT id FROM public.workspace_note_category_v1 WHERE workspace_id=$1 AND label IN ('shared','anon-only') ORDER BY id) categories,
+           (SELECT id FROM public.workspace_note_status_v1 WHERE workspace_id=$1 AND label='todo') status_id,
+           (SELECT id FROM public.workspace_note_tag_v1 WHERE workspace_id=$1 AND label='important') tag_id`,
+        [anonWorkspace.id],
       )
-      assert.deepEqual(
-        notes.rows.map((row) => row.description),
-        ["anon note in anon-only", "anon note in shared", "pre-existing real note"],
+      await createNoteForUser(
+        anon.id,
+        {
+          workspaceId: anonWorkspace.id,
+          categoryIds: refs.rows[0]!.categories,
+          statusId: refs.rows[0]!.status_id,
+          tagIds: [refs.rows[0]!.tag_id],
+          description: "anonymous workspace note",
+          timeDue: null,
+          timeRemind: null,
+        },
+        { descriptionEmbedding: null, embeddingModel: null },
       )
-      const mergedSharedNote = notes.rows.find((row) => row.description === "anon note in shared")!
-      assert.equal(mergedSharedNote.category_id, realSharedCategoryId)
 
-      // Categories deduped by label: exactly one "shared", plus "anon-only".
-      const categories = await db.query<{ label: string }>(
-        `SELECT label FROM public.user_note_category_v1
-         WHERE user_id = $1 ORDER BY label`,
-        [realUserId],
-      )
+      const result = await mergeAnonymousNotesAppSession({ anonUserId: anon.id, realUserId })
+      const notes = await listNotesByUser(realUserId, realWorkspace.id)
+      assert.equal(notes.length, 1)
       assert.deepEqual(
-        categories.rows.map((row) => row.label),
+        notes[0]!.categories.map((category) => category.label),
         ["anon-only", "shared"],
       )
-
-      // Tags deduped: one "important", and the tag link was remapped from the
-      // anon tag id to the real user's tag id.
-      const tags = await db.query<{ id: number; label: string }>(
-        `SELECT id, label FROM public.user_note_tag_v1
-         WHERE user_id = $1 ORDER BY label`,
-        [realUserId],
-      )
+      assert.equal(notes[0]!.status?.label, "todo")
       assert.deepEqual(
-        tags.rows.map((row) => row.label),
+        notes[0]!.tags.map((tag) => tag.label),
         ["important"],
       )
-      assert.equal(tags.rows[0]!.id, realImportantTagId)
-
-      const links = await db.query<{ tag_id: number }>(
-        `SELECT tag_id FROM public.user_note_tag_link_v1 WHERE note_id = $1`,
-        [anonSharedNoteId],
-      )
-      assert.deepEqual(
-        links.rows.map((row) => row.tag_id),
-        [realImportantTagId],
-      )
-
-      // Preferences merged per property: the anon-customized column width
-      // carried over, the real account's editor mode survived.
       assert.deepEqual(result.user.preferences, {
         notesApp: { markdownEditorMode: "wysiwyg", resultsColumnWidth: 321 },
       })
+      assert.equal(
+        Number(
+          (await getDb().query(`SELECT COUNT(*) count FROM public.user_v1 WHERE id=$1`, [anon.id]))
+            .rows[0]!.count,
+        ),
+        0,
+      )
     } finally {
-      if (savedJinaKey !== undefined) {
-        process.env.JINA_API_KEY = savedJinaKey
-      }
-      // CASCADE cleans up any notes/categories/tags/links owned by the users.
-      if (anonUserId !== null) {
-        await db.query(`DELETE FROM public.user_v1 WHERE id = $1`, [anonUserId])
-      }
-      if (realUserId !== null) {
-        await db.query(`DELETE FROM public.user_v1 WHERE id = $1`, [realUserId])
-      }
+      await getDb().query(`DELETE FROM public.user_v1 WHERE id=ANY($1::int[])`, [
+        [anon.id, realUserId],
+      ])
     }
   })
 
-  test("preferences are untouched when the anonymous user never customized anything", async () => {
-    const db = getDb()
-    const suffix = randomUUID().slice(0, 8)
-    let realUserId: number | null = null
-    let anonUserId: number | null = null
-
+  test("reparents a non-colliding workspace without changing note ids", async () => {
+    const realUserId = await createRealUser()
+    const anon = await createAnonymousUser()
     try {
-      const realUser = await db.query<{ id: number }>(
-        `INSERT INTO public.user_v1 (username, is_anonymous, preferences)
-         VALUES ($1, false, $2::jsonb)
-         RETURNING id`,
-        [`merge-test-real-${suffix}`, JSON.stringify({ notesApp: { resultsColumnWidth: 555 } })],
+      await createWorkspaceForUser(realUserId, "personal")
+      const side = await createWorkspaceForUser(anon.id, "side")
+      const note = await createNoteForUser(
+        anon.id,
+        {
+          workspaceId: side.id,
+          categoryIds: [],
+          statusId: null,
+          tagIds: [],
+          description: "keep my id",
+          timeDue: null,
+          timeRemind: null,
+        },
+        { descriptionEmbedding: null, embeddingModel: null },
       )
-      realUserId = realUser.rows[0]!.id
 
-      const anonUser = await createAnonymousUser()
-      anonUserId = anonUser.id
-
-      const result = await mergeAnonymousNotesAppSession({
-        anonUserId,
+      await mergeAnonymousNotesAppSession({ anonUserId: anon.id, realUserId })
+      const moved = await listNotesByUser(realUserId, side.id)
+      assert.equal(moved[0]?.id, note.id)
+      assert.equal(
+        (await getDb().query(`SELECT user_id FROM public.user_workspace_v1 WHERE id=$1`, [side.id]))
+          .rows[0]!.user_id,
         realUserId,
-      })
-      anonUserId = null
-
-      assert.deepEqual(result.user.preferences, {
-        notesApp: { resultsColumnWidth: 555 },
-      })
+      )
     } finally {
-      if (anonUserId !== null) {
-        await db.query(`DELETE FROM public.user_v1 WHERE id = $1`, [anonUserId])
-      }
-      if (realUserId !== null) {
-        await db.query(`DELETE FROM public.user_v1 WHERE id = $1`, [realUserId])
-      }
+      await getDb().query(`DELETE FROM public.user_v1 WHERE id=ANY($1::int[])`, [
+        [anon.id, realUserId],
+      ])
     }
   })
 })

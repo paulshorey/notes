@@ -32,16 +32,17 @@ class NotesRepository(
             val baseUrl = BuildConfig.DEFAULT_API_BASE_URL
             val session = apiClient.login(baseUrl, identifier, password)
             val token = session.token
-            val categories = apiClient.listCategories(baseUrl, token)
-            val tags = apiClient.listTags(baseUrl, token)
-            val notes = apiClient.listNotes(baseUrl, token)
+            val bootstrap = apiClient.bootstrap(baseUrl, token)
             val next =
                 snapshot.copy(
-                    user = session.user,
+                    user = bootstrap.user,
                     apiToken = token,
-                    categories = categories,
-                    tags = tags,
-                    notes = notes,
+                    workspaces = bootstrap.workspaces,
+                    activeWorkspaceId = bootstrap.activeWorkspaceId,
+                    categories = bootstrap.categories,
+                    statuses = bootstrap.statuses,
+                    tags = bootstrap.tags,
+                    notes = bootstrap.notes,
                     lastSearchQuery = "",
                     searchResults = emptyList(),
                     widgetMode = WidgetMode.NOTES,
@@ -74,10 +75,11 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
+        val workspaceId = requireWorkspaceId(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return try {
-            val tag = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmed)
+            val tag = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
             tag
         } catch (error: Throwable) {
@@ -100,10 +102,11 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
+        val workspaceId = requireWorkspaceId(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return try {
-            val category = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmed)
+            val category = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
             category
         } catch (error: Throwable) {
@@ -129,10 +132,11 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
+        val workspaceId = requireWorkspaceId(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return runWithErrorPersistence(snapshot) {
-            apiClient.updateCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryId, trimmed)
+            apiClient.updateCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, categoryId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
@@ -141,8 +145,9 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
+        val workspaceId = requireWorkspaceId(snapshot)
         return runWithErrorPersistence(snapshot) {
-            apiClient.deleteCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryId)
+            apiClient.deleteCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, categoryId)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
@@ -154,10 +159,11 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
+        val workspaceId = requireWorkspaceId(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
         return runWithErrorPersistence(snapshot) {
-            apiClient.updateTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, tagId, trimmed)
+            apiClient.updateTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, tagId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
@@ -166,8 +172,9 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
+        val workspaceId = requireWorkspaceId(snapshot)
         return runWithErrorPersistence(snapshot) {
-            apiClient.deleteTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, tagId)
+            apiClient.deleteTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, tagId)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
@@ -179,6 +186,7 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
+        val workspaceId = requireWorkspaceId(snapshot)
         return runWithErrorPersistence(snapshot) {
             var resolvedSnapshot = snapshot
             var resolvedDraft = noteDraft
@@ -186,7 +194,7 @@ class NotesRepository(
             val categoryLabel = noteDraft.newCategoryLabel.trim()
             if (categoryLabel.isNotEmpty()) {
                 val category = snapshot.categories.findLabelMatch(categoryLabel) ?: run {
-                    val created = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, categoryLabel)
+                    val created = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, categoryLabel)
                     resolvedSnapshot = syncSnapshot(snapshot, refreshSearch = false)
                     created
                 }
@@ -200,7 +208,7 @@ class NotesRepository(
             val extraTagLabel = noteDraft.newTagLabel.trim()
             if (extraTagLabel.isNotEmpty()) {
                 val tag = resolvedSnapshot.tags.findLabelMatch(extraTagLabel) ?: run {
-                    val created = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, extraTagLabel)
+                    val created = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, extraTagLabel)
                     resolvedSnapshot = syncSnapshot(resolvedSnapshot, refreshSearch = false)
                     created
                 }
@@ -218,7 +226,7 @@ class NotesRepository(
 
             require(resolvedDraft.selectedCategoryId != null) { "Choose or type a category before saving." }
 
-            apiClient.saveNote(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, noteId, resolvedDraft)
+            apiClient.saveNote(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, noteId, resolvedDraft)
             syncSnapshot(resolvedSnapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
         }
     }
@@ -237,11 +245,12 @@ class NotesRepository(
         val snapshot = readSnapshot()
         val user = requireUser(snapshot)
         val token = requireToken(snapshot)
+        val workspaceId = requireWorkspaceId(snapshot)
         return runWithErrorPersistence(snapshot) {
             val trimmedQuery = query.trim()
             require(trimmedQuery.isNotEmpty()) { "Search query is required." }
 
-            val results = apiClient.semanticSearch(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, trimmedQuery)
+            val results = apiClient.semanticSearch(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, trimmedQuery)
             val next =
                 snapshot.copy(
                     searchResults = results,
@@ -301,23 +310,23 @@ class NotesRepository(
         runWithErrorPersistence(snapshot) {
             val baseUrl = BuildConfig.DEFAULT_API_BASE_URL
             val token = requireToken(snapshot)
-            val verifiedUser = apiClient.getUser(baseUrl, token)
-            val categories = apiClient.listCategories(baseUrl, token)
-            val tags = apiClient.listTags(baseUrl, token)
-            val notes = apiClient.listNotes(baseUrl, token)
+            val bootstrap = apiClient.bootstrap(baseUrl, token, snapshot.activeWorkspaceId)
             val results =
                 if (refreshSearch && snapshot.lastSearchQuery.isNotBlank()) {
-                    apiClient.semanticSearch(baseUrl, token, verifiedUser.id, snapshot.lastSearchQuery)
+                    apiClient.semanticSearch(baseUrl, token, bootstrap.user.id, bootstrap.activeWorkspaceId, snapshot.lastSearchQuery)
                 } else {
                     snapshot.searchResults
                 }
 
             val next =
                 snapshot.copy(
-                    user = verifiedUser,
-                    categories = categories,
-                    tags = tags,
-                    notes = notes,
+                    user = bootstrap.user,
+                    workspaces = bootstrap.workspaces,
+                    activeWorkspaceId = bootstrap.activeWorkspaceId,
+                    categories = bootstrap.categories,
+                    statuses = bootstrap.statuses,
+                    tags = bootstrap.tags,
+                    notes = bootstrap.notes,
                     searchResults = results,
                     lastSyncEpochMillis = System.currentTimeMillis(),
                     lastError = null,
@@ -332,6 +341,9 @@ class NotesRepository(
     private fun requireToken(snapshot: AppSnapshot): String =
         snapshot.apiToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("Session expired. Sign in again.")
+
+    private fun requireWorkspaceId(snapshot: AppSnapshot): Int =
+        snapshot.activeWorkspaceId ?: throw IllegalStateException("No active workspace is available.")
 
     private suspend fun runWithErrorPersistence(
         snapshot: AppSnapshot,

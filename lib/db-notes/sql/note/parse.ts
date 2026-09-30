@@ -1,86 +1,40 @@
-import type { NoteInput } from "./types";
-
-const toOptionalIsoTimestamp = (value: unknown, fieldName: string) => {
-  if (value === undefined || value === null) {
-    return null;
-  }
-
-  if (typeof value !== "string") {
-    throw new Error(`${fieldName} must be a valid date.`);
-  }
-
-  if (value.trim() === "") {
-    return null;
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    throw new Error(`${fieldName} must be a valid date.`);
-  }
-
-  return date.toISOString();
-};
-
-const parseTagIds = (value: unknown): number[] => {
-  if (value === undefined || value === null) {
-    return [];
-  }
-
-  if (!Array.isArray(value)) {
-    throw new Error("tagIds must be an array of integers.");
-  }
-
-  const ids: number[] = [];
-
-  for (const item of value) {
-    if (typeof item === "number" && Number.isInteger(item) && item >= 1) {
-      ids.push(item);
-      continue;
-    }
-
-    if (typeof item === "string" && item.trim() !== "") {
-      const parsed = Number.parseInt(item, 10);
-      if (Number.isInteger(parsed) && parsed >= 1) {
-        ids.push(parsed);
-        continue;
-      }
-    }
-
-    throw new Error("tagIds must contain only integers of at least 1.");
-  }
-
-  return [...new Set(ids)];
-};
-
-const parseCategoryId = (value: unknown): number => {
-  if (typeof value === "number" && Number.isInteger(value) && value >= 1) {
-    return value;
-  }
-
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isInteger(parsed) && parsed >= 1) {
-      return parsed;
-    }
-  }
-
-  throw new Error("categoryId must be an integer of at least 1.");
-};
-
+import type { NoteInput } from "./types"
+const positiveInt = (value: unknown, field: string): number => {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number.parseInt(value, 10)
+        : NaN
+  if (!Number.isInteger(parsed) || parsed < 1)
+    throw new Error(`${field} must be an integer of at least 1.`)
+  return parsed
+}
+const ids = (value: unknown, field: string) => {
+  if (value == null) return []
+  if (!Array.isArray(value)) throw new Error(`${field} must be an array of integers.`)
+  return [...new Set(value.map((item) => positiveInt(item, field)))].sort((a, b) => a - b)
+}
+const timestamp = (value: unknown, field: string) => {
+  if (value == null || value === "") return null
+  if (typeof value !== "string") throw new Error(`${field} must be a valid date.`)
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) throw new Error(`${field} must be a valid date.`)
+  return date.toISOString()
+}
 export const parseNoteInput = (value: unknown): NoteInput => {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("Note payload is required.");
-  }
-
-  const record = value as Record<string, unknown>;
-
+  if (typeof value !== "object" || value === null) throw new Error("Note payload is required.")
+  const record = value as Record<string, unknown>
   return {
-    categoryId: parseCategoryId(record.categoryId),
-    tagIds: parseTagIds(record.tagIds),
-    description:
-      typeof record.description === "string" ? record.description : "",
-    timeDue: toOptionalIsoTimestamp(record.timeDue, "Due time"),
-    timeRemind: toOptionalIsoTimestamp(record.timeRemind, "Reminder time"),
-  };
-};
+    workspaceId: positiveInt(record.workspaceId, "workspaceId"),
+    categoryIds: ids(record.categoryIds, "categoryIds"),
+    statusId:
+      record.statusId == null || record.statusId === ""
+        ? null
+        : positiveInt(record.statusId, "statusId"),
+    tagIds: ids(record.tagIds, "tagIds"),
+    description: typeof record.description === "string" ? record.description : "",
+    timeDue: timestamp(record.timeDue, "Due time"),
+    timeRemind: timestamp(record.timeRemind, "Reminder time"),
+  }
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Provision PostgreSQL 17 (server, client tools, pgvector) for Cursor Cloud.
+# Provision PostgreSQL 17 (server, client tools, pgvector) for AI-agent VMs.
 #
 #   bash scripts/cloud-agent-postgres.sh install  # apt packages (idempotent)
 #   bash scripts/cloud-agent-postgres.sh start    # start 17/main + local DBs
@@ -8,8 +8,8 @@
 # Packages belong in `install` (durable). The postmaster belongs in `start`
 # because environment-build snapshots keep files, not running processes.
 # `pg_ctlcluster` is used instead of systemd; cloud VMs often have systemd
-# offline, which is why `sudo pg_ctlcluster 17 main start` is the supported
-# way to bring the cluster up.
+# offline, which is why `as_root pg_ctlcluster 17 main start` is the supported
+# way to bring the cluster up (root directly, or sudo when not already root).
 set -euo pipefail
 
 PG_MAJOR=17
@@ -27,6 +27,55 @@ LOCAL_TEST_URL="postgres:///${NOTES_TEST_DB}?host=/var/run/postgresql"
 usage() {
   echo "Usage: $0 install|start|status" >&2
   exit 1
+}
+
+# Cloud agent VMs may run this as root (no sudo) or as a sudo-capable user.
+as_root() {
+  if [[ "$(id -u)" -eq 0 ]]; then
+    "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo "$@"
+  else
+    echo "Need root privileges to run: $*" >&2
+    exit 1
+  fi
+}
+
+as_postgres() {
+  if [[ "$(id -un)" == "postgres" ]]; then
+    "$@"
+  elif [[ "$(id -u)" -eq 0 ]] && command -v runuser >/dev/null 2>&1; then
+    runuser -u postgres -- "$@"
+  elif [[ "$(id -u)" -eq 0 ]]; then
+    local cmd
+    printf -v cmd '%q ' "$@"
+    su -s /bin/bash postgres -c "$cmd"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo -u postgres "$@"
+  else
+    echo "Need to run as the postgres user: $*" >&2
+    exit 1
+  fi
+}
+
+run_apt_quiet() {
+  local apt_log apt_pid
+  apt_log="$(mktemp)"
+  as_root env DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 \
+    "$@" >"${apt_log}" 2>&1 &
+  apt_pid=$!
+  while kill -0 "${apt_pid}" 2>/dev/null; do
+    sleep 20
+    if kill -0 "${apt_pid}" 2>/dev/null; then
+      echo "apt-get $1 is still running."
+    fi
+  done
+  if ! wait "${apt_pid}"; then
+    cat "${apt_log}" >&2
+    rm -f "${apt_log}"
+    return 1
+  fi
+  rm -f "${apt_log}"
 }
 
 add_pg17_to_path() {
@@ -55,10 +104,10 @@ has_pgvector() {
 }
 
 ensure_pgdg_repo() {
-  sudo apt-get update -qq
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql-common ca-certificates
+  run_apt_quiet update -y
+  run_apt_quiet install -y postgresql-common ca-certificates
   if [[ -x /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh ]]; then
-    sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+    as_root /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
   fi
 }
 
@@ -74,7 +123,7 @@ install_postgres() {
   ensure_pgdg_repo
   # Do not rely on systemd to start the cluster during apt; cloud VMs often
   # report systemd as offline. Start happens in the `start` subcommand.
-  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  run_apt_quiet install -y \
     "postgresql-client-${PG_MAJOR}" \
     "postgresql-${PG_MAJOR}" \
     "postgresql-${PG_MAJOR}-pgvector"
@@ -113,32 +162,32 @@ ensure_cluster() {
 
   if [[ "$status" == "absent" ]]; then
     echo "Creating PostgreSQL ${PG_MAJOR}/${PG_CLUSTER} cluster..."
-    sudo pg_createcluster "$PG_MAJOR" "$PG_CLUSTER"
+    as_root pg_createcluster "$PG_MAJOR" "$PG_CLUSTER"
     status="$(cluster_status)"
   fi
 
   if [[ "$status" != "online" ]]; then
     echo "Starting PostgreSQL ${PG_MAJOR}/${PG_CLUSTER}..."
-    sudo pg_ctlcluster "$PG_MAJOR" "$PG_CLUSTER" start
+    as_root pg_ctlcluster "$PG_MAJOR" "$PG_CLUSTER" start
   fi
 }
 
 wait_for_ready() {
   local i
   for i in $(seq 1 30); do
-    if sudo -u postgres "${PG17_BINDIR}/pg_isready" -q; then
+    if as_postgres "${PG17_BINDIR}/pg_isready" -q; then
       return 0
     fi
     sleep 1
   done
 
   echo "PostgreSQL ${PG_MAJOR}/${PG_CLUSTER} did not become ready." >&2
-  sudo pg_lsclusters >&2 || true
+  pg_lsclusters >&2 || true
   exit 1
 }
 
 psql_as_postgres() {
-  sudo -u postgres env PATH="${PG17_BINDIR}:$PATH" psql -v ON_ERROR_STOP=1 "$@"
+  as_postgres env PATH="${PG17_BINDIR}:$PATH" psql -v ON_ERROR_STOP=1 "$@"
 }
 
 ensure_role() {
@@ -169,7 +218,7 @@ ensure_database() {
   exists="$(psql_as_postgres -Atqc "SELECT 1 FROM pg_database WHERE datname = '${db_name}'")"
   if [[ "$exists" != "1" ]]; then
     echo "Creating database ${db_name}..."
-    sudo -u postgres env PATH="${PG17_BINDIR}:$PATH" createdb -O "$LOCAL_DB_OWNER" "$db_name"
+    as_postgres env PATH="${PG17_BINDIR}:$PATH" createdb -O "$LOCAL_DB_OWNER" "$db_name"
   fi
   psql_as_postgres -d "$db_name" -qc "SET client_min_messages = warning; CREATE EXTENSION IF NOT EXISTS vector;" >/dev/null
 }
@@ -222,7 +271,7 @@ print_status() {
   pg_lsclusters || true
 
   if [[ "$(cluster_status)" == "online" ]]; then
-    echo "pg_isready: $(sudo -u postgres "${PG17_BINDIR}/pg_isready" || true)"
+    echo "pg_isready: $(as_postgres "${PG17_BINDIR}/pg_isready" || true)"
     echo "vector extension (notes):"
     psql_as_postgres -d "$NOTES_DB" -Atqc \
       "SELECT extversion FROM pg_extension WHERE extname = 'vector'" \

@@ -4,7 +4,7 @@ Networking and persistence layer for the Android Notes app.
 
 ## Files
 
-- `NotesApiClient.kt` - OkHttp client for the deployed `notes-next` REST API (`/api/auth/token`, `/api/session`, `/api/notes`, `/api/tags`, `/api/notes/search`).
+- `NotesApiClient.kt` - OkHttp client for the deployed `notes-next` REST API (`/api/auth/token`, workspace-aware `/api/bootstrap`, note/vocabulary mutations, and `/api/notes/search`).
 - `NotesRepository.kt` - orchestration layer that reads/writes `AppSnapshot`, calls the API client, persists errors, updates the widget, and schedules/cancels background refresh.
 - `SessionStore.kt` - DataStore-backed persistence for the durable app snapshot.
 - `JsonCodec.kt` - JSON serialization helpers for snapshot storage and API payload decoding.
@@ -22,6 +22,7 @@ Networking and persistence layer for the Android Notes app.
 - `tools/validate-notes-contract.mjs` validates `Models.kt`, `JsonCodec.kt`, and `NotesApiClient.kt` against `@lib/db-notes/generated/contracts/notes-app.json`.
 - Keep data-class field order and JSON binding structure stable when changing models; the validator is intentionally strict.
 - `restoreSession(refreshSearch = true)` re-runs semantic search only when `lastSearchQuery` is non-blank.
+- Login and refresh use `/api/bootstrap` so the stored workspace list, active workspace id, categories, statuses, tags, and notes are one coherent snapshot.
 - The Android app never talks to Postgres directly. If an API shape changes, update `@lib/db-notes` and the server-side route implementation first.
 
 ## Maintenance

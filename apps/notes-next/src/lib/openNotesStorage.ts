@@ -19,7 +19,12 @@ import {
  * while this changes as the user types — so sharing one blob would put each on
  * the other's hot path.
  */
-const STORAGE_KEY = "notes-open-notes-v1"
+const LEGACY_STORAGE_KEY = "notes-open-notes-v1"
+const STORAGE_KEY_PREFIX = "notes-open-notes-v2"
+const LAST_STORAGE_KEY = `${STORAGE_KEY_PREFIX}:last`
+
+const storageKey = (userId: number, workspaceId: number) =>
+  `${STORAGE_KEY_PREFIX}:${userId}:${workspaceId}`
 
 /**
  * Clean entries older than this are dropped on load; they cost nothing to
@@ -41,8 +46,9 @@ interface PersistedEntry {
 }
 
 export interface OpenNotesSnapshot {
-  schemaVersion: 1
+  schemaVersion: 2
   userId: number
+  workspaceId: number
   activeKey: OpenNoteKey | null
   backStack: OpenNoteKey[]
   nextDraftSequence: number
@@ -62,14 +68,30 @@ const isPersistedEntry = (value: unknown): value is PersistedEntry => {
   if (!isObject(value.form)) return false
   if (typeof value.form.description !== "string") return false
   if (!Array.isArray(value.form.selectedTagIds)) return false
+  if (
+    !Array.isArray(value.form.selectedCategoryIds) &&
+    !Number.isInteger(value.form.selectedCategoryId) &&
+    value.form.selectedCategoryId !== null
+  )
+    return false
   if (!Array.isArray(value.pendingTagLabels)) return false
   return true
 }
 
-const isSnapshot = (value: unknown): value is OpenNotesSnapshot => {
+export type StoredOpenNotesSnapshot = Omit<OpenNotesSnapshot, "schemaVersion" | "workspaceId"> & {
+  schemaVersion: 1 | 2
+  workspaceId?: number
+}
+
+const isSnapshot = (value: unknown): value is StoredOpenNotesSnapshot => {
   if (!isObject(value)) return false
-  if (value.schemaVersion !== 1) return false
+  if (value.schemaVersion !== 1 && value.schemaVersion !== 2) return false
   if (typeof value.userId !== "number" || !Number.isInteger(value.userId)) return false
+  if (
+    value.workspaceId !== undefined &&
+    (typeof value.workspaceId !== "number" || !Number.isInteger(value.workspaceId))
+  )
+    return false
   if (!Array.isArray(value.entries)) return false
   if (!Array.isArray(value.backStack)) return false
   if (typeof value.nextDraftSequence !== "number") return false
@@ -85,10 +107,12 @@ const isSnapshot = (value: unknown): value is OpenNotesSnapshot => {
  */
 export const toSnapshot = (
   userId: number,
+  workspaceId: number,
   state: OpenNotesState,
 ): OpenNotesSnapshot => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   userId,
+  workspaceId,
   activeKey: state.activeKey,
   backStack: state.backStack,
   nextDraftSequence: state.nextDraftSequence,
@@ -106,18 +130,25 @@ export const toSnapshot = (
   savedAt: Date.now(),
 })
 
-export const readOpenNotesSnapshot = (expectedUserId: number): OpenNotesSnapshot | null => {
+export const readOpenNotesSnapshot = (
+  expectedUserId: number,
+  expectedWorkspaceId: number,
+): OpenNotesSnapshot | null => {
   if (!isBrowser()) return null
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const scopedRaw = window.localStorage.getItem(storageKey(expectedUserId, expectedWorkspaceId))
+    const raw = scopedRaw ?? window.localStorage.getItem(LEGACY_STORAGE_KEY)
     if (!raw) return null
 
     const parsed: unknown = JSON.parse(raw)
     if (!isSnapshot(parsed)) return null
     if (parsed.userId !== expectedUserId) return null
+    if (parsed.workspaceId !== undefined && parsed.workspaceId !== expectedWorkspaceId) return null
 
-    return parsed
+    const snapshot = upgradeOpenNotesSnapshot(parsed, expectedUserId, expectedWorkspaceId)
+    if (scopedRaw === null) migrateLegacySnapshot(snapshot)
+    return snapshot
   } catch {
     return null
   }
@@ -130,34 +161,98 @@ export const readOpenNotesSnapshot = (expectedUserId: number): OpenNotesSnapshot
  * notes themselves are reparented and keep their ids. Reconciliation repairs
  * the category and tag references, which the merge does remap.
  */
-export const readOpenNotesSnapshotForAnyUser = (userId: number): OpenNotesSnapshot | null => {
+export const readOpenNotesSnapshotForAnyUser = (
+  userId: number,
+  workspaceId: number,
+): OpenNotesSnapshot | null => {
   if (!isBrowser()) return null
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const lastKey = window.localStorage.getItem(LAST_STORAGE_KEY)
+    const scopedRaw = lastKey ? window.localStorage.getItem(lastKey) : null
+    const raw = scopedRaw ?? window.localStorage.getItem(LEGACY_STORAGE_KEY)
     if (!raw) return null
 
     const parsed: unknown = JSON.parse(raw)
     if (!isSnapshot(parsed)) return null
 
-    return { ...parsed, userId }
+    const snapshot = upgradeOpenNotesSnapshot(parsed, userId, workspaceId)
+    if (scopedRaw === null) migrateLegacySnapshot(snapshot)
+    return snapshot
   } catch {
     return null
   }
 }
 
-export const clearOpenNotesSnapshot = (): void => {
+export const clearOpenNotesSnapshot = (userId?: number, workspaceId?: number): void => {
   if (!isBrowser()) return
   try {
-    window.localStorage.removeItem(STORAGE_KEY)
+    if (userId !== undefined && workspaceId !== undefined) {
+      window.localStorage.removeItem(storageKey(userId, workspaceId))
+      return
+    }
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY)
+    window.localStorage.removeItem(LAST_STORAGE_KEY)
+    for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index)
+      if (key?.startsWith(`${STORAGE_KEY_PREFIX}:`)) window.localStorage.removeItem(key)
+    }
   } catch {
     // ignore
   }
 }
 
 const writeRaw = (snapshot: OpenNotesSnapshot) => {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot))
+  const key = storageKey(snapshot.userId, snapshot.workspaceId)
+  window.localStorage.setItem(key, JSON.stringify(snapshot))
+  window.localStorage.setItem(LAST_STORAGE_KEY, key)
 }
+
+const migrateLegacySnapshot = (snapshot: OpenNotesSnapshot) => {
+  try {
+    writeRaw(snapshot)
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY)
+  } catch {
+    // Keep the legacy copy when migration cannot be persisted. Returning the
+    // upgraded snapshot still restores the draft for this session without
+    // risking the only durable copy of unsaved text.
+  }
+}
+
+export const upgradeOpenNotesSnapshot = (
+  snapshot: StoredOpenNotesSnapshot,
+  userId: number,
+  workspaceId: number,
+): OpenNotesSnapshot => ({
+  ...snapshot,
+  schemaVersion: 2,
+  userId,
+  workspaceId,
+  entries: snapshot.entries.map((entry) => {
+    const legacy = entry.form as NoteFormState & { selectedCategoryId?: number | null }
+    if (Array.isArray(legacy.selectedCategoryIds)) return entry
+    const form: NoteFormState = {
+      ...legacy,
+      selectedCategoryIds: legacy.selectedCategoryId == null ? [] : [legacy.selectedCategoryId],
+      selectedStatusId: null,
+    }
+    const wasClean =
+      entry.savedSignature ===
+      JSON.stringify({
+        noteId: entry.noteId,
+        categoryId: legacy.selectedCategoryId ?? null,
+        tagIds: [...legacy.selectedTagIds].sort((a, b) => a - b),
+        description: legacy.description,
+        timeDue: legacy.dueExpanded ? legacy.timeDue : null,
+        timeRemind: legacy.remindExpanded ? legacy.timeRemind : null,
+      })
+    return {
+      ...entry,
+      form,
+      savedSignature: wasClean ? serializeNoteDraft(entry.noteId, form) : entry.savedSignature,
+    }
+  }),
+})
 
 /**
  * Never silently drops a dirty entry. On a quota error it retries with only the
@@ -166,12 +261,13 @@ const writeRaw = (snapshot: OpenNotesSnapshot) => {
  */
 export const writeOpenNotesSnapshot = (
   userId: number,
+  workspaceId: number,
   state: OpenNotesState,
   isDirty: (entry: OpenNoteEntry) => boolean,
 ): boolean => {
   if (!isBrowser()) return true
 
-  const snapshot = toSnapshot(userId, state)
+  const snapshot = toSnapshot(userId, workspaceId, state)
 
   try {
     writeRaw(snapshot)
@@ -229,12 +325,14 @@ export const reconcileOpenNotes = (
   options: {
     now?: number
     categoryExists?: (categoryId: number) => boolean
+    statusExists?: (statusId: number) => boolean
     tagExists?: (tagId: number) => boolean
     fallbackCategoryId?: number | null
   } = {},
 ): ReconcileResult => {
   const now = options.now ?? Date.now()
   const categoryExists = options.categoryExists ?? (() => true)
+  const statusExists = options.statusExists ?? (() => true)
   const tagExists = options.tagExists ?? (() => true)
 
   const entries: OpenNoteEntry[] = []
@@ -299,7 +397,7 @@ export const reconcileOpenNotes = (
         form,
         baseTimeModified: record.timeModified,
         savedSignature: serializeNoteDraft(record.id, form),
-        categoryInputValue: record.category.label,
+        categoryInputValue: record.categories.map((category) => category.label).join(", "),
       })
       continue
     }
@@ -310,19 +408,30 @@ export const reconcileOpenNotes = (
   // Repair references to categories and tags that no longer exist. Same rule:
   // this is not a user edit, so the signature moves with the form.
   const repaired = entries.map((entry) => {
-    const categoryOk =
-      entry.form.selectedCategoryId !== null && categoryExists(entry.form.selectedCategoryId)
+    const validCategoryIds = entry.form.selectedCategoryIds.filter(categoryExists)
+    const validStatusId =
+      entry.form.selectedStatusId === null || statusExists(entry.form.selectedStatusId)
+        ? entry.form.selectedStatusId
+        : null
     const validTagIds = entry.form.selectedTagIds.filter(tagExists)
 
-    if (categoryOk && validTagIds.length === entry.form.selectedTagIds.length) {
+    if (
+      validCategoryIds.length === entry.form.selectedCategoryIds.length &&
+      validStatusId === entry.form.selectedStatusId &&
+      validTagIds.length === entry.form.selectedTagIds.length
+    ) {
       return entry
     }
 
     const form: NoteFormState = {
       ...entry.form,
-      selectedCategoryId: categoryOk
-        ? entry.form.selectedCategoryId
-        : (options.fallbackCategoryId ?? null),
+      selectedCategoryIds:
+        validCategoryIds.length > 0
+          ? validCategoryIds
+          : options.fallbackCategoryId == null
+            ? []
+            : [options.fallbackCategoryId],
+      selectedStatusId: validStatusId,
       selectedTagIds: validTagIds,
     }
     const wasDirty = serializeNoteDraft(entry.noteId, entry.form) !== entry.savedSignature

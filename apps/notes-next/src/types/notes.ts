@@ -2,7 +2,8 @@ import type { NoteRecord } from "@lib/db-notes"
 import { toDateTimeLocalValue } from "@/lib/dates"
 
 export interface NoteFormState {
-  selectedCategoryId: number | null
+  selectedCategoryIds: number[]
+  selectedStatusId: number | null
   selectedTagIds: number[]
   description: string
   timeDue: string | null
@@ -39,7 +40,8 @@ export const createDefaultRemindValue = () => {
 
 export const createDefaultNoteForm = (): NoteFormState => {
   return {
-    selectedCategoryId: null,
+    selectedCategoryIds: [],
+    selectedStatusId: null,
     selectedTagIds: [],
     description: "",
     timeDue: null,
@@ -50,7 +52,8 @@ export const createDefaultNoteForm = (): NoteFormState => {
 }
 
 export const noteToFormState = (note: NoteRecord): NoteFormState => ({
-  selectedCategoryId: note.category.id,
+  selectedCategoryIds: note.categories.map((category) => category.id),
+  selectedStatusId: note.status?.id ?? null,
   selectedTagIds: note.tags.map((tag) => tag.id),
   description: note.description ?? "",
   timeDue: note.timeDue === null ? null : toDateTimeLocalValue(note.timeDue),

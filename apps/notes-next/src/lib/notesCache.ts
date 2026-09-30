@@ -1,4 +1,11 @@
-import type { CategoryRecord, NoteRecord, TagRecord, UserSummary } from "@lib/db-notes"
+import type {
+  CategoryRecord,
+  NoteRecord,
+  StatusRecord,
+  TagRecord,
+  UserSummary,
+  WorkspaceRecord,
+} from "@lib/db-notes"
 
 /**
  * Local snapshot of the data that `NotesApp` shows on startup.
@@ -9,16 +16,22 @@ import type { CategoryRecord, NoteRecord, TagRecord, UserSummary } from "@lib/db
  * pattern, scoped to the notes app data.
  */
 export interface NotesCacheSnapshot {
-  schemaVersion: 1
+  schemaVersion: 2
   userId: number
   user: UserSummary
+  workspaces: WorkspaceRecord[]
+  activeWorkspaceId: number
   notes: NoteRecord[]
   categories: CategoryRecord[]
+  statuses: StatusRecord[]
   tags: TagRecord[]
   savedAt: number
 }
 
-const CACHE_STORAGE_KEY = "notes-app-cache-v1"
+const CACHE_STORAGE_PREFIX = "notes-app-cache-v2"
+const LATEST_CACHE_STORAGE_KEY = `${CACHE_STORAGE_PREFIX}:latest`
+const cacheStorageKey = (userId: number, workspaceId: number) =>
+  `${CACHE_STORAGE_PREFIX}:${userId}:${workspaceId}`
 // Treat the snapshot as missing once it's this old. This bounds how stale the
 // first paint can be if the user has been offline for a long time, while still
 // covering the common "open the app daily" case.
@@ -31,11 +44,17 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const isSnapshot = (value: unknown): value is NotesCacheSnapshot => {
   if (!isObject(value)) return false
-  if (value.schemaVersion !== 1) return false
+  if (value.schemaVersion !== 2) return false
   if (typeof value.userId !== "number" || !Number.isInteger(value.userId)) return false
   if (!isObject(value.user)) return false
   if (!Array.isArray(value.notes)) return false
   if (!Array.isArray(value.categories)) return false
+  if (
+    !Array.isArray(value.statuses) ||
+    !Array.isArray(value.workspaces) ||
+    !Number.isInteger(value.activeWorkspaceId)
+  )
+    return false
   if (!Array.isArray(value.tags)) return false
   if (typeof value.savedAt !== "number" || !Number.isFinite(value.savedAt)) return false
   return true
@@ -45,7 +64,8 @@ export const readNotesCache = (expectedUserId: number): NotesCacheSnapshot | nul
   if (!isBrowser()) return null
 
   try {
-    const raw = window.localStorage.getItem(CACHE_STORAGE_KEY)
+    const latestKey = window.localStorage.getItem(LATEST_CACHE_STORAGE_KEY)
+    const raw = latestKey ? window.localStorage.getItem(latestKey) : null
     if (!raw) return null
 
     const parsed: unknown = JSON.parse(raw)
@@ -66,24 +86,28 @@ export const writeNotesCache = (
 
   try {
     const payload: NotesCacheSnapshot = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       ...snapshot,
       savedAt: Date.now(),
     }
-    window.localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(payload))
+    const key = cacheStorageKey(payload.userId, payload.activeWorkspaceId)
+    window.localStorage.setItem(key, JSON.stringify(payload))
+    window.localStorage.setItem(LATEST_CACHE_STORAGE_KEY, key)
   } catch {
     // Quota or serialization errors are non-fatal; the next launch just falls
     // back to the slow path.
   }
 }
 
-type CacheListField = "notes" | "categories" | "tags"
+type CacheListField = "notes" | "categories" | "statuses" | "tags"
 
 type CacheListValue<K extends CacheListField> = K extends "notes"
   ? NoteRecord[]
   : K extends "categories"
     ? CategoryRecord[]
-    : TagRecord[]
+    : K extends "statuses"
+      ? StatusRecord[]
+      : TagRecord[]
 
 /**
  * Update a single list inside the cached snapshot without rewriting the whole
@@ -95,25 +119,31 @@ type CacheListValue<K extends CacheListField> = K extends "notes"
  */
 export const updateNotesCacheList = <K extends CacheListField>(
   userId: number,
+  workspaceId: number,
   field: K,
   value: CacheListValue<K>,
 ): void => {
   if (!isBrowser()) return
 
   try {
-    const raw = window.localStorage.getItem(CACHE_STORAGE_KEY)
+    const latestKey = window.localStorage.getItem(LATEST_CACHE_STORAGE_KEY)
+    const raw = latestKey ? window.localStorage.getItem(latestKey) : null
     if (!raw) return
 
     const parsed: unknown = JSON.parse(raw)
     if (!isSnapshot(parsed)) return
     if (parsed.userId !== userId) return
+    if (parsed.activeWorkspaceId !== workspaceId) return
 
     const next: NotesCacheSnapshot = {
       ...parsed,
       [field]: value,
       savedAt: Date.now(),
     }
-    window.localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(next))
+    window.localStorage.setItem(
+      cacheStorageKey(next.userId, next.activeWorkspaceId),
+      JSON.stringify(next),
+    )
   } catch {
     // ignore
   }
@@ -123,7 +153,8 @@ export const updateNotesCacheUser = (userId: number, user: UserSummary): void =>
   if (!isBrowser()) return
 
   try {
-    const raw = window.localStorage.getItem(CACHE_STORAGE_KEY)
+    const latestKey = window.localStorage.getItem(LATEST_CACHE_STORAGE_KEY)
+    const raw = latestKey ? window.localStorage.getItem(latestKey) : null
     if (!raw) return
 
     const parsed: unknown = JSON.parse(raw)
@@ -135,7 +166,10 @@ export const updateNotesCacheUser = (userId: number, user: UserSummary): void =>
       user,
       savedAt: Date.now(),
     }
-    window.localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(next))
+    window.localStorage.setItem(
+      cacheStorageKey(next.userId, next.activeWorkspaceId),
+      JSON.stringify(next),
+    )
   } catch {
     // ignore
   }
@@ -145,7 +179,11 @@ export const clearNotesCache = (): void => {
   if (!isBrowser()) return
 
   try {
-    window.localStorage.removeItem(CACHE_STORAGE_KEY)
+    window.localStorage.removeItem(LATEST_CACHE_STORAGE_KEY)
+    for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+      const key = window.localStorage.key(index)
+      if (key?.startsWith(`${CACHE_STORAGE_PREFIX}:`)) window.localStorage.removeItem(key)
+    }
   } catch {
     // ignore
   }

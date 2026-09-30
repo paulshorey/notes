@@ -5,12 +5,13 @@ import {
   NOTES_APP_INVALID_CREDENTIALS_ERROR,
   NOTES_APP_TAG_NOT_FOUND_ERROR,
   NOTES_APP_NOTE_NOT_FOUND_ERROR,
+  NOTES_APP_STATUS_NOT_FOUND_ERROR,
+  NOTES_APP_WORKSPACE_NOT_FOUND_ERROR,
   NOTES_APP_USER_NOT_FOUND_ERROR,
   parseCategoriesRequest,
   parseCreateCategoryRequest,
   notesAppService,
   parseDeleteCategoryRequest,
-  parseDeleteCategoryWithNotesRequest,
   parseTagsRequest,
   parseCreateTagRequest,
   parseDeleteTagRequest,
@@ -25,6 +26,14 @@ import {
   parseUpdateCategoryRequest,
   parseUpdateTagRequest,
   parseUpdateNoteRequest,
+  parseStatusesRequest,
+  parseWorkspacesRequest,
+  parseCreateStatusRequest,
+  parseUpdateStatusRequest,
+  parseDeleteStatusRequest,
+  parseCreateWorkspaceRequest,
+  parseUpdateWorkspaceRequest,
+  parseDeleteWorkspaceRequest,
   type NotesAppService,
 } from "@lib/db-notes/services/notes-app"
 
@@ -53,7 +62,7 @@ const readBearerToken = (request: Request): string | null => {
  * own userId: a bearer token (Android) or the NextAuth session cookie (web)
  * is the only source of identity. Returns null when unauthenticated.
  */
-const resolveRequestUserId = async (
+export const resolveRequestUserId = async (
   request: Request,
   service: NotesAppService,
   resolveSessionUserId: SessionUserResolver,
@@ -189,7 +198,9 @@ export const createNotesRouteHandlers = (
         return unauthorizedResponse()
       }
 
-      const result = await service.listNotesForNotesApp(parseNotesRequest(userId))
+      const result = await service.listNotesForNotesApp(
+        parseNotesRequest(userId, request.nextUrl.searchParams.get("workspaceId")),
+      )
       return NextResponse.json(result)
     } catch (error) {
       return toErrorResponse(error)
@@ -267,7 +278,9 @@ export const createTagsRouteHandlers = (
         return unauthorizedResponse()
       }
 
-      const result = await service.listTagsForNotesApp(parseTagsRequest(userId))
+      const result = await service.listTagsForNotesApp(
+        parseTagsRequest(userId, request.nextUrl.searchParams.get("workspaceId")),
+      )
       return NextResponse.json(result)
     } catch (error) {
       return toErrorResponse(error)
@@ -345,7 +358,9 @@ export const createCategoriesRouteHandlers = (
         return unauthorizedResponse()
       }
 
-      const result = await service.listCategoriesForNotesApp(parseCategoriesRequest(userId))
+      const result = await service.listCategoriesForNotesApp(
+        parseCategoriesRequest(userId, request.nextUrl.searchParams.get("workspaceId")),
+      )
       return NextResponse.json(result)
     } catch (error) {
       return toErrorResponse(error)
@@ -411,33 +426,6 @@ export const createCategoriesRouteHandlers = (
   },
 })
 
-export const createDeleteCategoryWithNotesRouteHandlers = (
-  service: NotesAppService = notesAppService,
-  resolveSessionUserId: SessionUserResolver = noSessionUser,
-) => ({
-  DELETE: async (request: Request) => {
-    try {
-      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
-
-      if (userId === null) {
-        return unauthorizedResponse()
-      }
-
-      const result = await service.deleteCategoryWithNotesForNotesApp(
-        parseDeleteCategoryWithNotesRequest(await readAuthorizedJsonObject(request, userId)),
-      )
-
-      if (!result) {
-        return NextResponse.json({ error: NOTES_APP_CATEGORY_NOT_FOUND_ERROR }, { status: 404 })
-      }
-
-      return NextResponse.json(result)
-    } catch (error) {
-      return toErrorResponse(error)
-    }
-  },
-})
-
 export const createSearchRouteHandlers = (
   service: NotesAppService = notesAppService,
   resolveSessionUserId: SessionUserResolver = noSessionUser,
@@ -478,6 +466,126 @@ export const createEmbeddingMaintenanceRouteHandlers = (
       return NextResponse.json(result)
     } catch (error) {
       return toErrorResponse(error, service.getNotesAppErrorStatus(error))
+    }
+  },
+})
+
+export const createStatusesRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
+  GET: async (request: NextRequest) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      return NextResponse.json(
+        await service.listStatusesForNotesApp(
+          parseStatusesRequest(userId, request.nextUrl.searchParams.get("workspaceId")),
+        ),
+      )
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+  POST: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      return NextResponse.json(
+        await service.createStatusForNotesApp(
+          parseCreateStatusRequest(await readAuthorizedJsonObject(request, userId)),
+        ),
+        { status: 201 },
+      )
+    } catch (error) {
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
+    }
+  },
+  PATCH: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      const result = await service.updateStatusForNotesApp(
+        parseUpdateStatusRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      return result
+        ? NextResponse.json(result)
+        : NextResponse.json({ error: NOTES_APP_STATUS_NOT_FOUND_ERROR }, { status: 404 })
+    } catch (error) {
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
+    }
+  },
+  DELETE: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      const result = await service.deleteStatusForNotesApp(
+        parseDeleteStatusRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      return result
+        ? NextResponse.json(result)
+        : NextResponse.json({ error: NOTES_APP_STATUS_NOT_FOUND_ERROR }, { status: 404 })
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+})
+
+export const createWorkspacesRouteHandlers = (
+  service: NotesAppService = notesAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
+  GET: async (request: NextRequest) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      return NextResponse.json(
+        await service.listWorkspacesForNotesApp(parseWorkspacesRequest(userId)),
+      )
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+  POST: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      return NextResponse.json(
+        await service.createWorkspaceForNotesApp(
+          parseCreateWorkspaceRequest(await readAuthorizedJsonObject(request, userId)),
+        ),
+        { status: 201 },
+      )
+    } catch (error) {
+      return toErrorResponse(error, service.getNotesAppErrorStatus(error))
+    }
+  },
+  PATCH: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      const result = await service.updateWorkspaceForNotesApp(
+        parseUpdateWorkspaceRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      return result
+        ? NextResponse.json(result)
+        : NextResponse.json({ error: NOTES_APP_WORKSPACE_NOT_FOUND_ERROR }, { status: 404 })
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+  DELETE: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      const result = await service.deleteWorkspaceForNotesApp(
+        parseDeleteWorkspaceRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      return result
+        ? NextResponse.json(result)
+        : NextResponse.json({ error: NOTES_APP_WORKSPACE_NOT_FOUND_ERROR }, { status: 404 })
+    } catch (error) {
+      return toErrorResponse(error)
     }
   },
 })

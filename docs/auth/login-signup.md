@@ -16,8 +16,8 @@ saving lifecycle"). For the original design history, see:
 
 ## Overview
 
-Every new visitor can use the app immediately — create notes, categories, and
-tags — without registering. Behind the scenes:
+Every new visitor can use the app immediately — create workspaces, notes,
+categories, statuses, and tags — without registering. Behind the scenes:
 
 1. The browser has **no session** on first load.
 2. `NotesApp` detects `authStatus === "unauthenticated"` and calls
@@ -36,7 +36,7 @@ the anonymous row is deleted.
 flowchart TD
   Visit[New visitor loads app] --> AnonSignIn["signIn('anonymous')"]
   AnonSignIn --> AnonRow["user_v1 row<br/>is_anonymous = true"]
-  AnonRow --> UseApp[Create notes / categories / tags]
+  AnonRow --> UseApp[Create workspace-scoped notes and vocabulary]
 
   UseApp --> Choice{User action}
 
@@ -67,9 +67,10 @@ rows:
 | `is_anonymous` | `true`                      | `false`                   | `false`                          |
 | `preferences`  | UI settings on the anon row | **Kept** (same row)       | May differ from anon             |
 
-Owned data (`user_note_v1`, `user_note_category_v1`, `user_note_tag_v1`,
-`user_note_tag_link_v1`) references `user_id` normally. Anonymous creation also
-seeds a default `important` tag via `ensureDefaultTagForUser`.
+Owned content hangs from `user_workspace_v1`. Notes belong to one workspace;
+category and tag links are many-to-many, status is nullable, and every relation
+is constrained to the note's workspace. Anonymous creation seeds a `personal`
+workspace with `uncategorized`, `backlog`, and `important` vocabulary rows.
 
 ## Auth stack (NextAuth / Auth.js)
 
@@ -205,11 +206,13 @@ token:
 
 Merge SQL (simplified):
 
-- **Categories / tags:** dedupe by `(user_id, label)` on the real account, build
-  id remap tables
-- **Notes:** reparent to real `user_id`, remap `category_id`
-- **Tag links:** remap `tag_id` through the tag dedup map
-- **Delete** anonymous `user_v1` row (CASCADE drops orphaned anon categories/tags)
+- **Workspaces:** reparent when the label is new; merge when the real account
+  already has the same label
+- **Categories / statuses / tags:** dedupe by `(workspace_id, label)` inside a
+  collided workspace
+- **Notes and links:** clone into collided workspaces with vocabulary ids
+  remapped; preserve ids when an entire workspace can be reparented
+- **Delete** the anonymous `user_v1` row after every workspace is transferred
 
 `MERGE_TABLE_STRATEGIES` in `anonymous.ts` documents every table with a direct
 FK to `user_v1`. `db:verify` diffs this map against the live schema so new
@@ -238,7 +241,7 @@ change:
 - Runs pending merge (if any) **before** loading lists
 - Skips stale cache paint after merge (cached snapshot predates merge)
 - Otherwise uses stale-while-revalidate from `localStorage` notes cache
-- Fetches `/api/session`, notes, categories, tags in parallel
+- Fetches workspace-aware `/api/bootstrap` once
 
 Dependencies include `authSession.user.notesUserId` and
 `authSession.user.isAnonymous`, so claim and login both trigger a refresh.

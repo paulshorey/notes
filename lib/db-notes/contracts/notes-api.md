@@ -241,17 +241,15 @@ Success `200`:
         "timeCreated": "2026-03-17T10:00:00.000Z",
         "timeModified": "2026-03-17T10:05:00.000Z"
       },
-      "similarity": 0.94,
-      "titleSimilarity": 0.91,
-      "summarySimilarity": 0.89,
-      "descriptionSimilarity": 0.85
+      "similarity": 0.94
     }
   ]
 }
 ```
 
 This endpoint only performs search. It does not repair or backfill note
-embeddings.
+embeddings. Ranking is cosine similarity between the query embedding and each
+note's `description_embedding`.
 
 ### `POST /api/notes/maintenance/embeddings`
 
