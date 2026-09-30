@@ -98,13 +98,26 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
-  margin-right: auto;
   padding: 0;
   border: none;
   border-radius: 50%;
   color: var(--g-color-text-link);
   cursor: pointer;
   background-color: transparent;
+}
+
+.addDefaultNoteButton {
+  width: auto;
+  max-width: min(220px, 45vw);
+  gap: 4px;
+  margin-right: auto;
+  border-radius: 4px;
+}
+
+.addDefaultNoteButton span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .addNoteButton:hover {

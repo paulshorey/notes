@@ -957,6 +957,18 @@ export default function NotesApp() {
     })
   }, [activeKey, clearMessages, openDraftEntry])
 
+  const handleAddDefaultNote = useCallback(() => {
+    clearMessages()
+    const categoryList = categoriesRef.current
+    const defaultCategory = categoryList.find(
+      (category) => category.id === getDefaultCategoryId(categoryList),
+    )
+    openDraftEntry({
+      categoryIds: defaultCategory ? [defaultCategory.id] : [],
+      categoryLabel: defaultCategory?.label ?? "",
+    })
+  }, [clearMessages, openDraftEntry])
+
   const loadNotes = useCallback(
     async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
       if (workspaceId === null) return []
@@ -3261,7 +3273,12 @@ export default function NotesApp() {
             onCreateStatus={handleCreateStatus}
             onTagValuesChange={handleTagValuesChange}
             onCancelEdit={handleCancelEdit}
-            onAddNote={handleCancelEdit}
+            defaultCategoryLabel={
+              categories.find((category) => category.id === fallbackCategoryId)?.label ??
+              "uncategorized"
+            }
+            onAddDefaultNote={handleAddDefaultNote}
+            onAddNoteInCategory={handleCancelEdit}
             onDeleteEditingNote={() => {
               if (activeEntry?.noteId != null) {
                 void handleDeleteNote(activeEntry.noteId)

@@ -42,7 +42,9 @@ interface NoteFormProps {
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
-  onAddNote: () => void
+  defaultCategoryLabel: string
+  onAddDefaultNote: () => void
+  onAddNoteInCategory: () => void
 }
 
 export function NoteForm({
@@ -68,7 +70,9 @@ export function NoteForm({
   onTagValuesChange,
   onCancelEdit,
   onDeleteEditingNote,
-  onAddNote,
+  defaultCategoryLabel,
+  onAddDefaultNote,
+  onAddNoteInCategory,
 }: NoteFormProps) {
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [morePickerOpen, setMorePickerOpen] = useState(false)
@@ -78,6 +82,9 @@ export function NoteForm({
     .map((id) => categories.find((category) => category.id === id)?.label)
     .filter((value): value is string => Boolean(value))
     .join(", ")
+  const addNoteCategoryLabel =
+    categories.find((category) => category.id === form.selectedCategoryIds[0])?.label ??
+    defaultCategoryLabel
 
   const selectedTagLabels = useMemo(() => {
     const next = [
@@ -234,15 +241,25 @@ export function NoteForm({
         <div className={styles.formToolbar}>
           <button
             type="button"
+            className={`${styles.addNoteButton} ${styles.addDefaultNoteButton}`}
+            onClick={onAddDefaultNote}
+            aria-label={`Add new note in default category ${defaultCategoryLabel}`}
+          >
+            <Plus size={16} weight="bold" aria-hidden />
+            <span>{defaultCategoryLabel}</span>
+          </button>
+          <button
+            type="button"
             className={styles.addNoteButton}
-            onClick={onAddNote}
-            aria-label="Add new note"
+            onClick={onAddNoteInCategory}
+            aria-label={`Add new note in current category ${addNoteCategoryLabel}`}
+            title={`Add new note in current category ${addNoteCategoryLabel}`}
           >
             <Plus size={16} weight="bold" aria-hidden />
           </button>
           <FilterablePicker
             variant="inline"
-            value={selectedCategoryLabel || "uncategorized"}
+            value={selectedCategoryLabel || defaultCategoryLabel}
             triggerAriaLabel="Categories"
             listboxAriaLabel="Category options"
             options={categories}
@@ -258,6 +275,18 @@ export function NoteForm({
             emptyWithoutQueryMessage="No categories yet"
             inputPlaceholder="Enter new category..."
           />
+          {selectedTagLabels.map((label) => (
+            <button
+              key={normalizeLabel(label)}
+              type="button"
+              className={styles.selectedTag}
+              onClick={() => removeTagLabel(label)}
+              aria-label={`Remove tag ${label}`}
+            >
+              <span>{label}</span>
+              <X size={10} weight="regular" />
+            </button>
+          ))}
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {form.remindExpanded &&
             renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
@@ -346,19 +375,6 @@ export function NoteForm({
               </div>
             </Popup>
           </div>
-
-          {selectedTagLabels.map((label) => (
-            <button
-              key={normalizeLabel(label)}
-              type="button"
-              className={styles.selectedTag}
-              onClick={() => removeTagLabel(label)}
-              aria-label={`Remove tag ${label}`}
-            >
-              <span>{label}</span>
-              <X size={10} weight="regular" />
-            </button>
-          ))}
         </div>
       </form>
     </section>
