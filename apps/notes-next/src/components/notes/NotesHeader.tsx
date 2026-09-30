@@ -383,7 +383,11 @@ export function NotesHeader({
           title={resultsListVisible ? "Hide notes list" : "Show notes list"}
           className={`${styles.headerButton} ${styles.resultsToggleButton}`}
         >
-          <SidebarSimple size={18} weight="regular" className={styles.headerIcon} />
+          <SidebarSimple
+            size={18}
+            weight="regular"
+            className={`${styles.headerIcon} ${styles.resultsToggleIcon}`}
+          />
         </Button>
       </span>
       <Popup anchorRef={userBtnRef} open={menuOpen} onClose={closeAuthMenu} placement="bottom-end">

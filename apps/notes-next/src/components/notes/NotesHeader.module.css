@@ -89,8 +89,11 @@
 
 .resultsToggleButton {
   display: inline-flex;
-  transform: scaleX(-1);
   color: var(--g-color-text-link);
+}
+
+.resultsToggleIcon {
+  transform: scaleX(-1);
 }
 
 .userMenu {
