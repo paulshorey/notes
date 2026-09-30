@@ -101,6 +101,12 @@
   transform: scaleX(1);
 }
 
+@media (min-width: 721px) {
+  .resultsToggleButton {
+    display: none;
+  }
+}
+
 .userMenu {
   display: flex;
   flex-direction: column;

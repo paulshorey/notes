@@ -62,12 +62,6 @@
   background: var(--g-color-line-generic);
 }
 
-.resizeHandle:hover,
-.resizeHandleCollapsed {
-  /* background: var(--g-color-line-brand, #60a5fa); */
-  /* opacity: 0.75; */
-}
-
 .mobileResultsOverlay {
   display: none;
 }
@@ -75,7 +69,7 @@
 @media (max-width: 720px) {
   .content {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 9px 0;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: 44px minmax(0, 1fr);
     overflow: hidden;
   }
@@ -127,9 +121,6 @@
   }
 
   .resizeHandle {
-    grid-column: 2;
-    grid-row: 2;
-    width: 9px;
-    cursor: pointer;
+    display: none;
   }
 }

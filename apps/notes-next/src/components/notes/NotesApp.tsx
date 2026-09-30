@@ -574,6 +574,18 @@ export default function NotesApp() {
     mobileResultsOverlayTimeoutRef.current = null
   }, [])
 
+  const updateResultsColumnWidth = (width: number) => {
+    const nextPreferredWidth = clampStoredResultsColumnWidth(width)
+    setResultsListVisible(true)
+    setPreferredResultsColumnWidth(nextPreferredWidth)
+    setResultsColumnWidth(clampResultsColumnWidth(nextPreferredWidth))
+    setUserPreferences((current) =>
+      getStoredResultsColumnWidth(current) === nextPreferredWidth
+        ? current
+        : withResultsColumnWidthPreference(current, nextPreferredWidth),
+    )
+  }
+
   const handleResizePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
     resizeStateRef.current = {
@@ -595,24 +607,12 @@ export default function NotesApp() {
     if (!resizeState.dragged && Math.abs(delta) < RESIZE_DRAG_THRESHOLD) return
 
     resizeState.dragged = true
-    const nextPreferredWidth = clampStoredResultsColumnWidth(resizeState.startWidth + delta)
-    setResultsListVisible(true)
-    setPreferredResultsColumnWidth(nextPreferredWidth)
-    setResultsColumnWidth(clampResultsColumnWidth(nextPreferredWidth))
-    setUserPreferences((current) =>
-      getStoredResultsColumnWidth(current) === nextPreferredWidth
-        ? current
-        : withResultsColumnWidthPreference(current, nextPreferredWidth),
-    )
+    updateResultsColumnWidth(resizeState.startWidth + delta)
   }
 
   const handleResizePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
     const resizeState = resizeStateRef.current
     if (!resizeState || resizeState.pointerId !== event.pointerId) return
-
-    if (!resizeState.dragged) {
-      setResultsListVisible((visible) => !visible)
-    }
 
     resizeStateRef.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -3283,22 +3283,19 @@ export default function NotesApp() {
 
         <button
           type="button"
-          className={`${styles.resizeHandle} ${
-            resultsListVisible ? "" : styles.resizeHandleCollapsed
-          }`}
-          aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
-          aria-pressed={!resultsListVisible}
-          title={
-            resultsListVisible ? "Drag to resize notes list; click to hide" : "Show notes list"
-          }
+          className={styles.resizeHandle}
+          aria-label="Resize notes list"
+          title="Drag or use arrow keys to resize notes list"
           onPointerDown={handleResizePointerDown}
           onPointerMove={handleResizePointerMove}
           onPointerUp={handleResizePointerUp}
           onPointerCancel={handleResizePointerCancel}
           onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault()
-              setResultsListVisible((visible) => !visible)
+              updateResultsColumnWidth(
+                preferredResultsColumnWidth + (event.key === "ArrowLeft" ? 16 : -16),
+              )
             }
           }}
         />
