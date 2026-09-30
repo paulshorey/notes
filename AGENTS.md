@@ -62,9 +62,17 @@ This codebase is developed by AI agents.
 - For Android Gradle, prefer `bash apps/notes-android/gradlew --no-daemon -p apps/notes-android <task>`.
 - Do not add package-local install steps to build, dev, test, or start scripts.
 
+## Railway infrastructure
+
+Use `.railway/README.md` for the WebArts `notes` partial, credentials, target IDs,
+CI and previews. The legacy Config File field stays empty. Settings require an
+explicit apply; branch pushes apply through the WebArts workflow. Preserve exact
+live service identities and all Railway variable values. Database migrations are
+now a tracked pre-deploy command and health checks gate release activation.
+
 ## Release model
 
-- `notes-next`: run `release:notes:prepare`, run Notes DB migration steps when needed, then deploy on Railway.
+- `notes-next`: run `release:notes:prepare`, then deploy on Railway; the tracked pre-deploy command applies pending migrations.
 - `notes-android`: run `build:android:dist:dev` or `build:android:dist:prod`, then share the APK download link in the PR; no Railway deploy.
 
 ## Database rules
