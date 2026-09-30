@@ -62,6 +62,14 @@ This codebase is developed by AI agents.
 - For Android Gradle, prefer `bash apps/notes-android/gradlew --no-daemon -p apps/notes-android <task>`.
 - Do not add package-local install steps to build, dev, test, or start scripts.
 
+## Railway infrastructure
+
+Use `.railway/README.md` for WebArts IaC. This repository exports the `notes` partial;
+never replace it with a whole-project graph containing only Notes. Preserve Railway
+variables and exact live service names. Settings changes require an explicit apply;
+the GitHub workflow applies `main` to dev and `prod` to production. Existing previews
+require their environment ID and explicit `RAILWAY_IAC_BRANCH`.
+
 ## Release model
 
 - `notes-next`: run `release:notes:prepare`, then deploy on Railway. The committed Railway pre-deploy command applies tracked Notes migrations before a release becomes healthy; run `db:migrate` manually for local/shared development or an intentional target-database preflight.

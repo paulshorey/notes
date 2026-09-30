@@ -1,3 +1,6 @@
 packages:
   - "apps/*"
   - "lib/*"
+
+onlyBuiltDependencies:
+  - "@railway/cli"

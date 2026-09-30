@@ -84,7 +84,12 @@ and minimum schema.
 
 ## Railway deployment contract
 
-The root `.railway/railway.ts` defines the Notes deployment lifecycle:
+The root `.railway/railway.ts` defines the `notes` partial in the multi-repository WebArts project.
+It is evaluated by an explicit CLI or CI apply; a GitHub source deployment does not read it.
+See [Railway setup and migration runbook](../../.railway/README.md) for environment IDs,
+CI credentials, preview updates, and ownership. Keep the legacy Railway Config File field empty.
+
+The applied Notes deployment lifecycle is:
 
 1. build with `pnpm --filter notes-next build`
 2. run `pnpm --filter @lib/db-notes db:migrate` as `preDeployCommand`

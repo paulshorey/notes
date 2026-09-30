@@ -28,10 +28,15 @@
     "cloud:install": "bash scripts/cloud-agent-install.sh",
     "cloud:start": "bash scripts/cloud-agent-start.sh",
     "agent:setup": "bash scripts/agent-env-setup.sh",
-    "create:next-app": "node scripts/create-next-app.js"
+    "create:next-app": "node scripts/create-next-app.js",
+    "railway:config:check": "tsc --noEmit --strict --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext .railway/railway.ts",
+    "railway:config:plan": "railway config plan --file .railway/railway.ts",
+    "railway:config:apply": "railway config apply --file .railway/railway.ts"
   },
   "devDependencies": {
     "@infisical/sdk": "^4.0.0",
+    "@railway/cli": "5.62.1",
+    "@types/node": "^22.18.1",
     "prettier": "^3.6.2",
     "railway": "3.11.0",
     "turbo": "^2.5.5",
