@@ -11,13 +11,13 @@
 .headerBrand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   min-width: 0;
   flex: 0 0 auto;
-  margin-left: 8px;
 }
 
 .headerLogo {
+  padding-left: 12px;
   color: var(--g-color-text-link);
   font-size: 1.0625rem;
   cursor: pointer;
@@ -113,7 +113,6 @@
 
 @media (max-width: 360px) {
   .headerActions,
-  .headerBrand,
   .headerButtons {
     gap: 4px;
   }
