@@ -248,33 +248,35 @@ export function NoteForm({
             <Plus size={16} weight="bold" aria-hidden />
             <span>{defaultCategoryLabel}</span>
           </button>
-          <button
-            type="button"
-            className={styles.addNoteButton}
-            onClick={onAddNoteInCategory}
-            aria-label={`Add new note in current category ${addNoteCategoryLabel}`}
-            title={`Add new note in current category ${addNoteCategoryLabel}`}
-          >
-            <Plus size={16} weight="bold" aria-hidden />
-          </button>
-          <FilterablePicker
-            variant="inline"
-            value={selectedCategoryLabel || defaultCategoryLabel}
-            triggerAriaLabel="Categories"
-            listboxAriaLabel="Category options"
-            options={categories}
-            selectedIds={form.selectedCategoryIds}
-            disabled={!userPresent}
-            pending={createCategoryPending}
-            closeOnSelect={false}
-            onOpenChange={(open) => {
-              if (open) closeMoreDropdown()
-            }}
-            onSelectOption={(category) => selectCategory(Number(category.id))}
-            onCreateOption={onCreateCategory}
-            emptyWithoutQueryMessage="No categories yet"
-            inputPlaceholder="Enter new category..."
-          />
+          <div className={styles.categoryControls}>
+            <button
+              type="button"
+              className={styles.addNoteButton}
+              onClick={onAddNoteInCategory}
+              aria-label={`Add new note in current category ${addNoteCategoryLabel}`}
+              title={`Add new note in current category ${addNoteCategoryLabel}`}
+            >
+              <Plus size={16} weight="bold" aria-hidden />
+            </button>
+            <FilterablePicker
+              variant="inline"
+              value={selectedCategoryLabel || defaultCategoryLabel}
+              triggerAriaLabel="Categories"
+              listboxAriaLabel="Category options"
+              options={categories}
+              selectedIds={form.selectedCategoryIds}
+              disabled={!userPresent}
+              pending={createCategoryPending}
+              closeOnSelect={false}
+              onOpenChange={(open) => {
+                if (open) closeMoreDropdown()
+              }}
+              onSelectOption={(category) => selectCategory(Number(category.id))}
+              onCreateOption={onCreateCategory}
+              emptyWithoutQueryMessage="No categories yet"
+              inputPlaceholder="Enter new category..."
+            />
+          </div>
           {selectedTagLabels.map((label) => (
             <button
               key={normalizeLabel(label)}
@@ -283,8 +285,8 @@ export function NoteForm({
               onClick={() => removeTagLabel(label)}
               aria-label={`Remove tag ${label}`}
             >
+              <X size={12} weight="regular" aria-hidden />
               <span>{label}</span>
-              <X size={10} weight="regular" />
             </button>
           ))}
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
