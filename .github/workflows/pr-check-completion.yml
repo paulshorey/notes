@@ -1,51 +1,40 @@
 name: PR check completion
 
 on:
-  # Same-repository PRs bootstrap the policy before it is installed on main.
-  pull_request:
-    branches: [main, prod]
-    types: [opened, synchronize, reopened, ready_for_review, edited]
-  # Fork PRs use trusted base code and never execute the contributor's code.
+  # The privileged observer is defined by trusted default-branch code, for all
+  # PRs. PR-controlled code runs only in the separate read-only test workflow.
   pull_request_target:
     branches: [main, prod]
     types: [opened, synchronize, reopened, ready_for_review, edited]
+  # Base updates can replace test merge revisions without changing PR heads.
+  push:
+    branches: [main, prod]
   status:
   check_run:
     types: [created, completed, rerequested]
   # GitHub suppresses check_run events originating in Actions. Keep this list
   # aligned with the names of CI workflows added to this repository.
   workflow_run:
-    workflows: [DB Contracts, WebArts infrastructure]
+    workflows: [PR completion policy tests, DB Contracts, WebArts infrastructure]
     types: [requested, in_progress, completed]
   workflow_dispatch:
+    inputs:
+      bootstrap_policy_sha:
+        description: "First installation only: explicitly reviewed 40-character policy commit SHA; normally leave empty."
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 jobs:
-  policy-tests:
-    name: Test PR completion policy
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-      - run: node --test .github/test/pr-check-completion.test.cjs
-
   observe:
     name: Observe PR check completion
-    if: >-
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
-      (github.event_name != 'pull_request_target' || github.event.pull_request.head.repo.full_name != github.repository) &&
-      (github.event_name != 'status' || github.event.context != 'PR checks finished')
+    if: github.event_name != 'status' || github.event.context != 'PR checks finished'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     concurrency:
-      group: pr-check-completion-${{ github.repository }}
+      group: pr-check-completion-trusted-${{ github.repository }}
       cancel-in-progress: false
     permissions:
       contents: read
@@ -54,11 +43,21 @@ jobs:
       actions: read
       statuses: write
     steps:
+      - name: Select trusted policy revision
+        id: policy
+        uses: actions/github-script@v7
+        env:
+          BOOTSTRAP_POLICY_SHA: ${{ inputs.bootstrap_policy_sha }}
+        with:
+          script: |
+            const bootstrap = process.env.BOOTSTRAP_POLICY_SHA || '';
+            if (bootstrap && (context.eventName !== 'workflow_dispatch' || !/^[0-9a-f]{40}$/.test(bootstrap))) {
+              throw new Error('Bootstrap requires a manual dispatch and an explicitly reviewed full commit SHA.');
+            }
+            core.setOutput('ref', bootstrap || context.payload.repository.default_branch);
       - uses: actions/checkout@v4
         with:
-          # Only same-repository PRs use PR code. Privileged fork/event runs
-          # always use the trusted base/default branch, never PR artifacts.
-          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ steps.policy.outputs.ref }}
           persist-credentials: false
       - uses: actions/github-script@v7
         with:

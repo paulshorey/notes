@@ -79,6 +79,7 @@ test("queued workflows block completion before their jobs register", () => {
 function harness({
   initial = "in_progress",
   changeHead = false,
+  changeMerge = false,
   apiFailure = false,
   mergeAvailable = true,
   checksOn = ["head", "merge", "new-head", "new-merge"],
@@ -91,7 +92,11 @@ function harness({
     state: "open",
     base: { ref: "main" },
     head: { sha: changeHead && tick ? "new-head" : "head" },
-    merge_commit_sha: mergeAvailable ? (changeHead && tick ? "new-merge" : "merge") : null,
+    merge_commit_sha: mergeAvailable
+      ? (changeHead || changeMerge) && tick
+        ? "new-merge"
+        : "merge"
+      : null,
   })
   const rest = {
     pulls: { list: "pulls", get: async () => ({ data: pr() }) },
@@ -133,31 +138,31 @@ function harness({
   }
 }
 
-test("publishes a single gate on the merge revision after checks finish and settle", async () => {
+test("publishes a single durable head gate after checks finish and settle", async () => {
   const { options, writes } = harness()
   await observe(options)
   assert.equal(writes[0].state, "pending")
-  assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["merge"])
+  assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["head"])
   assert.deepEqual(
     writes.filter((s) => s.state === "success").map((s) => s.sha),
-    ["merge"],
+    ["head"],
   )
 })
-test("falls back to one head gate when GitHub has no test merge revision", async () => {
+test("reports one head gate when GitHub has no test merge revision", async () => {
   const { options, writes } = harness({ mergeAvailable: false })
   await observe(options)
   assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["head"])
   assert.equal(writes.at(-1).state, "success")
 })
 for (const ref of ["head", "merge"]) {
-  test(`unfinished checks only on ${ref} still block the single merge gate`, async () => {
+  test(`unfinished checks only on ${ref} still block the single head gate`, async () => {
     const { options, writes } = harness({ checksOn: [ref] })
     // Observe again while this revision's check is still running, then stop.
     options.sleep = async () => {
       throw new Error("stop while check is running")
     }
     await assert.rejects(observe(options), /stop while check is running/)
-    assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["merge"])
+    assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["head"])
     assert.equal(
       writes.every((s) => s.state === "pending"),
       true,
@@ -173,8 +178,45 @@ test("new commits must acquire their own completion gate", async () => {
   )
   assert.deepEqual(
     writes.filter((s) => s.state === "success").map((s) => s.sha),
-    ["new-merge"],
+    ["new-head"],
   )
+})
+test("regenerated test merge revisions preserve one durable head gate", async () => {
+  const { options, writes } = harness({ changeMerge: true })
+  await observe(options)
+  assert.deepEqual([...new Set(writes.map((s) => s.sha))], ["head"])
+  assert.equal(writes.at(-1).state, "success")
+})
+test("queued policy test workflows block before their jobs register", () => {
+  assert.equal(
+    completion({
+      ...empty,
+      runs: [
+        {
+          name: "PR completion policy tests",
+          path: ".github/workflows/pr-check-completion-tests.yml",
+          status: "queued",
+        },
+      ],
+    }).state,
+    "pending",
+  )
+})
+test("PR code executes only in the read-only policy workflow", () => {
+  const { readFileSync } = require("node:fs")
+  const { resolve } = require("node:path")
+  const observer = readFileSync(resolve(__dirname, "../workflows/pr-check-completion.yml"), "utf8")
+  const tests = readFileSync(
+    resolve(__dirname, "../workflows/pr-check-completion-tests.yml"),
+    "utf8",
+  )
+  assert.doesNotMatch(observer, /^  pull_request:$/m)
+  assert.match(observer, /^  pull_request_target:$/m)
+  assert.match(observer, /bootstrap \|\| context.payload.repository.default_branch/)
+  assert.doesNotMatch(observer, /github\.sha|pull_request\.head|pull_request\.base/)
+  assert.match(tests, /^  pull_request:$/m)
+  assert.doesNotMatch(tests, /: write/)
+  assert.doesNotMatch(tests, /secrets\./)
 })
 test("provider API errors leave a pending gate instead of permitting a merge", async () => {
   const { options, writes } = harness({ apiFailure: true })

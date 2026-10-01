@@ -26,10 +26,10 @@ function completion({ checks, statuses, runs }) {
   return { state: pending.length ? "pending" : "success", pending: [...new Set(pending)] }
 }
 
-// Reporting on the test merge commit makes it GitHub's merge-evaluation
-// revision. Fall back to the head when no test merge commit is available.
+// Test merge commits can be regenerated even during a merge attempt. Publish
+// one durable gate on the head, while inspecting both revisions below.
 function gateRevision(pr) {
-  return pr.merge_commit_sha || pr.head.sha
+  return pr.head.sha
 }
 
 async function snapshot(github, repo, pr) {
