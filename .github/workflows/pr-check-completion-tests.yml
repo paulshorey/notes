@@ -1,0 +1,23 @@
+name: PR completion policy tests
+
+on:
+  pull_request:
+    branches: [main, prod]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  policy-tests:
+    name: Test PR completion policy
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node --test .github/test/pr-check-completion.test.cjs
