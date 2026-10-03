@@ -243,6 +243,7 @@ export function NotesHeader({
   const [signupEmail, setSignupEmail] = useState("")
   const [signupPassword, setSignupPassword] = useState("")
   const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
+  const transferPending = useNotesAppStore((state) => state.backupOperation !== null)
   const activeWorkspaceLabel =
     workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.label ?? "Workspace"
 
@@ -259,6 +260,10 @@ export function NotesHeader({
   }
 
   const handleSigninSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    if (transferPending) {
+      event.preventDefault()
+      return
+    }
     const success = await onLoginSubmit(event)
     if (success) {
       closeAuthMenu()
@@ -267,6 +272,7 @@ export function NotesHeader({
 
   const handleSignupFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (transferPending) return
     const success = await onSignupSubmit({
       username: signupUsername,
       email: signupEmail,
@@ -281,6 +287,7 @@ export function NotesHeader({
     <Checkbox
       size="m"
       checked={pasteUrlAsMarkdown}
+      disabled={transferPending}
       onUpdate={onPasteUrlAsMarkdownChange}
       className={styles.userMenuPreference}
     >
@@ -297,6 +304,7 @@ export function NotesHeader({
       <Select
         size="s"
         value={[String(maxOpenNotes)]}
+        disabled={transferPending}
         onUpdate={([next]) => {
           if (next !== undefined) onMaxOpenNotesChange(Number(next))
         }}
@@ -421,7 +429,14 @@ export function NotesHeader({
                   onUpdate={onPasswordChange}
                   autoComplete="current-password"
                 />
-                <Button view="action" size="m" type="submit" loading={authPending} width="max">
+                <Button
+                  view="action"
+                  size="m"
+                  type="submit"
+                  loading={authPending}
+                  disabled={transferPending}
+                  width="max"
+                >
                   Sign in
                 </Button>
                 <Button
@@ -429,7 +444,7 @@ export function NotesHeader({
                   view="flat"
                   size="m"
                   width="max"
-                  disabled={authPending}
+                  disabled={authPending || transferPending}
                   onClick={(event) => {
                     event.preventDefault()
                     setAuthMode("signup")
@@ -480,7 +495,14 @@ export function NotesHeader({
                   onUpdate={setSignupPassword}
                   autoComplete="new-password"
                 />
-                <Button view="action" size="m" type="submit" loading={authPending} width="max">
+                <Button
+                  view="action"
+                  size="m"
+                  type="submit"
+                  loading={authPending}
+                  disabled={transferPending}
+                  width="max"
+                >
                   Create account
                 </Button>
                 <Button
@@ -488,7 +510,7 @@ export function NotesHeader({
                   view="flat"
                   size="m"
                   width="max"
-                  disabled={authPending}
+                  disabled={authPending || transferPending}
                   onClick={(event) => {
                     event.preventDefault()
                     setAuthMode("signin")
@@ -531,7 +553,7 @@ export function NotesHeader({
                   size="s"
                   width="max"
                   loading={embeddingMaintenancePending === "missing"}
-                  disabled={embeddingMaintenancePending !== null}
+                  disabled={embeddingMaintenancePending !== null || transferPending}
                   onClick={() => {
                     onRunEmbeddingMaintenance("missing")
                     setMenuOpen(false)
@@ -544,7 +566,7 @@ export function NotesHeader({
                   size="s"
                   width="max"
                   loading={embeddingMaintenancePending === "stale"}
-                  disabled={embeddingMaintenancePending !== null}
+                  disabled={embeddingMaintenancePending !== null || transferPending}
                   onClick={() => {
                     onRunEmbeddingMaintenance("stale")
                     setMenuOpen(false)
@@ -556,6 +578,7 @@ export function NotesHeader({
               <Button
                 view="flat-danger"
                 size="s"
+                disabled={transferPending}
                 onClick={() => {
                   onLogout()
                   setMenuOpen(false)
