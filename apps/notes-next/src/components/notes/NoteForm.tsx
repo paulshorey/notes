@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic"
 import { Button, Popup } from "@gravity-ui/uikit"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
-import { CalendarBlank, DotsThree, Plus, X } from "@phosphor-icons/react"
+import { CalendarBlank, DotsThree, FolderOpen, Plus, Tag, X } from "@phosphor-icons/react"
 import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
 import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-notes"
 import type { NoteFormState } from "@/types/notes"
@@ -78,10 +78,8 @@ export function NoteForm({
   const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [activeMorePicker, setActiveMorePicker] = useState<"status" | "tag" | null>(null)
 
-  const selectedCategoryLabel = form.selectedCategoryIds
-    .map((id) => categories.find((category) => category.id === id)?.label)
-    .filter((value): value is string => Boolean(value))
-    .join(", ")
+  const selectedCategoryLabel =
+    categories.find((category) => category.id === form.selectedCategoryIds[0])?.label ?? ""
   const addNoteCategoryLabel =
     categories.find((category) => category.id === form.selectedCategoryIds[0])?.label ??
     defaultCategoryLabel
@@ -142,11 +140,18 @@ export function NoteForm({
     onTagValuesChange([...selectedTagLabels, label])
   }
 
-  const removeTagLabel = (label: string) => {
+  const toggleTagLabel = (label: string) => {
     const normalized = normalizeLabel(label)
-    onTagValuesChange(
-      selectedTagLabels.filter((selectedLabel) => normalizeLabel(selectedLabel) !== normalized),
-    )
+    if (normalized === "") {
+      return
+    }
+    if (selectedTagLabelSet.has(normalized)) {
+      onTagValuesChange(
+        selectedTagLabels.filter((selectedLabel) => normalizeLabel(selectedLabel) !== normalized),
+      )
+      return
+    }
+    addTagLabel(label)
   }
 
   const expandDateField = (field: "due" | "remind") => {
@@ -261,11 +266,13 @@ export function NoteForm({
               value={selectedCategoryLabel || defaultCategoryLabel}
               triggerAriaLabel="Categories"
               listboxAriaLabel="Category options"
+              triggerIcon={
+                <FolderOpen size={14} weight="regular" className={styles.propertyPickerIcon} />
+              }
               options={categories}
               selectedIds={form.selectedCategoryIds}
               disabled={!userPresent}
               pending={createCategoryPending}
-              closeOnSelect={false}
               onOpenChange={(open) => {
                 if (open) closeMoreDropdown()
               }}
@@ -275,18 +282,25 @@ export function NoteForm({
               inputPlaceholder="Enter new category..."
             />
           </div>
-          {selectedTagLabels.map((label) => (
-            <button
-              key={normalizeLabel(label)}
-              type="button"
-              className={styles.selectedTag}
-              onClick={() => removeTagLabel(label)}
-              aria-label={`Remove tag ${label}`}
-            >
-              <X size={14} weight="bold" aria-hidden />
-              <span>{label}</span>
-            </button>
-          ))}
+          <FilterablePicker
+            variant="inline"
+            value={selectedTagLabels.join(", ") || "Tags"}
+            triggerAriaLabel="Tags"
+            listboxAriaLabel="Tag options"
+            triggerIcon={<Tag size={14} weight="regular" className={styles.propertyPickerIcon} />}
+            options={tags}
+            selectedIds={form.selectedTagIds}
+            disabled={!userPresent}
+            pending={createTagPending}
+            multiple
+            onOpenChange={(open) => {
+              if (open) closeMoreDropdown()
+            }}
+            onSelectOption={(tag) => toggleTagLabel(tag.label)}
+            onCreateOption={addTagLabel}
+            emptyWithoutQueryMessage="No tags yet"
+            inputPlaceholder="Enter new tag..."
+          />
           {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
           {form.remindExpanded &&
             renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
@@ -359,18 +373,19 @@ export function NoteForm({
                   value={selectedTagLabels.join(", ") || "None"}
                   triggerAriaLabel="Tags"
                   listboxAriaLabel="Tag options"
+                  triggerIcon={
+                    <Tag size={14} weight="regular" className={styles.propertyPickerIcon} />
+                  }
                   options={tags}
                   selectedIds={form.selectedTagIds}
                   pending={createTagPending}
+                  multiple
                   open={activeMorePicker === "tag"}
                   onOpenChange={(open) => updateMorePicker("tag", open)}
                   placement={["left-start", "right-start", "top-start", "bottom-start"]}
-                  closeOnSelect={false}
-                  closeOnCreate={false}
-                  excludeSelected
-                  onSelectOption={(tag) => addTagLabel(tag.label)}
+                  onSelectOption={(tag) => toggleTagLabel(tag.label)}
                   onCreateOption={addTagLabel}
-                  emptyWithoutQueryMessage="No more tags."
+                  emptyWithoutQueryMessage="No tags yet"
                   inputPlaceholder="Enter new tag..."
                 />
               </div>

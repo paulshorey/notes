@@ -46,7 +46,11 @@
 }
 
 .caret {
+  display: inline-flex;
   flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
 }
 
 .inline {

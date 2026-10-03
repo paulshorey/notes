@@ -31,6 +31,7 @@ export interface FilterablePickerPopupProps {
   onInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
   onInputSubmit: () => void
   onSelectOption: (option: FilterablePickerOption) => void
+  showOptionCheckboxes?: boolean
   isOptionActive?: (option: FilterablePickerOption) => boolean
   isOptionSelected?: (option: FilterablePickerOption) => boolean
   emptyWithQueryMessage?: (query: string) => ReactNode
@@ -52,6 +53,7 @@ export function FilterablePickerPopup({
   onInputKeyDown,
   onInputSubmit,
   onSelectOption,
+  showOptionCheckboxes = false,
   isOptionActive,
   isOptionSelected,
   emptyWithQueryMessage,
@@ -87,19 +89,32 @@ export function FilterablePickerPopup({
               )}
             </div>
           ) : (
-            options.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={styles.option}
-                data-active={isOptionActive?.(option) || undefined}
-                onClick={() => onSelectOption(option)}
-                role="option"
-                aria-selected={isOptionSelected?.(option) ?? false}
-              >
-                {option.label}
-              </button>
-            ))
+            options.map((option) => {
+              const selected = isOptionSelected?.(option) ?? false
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={styles.option}
+                  data-active={isOptionActive?.(option) || undefined}
+                  data-checked={selected || undefined}
+                  onClick={() => onSelectOption(option)}
+                  role="option"
+                  aria-selected={selected}
+                >
+                  {showOptionCheckboxes ? (
+                    <span
+                      className={styles.optionCheckbox}
+                      data-checked={selected || undefined}
+                      aria-hidden
+                    >
+                      {selected ? <span className={styles.optionCheckMark} /> : null}
+                    </span>
+                  ) : null}
+                  <span className={styles.optionLabel}>{option.label}</span>
+                </button>
+              )
+            })
           )}
           {options.length === 0 && trimmedInputValue === "" && emptyWithoutQueryMessage ? (
             <div className={styles.empty}>{emptyWithoutQueryMessage}</div>

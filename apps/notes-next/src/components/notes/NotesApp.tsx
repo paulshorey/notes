@@ -2591,10 +2591,10 @@ export default function NotesApp() {
     }
     if (activeKey === null) return
     patchEntry(activeKey, (entry) => {
-      const selected = entry.form.selectedCategoryIds.includes(category.id)
-      const next = selected
-        ? entry.form.selectedCategoryIds.filter((id) => id !== category.id)
-        : [...entry.form.selectedCategoryIds, category.id]
+      const alreadySoleSelection =
+        entry.form.selectedCategoryIds.length === 1 &&
+        entry.form.selectedCategoryIds[0] === category.id
+      const next = alreadySoleSelection ? [] : [category.id]
       return {
         form: { ...entry.form, selectedCategoryIds: next },
         categoryInputValue: next
@@ -2707,9 +2707,7 @@ export default function NotesApp() {
       patchEntry(targetKey, (entry) => ({
         form: {
           ...entry.form,
-          selectedCategoryIds: entry.form.selectedCategoryIds.includes(existingCategory.id)
-            ? entry.form.selectedCategoryIds
-            : [...entry.form.selectedCategoryIds, existingCategory.id],
+          selectedCategoryIds: [existingCategory.id],
         },
         categoryInputValue: existingCategory.label,
       }))
@@ -2733,9 +2731,7 @@ export default function NotesApp() {
       patchEntry(targetKey, (entry) => ({
         form: {
           ...entry.form,
-          selectedCategoryIds: entry.form.selectedCategoryIds.includes(data.category.id)
-            ? entry.form.selectedCategoryIds
-            : [...entry.form.selectedCategoryIds, data.category.id],
+          selectedCategoryIds: [data.category.id],
         },
         categoryInputValue: data.category.label,
       }))
