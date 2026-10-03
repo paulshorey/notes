@@ -105,6 +105,7 @@ export function FilterablePickerPopup({
                   {showOptionCheckboxes ? (
                     <span
                       className={styles.optionCheckbox}
+                      data-qa="filterable-picker-checkbox"
                       data-checked={selected || undefined}
                       aria-hidden
                     >
