@@ -24,6 +24,8 @@ import {
 import type { OpenNoteKey } from "@/stores/openNotes"
 import type { EmbeddingMaintenanceMode, NoteSaveStatus } from "@/types/notes"
 import styles from "./NotesHeader.module.css"
+import { BackupControls, BackupRestoreModal } from "./BackupControls"
+import type { RestoreBackupResponse } from "@lib/db-notes/contracts/notes-app"
 
 const OPEN_NOTES_CHOICES = [1, 3, 5, 10, 15, 20, 25]
 
@@ -171,6 +173,8 @@ export interface SignupFields {
 }
 
 interface NotesHeaderProps {
+  onDownloadBackup: () => Promise<void>
+  onRestoreBackup: (file: File) => Promise<RestoreBackupResponse>
   user: UserSummary
   isAnonymous: boolean
   resultsListVisible: boolean
@@ -201,6 +205,8 @@ interface NotesHeaderProps {
 }
 
 export function NotesHeader({
+  onDownloadBackup,
+  onRestoreBackup,
   user,
   isAnonymous,
   resultsListVisible,
@@ -231,6 +237,7 @@ export function NotesHeader({
 }: NotesHeaderProps) {
   const userBtnRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [restoreOpen, setRestoreOpen] = useState(false)
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [signupUsername, setSignupUsername] = useState("")
   const [signupEmail, setSignupEmail] = useState("")
@@ -347,6 +354,8 @@ export function NotesHeader({
           size="m"
           onClick={() => setMenuOpen((v) => !v)}
           className={styles.headerButton + " " + styles.headerButtonUser}
+          aria-label="Account menu"
+          aria-expanded={menuOpen}
         >
           <User size={18} weight="regular" className={styles.headerIcon} />
         </Button>
@@ -369,10 +378,25 @@ export function NotesHeader({
           />
         </Button>
       </span>
+      {restoreOpen && (
+        <BackupRestoreModal
+          opened
+          onClose={() => setRestoreOpen(false)}
+          onRestore={onRestoreBackup}
+        />
+      )}
       <Popup anchorRef={userBtnRef} open={menuOpen} onClose={closeAuthMenu} placement="bottom-end">
         <div className={styles.userMenu}>
           {pasteUrlPreference}
           {openNotesPreference}
+          <BackupControls
+            isAnonymous={isAnonymous}
+            onDownload={onDownloadBackup}
+            onOpenRestore={() => {
+              closeAuthMenu()
+              setRestoreOpen(true)
+            }}
+          />
           {isAnonymous ? (
             authMode === "signin" ? (
               <form

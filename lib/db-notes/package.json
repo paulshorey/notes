@@ -7,6 +7,7 @@
     ".": "./index.ts",
     "./notes-search-constants": "./notes-search-constants.ts",
     "./contracts/notes-app": "./contracts/notes-app.ts",
+    "./contracts/user-backup": "./contracts/user-backup.ts",
     "./db/postgres": "./lib/db/postgres.ts",
     "./generated/*": "./generated/*",
     "./generated/typescript/db-types": "./generated/typescript/db-types.ts",

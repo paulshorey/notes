@@ -24,6 +24,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
       merge/                — POST (real session merges anonymous data using the token)
       claim/                — POST (anonymous session upgrades itself into a permanent account in place)
     bootstrap/              — GET (user/workspaces + one workspace snapshot for startup/switching)
+    backup/                 — GET (JSON download), POST (validated atomic merge into permanent account)
     session/                — GET (authenticated user), PATCH (preferences)
     notes/                  — GET (list), POST (create), PATCH (update), DELETE
     tags/                   — GET (list), POST (create)
@@ -138,6 +139,10 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
 - `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/status/tag selector. It owns the value-and-caret trigger, filtered popup, focused create input, and single- versus multi-select closing behavior. Keep status and tag selectors inside `NoteForm`'s More menu; do not replace these with native selects or prompt dialogs.
 - Routes are wired through `app/api/_lib/notes-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
+- Backup routes use `_lib/backup-route-handlers.ts`. Before transfers, flush notes
+  and pending preference writes. Restore is additive: refresh bootstrap/cache
+  without resetting open-note drafts. Keep the restore modal outside the account
+  Popup so outside-click handling cannot unmount the portaled modal.
 - **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (Android, tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
 - This package validates Notes contracts, but it does not own Notes migration scripts.
 

@@ -45,6 +45,8 @@ import type {
   WorkspacesResponse,
 } from "../contracts/notes-app"
 import { getDb } from "../lib/db/postgres"
+import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
+export { BackupAccountError } from "../sql/user/backup"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "../notes-search-constants"
 import {
   createNoteForUser,
@@ -649,6 +651,8 @@ export const mergeAnonymousNotesAppSession = async (r: {
 }
 
 export const notesAppService = {
+  exportUserBackup,
+  restoreUserBackup,
   getNotesAppErrorStatus,
   getNotesAppSession,
   loginNotesAppUser,
