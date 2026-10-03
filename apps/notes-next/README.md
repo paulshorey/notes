@@ -51,7 +51,8 @@ This package only validates the Notes contract. It does not own migration script
 | Method                | Path                                | Purpose                                       |
 | --------------------- | ----------------------------------- | --------------------------------------------- |
 | GET                   | `/api/bootstrap`                    | Load workspaces and the active workspace      |
-| GET/POST              | `/api/session`                      | Look up user by userId or login by identifier |
+| GET/PATCH             | `/api/session`                      | Read session or update preferences            |
+| GET/POST              | `/api/backup`                       | Download backup or merge a backup into account |
 | GET/POST/PATCH/DELETE | `/api/notes`                        | List, create, update, delete notes            |
 | GET/POST/PATCH/DELETE | `/api/categories`                   | Manage workspace categories                   |
 | GET/POST/PATCH/DELETE | `/api/statuses`                     | Manage workspace statuses                     |
@@ -60,6 +61,34 @@ This package only validates the Notes contract. It does not own migration script
 | POST                  | `/api/notes/search`                 | Semantic search                               |
 | POST                  | `/api/notes/maintenance/embeddings` | Backfill or repair stale embeddings           |
 | GET                   | `/api/health`                       | Railway liveness probe                        |
+
+## Backup and restore
+
+Open the account menu and choose **Download backup** to save a versioned JSON
+file containing all workspaces, notes, categories, statuses, tags, relationships,
+dates, and preferences. The app saves pending notes and preferences first. Visitors
+can download a backup; restore requires signing in or creating an account.
+
+Choose **Restore backup…**, select the file, review its workspace and note counts,
+then choose **Merge backup into this account**. Existing notes remain intact.
+Workspaces and vocabulary with matching labels are combined; destination status
+positions are kept on collisions. Backup settings replace matching settings,
+while account-only settings survive. Changed versions of a note are kept alongside
+the existing version. Repeating an import skips exact copies, including the
+correct number of intentionally identical notes. The current editor stays open.
+
+Files are limited to 50 MiB and 100,000 records (workspaces, vocabulary, and notes
+combined). Passwords, login tokens, account identity/contact information, and
+generated search vectors are excluded. Store files securely: note text is plain
+JSON. After restoring, choose **Repair missing embeddings** in the account menu
+to include imported notes in semantic search; repeat if the result reports more
+remaining. Backup and restore themselves do not require a Jina API key.
+
+The complete file is validated before writes. Restore stages a temporary source
+and uses the same merge core as anonymous sign-in within one database transaction;
+a failure rolls back the whole import. The server always obtains the destination
+user from the cookie or bearer token, never from the backup. Format and API details
+are documented in [`notes-api.md`](../../lib/db-notes/contracts/notes-api.md).
 
 ## Production release notes
 

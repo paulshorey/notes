@@ -99,6 +99,10 @@ const authHeaders = { Authorization: `Bearer ${sampleApiToken}` }
 export const createFakeNotesAppService = (
   overrides: Partial<NotesAppService> = {},
 ): NotesAppService => ({
+  exportUserBackup: async () => {
+    throw new Error("Backup not configured in this test.")
+  },
+  restoreUserBackup: async () => ({ notesImported: 0, notesSkipped: 0 }),
   getNotesAppErrorStatus: () => 400,
   getNotesAppSession: async () => ({ user: sampleUser }),
   loginNotesAppUser: async () => ({ token: sampleApiToken, user: sampleUser }),
