@@ -81,7 +81,7 @@ src/                        — non-route code (import with "@/..." alias)
 
 The root layout reads Auth.js once and seeds `SessionProvider`, so returning users do not need a client-side session round trip before startup. `NotesApp` then calls `GET /api/bootstrap`, which authenticates once and loads the session, notes, categories, and tags in parallel. Keep this as the single cold-start data path; separate startup requests add auth and database work and can race one another.
 
-Every note belongs to exactly one active workspace, has multiple categories and tags, and may have one status. Category/status/tag ids must come from that same workspace. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
+Every note belongs to exactly one active workspace, has one category and multiple tags, and may have one status. Category/status/tag ids must come from that same workspace. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
 
 The local server-data snapshot may paint immediately for a returning user, but a failed refresh must not clear workspace-scoped open-note storage or other draft state. A first visit with no usable snapshot must finish in a visible, retryable error state; startup must never retry automatically in a loop.
 
@@ -137,7 +137,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 `noteSaveStatus` in `notesAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `NotesHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
 
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
-- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/status/tag selector. It owns the value-and-caret trigger, filtered popup, focused create input, and single- versus multi-select closing behavior. Keep status and tag selectors inside `NoteForm`'s More menu; do not replace these with native selects or prompt dialogs.
+- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/status/tag selector. It owns the value-and-icon trigger (`triggerIcon` replaces the default caret), filtered popup, focused create input, and `multiple` vs single-select behavior (checkboxes and staying open only when `multiple`). Keep the status selector inside `NoteForm`'s More menu; category and tags use the editor toolbar pickers. Do not replace these with native selects or prompt dialogs.
 - Routes are wired through `app/api/_lib/notes-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
 - Backup routes use `_lib/backup-route-handlers.ts`. Before transfers, flush notes
   and pending preference writes. Restore is additive: refresh bootstrap/cache

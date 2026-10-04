@@ -15,10 +15,14 @@ export interface FilterablePickerProps {
   onCreateOption: (label: string) => void | Promise<void>
   triggerLabel?: string
   triggerRole?: "menuitem"
+  /** Replaces the default caret. Parents can pass any styled icon markup. */
+  triggerIcon?: ReactNode
   variant?: "inline" | "header" | "menu"
   placement?: ComponentProps<typeof FilterablePickerPopup>["placement"]
   disabled?: boolean
   pending?: boolean
+  /** When true, selected options stay selected together and show checkboxes. */
+  multiple?: boolean
   closeOnSelect?: boolean
   closeOnCreate?: boolean
   excludeSelected?: boolean
@@ -38,12 +42,14 @@ export function FilterablePicker({
   onCreateOption,
   triggerLabel,
   triggerRole,
+  triggerIcon,
   variant = "inline",
   placement,
   disabled = false,
   pending = false,
-  closeOnSelect = true,
-  closeOnCreate = true,
+  multiple = false,
+  closeOnSelect = !multiple,
+  closeOnCreate = !multiple,
   excludeSelected = false,
   emptyWithoutQueryMessage = null,
   inputPlaceholder = "Enter new...",
@@ -57,7 +63,14 @@ export function FilterablePicker({
   const [submitting, setSubmitting] = useState(false)
   const open = controlledOpen ?? internalOpen
   const interactionDisabled = disabled || pending || submitting
-  const selectedIdSet = useMemo(() => new Set(selectedIds.map((id) => String(id))), [selectedIds])
+  const selectedIdSet = useMemo(() => {
+    const ids = selectedIds.map((id) => String(id))
+    if (multiple || ids.length <= 1) {
+      return new Set(ids)
+    }
+    // Single-select only highlights one value even if a parent still holds extras.
+    return new Set([ids[0]])
+  }, [multiple, selectedIds])
   const filteredOptions = useMemo(() => {
     const query = inputValue.trim().toLocaleLowerCase()
     return options.filter((option) => {
@@ -143,9 +156,11 @@ export function FilterablePicker({
         aria-haspopup="dialog"
         role={triggerRole}
       >
-        <CaretDown size={16} weight="bold" className={styles.caret} aria-hidden />
+        <span className={styles.caret} aria-hidden>
+          {triggerIcon ?? <CaretDown size={16} weight="bold" />}
+        </span>
         {triggerLabel ? <span className={styles.triggerLabel}>{triggerLabel}</span> : null}
-        <span className={styles.triggerValue}>{value}</span>
+        {value ? <span className={styles.triggerValue}>{value}</span> : null}
       </button>
 
       <FilterablePickerPopup
@@ -173,6 +188,7 @@ export function FilterablePicker({
         }}
         onInputSubmit={submitInput}
         onSelectOption={selectOption}
+        showOptionCheckboxes={multiple}
         isOptionActive={(option) => selectedIdSet.has(String(option.id))}
         isOptionSelected={(option) => selectedIdSet.has(String(option.id))}
         emptyWithoutQueryMessage={emptyWithoutQueryMessage}
