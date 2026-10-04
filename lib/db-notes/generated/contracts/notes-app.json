@@ -1372,6 +1372,279 @@
           "nullable": false
         }
       ]
+    },
+    "UserBackup": {
+      "fields": [
+        {
+          "name": "format",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "version",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "exportedAt",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "preferences",
+          "optional": false,
+          "kind": "model",
+          "type": "UserPreferences",
+          "nullable": false
+        },
+        {
+          "name": "activeWorkspaceLabel",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "workspaces",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "BackupWorkspace"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "BackupVocabulary": {
+      "fields": [
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeCreated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeModified",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "BackupStatus": {
+      "fields": [
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "position",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "timeCreated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeModified",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "BackupWorkspace": {
+      "fields": [
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeCreated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeModified",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "categories",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "BackupVocabulary"
+          },
+          "nullable": false
+        },
+        {
+          "name": "statuses",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "BackupStatus"
+          },
+          "nullable": false
+        },
+        {
+          "name": "tags",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "BackupVocabulary"
+          },
+          "nullable": false
+        },
+        {
+          "name": "notes",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "BackupNote"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "BackupNote": {
+      "fields": [
+        {
+          "name": "description",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "categories",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "scalar",
+            "type": "string"
+          },
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "scalar",
+            "type": "string"
+          },
+          "nullable": false
+        },
+        {
+          "name": "timeDue",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeRemind",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeCreated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeModified",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "RestoreBackupRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "backup",
+          "optional": false,
+          "kind": "model",
+          "type": "UserBackup",
+          "nullable": false
+        }
+      ]
+    },
+    "RestoreBackupResponse": {
+      "fields": [
+        {
+          "name": "notesImported",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "notesSkipped",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
     }
   }
 }

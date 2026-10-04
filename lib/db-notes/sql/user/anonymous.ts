@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto"
+import type { PoolClient } from "pg"
+import type { RestoreBackupResponse } from "../../contracts/notes-app"
+import { noteMergeIdentities } from "./note-merge-identity"
 import type { UserV1Row } from "../../generated/typescript/db-types"
 import { getDb } from "../../lib/db/postgres"
 import { ensureDefaultWorkspaceForUser } from "../workspace"
@@ -205,148 +208,173 @@ export const mergePreferenceObjects = (
   return merged
 }
 
+/** Transaction-scoped core shared by sign-in merges and backup restore.
+ * The caller owns BEGIN/COMMIT; never acquire another pool connection here.
+ */
+export const mergeAnonymousUserIntoWithClient = async (
+  client: PoolClient,
+  anonUserId: number,
+  realUserId: number,
+  { deduplicateNotes = false }: { deduplicateNotes?: boolean } = {},
+): Promise<RestoreBackupResponse> => {
+  const result: RestoreBackupResponse = { notesImported: 0, notesSkipped: 0 }
+  // FOR UPDATE is load-bearing: it serializes this merge against a
+  // concurrent claimAnonymousUser of the same row. Without it the merge
+  // could pass this check, wait on the claim's row lock, and then delete a
+  // row that had just become a permanent account. Locking here makes the
+  // read see the latest committed state, so a claimed row fails the check.
+  const anonCheck = await client.query<{
+    is_anonymous: boolean
+    preferences: unknown
+  }>(`SELECT is_anonymous, preferences FROM public.user_v1 WHERE id = $1 FOR UPDATE`, [anonUserId])
+  if (!anonCheck.rows[0]?.is_anonymous) {
+    throw new Error("Source user is not anonymous.")
+  }
+
+  const realCheck = await client.query<{
+    is_anonymous: boolean
+    preferences: unknown
+  }>(`SELECT is_anonymous, preferences FROM public.user_v1 WHERE id = $1 FOR UPDATE`, [realUserId])
+  if (!realCheck.rows[0] || realCheck.rows[0].is_anonymous) {
+    throw new Error("Destination user is anonymous or does not exist.")
+  }
+
+  // Carry the visitor's explicitly-set UI preferences into the real account
+  // (per-property; see mergePreferenceObjects) before the anon row is
+  // deleted below.
+  const anonPreferences = anonCheck.rows[0].preferences
+  const realPreferences = realCheck.rows[0].preferences
+  if (isPlainObject(anonPreferences) && Object.keys(anonPreferences).length > 0) {
+    const mergedPreferences = mergePreferenceObjects(
+      isPlainObject(realPreferences) ? realPreferences : {},
+      anonPreferences,
+    )
+    await client.query(`UPDATE public.user_v1 SET preferences = $2::jsonb WHERE id = $1`, [
+      realUserId,
+      JSON.stringify(mergedPreferences),
+    ])
+  }
+
+  const anonWorkspaces = await client.query<{
+    id: number
+    label: string
+    time_created: Date
+    time_modified: Date
+  }>(
+    `SELECT id,label,time_created,time_modified FROM public.user_workspace_v1 WHERE user_id=$1 ORDER BY id`,
+    [anonUserId],
+  )
+  for (const source of anonWorkspaces.rows) {
+    const collision = await client.query<{ id: number }>(
+      `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 AND label=$2`,
+      [realUserId, source.label],
+    )
+    if (!collision.rows[0] && !deduplicateNotes) {
+      await client.query(`UPDATE public.user_workspace_v1 SET user_id=$1 WHERE id=$2`, [
+        realUserId,
+        source.id,
+      ])
+      continue
+    }
+    let destinationId = collision.rows[0]?.id
+    if (!destinationId) {
+      const inserted = await client.query<{ id: number }>(
+        `INSERT INTO public.user_workspace_v1(user_id,label,time_created,time_modified)
+         VALUES($1,$2,$3,$4) RETURNING id`,
+        [realUserId, source.label, source.time_created, source.time_modified],
+      )
+      destinationId = inserted.rows[0]!.id
+    }
+    const existingCounts = new Map<string, number>()
+    const sourceIdentities = deduplicateNotes
+      ? await noteMergeIdentities(client, source.id)
+      : new Map<number, string>()
+    if (deduplicateNotes) {
+      for (const signature of (await noteMergeIdentities(client, destinationId)).values()) {
+        existingCounts.set(signature, (existingCounts.get(signature) ?? 0) + 1)
+      }
+    }
+    await client.query(
+      `INSERT INTO public.workspace_note_category_v1(workspace_id,label,category_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
+      SELECT $1,label,category_embedding,embedding_model,embedding_updated_at,time_created,time_modified FROM public.workspace_note_category_v1 WHERE workspace_id=$2
+      ON CONFLICT(workspace_id,label) DO NOTHING`,
+      [destinationId, source.id],
+    )
+    await client.query(
+      `INSERT INTO public.workspace_note_status_v1(workspace_id,label,position,time_created,time_modified)
+      SELECT $1,label,position,time_created,time_modified FROM public.workspace_note_status_v1 WHERE workspace_id=$2
+      ON CONFLICT(workspace_id,label) DO NOTHING`,
+      [destinationId, source.id],
+    )
+    await client.query(
+      `INSERT INTO public.workspace_note_tag_v1(workspace_id,label,tag_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
+      SELECT $1,label,tag_embedding,embedding_model,embedding_updated_at,time_created,time_modified FROM public.workspace_note_tag_v1 WHERE workspace_id=$2
+      ON CONFLICT(workspace_id,label) DO NOTHING`,
+      [destinationId, source.id],
+    )
+    const skippedIds: number[] = []
+    for (const [id, signature] of sourceIdentities) {
+      const copies = existingCounts.get(signature) ?? 0
+      if (copies > 0) {
+        existingCounts.set(signature, copies - 1)
+        skippedIds.push(id)
+      }
+    }
+    // Allocate a stable id map once, then copy notes and both relation sets in
+    // batches. MATERIALIZED keeps nextval from being evaluated more than once.
+    const copied = await client.query<{ source_id: number; destination_id: number }>(
+      `WITH note_map AS MATERIALIZED (
+        SELECT n.*,nextval('public.user_note_v1_id_seq')::int new_id
+        FROM public.user_note_v1 n WHERE n.workspace_id=$2 AND n.id<>ALL($3::int[]) ORDER BY n.id
+      ), inserted AS (
+        INSERT INTO public.user_note_v1(id,workspace_id,status_id,description,time_due,time_remind,
+          description_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
+        SELECT m.new_id,$1,ds.id,m.description,m.time_due,m.time_remind,
+          m.description_embedding,m.embedding_model,m.embedding_updated_at,m.time_created,m.time_modified
+        FROM note_map m
+        LEFT JOIN public.workspace_note_status_v1 ss ON ss.id=m.status_id AND ss.workspace_id=$2
+        LEFT JOIN public.workspace_note_status_v1 ds ON ds.workspace_id=$1 AND ds.label=ss.label
+        RETURNING id
+      ) SELECT m.id source_id,m.new_id destination_id FROM note_map m JOIN inserted i ON i.id=m.new_id`,
+      [destinationId, source.id, skippedIds],
+    )
+    const sourceIds = copied.rows.map((row) => row.source_id)
+    const destinationIds = copied.rows.map((row) => row.destination_id)
+    await client.query(
+      `INSERT INTO public.user_note_category_link_v1(note_id,category_id,workspace_id)
+       SELECT m.destination_id,dc.id,$3 FROM unnest($1::int[],$2::int[]) m(source_id,destination_id)
+       JOIN public.user_note_category_link_v1 l ON l.note_id=m.source_id
+       JOIN public.workspace_note_category_v1 sc ON sc.id=l.category_id
+       JOIN public.workspace_note_category_v1 dc ON dc.workspace_id=$3 AND dc.label=sc.label`,
+      [sourceIds, destinationIds, destinationId],
+    )
+    await client.query(
+      `INSERT INTO public.user_note_tag_link_v1(note_id,tag_id,workspace_id)
+       SELECT m.destination_id,dt.id,$3 FROM unnest($1::int[],$2::int[]) m(source_id,destination_id)
+       JOIN public.user_note_tag_link_v1 l ON l.note_id=m.source_id
+       JOIN public.workspace_note_tag_v1 st ON st.id=l.tag_id
+       JOIN public.workspace_note_tag_v1 dt ON dt.workspace_id=$3 AND dt.label=st.label`,
+      [sourceIds, destinationIds, destinationId],
+    )
+    result.notesImported += copied.rows.length
+    result.notesSkipped += skippedIds.length
+    await client.query(`DELETE FROM public.user_workspace_v1 WHERE id=$1`, [source.id])
+  }
+
+  // Delete anon user — CASCADE removes orphaned anon categories/tags
+  await client.query(`DELETE FROM public.user_v1 WHERE id = $1`, [anonUserId])
+
+  return result
+}
+
 export const mergeAnonymousUserInto = async (
   anonUserId: number,
   realUserId: number,
 ): Promise<void> => {
-  const db = getDb()
-  const client = await db.connect()
-
+  const client = await getDb().connect()
   try {
     await client.query("BEGIN")
-
-    // FOR UPDATE is load-bearing: it serializes this merge against a
-    // concurrent claimAnonymousUser of the same row. Without it the merge
-    // could pass this check, wait on the claim's row lock, and then delete a
-    // row that had just become a permanent account. Locking here makes the
-    // read see the latest committed state, so a claimed row fails the check.
-    const anonCheck = await client.query<{
-      is_anonymous: boolean
-      preferences: unknown
-    }>(`SELECT is_anonymous, preferences FROM public.user_v1 WHERE id = $1 FOR UPDATE`, [
-      anonUserId,
-    ])
-    if (!anonCheck.rows[0]?.is_anonymous) {
-      throw new Error("Source user is not anonymous.")
-    }
-
-    const realCheck = await client.query<{
-      is_anonymous: boolean
-      preferences: unknown
-    }>(`SELECT is_anonymous, preferences FROM public.user_v1 WHERE id = $1 FOR UPDATE`, [
-      realUserId,
-    ])
-    if (!realCheck.rows[0] || realCheck.rows[0].is_anonymous) {
-      throw new Error("Destination user is anonymous or does not exist.")
-    }
-
-    // Carry the visitor's explicitly-set UI preferences into the real account
-    // (per-property; see mergePreferenceObjects) before the anon row is
-    // deleted below.
-    const anonPreferences = anonCheck.rows[0].preferences
-    const realPreferences = realCheck.rows[0].preferences
-    if (isPlainObject(anonPreferences) && Object.keys(anonPreferences).length > 0) {
-      const mergedPreferences = mergePreferenceObjects(
-        isPlainObject(realPreferences) ? realPreferences : {},
-        anonPreferences,
-      )
-      await client.query(`UPDATE public.user_v1 SET preferences = $2::jsonb WHERE id = $1`, [
-        realUserId,
-        JSON.stringify(mergedPreferences),
-      ])
-    }
-
-    const anonWorkspaces = await client.query<{ id: number; label: string }>(
-      `SELECT id,label FROM public.user_workspace_v1 WHERE user_id=$1 ORDER BY id`,
-      [anonUserId],
-    )
-    for (const source of anonWorkspaces.rows) {
-      const collision = await client.query<{ id: number }>(
-        `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 AND label=$2`,
-        [realUserId, source.label],
-      )
-      if (!collision.rows[0]) {
-        await client.query(`UPDATE public.user_workspace_v1 SET user_id=$1 WHERE id=$2`, [
-          realUserId,
-          source.id,
-        ])
-        continue
-      }
-      const destinationId = collision.rows[0].id
-      await client.query(
-        `INSERT INTO public.workspace_note_category_v1(workspace_id,label,category_embedding,embedding_model,embedding_updated_at)
-        SELECT $1,label,category_embedding,embedding_model,embedding_updated_at FROM public.workspace_note_category_v1 WHERE workspace_id=$2
-        ON CONFLICT(workspace_id,label) DO NOTHING`,
-        [destinationId, source.id],
-      )
-      await client.query(
-        `INSERT INTO public.workspace_note_status_v1(workspace_id,label,position)
-        SELECT $1,label,position FROM public.workspace_note_status_v1 WHERE workspace_id=$2
-        ON CONFLICT(workspace_id,label) DO NOTHING`,
-        [destinationId, source.id],
-      )
-      await client.query(
-        `INSERT INTO public.workspace_note_tag_v1(workspace_id,label,tag_embedding,embedding_model,embedding_updated_at)
-        SELECT $1,label,tag_embedding,embedding_model,embedding_updated_at FROM public.workspace_note_tag_v1 WHERE workspace_id=$2
-        ON CONFLICT(workspace_id,label) DO NOTHING`,
-        [destinationId, source.id],
-      )
-      const notes = await client.query<{
-        id: number
-        status_id: number | null
-        description: string | null
-        time_due: Date | null
-        time_remind: Date | null
-        description_embedding: string | null
-        embedding_model: string | null
-        embedding_updated_at: Date | null
-      }>(
-        `SELECT id,status_id,description,time_due,time_remind,description_embedding,embedding_model,embedding_updated_at
-         FROM public.user_note_v1 WHERE workspace_id=$1 ORDER BY id`,
-        [source.id],
-      )
-      for (const note of notes.rows) {
-        const inserted = await client.query<{ id: number }>(
-          `INSERT INTO public.user_note_v1(workspace_id,status_id,description,time_due,time_remind,description_embedding,embedding_model,embedding_updated_at)
-          SELECT $1,ds.id,$3,$4,$5,$6::vector,$7,$8 FROM (SELECT 1) seed
-          LEFT JOIN public.workspace_note_status_v1 ss ON ss.id=$2 AND ss.workspace_id=$9
-          LEFT JOIN public.workspace_note_status_v1 ds ON ds.workspace_id=$1 AND ds.label=ss.label
-          RETURNING id`,
-          [
-            destinationId,
-            note.status_id,
-            note.description,
-            note.time_due,
-            note.time_remind,
-            note.description_embedding,
-            note.embedding_model,
-            note.embedding_updated_at,
-            source.id,
-          ],
-        )
-        const newId = inserted.rows[0]!.id
-        await client.query(
-          `INSERT INTO public.user_note_category_link_v1(note_id,category_id,workspace_id)
-          SELECT $1,dc.id,$2 FROM public.user_note_category_link_v1 l
-          JOIN public.workspace_note_category_v1 sc ON sc.id=l.category_id
-          JOIN public.workspace_note_category_v1 dc ON dc.workspace_id=$2 AND dc.label=sc.label WHERE l.note_id=$3`,
-          [newId, destinationId, note.id],
-        )
-        await client.query(
-          `INSERT INTO public.user_note_tag_link_v1(note_id,tag_id,workspace_id)
-          SELECT $1,dt.id,$2 FROM public.user_note_tag_link_v1 l
-          JOIN public.workspace_note_tag_v1 st ON st.id=l.tag_id
-          JOIN public.workspace_note_tag_v1 dt ON dt.workspace_id=$2 AND dt.label=st.label WHERE l.note_id=$3`,
-          [newId, destinationId, note.id],
-        )
-        await client.query(`DELETE FROM public.user_note_v1 WHERE id=$1`, [note.id])
-      }
-      await client.query(`DELETE FROM public.user_workspace_v1 WHERE id=$1`, [source.id])
-    }
-
-    // Delete anon user — CASCADE removes orphaned anon categories/tags
-    await client.query(`DELETE FROM public.user_v1 WHERE id = $1`, [anonUserId])
-
+    await mergeAnonymousUserIntoWithClient(client, anonUserId, realUserId)
     await client.query("COMMIT")
   } catch (error) {
     await client.query("ROLLBACK")

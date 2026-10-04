@@ -21,6 +21,7 @@ import {
 } from "./openNotes"
 
 type State = OpenNotesState & {
+  backupOperation: "download" | "restore" | null
   /**
    * Whether the notes results column is visible. On mobile this controls the
    * sliding panel; on desktop it controls the resizable results column.
@@ -44,6 +45,7 @@ type State = OpenNotesState & {
 }
 
 type Actions = {
+  setBackupOperation: (operation: "download" | "restore" | null) => void
   resetDefaultState: () => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
   setSelectedTagId: (tagId: number | null) => void
@@ -75,6 +77,7 @@ type Actions = {
 export type NotesAppStore = State & Actions
 
 const defaultState: State = {
+  backupOperation: null,
   ...createEmptyOpenNotesState(),
   resultsListVisible: true,
   selectedTagId: null,
@@ -91,6 +94,7 @@ const openNotesSlice = (state: State): OpenNotesState => ({
 
 export const useNotesAppStore = create<NotesAppStore>((set, get) => ({
   ...defaultState,
+  setBackupOperation: (backupOperation) => set({ backupOperation }),
   resetDefaultState: () => {
     set({ ...defaultState, ...createEmptyOpenNotesState() })
   },

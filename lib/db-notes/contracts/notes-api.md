@@ -297,6 +297,68 @@ The expected checks are:
 - `pnpm --filter notes-android test`
 - `pnpm --filter notes-android build`
 
+## User backup and restore
+
+Both methods use `/api/backup` and the normal authenticated cookie or bearer token.
+Client-supplied account ids and identity fields are ignored. Responses use
+`Cache-Control: no-store`.
+
+- `GET`: returns a downloadable JSON attachment, named
+  `jot-new-backup-YYYY-MM-DD.json`. Anonymous sessions may export.
+- `POST`: accepts the **entire backup file** as `application/json` (not wrapped
+  in an object or multipart form). The destination must be a permanent account.
+  Success `200` returns `{ "notesImported": 12, "notesSkipped": 3 }`.
+- Errors: `400` invalid format/version/content/relations, `401` unauthenticated or
+  deleted user, `403` anonymous restore target, `413` over 50 MiB, `415` incorrect
+  content type, `503` unavailable database, `500` unexpected operation failure.
+  Internal SQL and connection details are never returned.
+
+Version 1 is defined by `UserBackup`, `BackupWorkspace`, `BackupVocabulary`,
+`BackupStatus`, and `BackupNote` in `notes-app.ts`. Its envelope contains:
+
+```json
+{
+  "format": "jot.new-user-backup",
+  "version": 1,
+  "exportedAt": "2026-10-03T12:00:00.000Z",
+  "preferences": {},
+  "activeWorkspaceLabel": null,
+  "workspaces": []
+}
+```
+
+The envelope example omits workspace contents for brevity; a valid file contains
+at least one workspace. Each workspace contains its label, creation/modification
+timestamps, categories, statuses (including ordering), tags, and notes. Note
+relationships use workspace-local labels, not database ids. Notes carry nullable
+text, due/reminder dates, and original creation/modification timestamps. Unused
+vocabulary and empty workspaces are included. The active workspace preference is
+remapped by label into the destination account. Other preference keys are retained
+for forward compatibility; unsafe object keys and excessive nesting are rejected.
+
+The backup excludes authentication credentials/tokens, account identifiers/contact
+information, generated vectors, and browser-only editor/cache state. The web UI
+flushes saveable drafts and preferences before exporting. Restore has no Jina
+dependency; the existing `missing` embedding maintenance endpoint rebuilds search
+vectors afterward. Unknown backup versions are rejected rather than guessed.
+
+Export uses a repeatable-read, read-only transaction so every query sees one
+consistent snapshot. Restore validates the complete file, stages an anonymous
+source, calls the transaction-scoped anonymous merge, and removes that source,
+all on one PostgreSQL client within one transaction. It locks the destination
+user to serialize competing imports. A failure rolls back staging and merging.
+
+Merge rules: matching workspace/vocabulary labels combine; existing destination
+vocabulary metadata/ordering wins on collisions; distinct workspaces/vocabulary
+retain original timestamps; destination notes are never overwritten or deleted;
+backup preference leaves win, and account-only keys survive. Exact note copies
+match by creation time, description, due/reminder dates, status, and category/tag
+labels. Modified time does not force duplication of otherwise identical content.
+Copy counts preserve identical twin notes while repeated imports remain stable.
+Changed versions are added alongside existing notes. Uploads are bounded by actual
+streamed bytes as well as declared length and by 100,000 aggregate records; export
+refuses files that could not subsequently be restored under these limits.
+
 ## Android Base URLs
 
 The Android APK talks to a deployed `notes-next` over HTTPS. It does not read

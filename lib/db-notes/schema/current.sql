@@ -38,11 +38,11 @@ CREATE FUNCTION public.apply_row_timestamps_v1() RETURNS trigger
 BEGIN
   IF TG_OP = 'INSERT' THEN
     NEW.time_created := COALESCE(NEW.time_created, CURRENT_TIMESTAMP);
+    NEW.time_modified := COALESCE(NEW.time_modified, CURRENT_TIMESTAMP);
   ELSE
     NEW.time_created := OLD.time_created;
+    NEW.time_modified := CURRENT_TIMESTAMP;
   END IF;
-
-  NEW.time_modified := CURRENT_TIMESTAMP;
   RETURN NEW;
 END;
 $$;

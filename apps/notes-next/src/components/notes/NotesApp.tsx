@@ -22,6 +22,7 @@ import type {
   StatusRecord,
   WorkspaceRecord,
 } from "@lib/db-notes"
+import type { RestoreBackupResponse } from "@lib/db-notes/contracts/notes-app"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-notes/notes-search-constants"
 import {
   type CSSProperties,
@@ -416,6 +417,7 @@ export default function NotesApp() {
   const { data: authSession, status: authStatus } = useSession()
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
+  const backupOperation = useNotesAppStore((s) => s.backupOperation)
   const [user, setUser] = useState<UserSummary | null>(null)
   const [userPreferences, setUserPreferences] = useState<UserPreferences>({})
   const [notes, setNotes] = useState<NoteRecord[]>([])
@@ -517,6 +519,7 @@ export default function NotesApp() {
   // the tab is visible again.
   const exitKeepaliveKeysRef = useRef(new Set<OpenNoteKey>())
   const creatingTagLabelsRef = useRef(new Set<string>())
+  const preferenceSavesInFlightRef = useRef(new Set<Promise<void>>())
   const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
   const preferenceSaveRequestIdRef = useRef(0)
   const mobileResultsOverlayTimeoutRef = useRef<number | null>(null)
@@ -1344,7 +1347,7 @@ export default function NotesApp() {
   ])
 
   useEffect(() => {
-    if (!user) return
+    if (!user || backupOperation !== null) return
 
     const serializedPreferences = serializeUserPreferences(userPreferences)
     if (serializedPreferences === lastSavedPreferencesRef.current) return
@@ -1353,7 +1356,8 @@ export default function NotesApp() {
     preferenceSaveRequestIdRef.current = requestId
 
     const timeoutId = window.setTimeout(() => {
-      void fetch("/api/session", {
+      if (useNotesAppStore.getState().backupOperation !== null) return
+      const pendingSave = fetch("/api/session", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1382,10 +1386,12 @@ export default function NotesApp() {
           if (preferenceSaveRequestIdRef.current !== requestId) return
           setErrorMessage(getErrorMessage(error))
         })
+        .finally(() => preferenceSavesInFlightRef.current.delete(pendingSave))
+      preferenceSavesInFlightRef.current.add(pendingSave)
     }, PREFERENCES_SAVE_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timeoutId)
-  }, [clampResultsColumnWidth, user, userPreferences])
+  }, [backupOperation, clampResultsColumnWidth, user, userPreferences])
 
   useEffect(() => {
     if (!user) return
@@ -2399,6 +2405,107 @@ export default function NotesApp() {
     clearMessages()
   }
 
+  const prepareDataTransfer = async () => {
+    if (!user) throw new Error("Sign in before managing your data.")
+    if (!(await flushAllPendingSaves())) {
+      throw new Error("Couldn't save all your notes. Check your connection and try again.")
+    }
+    persistOpenNotes()
+    // A debounced preference PATCH must finish before export/restore, or it
+    // could miss the backup or overwrite preferences imported moments later.
+    preferenceSaveRequestIdRef.current++
+    await Promise.all([...preferenceSavesInFlightRef.current])
+    const preferences = userPreferencesRef.current
+    if (serializeUserPreferences(preferences) !== lastSavedPreferencesRef.current) {
+      const data = await readJson<SessionResponse>(
+        await fetch("/api/session", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ preferences }),
+        }),
+      )
+      applyLoadedUser(data.user)
+    }
+  }
+
+  const handleDownloadBackup = async () => {
+    const store = useNotesAppStore.getState()
+    if (store.backupOperation !== null) return
+    store.setBackupOperation("download")
+    try {
+      await prepareDataTransfer()
+      const response = await fetchWithTimeout("/api/backup", { cache: "no-store" }, 120_000)
+      if (!response.ok) await readJson(response)
+      const url = URL.createObjectURL(await response.blob())
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `jot-new-backup-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setStatusMessage("Your backup download has started.")
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+      throw error
+    } finally {
+      store.setBackupOperation(null)
+    }
+  }
+
+  const handleRestoreBackup = async (file: File): Promise<RestoreBackupResponse> => {
+    const store = useNotesAppStore.getState()
+    if (store.backupOperation !== null) throw new Error("A backup operation is already running.")
+    if (!user) throw new Error("Sign in before restoring a backup.")
+    store.setBackupOperation("restore")
+    try {
+      await prepareDataTransfer()
+      const result = await readJson<RestoreBackupResponse>(
+        await fetchWithTimeout(
+          "/api/backup",
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: file },
+          120_000,
+        ),
+      )
+      // Merge is additive, so keep the current workspace and every open editor
+      // entry. Refresh server data and cache without tearing down draft storage.
+      try {
+        const data = await readJson<BootstrapResponse>(
+          await fetch(`/api/bootstrap?workspaceId=${activeWorkspaceIdRef.current}`, {
+            cache: "no-store",
+          }),
+        )
+        if (data.user.id !== user.id) throw new Error("The active account changed.")
+        applyLoadedUser(data.user)
+        setWorkspaces(data.workspaces)
+        setNotes(data.notes)
+        setCategories(data.categories)
+        setStatuses(data.statuses)
+        setTags(data.tags)
+        setSearchResults([])
+        writeNotesCache({
+          userId: user.id,
+          user: data.user,
+          workspaces: data.workspaces,
+          activeWorkspaceId: data.activeWorkspaceId,
+          notes: data.notes,
+          categories: data.categories,
+          statuses: data.statuses,
+          tags: data.tags,
+        })
+      } catch {
+        // The committed import succeeded. Show that result even if the refresh
+        // failed; an explicit retry is safe because exact copies are skipped.
+        setErrorMessage(
+          "Your backup was restored, but the view couldn't refresh. Reload to see the imported data.",
+        )
+      }
+      return result
+    } finally {
+      store.setBackupOperation(null)
+    }
+  }
+
   const handleSwitchWorkspace = async (workspaceId: number) => {
     if (!user || workspaceId === activeWorkspaceId) return
     if (!(await flushAllPendingSaves())) {
@@ -3226,10 +3333,12 @@ export default function NotesApp() {
         onDismissSearchError={() => setSearchErrorMessage(null)}
       />
 
-      <div className={styles.content} ref={contentRef}>
+      <div className={styles.content} ref={contentRef} inert={backupOperation !== null}>
         <div className={styles.editorColumn}>
           <div className={styles.header}>
             <NotesHeader
+              onDownloadBackup={handleDownloadBackup}
+              onRestoreBackup={handleRestoreBackup}
               user={user}
               isAnonymous={authSession?.user?.isAnonymous ?? false}
               resultsListVisible={resultsListVisible}

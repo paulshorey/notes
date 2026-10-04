@@ -25,6 +25,11 @@ Database-first package for the `DB_NOTES_URL` database.
 
 - `lib/db/postgres.ts`: process-wide connection pool for app/runtime code. It defaults to one connection so cold, parallel Next.js requests do not burst connections through a remote proxy; set `PG_POOL_MAX` explicitly when a deployment needs more concurrency.
 - `services/notes-app.ts`: shared Notes app workflow layer for web and Android servers
+- `contracts/user-backup.ts`: versioned portable-backup validation and size limits;
+  safe to import in the browser.
+- `sql/user/backup.ts`: snapshot export and atomic staged restore. Restore calls
+  `mergeAnonymousUserIntoWithClient` on the same client/transaction; do not use
+  the pool-acquiring merge wrapper inside a transaction (pool defaults to one).
 
 ## Notes
 
@@ -75,8 +80,9 @@ Database-first package for the `DB_NOTES_URL` database.
   databases; CI's verify-notes job runs it against its throwaway migrated
   container.
 - Users, workspaces, workspace vocabulary, and notes share the `apply_row_timestamps_v1()` trigger
-  function so `time_modified` refreshes automatically on insert/update while
-  `time_created` stays stable after insert.
+  function. Inserts preserve explicitly supplied creation/modification timestamps
+  for restore and otherwise use defaults. Updates refresh `time_modified` and
+  keep `time_created` stable.
 - Fresh empty DB: run `pnpm --filter @lib/db-notes db:migrate`, then
   `db:verify`.
 - Existing pre-migration DB with baseline schema already present: run

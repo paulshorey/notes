@@ -323,3 +323,57 @@ export interface DeleteResponse {
 export interface ErrorResponse {
   error: string
 }
+
+/** Portable user data; credentials and generated search vectors are excluded. */
+export interface UserBackup {
+  format: string
+  version: number
+  exportedAt: string
+  preferences: UserPreferences
+  activeWorkspaceLabel: string | null
+  workspaces: BackupWorkspace[]
+}
+
+export interface BackupVocabulary {
+  label: string
+  timeCreated: string
+  timeModified: string
+}
+
+export interface BackupStatus {
+  label: string
+  position: number
+  timeCreated: string
+  timeModified: string
+}
+
+export interface BackupWorkspace {
+  label: string
+  timeCreated: string
+  timeModified: string
+  categories: BackupVocabulary[]
+  statuses: BackupStatus[]
+  tags: BackupVocabulary[]
+  notes: BackupNote[]
+}
+
+export interface BackupNote {
+  description: string | null
+  categories: string[]
+  status: string | null
+  tags: string[]
+  timeDue: string | null
+  timeRemind: string | null
+  timeCreated: string
+  timeModified: string
+}
+
+export interface RestoreBackupRequest {
+  userId: number
+  backup: UserBackup
+}
+
+export interface RestoreBackupResponse {
+  notesImported: number
+  notesSkipped: number
+}
