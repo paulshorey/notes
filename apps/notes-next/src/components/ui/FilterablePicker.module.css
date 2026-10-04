@@ -21,6 +21,11 @@
   color: var(--g-color-text-link);
 }
 
+.trigger .triggerValue {
+  padding-left: 1px;
+  padding-right: 1px;
+}
+
 .trigger:hover,
 .trigger:hover .triggerValue {
   color: var(--g-color-text-link-hover, #7abaff);
@@ -35,6 +40,10 @@
 .trigger:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.triggerLabel {
+  padding-right: 1px;
 }
 
 .triggerLabel,

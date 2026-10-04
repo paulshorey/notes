@@ -267,7 +267,7 @@ export function NoteForm({
               triggerAriaLabel="Categories"
               listboxAriaLabel="Category options"
               triggerIcon={
-                <FolderOpen size={14} weight="regular" className={styles.propertyPickerIcon} />
+                <FolderOpen size={17} weight="regular" className={styles.propertyPickerIcon} />
               }
               options={categories}
               selectedIds={form.selectedCategoryIds}
@@ -284,10 +284,10 @@ export function NoteForm({
           </div>
           <FilterablePicker
             variant="inline"
-            value={selectedTagLabels.join(", ") || "Tags"}
+            value={selectedTagLabels.join(", ") || ""}
             triggerAriaLabel="Tags"
             listboxAriaLabel="Tag options"
-            triggerIcon={<Tag size={14} weight="regular" className={styles.propertyPickerIcon} />}
+            triggerIcon={<Tag size={16} weight="regular" className={styles.propertyPickerIcon} />}
             options={tags}
             selectedIds={form.selectedTagIds}
             disabled={!userPresent}

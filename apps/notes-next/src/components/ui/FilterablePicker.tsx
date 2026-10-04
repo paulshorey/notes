@@ -160,7 +160,7 @@ export function FilterablePicker({
           {triggerIcon ?? <CaretDown size={16} weight="bold" />}
         </span>
         {triggerLabel ? <span className={styles.triggerLabel}>{triggerLabel}</span> : null}
-        <span className={styles.triggerValue}>{value}</span>
+        {value ? <span className={styles.triggerValue}>{value}</span> : null}
       </button>
 
       <FilterablePickerPopup
