@@ -96,6 +96,7 @@
   display: none;
   min-height: 0;
   flex-direction: column;
+  background: var(--g-color-line-generic);
 }
 
 .accordionSectionExpanded > .accordionContent {
@@ -174,7 +175,7 @@
   flex: 1 1 auto;
   align-items: center;
   min-height: 0;
-  padding: 0 4px 0 12px;
+  padding: 0 0 0 6px;
   border: 0;
   background: none;
   color: inherit;
