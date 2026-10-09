@@ -128,11 +128,6 @@
   padding: 0 6px;
   color: var(--g-color-text-hint);
 }
-@media (max-width: 720px) {
-  .addDefaultNoteButton {
-    display: none;
-  }
-}
 
 .addDefaultNoteButton span {
   min-width: 0;
