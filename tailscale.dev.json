@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "notes",
+  "services": [
+    {
+      "name": "web",
+      "kind": "next",
+      "app": "apps/notes-next",
+      "port": 5500,
+      "httpsPort": 5500,
+      "probe": "/api/health"
+    }
+  ]
+}
