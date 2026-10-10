@@ -1,7 +1,12 @@
 # Private local development through Tailscale
 
 Run this project's web app on the desktop and open it in the registered phone's
-browser at https://pauls-macbook-pro.taila9173b.ts.net:5500/.
+browser at https://pauls-macbook-pro.taila9173b.ts.net:4100/.
+
+The shared tool source is saved in the private
+[paulshorey/tailscale-dev repository](https://github.com/paulshorey/tailscale-dev).
+Clone it to `~/git/tailscale-dev` when recreating this setup on another Mac;
+ordinary app builds and deployments do not require it.
 
 From the repository root:
 
@@ -14,7 +19,9 @@ pnpm dev:tailscale:stop
 Omit `--background` for terminal output and Ctrl+C cleanup. Keep the Mac awake,
 online, and connected to Tailscale, and connect Tailscale on the S26 Ultra.
 
-The Next.js server serves both UI and API. The read-only readiness probe is /api/health. Its existing app dotenv files and Auth.js configuration are retained.
+Ordinary `pnpm --filter notes-next dev` and Tailscale mode both use local port 4100.
+The Next.js server serves both UI and API; `/api/health` is the read-only readiness
+probe. Existing app dotenv files and Auth.js configuration are retained.
 
 The shared tool is installed at `~/git/tailscale-dev`. Set `TAILSCALE_DEV_HOME`
 if it is installed elsewhere. Its README owns the full operating procedure,
