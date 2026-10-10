@@ -31,7 +31,10 @@
     "create:next-app": "node scripts/create-next-app.js",
     "railway:config:check": "tsc --noEmit --strict --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext .railway/railway.ts",
     "railway:config:plan": "railway config plan --file .railway/railway.ts",
-    "railway:config:apply": "railway config apply --file .railway/railway.ts"
+    "railway:config:apply": "railway config apply --file .railway/railway.ts",
+    "dev:tailscale": "node scripts/tailscale-dev.mjs start",
+    "dev:tailscale:status": "node scripts/tailscale-dev.mjs status",
+    "dev:tailscale:stop": "node scripts/tailscale-dev.mjs stop"
   },
   "devDependencies": {
     "@infisical/sdk": "^4.0.0",

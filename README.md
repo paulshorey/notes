@@ -108,7 +108,7 @@ pnpm run deps:install -- notes-android...
 ### Local app entry points
 
 ```bash
-pnpm --filter notes-next dev         # http://localhost:5500
+pnpm --filter notes-next dev         # http://localhost:4100
 pnpm --filter notes-android build    # contract validation + debug APK
 ```
 
@@ -308,3 +308,10 @@ For a phone-side sideload, copy the APK to the device, then open the file and ac
 - Android release artifact: `apps/notes-android/dist/notes-android.apk` (built via `build:android:dist:{dev,prod}`)
 - Editor package (git subtree): `lib/atomic-editor` — edit in place; sync with `bash scripts/atomic-editor-sync.sh push|pull` (see above)
 - Repo-wide pre-push gate: `pnpm run verify`
+
+## Private phone access through Tailscale
+
+Run `pnpm dev:tailscale --background` from the repository root.
+Use `pnpm dev:tailscale:status` and `pnpm dev:tailscale:stop` to manage it.
+The shared tool lives in `~/git/tailscale-dev`; this project's setup and address
+are in [the local Tailscale guide](docs/operations/local-development-tailscale.md).
