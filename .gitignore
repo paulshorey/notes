@@ -44,3 +44,6 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Private continuity and task records for local Codex scheduled runs.
+/.codex/project-coordinator/
