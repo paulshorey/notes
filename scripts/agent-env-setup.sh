@@ -27,7 +27,7 @@ AGENT_ENV_FILE="$ROOT_DIR/.agent-env.sh"
 APP_ENV_FILE="$ROOT_DIR/apps/notes-next/.env.local"
 DEV_LOG_FILE="$ROOT_DIR/.agent-notes-next.log"
 DEV_PID_FILE="$ROOT_DIR/.agent-notes-next.pid"
-DEV_PORT="${NOTES_DEV_PORT:-6000}"
+DEV_PORT="${NOTES_DEV_PORT:-4100}"
 DEV_FALLBACK_PORT=6100
 
 DO_INSTALL=0
@@ -58,7 +58,7 @@ Phase flags (when any are passed, only those phases run):
 
 Modifiers (always additive):
   --android     Also provision the repo-local JDK / Android SDK
-  --dev         Start notes-next after setup (6000, or 6100 if Next.js rejects 6000)
+  --dev         Start notes-next after setup (4100; NOTES_DEV_PORT overrides)
   --verify      Run pnpm run diagnose:notes after setup
   --skip-deps   Skip pnpm install during --install
   -h, --help    Show this help

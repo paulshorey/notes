@@ -4,11 +4,11 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 5500",
+    "dev": "next dev --port 4100 --hostname 127.0.0.1",
     "contracts:check": "pnpm --filter @lib/db-notes app:contract:check",
     "build:contracts": "pnpm run contracts:check",
     "build": "pnpm run contracts:check && pnpm --filter @atomic-editor/editor build && next build",
-    "start": "next start --port ${PORT:-5500}",
+    "start": "next start --port ${PORT:-4100}",
     "test": "node --import tsx --test ./test/*.test.ts",
     "lint": "eslint . --ignore-pattern .next",
     "check-types": "pnpm run contracts:check && tsc --noEmit",
