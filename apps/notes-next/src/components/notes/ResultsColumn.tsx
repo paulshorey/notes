@@ -409,11 +409,7 @@ export function ResultsColumn({
           suppressDrawerClickRef.current = false
         }}
       >
-        <span className={styles.mobileDrawerGrip} aria-hidden />
-        <span className={styles.mobileDrawerLabel}>
-          Notes
-          <CaretUp size={12} className={visible ? styles.mobileDrawerCaretOpen : ""} aria-hidden />
-        </span>
+        <CaretUp size={28} className={visible ? styles.mobileDrawerCaretOpen : ""} aria-hidden />
       </button>
       <section
         id="notes-navigation"

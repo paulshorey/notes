@@ -4,6 +4,7 @@
   min-width: 0;
   min-height: 0;
   flex: 0 0 auto;
+  background: var(--g-color-line-generic);
 }
 
 .resultsColumnShellCollapsed {
@@ -30,6 +31,7 @@
     min-width 0.18s ease,
     flex-basis 0.18s ease;
   color: var(--g-color-text-secondary);
+  background: var(--g-color-line-generic);
 }
 
 .noteResults {
@@ -345,8 +347,8 @@
   background: linear-gradient(
     to bottom,
     transparent 0%,
-    color-mix(in srgb, var(--g-color-base-background, #151515) 72%, transparent) 45%,
-    var(--g-color-base-background, #151515) 100%
+    color-mix(in srgb, var(--g-color-line-generic) 72%, transparent) 45%,
+    var(--g-color-line-generic) 100%
   );
 }
 
@@ -487,7 +489,6 @@
     flex-direction: column;
     width: min(336px, calc(100% - 18px));
     min-width: 0;
-    background: var(--g-color-base-background, #151515);
     transform: translateX(100%);
     transition: transform 0.4s ease;
   }
@@ -532,17 +533,14 @@
   .mobileDrawerTrigger {
     display: flex;
     flex: 0 0 var(--mobile-nav-trigger-height);
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
     width: 100%;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
     border: 0;
     background: var(--g-color-line-generic);
     color: var(--g-color-text-secondary);
     font: inherit;
-    font-size: 12px;
     cursor: pointer;
     touch-action: none;
     user-select: none;
@@ -556,20 +554,6 @@
   .mobileDrawerTrigger:focus-visible {
     outline: 2px solid var(--g-color-line-focus);
     outline-offset: -2px;
-  }
-
-  .mobileDrawerGrip {
-    width: 32px;
-    height: 3px;
-    border-radius: 2px;
-    background: currentColor;
-    opacity: 0.6;
-  }
-
-  .mobileDrawerLabel {
-    display: flex;
-    align-items: center;
-    gap: 4px;
   }
 
   .mobileDrawerCaretOpen {
