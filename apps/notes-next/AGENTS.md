@@ -43,7 +43,7 @@ src/                        — non-route code (import with "@/..." alias)
     notes/                  — notes-feature UI (NotesApp and sub-components)
       NotesApp.tsx          — top-level notes page container
       NotesApp.module.css   — shared notes CSS module
-      NotesHeader.tsx       — app-wide header (logo, save status, recent notes, user menu, mobile sidebar toggle)
+      NotesHeader.tsx       — app-wide header (logo, save status, recent notes, user menu, tablet sidebar toggle)
       FeedbackNotifications.tsx
       ResultsColumn.tsx     — notes sidebar (categories, tags, note actions)
       NoteResultsList.tsx
@@ -76,6 +76,12 @@ src/                        — non-route code (import with "@/..." alias)
 
 - All database access and embedding logic is in `@lib/db-notes`. API routes call `notesAppService` from `@lib/db-notes/services/notes-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
+
+Navigation uses three layouts: below 500px is a full-width bottom drawer with a
+tap/swipe handle; 500–900px is a collapsed right drawer toggled from the header;
+above 900px is a visible, resizable right column. `useSidebarDrawer` synchronizes
+the store when crossing these boundaries. Keep its media queries in
+`src/constants/notes.ts` aligned with the notes CSS modules.
 
 ## Startup and service worker
 

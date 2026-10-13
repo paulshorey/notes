@@ -23,8 +23,8 @@ import {
 type State = OpenNotesState & {
   backupOperation: "download" | "restore" | null
   /**
-   * Whether the notes results column is visible. On mobile this controls the
-   * sliding panel; on desktop it controls the resizable results column.
+   * Whether the navigation drawer is open on mobile/tablet. Desktop keeps
+   * the resizable results column visible.
    */
   resultsListVisible: boolean
   /**
