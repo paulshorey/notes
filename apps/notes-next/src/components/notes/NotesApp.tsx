@@ -3389,6 +3389,7 @@ export default function NotesApp() {
             onCreateStatus={handleCreateStatus}
             onTagValuesChange={handleTagValuesChange}
             onCancelEdit={handleCancelEdit}
+            defaultCategoryId={fallbackCategoryId}
             defaultCategoryLabel={
               categories.find((category) => category.id === fallbackCategoryId)?.label ??
               "uncategorized"
