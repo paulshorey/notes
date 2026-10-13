@@ -533,10 +533,10 @@
   .mobileDrawerTrigger {
     display: flex;
     flex: 0 0 var(--mobile-nav-trigger-height);
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
     width: 100%;
-    padding: 6px 8px 0;
+    padding: 0 8px;
     border: 0;
     background: var(--g-color-line-generic);
     color: var(--g-color-text-secondary);
