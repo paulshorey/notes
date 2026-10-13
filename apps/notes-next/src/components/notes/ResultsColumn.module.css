@@ -533,10 +533,10 @@
   .mobileDrawerTrigger {
     display: flex;
     flex: 0 0 var(--mobile-nav-trigger-height);
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
     width: 100%;
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    padding: 6px 8px 0;
     border: 0;
     background: var(--g-color-line-generic);
     color: var(--g-color-text-secondary);
@@ -547,8 +547,7 @@
   }
 
   .resultsColumnShellOpen .mobileDrawerTrigger {
-    flex-basis: 44px;
-    padding-bottom: 6px;
+    flex-basis: 34px;
   }
 
   .mobileDrawerTrigger:focus-visible {
