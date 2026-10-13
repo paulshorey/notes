@@ -122,16 +122,13 @@
 
 .addDefaultNoteButton {
   width: auto;
+  min-width: 0;
   max-width: min(220px, 45vw);
+  flex-shrink: 1;
   gap: 4px;
   margin-right: auto;
   padding: 0 6px;
   color: var(--g-color-text-hint);
-}
-@media (max-width: 720px) {
-  .addDefaultNoteButton {
-    display: none;
-  }
 }
 
 .addDefaultNoteButton span {
