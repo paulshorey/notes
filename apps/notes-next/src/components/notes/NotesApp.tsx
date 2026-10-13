@@ -38,7 +38,7 @@ import {
 } from "react"
 import { Button, Text } from "@gravity-ui/uikit"
 import { signIn, signOut, useSession } from "next-auth/react"
-import { STORAGE_KEY } from "@/constants/notes"
+import { SIDEBAR_OVERLAY_MEDIA_QUERY, STORAGE_KEY } from "@/constants/notes"
 import { fetchWithTimeout, getErrorMessage, readJson, RequestError } from "@/lib/api"
 import { recoverExpiredSession } from "@/lib/sessionRecovery"
 import { normalizeLabel } from "@/lib/strings"
@@ -49,6 +49,7 @@ import {
   type NoteFormState,
 } from "@/types/notes"
 import { useAutoDismissStatus } from "@/hooks/useAutoDismissStatus"
+import { useSidebarDrawer } from "@/hooks/useSidebarDrawer"
 import { useOpenNotesAutosave } from "@/hooks/useOpenNotesAutosave"
 import {
   isSaveableForm,
@@ -106,8 +107,7 @@ const RESULTS_COLUMN_MAX_WIDTH = 720
 const FORM_COLUMN_MIN_WIDTH = 333
 const RESIZE_HANDLE_WIDTH = 8
 const RESIZE_DRAG_THRESHOLD = 4
-const MOBILE_RESULTS_MEDIA_QUERY = "(max-width: 720px)"
-const MOBILE_RESULTS_TRANSITION_MS = 400
+const RESULTS_DRAWER_TRANSITION_MS = 400
 const PREFERENCES_SAVE_DEBOUNCE_MS = 500
 const OPEN_NOTES_PERSIST_DEBOUNCE_MS = 1000
 const TAXONOMY_REFRESH_DEBOUNCE_MS = 4000
@@ -182,8 +182,8 @@ const serializeUserPreferences = (preferences: UserPreferences) =>
 const clampStoredResultsColumnWidth = (width: number) =>
   Math.round(Math.min(Math.max(width, RESULTS_COLUMN_MIN_WIDTH), RESULTS_COLUMN_MAX_WIDTH))
 
-const isMobileResultsLayout = () =>
-  typeof window !== "undefined" && window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY).matches
+const isResultsDrawerLayout = () =>
+  typeof window !== "undefined" && window.matchMedia(SIDEBAR_OVERLAY_MEDIA_QUERY).matches
 
 const parsePositiveInteger = (value: string | null) => {
   if (value === null || value.trim() === "") return null
@@ -432,6 +432,7 @@ export default function NotesApp() {
   // notes, subscribing to the whole store would re-render the entire app —
   // editor included — on every keystroke in any entry.
   const resultsListVisible = useNotesAppStore((state) => state.resultsListVisible)
+  const { drawerMode, closeIfDrawer } = useSidebarDrawer()
   const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
   const selectedTagId = useNotesAppStore((state) => state.selectedTagId)
   const setSelectedTagId = useNotesAppStore((state) => state.setSelectedTagId)
@@ -484,7 +485,7 @@ export default function NotesApp() {
     RESULTS_COLUMN_DEFAULT_WIDTH,
   )
   const [resultsColumnWidth, setResultsColumnWidth] = useState(RESULTS_COLUMN_DEFAULT_WIDTH)
-  const [mobileResultsOverlayMounted, setMobileResultsOverlayMounted] = useState(false)
+  const [resultsOverlayMounted, setResultsOverlayMounted] = useState(false)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const userRef = useRef<UserSummary | null>(null)
   const userPreferencesRef = useRef<UserPreferences>({})
@@ -522,7 +523,7 @@ export default function NotesApp() {
   const preferenceSavesInFlightRef = useRef(new Set<Promise<void>>())
   const lastSavedPreferencesRef = useRef(serializeUserPreferences({}))
   const preferenceSaveRequestIdRef = useRef(0)
-  const mobileResultsOverlayTimeoutRef = useRef<number | null>(null)
+  const resultsOverlayTimeoutRef = useRef<number | null>(null)
   const resizeStateRef = useRef<{
     pointerId: number
     startX: number
@@ -571,11 +572,11 @@ export default function NotesApp() {
     )
   }, [])
 
-  const clearMobileResultsOverlayTimeout = useCallback(() => {
-    if (mobileResultsOverlayTimeoutRef.current === null) return
+  const clearResultsOverlayTimeout = useCallback(() => {
+    if (resultsOverlayTimeoutRef.current === null) return
 
-    window.clearTimeout(mobileResultsOverlayTimeoutRef.current)
-    mobileResultsOverlayTimeoutRef.current = null
+    window.clearTimeout(resultsOverlayTimeoutRef.current)
+    resultsOverlayTimeoutRef.current = null
   }, [])
 
   const updateResultsColumnWidth = (width: number) => {
@@ -602,7 +603,7 @@ export default function NotesApp() {
   }
 
   const handleResizePointerMove = (event: PointerEvent<HTMLButtonElement>) => {
-    if (isMobileResultsLayout()) return
+    if (isResultsDrawerLayout()) return
 
     const resizeState = resizeStateRef.current
     if (!resizeState || resizeState.pointerId !== event.pointerId) return
@@ -631,51 +632,35 @@ export default function NotesApp() {
     }
   }
 
-  const handleMobileResultsOverlayClick = useCallback(() => {
+  const handleResultsOverlayClick = useCallback(() => {
     setResultsListVisible(false)
   }, [setResultsListVisible])
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
-    const syncResultsVisibility = () => {
-      if (mediaQuery.matches) {
-        setResultsListVisible(false)
-      } else {
-        setMobileResultsOverlayMounted(false)
-        setResultsListVisible(true)
-      }
-    }
-
-    syncResultsVisibility()
-    mediaQuery.addEventListener("change", syncResultsVisibility)
-    return () => mediaQuery.removeEventListener("change", syncResultsVisibility)
-  }, [setResultsListVisible])
-
-  useEffect(() => {
     if (resultsListVisible) {
-      clearMobileResultsOverlayTimeout()
-      setMobileResultsOverlayMounted(isMobileResultsLayout())
+      clearResultsOverlayTimeout()
+      setResultsOverlayMounted(drawerMode)
       return
     }
 
-    if (!mobileResultsOverlayMounted) return
+    if (!resultsOverlayMounted) return
 
-    clearMobileResultsOverlayTimeout()
-    mobileResultsOverlayTimeoutRef.current = window.setTimeout(() => {
-      mobileResultsOverlayTimeoutRef.current = null
-      setMobileResultsOverlayMounted(false)
-    }, MOBILE_RESULTS_TRANSITION_MS)
+    clearResultsOverlayTimeout()
+    resultsOverlayTimeoutRef.current = window.setTimeout(() => {
+      resultsOverlayTimeoutRef.current = null
+      setResultsOverlayMounted(false)
+    }, RESULTS_DRAWER_TRANSITION_MS)
 
-    return clearMobileResultsOverlayTimeout
-  }, [clearMobileResultsOverlayTimeout, mobileResultsOverlayMounted, resultsListVisible])
+    return clearResultsOverlayTimeout
+  }, [clearResultsOverlayTimeout, drawerMode, resultsOverlayMounted, resultsListVisible])
 
-  useEffect(() => clearMobileResultsOverlayTimeout, [clearMobileResultsOverlayTimeout])
+  useEffect(() => clearResultsOverlayTimeout, [clearResultsOverlayTimeout])
 
   useEffect(() => {
     if (!resultsListVisible) return
 
     const handleDocumentKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape" && isMobileResultsLayout()) {
+      if (event.key === "Escape" && isResultsDrawerLayout()) {
         setResultsListVisible(false)
       }
     }
@@ -1154,7 +1139,7 @@ export default function NotesApp() {
           resetNotesAppStore()
           setSearchResults([])
           setSearchErrorMessage(null)
-          setResultsListVisible(!isMobileResultsLayout())
+          setResultsListVisible(!isResultsDrawerLayout())
           setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
           setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
         },
@@ -2399,7 +2384,7 @@ export default function NotesApp() {
     detachedSavesRef.current.clear()
     didRehydrateOpenNotesRef.current = false
     resetNotesAppStore()
-    setResultsListVisible(!isMobileResultsLayout())
+    setResultsListVisible(!isResultsDrawerLayout())
     setPreferredResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     setResultsColumnWidth(RESULTS_COLUMN_DEFAULT_WIDTH)
     clearMessages()
@@ -2632,12 +2617,6 @@ export default function NotesApp() {
     }
   }
 
-  const closeResultsListOnMobile = () => {
-    if (isMobileResultsLayout()) {
-      setResultsListVisible(false)
-    }
-  }
-
   /**
    * Opening a note no longer waits for anything. The outgoing entry keeps its
    * draft in memory and its own autosave, so there is nothing to lose by
@@ -2649,16 +2628,16 @@ export default function NotesApp() {
 
     const key = noteEntryKey(note.id)
     patchEntry(key, {
-      autofocus: !isMobileResultsLayout(),
+      autofocus: !isResultsDrawerLayout(),
       revealText: searchMode ? trimmedSearchQuery : null,
     })
-    closeResultsListOnMobile()
+    closeIfDrawer()
   }
 
   const handleAddNoteForCategory = (category: CategoryRecord) => {
     clearMessages()
     openDraftEntry({ categoryIds: [category.id], categoryLabel: category.label })
-    closeResultsListOnMobile()
+    closeIfDrawer()
   }
 
   const handleAddNoteForTag = (tag: TagRecord) => {
@@ -2681,7 +2660,7 @@ export default function NotesApp() {
         .filter(Boolean)
         .join(", "),
     })
-    closeResultsListOnMobile()
+    closeIfDrawer()
   }
 
   const handleSelectCategory = (rawId: string) => {
@@ -3403,14 +3382,14 @@ export default function NotesApp() {
           />
         </div>
 
-        {mobileResultsOverlayMounted && (
+        {resultsOverlayMounted && (
           <button
             type="button"
-            className={`${styles.mobileResultsOverlay} ${
-              resultsListVisible ? "" : styles.mobileResultsOverlayClosing
+            className={`${styles.resultsOverlay} ${
+              resultsListVisible ? "" : styles.resultsOverlayClosing
             }`}
             aria-label="Hide notes list"
-            onClick={handleMobileResultsOverlayClick}
+            onClick={handleResultsOverlayClick}
           />
         )}
 

@@ -374,6 +374,8 @@ export function NotesHeader({
           onClick={() => setResultsListVisible(!resultsListVisible)}
           aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
           aria-pressed={resultsListVisible}
+          aria-expanded={resultsListVisible}
+          aria-controls="notes-navigation"
           title={resultsListVisible ? "Hide notes list" : "Show notes list"}
           className={`${styles.headerButton} ${styles.resultsToggleButton}`}
         >

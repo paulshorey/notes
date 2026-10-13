@@ -1,37 +1,39 @@
 import { useCallback, useEffect, useState } from "react"
-import { SIDEBAR_OVERLAY_MEDIA_QUERY } from "@/constants/notes"
+import { MOBILE_RESULTS_MEDIA_QUERY, SIDEBAR_OVERLAY_MEDIA_QUERY } from "@/constants/notes"
+import { useNotesAppStore } from "@/stores/notesAppStore"
+
+type SidebarLayout = "mobile" | "tablet" | "desktop"
 
 export function useSidebarDrawer() {
-  const [drawerMode, setDrawerMode] = useState(false)
-  const [open, setOpen] = useState(false)
+  const [layout, setLayout] = useState<SidebarLayout>("desktop")
+  const open = useNotesAppStore((state) => state.resultsListVisible)
+  const setOpen = useNotesAppStore((state) => state.setResultsListVisible)
+  const drawerMode = layout !== "desktop"
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia(SIDEBAR_OVERLAY_MEDIA_QUERY)
+    const mobileQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
+    const drawerQuery = window.matchMedia(SIDEBAR_OVERLAY_MEDIA_QUERY)
 
-    const syncSidebarMode = (matches: boolean) => {
-      setDrawerMode(matches)
-      if (!matches) {
-        setOpen(false)
-      }
+    const syncSidebarMode = () => {
+      setLayout(mobileQuery.matches ? "mobile" : drawerQuery.matches ? "tablet" : "desktop")
+      // Each layout starts in its default state, including after resizing.
+      setOpen(!drawerQuery.matches)
     }
 
-    syncSidebarMode(mediaQuery.matches)
-
-    const handleChange = (event: MediaQueryListEvent) => {
-      syncSidebarMode(event.matches)
-    }
-
-    mediaQuery.addEventListener("change", handleChange)
+    syncSidebarMode()
+    mobileQuery.addEventListener("change", syncSidebarMode)
+    drawerQuery.addEventListener("change", syncSidebarMode)
     return () => {
-      mediaQuery.removeEventListener("change", handleChange)
+      mobileQuery.removeEventListener("change", syncSidebarMode)
+      drawerQuery.removeEventListener("change", syncSidebarMode)
     }
-  }, [])
+  }, [setOpen])
 
   const closeIfDrawer = useCallback(() => {
     if (drawerMode) {
       setOpen(false)
     }
-  }, [drawerMode])
+  }, [drawerMode, setOpen])
 
-  return { drawerMode, open, setOpen, closeIfDrawer }
+  return { layout, drawerMode, open, setOpen, closeIfDrawer }
 }
