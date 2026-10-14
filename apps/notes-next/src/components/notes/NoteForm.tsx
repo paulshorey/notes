@@ -42,6 +42,7 @@ interface NoteFormProps {
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
+  defaultCategoryId: number | null
   defaultCategoryLabel: string
   onAddDefaultNote: () => void
   onAddNoteInCategory: () => void
@@ -70,6 +71,7 @@ export function NoteForm({
   onTagValuesChange,
   onCancelEdit,
   onDeleteEditingNote,
+  defaultCategoryId,
   defaultCategoryLabel,
   onAddDefaultNote,
   onAddNoteInCategory,
@@ -78,11 +80,13 @@ export function NoteForm({
   const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [activeMorePicker, setActiveMorePicker] = useState<"status" | "tag" | null>(null)
 
-  const selectedCategoryLabel =
-    categories.find((category) => category.id === form.selectedCategoryIds[0])?.label ?? ""
-  const addNoteCategoryLabel =
-    categories.find((category) => category.id === form.selectedCategoryIds[0])?.label ??
-    defaultCategoryLabel
+  const selectedCategory = categories.find(
+    (category) => category.id === form.selectedCategoryIds[0],
+  )
+  const selectedCategoryLabel = selectedCategory?.label ?? ""
+  const addNoteCategoryLabel = selectedCategory?.label ?? defaultCategoryLabel
+  const showDefaultNoteButton =
+    selectedCategory !== undefined && selectedCategory.id !== defaultCategoryId
 
   const selectedTagLabels = useMemo(() => {
     const next = [
@@ -242,15 +246,17 @@ export function NoteForm({
         />
 
         <div className={styles.formToolbar}>
-          <button
-            type="button"
-            className={`${styles.addNoteButton} ${styles.addDefaultNoteButton}`}
-            onClick={onAddDefaultNote}
-            aria-label={`Add new note in default category ${defaultCategoryLabel}`}
-          >
-            <Plus size={16} weight="bold" aria-hidden />
-            <span>{defaultCategoryLabel}</span>
-          </button>
+          {showDefaultNoteButton && (
+            <button
+              type="button"
+              className={`${styles.addNoteButton} ${styles.addDefaultNoteButton}`}
+              onClick={onAddDefaultNote}
+              aria-label={`Add new note in default category ${defaultCategoryLabel}`}
+            >
+              <Plus size={16} weight="bold" aria-hidden />
+              <span>{defaultCategoryLabel}</span>
+            </button>
+          )}
           <div className={styles.categoryControls}>
             <button
               type="button"
