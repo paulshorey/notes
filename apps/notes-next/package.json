@@ -11,7 +11,7 @@
     "start": "next start --port ${PORT:-4100}",
     "test": "node --import tsx --test ./test/*.test.ts",
     "lint": "eslint . --ignore-pattern .next",
-    "check-types": "pnpm run contracts:check && tsc --noEmit",
+    "check-types": "pnpm run contracts:check && next typegen && tsc --noEmit",
     "verify": "pnpm run check-types && pnpm run test && pnpm run build"
   },
   "dependencies": {
