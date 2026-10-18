@@ -1,5 +1,6 @@
 "use client"
 
+import { getCategoryNameError } from "@lib/db-notes/contracts/category-name"
 import type { CategoryRecord, NoteRecord, StatusRecord, TagRecord } from "@lib/db-notes"
 import {
   ArrowsLeftRight,
@@ -81,7 +82,6 @@ interface ResultsColumnProps {
   statuses: StatusRecord[]
   statusNoteGroups: StatusNoteGroup[]
   activeStatusId: number | null
-  fallbackCategoryId: number | null
   fallbackTagId: number | null
   selectedTag: TagRecord | null
   searchMode: boolean
@@ -119,7 +119,6 @@ export function ResultsColumn({
   statuses,
   statusNoteGroups,
   activeStatusId,
-  fallbackCategoryId,
   fallbackTagId,
   selectedTag,
   searchMode,
@@ -451,7 +450,6 @@ export function ResultsColumn({
                 {visibleCategoryNoteGroups.map(({ category, items }) => {
                   const expanded = isCategoryExpanded(category.id)
                   const panelId = `category-notes-${category.id}`
-                  const deleteDisabled = category.id === fallbackCategoryId
                   return (
                     <div className={styles.categoryGroup} key={category.id} role="listitem">
                       <div className={styles.categoryRow}>
@@ -482,10 +480,6 @@ export function ResultsColumn({
                             onOpenActionMenuChange={setOpenActionMenuId}
                             onEdit={() => onEditCategory(category)}
                             onDelete={() => onDeleteCategory(category)}
-                            deleteDisabled={deleteDisabled}
-                            deleteTitle={
-                              deleteDisabled ? "The default category cannot be deleted" : undefined
-                            }
                           />
                         </SectionTitle>
                       </div>
@@ -519,7 +513,7 @@ export function ResultsColumn({
                 <div className={styles.categoryRow}>
                   <SectionTitle
                     count={uncategorizedItems.length}
-                    label="No category"
+                    label="uncategorized"
                     expanded={uncategorizedExpanded}
                     panelId="uncategorized-notes"
                     onToggle={() => setUncategorizedExpanded((value) => !value)}
@@ -1114,6 +1108,7 @@ function NoteMovePicker({
 }: NoteMovePickerProps) {
   const [inputValue, setInputValue] = useState("")
   const [pending, setPending] = useState(false)
+  const inputError = mode === "category" ? getCategoryNameError(inputValue) : null
   const currentOptionIdSet = useMemo(() => new Set(currentOptionIds), [currentOptionIds])
   const filteredOptions = useMemo(() => {
     const query = normalizeLabel(inputValue)
@@ -1130,7 +1125,7 @@ function NoteMovePicker({
 
   const submitLabel = (rawLabel: string) => {
     const label = rawLabel.trim()
-    if (label === "" || pending) {
+    if (label === "" || pending || (mode === "category" && getCategoryNameError(label))) {
       return
     }
 
@@ -1178,7 +1173,11 @@ function NoteMovePicker({
         role="listbox"
         aria-label={mode === "category" ? "Category options" : "Tag options"}
       >
-        {filteredOptions.length === 0 && inputValue.trim() !== "" ? (
+        {inputError ? (
+          <div className={styles.noteMovePickerEmpty} role="alert">
+            {inputError}
+          </div>
+        ) : filteredOptions.length === 0 && inputValue.trim() !== "" ? (
           <div className={styles.noteMovePickerEmpty}>
             Press Enter to create &quot;{inputValue.trim()}&quot;
           </div>
@@ -1204,6 +1203,7 @@ function NoteMovePicker({
       <input
         type="text"
         className={styles.noteMovePickerInput}
+        aria-invalid={Boolean(inputError)}
         placeholder={inputPlaceholder}
         value={inputValue}
         disabled={pending}

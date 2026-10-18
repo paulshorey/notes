@@ -278,11 +278,11 @@ export const openNewDraft = (
       ...active,
       form: {
         ...active.form,
-        selectedCategoryIds: options.categoryIds ?? active.form.selectedCategoryIds,
+        selectedCategoryIds: options.categoryIds ?? [],
         selectedStatusId: options.statusId ?? active.form.selectedStatusId,
         selectedTagIds: options.tagIds ?? active.form.selectedTagIds,
       },
-      categoryInputValue: options.categoryLabel ?? active.categoryInputValue,
+      categoryInputValue: options.categoryLabel ?? "",
       autofocus: true,
       editorSessionId: active.editorSessionId + 1,
     }

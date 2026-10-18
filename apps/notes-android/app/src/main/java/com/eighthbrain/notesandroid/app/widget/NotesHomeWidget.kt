@@ -136,7 +136,7 @@ private fun WidgetContent(snapshot: AppSnapshot) {
     val tagFilterId = readTagFilterId(widgetState)
     val filteredNotes =
         snapshot.notes.filter { note ->
-            val matchesCategory = categoryFilterId == null || note.category.id == categoryFilterId
+            val matchesCategory = categoryFilterId == null || note.categories.any { it.id == categoryFilterId }
             val matchesTag = tagFilterId == null || note.tags.any { tag -> tag.id == tagFilterId }
             matchesCategory && matchesTag
         }
@@ -349,7 +349,7 @@ private fun NoteRowContent(
     }
     if (note.tags.isNotEmpty()) {
         Text(
-            text = note.category.label,
+            text = note.categories.joinToString(", ") { it.label }.ifEmpty { "uncategorized" },
             modifier = GlanceModifier.padding(top = 2.dp),
             style = TextStyle(color = widgetText),
             maxLines = 1,

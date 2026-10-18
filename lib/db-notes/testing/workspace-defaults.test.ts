@@ -17,7 +17,7 @@ describe("default workspace vocabulary seeding (DB)", { skip: !testDbUrl }, () =
     if (testDbUrl) await getDb().end()
   })
 
-  test("a user with no content lazily receives one complete default workspace exactly once", async () => {
+  test("a user receives one workspace without categories, with status and tag defaults", async () => {
     const { rows } = await getDb().query<{ id: number }>(
       `INSERT INTO public.user_v1(username,is_anonymous) VALUES($1,true) RETURNING id`,
       [`defaults-${randomUUID()}`],
@@ -35,7 +35,7 @@ describe("default workspace vocabulary seeding (DB)", { skip: !testDbUrl }, () =
         (await listCategoriesForNotesApp({ userId, workspaceId })).categories.map(
           (item) => item.label,
         ),
-        ["uncategorized"],
+        [],
       )
       assert.deepEqual(
         (await listStatusesForNotesApp({ userId, workspaceId })).statuses.map((item) => item.label),

@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.categoryNameError
 
 @Composable
 fun CategoriesPopupList(
@@ -35,7 +36,6 @@ fun CategoriesPopupList(
     editingCategoryId: Int?,
     editingDraft: String,
     deletingCategoryId: Int?,
-    protectedCategoryId: Int?,
     busy: Boolean,
     onSelect: (Int?) -> Unit,
     onStartEdit: (CategoryRecord) -> Unit,
@@ -99,10 +99,9 @@ fun CategoriesPopupList(
                             onCancel = onCancelDelete,
                         )
                     else ->
-                        CategoryDefaultRow(
+                        CategoryRow(
                             category = category,
                             isActive = selectedCategoryId == category.id,
-                            isProtected = category.id == protectedCategoryId,
                             busy = busy,
                             onSelect = { onSelect(category.id) },
                             onEdit = { onStartEdit(category) },
@@ -124,10 +123,9 @@ fun CategoriesPopupList(
 }
 
 @Composable
-private fun CategoryDefaultRow(
+private fun CategoryRow(
     category: CategoryRecord,
     isActive: Boolean,
-    isProtected: Boolean,
     busy: Boolean,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
@@ -174,18 +172,16 @@ private fun CategoryDefaultRow(
                 modifier = Modifier.size(16.dp),
             )
         }
-        if (!isProtected) {
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(36.dp),
-                enabled = !busy,
-            ) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    modifier = Modifier.size(16.dp),
-                )
-            }
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier.size(36.dp),
+            enabled = !busy,
+        ) {
+            Icon(
+                Icons.Default.Delete,
+                contentDescription = "Delete",
+                modifier = Modifier.size(16.dp),
+            )
         }
     }
 }
@@ -210,6 +206,8 @@ private fun CategoryEditRow(
             onValueChange = onDraftChange,
             singleLine = true,
             label = { Text("Category name") },
+            isError = categoryNameError(draft) != null,
+            supportingText = { categoryNameError(draft)?.let { Text(it) } },
             modifier = Modifier.fillMaxWidth(),
         )
         Row(
@@ -222,7 +220,7 @@ private fun CategoryEditRow(
             Spacer(modifier = Modifier.size(8.dp))
             TextButton(
                 onClick = onSave,
-                enabled = !busy && draft.trim().isNotEmpty(),
+                enabled = !busy && draft.trim().isNotEmpty() && categoryNameError(draft) == null,
             ) {
                 Text("Save")
             }

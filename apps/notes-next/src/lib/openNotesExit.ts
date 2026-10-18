@@ -25,8 +25,8 @@ export interface ExitFlushItem {
 /**
  * Dirty ring entries that must land before the acting session changes.
  *
- * A new draft starts with `savedSignature: null`, so assigning its default
- * category makes the untouched editor technically dirty even though it contains
+ * A new draft starts with `savedSignature: null`, so the untouched editor can
+ * be technically dirty even though it contains
  * nothing to persist. Trying to save that slot returns false and would block
  * sign-in, sign-up, and sign-out. Started drafts remain included — even when
  * they have no workspace and cannot save — so the caller still refuses to replace

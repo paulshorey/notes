@@ -160,15 +160,14 @@ test("an empty never-saved draft is dropped and a non-empty one is kept", () => 
   )
 })
 
-test("a form referencing a deleted category is remapped to the fallback", () => {
+test("a deleted category is removed without assigning a replacement", () => {
   const note = makeNote(1, "text")
 
   const { state } = reconcileOpenNotes(snapshotOf([cleanEntry(note)]), lookupFrom([note]), {
     categoryExists: () => false,
-    fallbackCategoryId: 99,
   })
 
-  assert.deepEqual(state.openNotes[0]?.form.selectedCategoryIds, [99])
+  assert.deepEqual(state.openNotes[0]?.form.selectedCategoryIds, [])
 })
 
 test("a form referencing a deleted status is reset to no status", () => {
@@ -216,7 +215,7 @@ test("no reconciliation outcome leaves an unedited entry dirty", () => {
   const { state } = reconcileOpenNotes(
     snapshotOf([cleanEntry(stored), cleanEntry(untouched)]),
     lookupFrom([server, untouched]),
-    { categoryExists: () => false, fallbackCategoryId: 99 },
+    { categoryExists: () => false },
   )
 
   for (const entry of state.openNotes) {
@@ -339,4 +338,17 @@ test("a wrong-user or malformed browser snapshot never reaches reconcile", async
   // No window in the node test runner, so the reader must degrade to null
   // rather than throwing.
   assert.equal(readOpenNotesSnapshot(1, 1), null)
+})
+
+test("repairing a dirty draft removes only deleted categories and preserves text", () => {
+  const note = makeNote(1, "saved")
+  const entry = dirtyEntry(note, "unsaved text")
+  entry.form.selectedCategoryIds = [10, 20]
+  const { state } = reconcileOpenNotes(snapshotOf([entry]), lookupFrom([note]), {
+    categoryExists: (id) => id === 20,
+  })
+  const repaired = state.openNotes[0]!
+  assert.deepEqual(repaired.form.selectedCategoryIds, [20])
+  assert.equal(repaired.form.description, "unsaved text")
+  assert.notEqual(serializeNoteDraft(repaired.noteId, repaired.form), repaired.savedSignature)
 })

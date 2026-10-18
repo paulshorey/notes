@@ -327,7 +327,6 @@ export const reconcileOpenNotes = (
     categoryExists?: (categoryId: number) => boolean
     statusExists?: (statusId: number) => boolean
     tagExists?: (tagId: number) => boolean
-    fallbackCategoryId?: number | null
   } = {},
 ): ReconcileResult => {
   const now = options.now ?? Date.now()
@@ -425,12 +424,7 @@ export const reconcileOpenNotes = (
 
     const form: NoteFormState = {
       ...entry.form,
-      selectedCategoryIds:
-        validCategoryIds.length > 0
-          ? validCategoryIds
-          : options.fallbackCategoryId == null
-            ? []
-            : [options.fallbackCategoryId],
+      selectedCategoryIds: validCategoryIds,
       selectedStatusId: validStatusId,
       selectedTagIds: validTagIds,
     }

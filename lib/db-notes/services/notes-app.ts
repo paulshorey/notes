@@ -45,6 +45,7 @@ import type {
   WorkspacesResponse,
 } from "../contracts/notes-app"
 import { getDb } from "../lib/db/postgres"
+import { assertCategoryNameAllowed } from "../contracts/category-name"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "../notes-search-constants"
@@ -206,7 +207,11 @@ export const parseStatusesRequest = (userId: unknown, workspaceId?: unknown): St
 export const parseWorkspacesRequest = (userId: unknown): WorkspacesRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 })
-export const parseCreateCategoryRequest = (v: unknown): CreateCategoryRequest => labelRequest(v)
+export const parseCreateCategoryRequest = (v: unknown): CreateCategoryRequest => {
+  const request = labelRequest(v)
+  assertCategoryNameAllowed(request.label)
+  return request
+}
 export const parseCreateTagRequest = (v: unknown): CreateTagRequest => labelRequest(v)
 export const parseCreateStatusRequest = (v: unknown): CreateStatusRequest => labelRequest(v)
 export const parseCreateWorkspaceRequest = (v: unknown): CreateWorkspaceRequest => {
@@ -215,6 +220,7 @@ export const parseCreateWorkspaceRequest = (v: unknown): CreateWorkspaceRequest 
 }
 export const parseUpdateCategoryRequest = (v: unknown): UpdateCategoryRequest => {
   const b = object(v)
+  assertCategoryNameAllowed(label(b.label))
   return {
     ...workspaceRequest(b.userId, b.workspaceId),
     categoryId: parsePositiveInteger(b.categoryId, "categoryId"),
@@ -458,6 +464,7 @@ const createLabelEntity = async (
 export const createCategoryForNotesApp = async (
   r: CreateCategoryRequest,
 ): Promise<CreateCategoryResponse> => {
+  assertCategoryNameAllowed(r.label)
   const id = await createLabelEntity("category", r.userId, r.workspaceId, r.label)
   const category = await getCategoryByIdForWorkspace(r.userId, r.workspaceId, id)
   if (!category) throw new Error("Failed to load category.")
@@ -478,6 +485,7 @@ export const createStatusForNotesApp = async (r: CreateStatusRequest): Promise<S
 export const updateCategoryForNotesApp = async (
   r: UpdateCategoryRequest,
 ): Promise<UpdateCategoryResponse | null> => {
+  assertCategoryNameAllowed(r.label)
   if (!r.label) throw new Error("label is required.")
   const e = await createTagLabelEmbedding(r.label)
   const category = await updateCategoryLabelForWorkspace(

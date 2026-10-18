@@ -23,7 +23,7 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
     )
     return rows[0]!.id
   }
-  test("seeds defaults once and isolates identical labels between workspaces", async () => {
+  test("creates workspaces without seeding categories", async () => {
     const userId = await createUser()
     try {
       const client = await getDb().connect()
@@ -47,7 +47,7 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
       )
       assert.deepEqual(
         defaults.rows.map((r) => r.label),
-        ["uncategorized", "uncategorized"],
+        [],
       )
     } finally {
       await getDb().query(`DELETE FROM public.user_v1 WHERE id=$1`, [userId])
@@ -101,7 +101,7 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
         ),
       )
       const otherCategory = await getDb().query<{ id: number }>(
-        `SELECT id FROM public.workspace_note_category_v1 WHERE workspace_id=$1 LIMIT 1`,
+        `INSERT INTO public.workspace_note_category_v1(workspace_id,label) VALUES($1,'foreign') RETURNING id`,
         [other.id],
       )
       const otherTag = await getDb().query<{ id: number }>(

@@ -28,6 +28,7 @@ export interface FilterablePickerProps {
   excludeSelected?: boolean
   emptyWithoutQueryMessage?: string | null
   inputPlaceholder?: string
+  validateInput?: (value: string) => string | null
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }
@@ -53,6 +54,7 @@ export function FilterablePicker({
   excludeSelected = false,
   emptyWithoutQueryMessage = null,
   inputPlaceholder = "Enter new...",
+  validateInput,
   open: controlledOpen,
   onOpenChange,
 }: FilterablePickerProps) {
@@ -63,6 +65,7 @@ export function FilterablePicker({
   const [submitting, setSubmitting] = useState(false)
   const open = controlledOpen ?? internalOpen
   const interactionDisabled = disabled || pending || submitting
+  const inputError = validateInput?.(inputValue) ?? null
   const selectedIdSet = useMemo(() => {
     const ids = selectedIds.map((id) => String(id))
     if (multiple || ids.length <= 1) {
@@ -110,7 +113,7 @@ export function FilterablePicker({
 
   const submitInput = () => {
     const label = inputValue.trim()
-    if (label === "" || interactionDisabled) return
+    if (label === "" || interactionDisabled || inputError) return
     const normalized = label.toLocaleLowerCase()
     const matchingOption = filteredOptions.find(
       (option) => option.label.trim().toLocaleLowerCase() === normalized,
@@ -174,6 +177,7 @@ export function FilterablePicker({
         inputPlaceholder={inputPlaceholder}
         inputRef={inputRef}
         inputDisabled={interactionDisabled}
+        inputError={inputError}
         onInputChange={(nextValue) => setInputValue(nextValue.toLocaleLowerCase())}
         onInputKeyDown={(event) => {
           if (event.key === "Escape") {

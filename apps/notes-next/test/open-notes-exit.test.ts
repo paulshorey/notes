@@ -50,8 +50,8 @@ const isDirty = (item: OpenNoteEntry) =>
 
 const isSaveable = (form: NoteFormState) => form.description.trim() !== ""
 
-test("session flush ignores an untouched default-category draft but keeps real work", () => {
-  const untouchedDefaultDraft = entry("draft:0", null, "", null)
+test("session flush ignores an untouched draft but keeps real work", () => {
+  const untouchedDraft = entry("draft:0", null, "", null)
   const dirtySavedNote = entry("note:1", 1, "edited", "original")
   const blockedDraft = {
     ...entry("draft:2", null, "started", null),
@@ -59,10 +59,10 @@ test("session flush ignores an untouched default-category draft but keeps real w
   }
   const cleanSavedNote = entry("note:3", 3, "unchanged")
 
-  assert.equal(isDirty(untouchedDefaultDraft), true, "a null saved signature reads as dirty")
+  assert.equal(isDirty(untouchedDraft), true, "a null saved signature reads as dirty")
   assert.deepEqual(
     collectSessionFlushEntries(
-      [untouchedDefaultDraft, dirtySavedNote, blockedDraft, cleanSavedNote],
+      [untouchedDraft, dirtySavedNote, blockedDraft, cleanSavedNote],
       isDirty,
     ).map((item) => item.key),
     ["note:1", "draft:2"],

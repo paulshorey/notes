@@ -23,6 +23,7 @@ import type {
   WorkspaceRecord,
 } from "@lib/db-notes"
 import type { RestoreBackupResponse } from "@lib/db-notes/contracts/notes-app"
+import { getCategoryNameError } from "@lib/db-notes/contracts/category-name"
 import { NOTES_APP_SEARCH_MAX_RESULTS } from "@lib/db-notes/notes-search-constants"
 import {
   type CSSProperties,
@@ -322,9 +323,6 @@ const withMaxOpenNotesPreference = (
   },
 })
 
-const getDefaultCategoryId = (categoryList: CategoryRecord[]) =>
-  categoryList.length > 0 ? categoryList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
-
 const getDefaultTagId = (tagList: TagRecord[]) =>
   tagList.length > 0 ? tagList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
 
@@ -358,27 +356,6 @@ const compareNoteGroups = <
     leftRecord.label.localeCompare(rightRecord.label, undefined, { sensitivity: "base" }) ||
     leftRecord.id - rightRecord.id
   )
-}
-
-const compareCategoryNoteGroups = (
-  left: CategoryNoteGroup,
-  right: CategoryNoteGroup,
-  uncategorizedCategoryId: number | null,
-) => {
-  const leftIsEmptyUncategorized =
-    uncategorizedCategoryId !== null &&
-    left.category.id === uncategorizedCategoryId &&
-    left.items.length === 0
-  const rightIsEmptyUncategorized =
-    uncategorizedCategoryId !== null &&
-    right.category.id === uncategorizedCategoryId &&
-    right.items.length === 0
-
-  if (leftIsEmptyUncategorized !== rightIsEmptyUncategorized) {
-    return leftIsEmptyUncategorized ? 1 : -1
-  }
-
-  return compareNoteGroups(left, right)
 }
 
 /**
@@ -426,7 +403,6 @@ export default function NotesApp() {
   const [tags, setTags] = useState<TagRecord[]>([])
   const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([])
   const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null)
-  const fallbackCategoryId = getDefaultCategoryId(categories)
   const fallbackTagId = getDefaultTagId(tags)
   // Selector subscriptions rather than a bulk destructure: with a ring of open
   // notes, subscribing to the whole store would re-render the entire app —
@@ -858,7 +834,6 @@ export default function NotesApp() {
           categoryExists: (categoryId) => categoryIds.has(categoryId),
           statusExists: (statusId) => statusIds.has(statusId),
           tagExists: (tagId) => tagIds.has(tagId),
-          fallbackCategoryId: getDefaultCategoryId(categoryList),
         },
       )
 
@@ -918,7 +893,7 @@ export default function NotesApp() {
         selection.categoryId !== null &&
         categoryList.some((category) => category.id === selection.categoryId)
           ? selection.categoryId
-          : getDefaultCategoryId(categoryList)
+          : null
 
       openDraftEntry({
         categoryIds: categoryId === null ? [] : [categoryId],
@@ -938,25 +913,18 @@ export default function NotesApp() {
     // outgoing entry keeps autosaving in the background, so there is nothing
     // to await here.
     clearMessages()
+    openDraftEntry()
+  }, [clearMessages, openDraftEntry])
+
+  const handleAddNoteInCategory = useCallback(() => {
+    clearMessages()
+    const categoryIds =
+      useNotesAppStore.getState().openNotes.find((entry) => entry.key === activeKey)?.form
+        .selectedCategoryIds ?? []
     openDraftEntry({
-      categoryIds: [
-        useNotesAppStore.getState().openNotes.find((entry) => entry.key === activeKey)?.form
-          .selectedCategoryIds[0] ?? getDefaultCategoryId(categoriesRef.current),
-      ].filter((id): id is number => id !== null),
+      categoryIds: categoryIds.filter((id) => categoriesRef.current.some((c) => c.id === id)),
     })
   }, [activeKey, clearMessages, openDraftEntry])
-
-  const handleAddDefaultNote = useCallback(() => {
-    clearMessages()
-    const categoryList = categoriesRef.current
-    const defaultCategory = categoryList.find(
-      (category) => category.id === getDefaultCategoryId(categoryList),
-    )
-    openDraftEntry({
-      categoryIds: defaultCategory ? [defaultCategory.id] : [],
-      categoryLabel: defaultCategory?.label ?? "",
-    })
-  }, [clearMessages, openDraftEntry])
 
   const loadNotes = useCallback(
     async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
@@ -1477,8 +1445,6 @@ export default function NotesApp() {
       statusList: StatusRecord[],
       tagList: TagRecord[],
     ) => {
-      const fallback = getDefaultCategoryId(categoryList)
-
       patchEveryEntry((entry) => {
         const serverNote =
           entry.noteId === null ? undefined : noteList.find((note) => note.id === entry.noteId)
@@ -1514,7 +1480,7 @@ export default function NotesApp() {
 
         const form = {
           ...entry.form,
-          selectedCategoryIds: validIds.length ? validIds : fallback === null ? [] : [fallback],
+          selectedCategoryIds: validIds,
           selectedStatusId: validStatusId,
           selectedTagIds: validTagIds,
         }
@@ -1852,7 +1818,7 @@ export default function NotesApp() {
    * Persist every non-empty dirty entry and wait for all of them. Used only
    * where the session itself is about to change — sign-in, sign-up, sign-out —
    * since ordinary note switching no longer needs to block on a save. The
-   * default category makes an untouched new slot technically dirty, but there is
+   * savedSignature can leave an untouched new slot technically dirty, but there is
    * no content to save and it must not block the session change.
    */
   const flushAllPendingSaves = useCallback(async () => {
@@ -2068,8 +2034,8 @@ export default function NotesApp() {
           sortTime: getGroupSortTime(items),
         }
       })
-      .sort((left, right) => compareCategoryNoteGroups(left, right, fallbackCategoryId))
-  }, [categories, fallbackCategoryId, matchesSelectedTag, notes])
+      .sort(compareNoteGroups)
+  }, [categories, matchesSelectedTag, notes])
 
   const uncategorizedItems = useMemo(
     () => allCategoryItems.filter(({ note }) => note.categories.length === 0),
@@ -2542,11 +2508,7 @@ export default function NotesApp() {
         force: true,
       })
       if (useNotesAppStore.getState().openNotes.length === 0) {
-        const defaultCategory = getDefaultCategoryId(data.categories)
-        openDraftEntry({
-          categoryIds: defaultCategory === null ? [] : [defaultCategory],
-          categoryLabel: data.categories.find((c) => c.id === defaultCategory)?.label ?? "",
-        })
+        openDraftEntry()
       }
       setUserPreferences(nextUserPreferences)
       setSearchQuery("")
@@ -2642,24 +2604,7 @@ export default function NotesApp() {
 
   const handleAddNoteForTag = (tag: TagRecord) => {
     clearMessages()
-    const currentCategoryIds =
-      activeEntry?.form.selectedCategoryIds.filter((id) =>
-        categories.some((category) => category.id === id),
-      ) ?? []
-    const selectedCategoryIds = currentCategoryIds.length
-      ? currentCategoryIds
-      : getDefaultCategoryId(categories) === null
-        ? []
-        : [getDefaultCategoryId(categories)!]
-
-    openDraftEntry({
-      categoryIds: selectedCategoryIds,
-      tagIds: [tag.id],
-      categoryLabel: selectedCategoryIds
-        .map((id) => categories.find((category) => category.id === id)?.label)
-        .filter(Boolean)
-        .join(", "),
-    })
+    openDraftEntry({ tagIds: [tag.id] })
     closeIfDrawer()
   }
 
@@ -2783,6 +2728,11 @@ export default function NotesApp() {
       return
     }
     const label = rawLabel.trim()
+    const nameError = getCategoryNameError(label)
+    if (nameError) {
+      setErrorMessage(nameError)
+      return
+    }
     if (label === "" || targetKey === null) {
       return
     }
@@ -2837,6 +2787,11 @@ export default function NotesApp() {
       return null
     }
     const label = normalizeLabel(rawLabel)
+    const nameError = getCategoryNameError(label)
+    if (nameError) {
+      setErrorMessage(nameError)
+      return null
+    }
     if (label === "") {
       return null
     }
@@ -3005,6 +2960,11 @@ export default function NotesApp() {
   const handleSaveCategory = async () => {
     if (!user || !editingCategory) return
     const label = editCategoryLabel.trim()
+    const nameError = getCategoryNameError(label)
+    if (nameError) {
+      setErrorMessage(nameError)
+      return
+    }
     if (label === "" || label === editingCategory.label) {
       closeEditCategory()
       return
@@ -3065,14 +3025,6 @@ export default function NotesApp() {
 
   const openDeleteCategory = (category: CategoryRecord) => {
     clearMessages()
-    if (categories.length <= 1) {
-      setErrorMessage("Create another category before deleting the last one.")
-      return
-    }
-    if (category.id === fallbackCategoryId) {
-      setErrorMessage("The default category cannot be deleted.")
-      return
-    }
     setDeletingCategory(category)
   }
 
@@ -3368,13 +3320,7 @@ export default function NotesApp() {
             onCreateStatus={handleCreateStatus}
             onTagValuesChange={handleTagValuesChange}
             onCancelEdit={handleCancelEdit}
-            defaultCategoryId={fallbackCategoryId}
-            defaultCategoryLabel={
-              categories.find((category) => category.id === fallbackCategoryId)?.label ??
-              "uncategorized"
-            }
-            onAddDefaultNote={handleAddDefaultNote}
-            onAddNoteInCategory={handleCancelEdit}
+            onAddNoteInCategory={handleAddNoteInCategory}
             onDeleteEditingNote={() => {
               if (activeEntry?.noteId != null) {
                 void handleDeleteNote(activeEntry.noteId)
@@ -3422,7 +3368,6 @@ export default function NotesApp() {
           statuses={statuses}
           statusNoteGroups={statusNoteGroups}
           activeStatusId={activeForm.selectedStatusId}
-          fallbackCategoryId={fallbackCategoryId}
           fallbackTagId={fallbackTagId}
           selectedTag={selectedTag}
           searchMode={searchMode}

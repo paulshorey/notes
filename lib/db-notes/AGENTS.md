@@ -11,6 +11,7 @@ Database-first package for the `DB_NOTES_URL` database.
 - `user_v1` owns `user_workspace_v1`; notes and all note vocabulary are owned through a workspace.
 - Every note has one `workspace_id`, zero or more category links, one nullable `status_id`, and zero or more tag links.
 - Categories, statuses, and tags are independent flat vocabularies, unique by normalized label within a workspace. They are not a hierarchy.
+- Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for zero category links. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
 - Composite foreign keys enforce that every note relation comes from the note's own workspace.
 
 ## Source of truth

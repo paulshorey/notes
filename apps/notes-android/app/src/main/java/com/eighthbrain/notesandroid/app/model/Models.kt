@@ -99,8 +99,8 @@ data class NoteRecord(
     val timeModified: String,
 ) {
     /** Temporary compatibility for the Android single-category UI. */
-    val category: NoteCategoryRef
-        get() = categories.firstOrNull() ?: NoteCategoryRef(id = -1, label = "Uncategorized")
+    val category: NoteCategoryRef?
+        get() = categories.firstOrNull()
 }
 
 fun List<NoteRecord>.sortedByLastUpdated(): List<NoteRecord> =
@@ -154,8 +154,8 @@ fun defaultRemindInput(): String = nowLocalDateTime().plusMinutes(30).format(loc
 
 fun NoteRecord.toDraft(): NoteDraft =
     NoteDraft(
-        selectedCategoryId = category.id,
-        newCategoryLabel = category.label,
+        selectedCategoryId = category?.id,
+        newCategoryLabel = category?.label.orEmpty(),
         selectedTagIds = tags.map { it.id },
         selectedStatusId = status?.id,
         newTagLabel = "",
@@ -232,3 +232,10 @@ fun formatPercent(value: Double?): String {
     val bounded = (value * 100.0).toInt().coerceIn(0, 100)
     return "$bounded%"
 }
+
+fun categoryNameError(value: String): String? =
+    if (value.trim().equals("uncategorized", ignoreCase = true)) {
+        "‘uncategorized’ is reserved for notes without a category. Choose another name."
+    } else {
+        null
+    }

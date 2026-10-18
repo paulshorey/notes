@@ -22,6 +22,23 @@ describe("backup validation", () => {
     assert.equal("password" in parsed, false)
     assert.deepEqual((parsed.preferences as Record<string, unknown>).futureApp, { keep: true })
   })
+  test("converts legacy uncategorized memberships after validating all references", () => {
+    const file = backupFixture()
+    const workspace = file.workspaces[0]!
+    workspace.categories.push({ ...workspace.categories[0]!, label: "uncategorized" })
+    workspace.notes[0]!.categories = ["uncategorized", "shared"]
+    const parsed = parseUserBackup(file)
+    assert.deepEqual(parsed.workspaces[0]!.notes[0]!.categories, ["shared"])
+    assert.equal(
+      parsed.workspaces[0]!.categories.some((c) => c.label === "uncategorized"),
+      false,
+    )
+    assert.deepEqual(workspace.notes[0]!.categories, ["uncategorized", "shared"])
+    workspace.notes[0]!.categories = ["uncategorized"]
+    assert.deepEqual(parseUserBackup(file).workspaces[0]!.notes[0]!.categories, [])
+    workspace.categories = workspace.categories.filter((c) => c.label !== "uncategorized")
+    assert.throws(() => parseUserBackup(file), /outside its workspace/)
+  })
   test("rejects malformed dates, relations, versions, duplicate labels, positions and unsafe preferences", () => {
     for (const change of [
       (b: ReturnType<typeof backupFixture>) => {

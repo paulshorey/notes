@@ -449,10 +449,6 @@ private fun WidgetCategoryPickerScreen(
         editingId = null
         editingDraft = ""
         error = null
-        if (categories.size <= 1) {
-            error = "Create another category before deleting the last one."
-            return
-        }
         if (category.noteCount == 0) {
             deletingId = null
             scope.launch {
@@ -519,7 +515,6 @@ private fun WidgetCategoryPickerScreen(
             editingCategoryId = editingId,
             editingDraft = editingDraft,
             deletingCategoryId = deletingId,
-            protectedCategoryId = categories.minByOrNull { it.id }?.id,
             busy = busy,
             onSelect = { id -> select(id) },
             onStartEdit = { category -> startEdit(category) },
@@ -756,7 +751,7 @@ private fun WidgetNoteEditorScreen(
             dueInput = draft.dueInput
             remindInput = draft.remindInput
         } else {
-            selectedCategoryId = categories.firstOrNull()?.id
+            selectedCategoryId = null
             selectedTagIds = emptyList()
         }
     }
@@ -950,14 +945,11 @@ private fun WidgetNoteEditorScreen(
                     busy = true
                     error = null
                     try {
-                        val categoryId =
-                            selectedCategoryId
-                                ?: throw IllegalStateException("Choose a category before saving.")
                         repository.saveNote(
                             noteId = noteId,
                             noteDraft =
                                 NoteDraft(
-                                    selectedCategoryId = categoryId,
+                                    selectedCategoryId = selectedCategoryId,
                                     selectedTagIds = selectedTagIds,
                                     newCategoryLabel = "",
                                     newTagLabel = "",

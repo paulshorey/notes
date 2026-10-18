@@ -2,6 +2,7 @@
 
 import { Button, Modal, Text, TextInput } from "@gravity-ui/uikit"
 import type { CategoryRecord } from "@lib/db-notes"
+import { getCategoryNameError } from "@lib/db-notes/contracts/category-name"
 import { toLowercaseInput } from "@/lib/strings"
 import styles from "./EditCategoryModal.module.css"
 
@@ -22,6 +23,7 @@ export function EditCategoryModal({
   onSave,
   pending,
 }: EditCategoryModalProps) {
+  const nameError = getCategoryNameError(label)
   return (
     <Modal open={category !== null} onClose={onClose}>
       <div className={styles.modalBody}>
@@ -31,6 +33,8 @@ export function EditCategoryModal({
           value={label}
           onUpdate={(value) => onLabelChange(toLowercaseInput(value))}
           placeholder="Category name"
+          validationState={nameError ? "invalid" : undefined}
+          errorMessage={nameError ?? undefined}
           autoFocus
         />
         <div className={styles.modalActions}>
@@ -41,7 +45,7 @@ export function EditCategoryModal({
             view="action"
             size="m"
             loading={pending}
-            disabled={label.trim() === "" || label.trim() === category?.label}
+            disabled={Boolean(nameError) || label.trim() === "" || label.trim() === category?.label}
             onClick={onSave}
           >
             Save

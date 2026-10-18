@@ -6,6 +6,7 @@ import type {
   UserBackup,
   UserPreferences,
 } from "./notes-app"
+import { UNCATEGORIZED_LABEL } from "./category-name"
 
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
 export const USER_BACKUP_VERSION = 1
@@ -138,7 +139,10 @@ export const parseUserBackup = (value: unknown): UserBackup => {
           fail("A note refers to an unknown status.")
         return {
           description: n.description as string | null,
-          categories: refs(n.categories, categoryLabels),
+          // Validate legacy references before converting the old fallback row.
+          categories: refs(n.categories, categoryLabels).filter(
+            (name) => name !== UNCATEGORIZED_LABEL,
+          ),
           status,
           tags: refs(n.tags, tagLabels),
           timeDue: nullableTimestamp(n.timeDue),
@@ -147,7 +151,13 @@ export const parseUserBackup = (value: unknown): UserBackup => {
           timeModified: timestamp(n.timeModified),
         }
       })
-      return { ...vocabulary(w), categories, statuses, tags, notes }
+      return {
+        ...vocabulary(w),
+        categories: categories.filter((category) => category.label !== UNCATEGORIZED_LABEL),
+        statuses,
+        tags,
+        notes,
+      }
     }),
     (w) => w.label,
   )

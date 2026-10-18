@@ -31,6 +31,8 @@ isProject: true
 
 # Workspace-scoped notes plan
 
+Historical plan: default-category selection, seeding, and protection are superseded by `docs/operations/category-cleanup.md`.
+
 ## 1. Product decisions encoded by this plan
 
 This design replaces the folder-like hierarchy from PR #70. There is no generic
