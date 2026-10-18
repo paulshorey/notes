@@ -317,7 +317,7 @@
   outline: none;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .formColumn {
     width: 100%;
     min-width: 0;

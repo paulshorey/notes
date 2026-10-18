@@ -1,30 +1,24 @@
 import { useCallback, useEffect, useState } from "react"
-import { MOBILE_RESULTS_MEDIA_QUERY, SIDEBAR_OVERLAY_MEDIA_QUERY } from "@/constants/notes"
+import { SIDEBAR_OVERLAY_MEDIA_QUERY } from "@/constants/notes"
 import { useNotesAppStore } from "@/stores/notesAppStore"
 
-type SidebarLayout = "mobile" | "tablet" | "desktop"
-
 export function useSidebarDrawer() {
-  const [layout, setLayout] = useState<SidebarLayout>("desktop")
+  const [drawerMode, setDrawerMode] = useState(false)
   const open = useNotesAppStore((state) => state.resultsListVisible)
   const setOpen = useNotesAppStore((state) => state.setResultsListVisible)
-  const drawerMode = layout !== "desktop"
 
   useEffect(() => {
-    const mobileQuery = window.matchMedia(MOBILE_RESULTS_MEDIA_QUERY)
     const drawerQuery = window.matchMedia(SIDEBAR_OVERLAY_MEDIA_QUERY)
 
     const syncSidebarMode = () => {
-      setLayout(mobileQuery.matches ? "mobile" : drawerQuery.matches ? "tablet" : "desktop")
-      // Each layout starts in its default state, including after resizing.
+      setDrawerMode(drawerQuery.matches)
+      // Apply the default only when crossing between drawer and desktop modes.
       setOpen(!drawerQuery.matches)
     }
 
     syncSidebarMode()
-    mobileQuery.addEventListener("change", syncSidebarMode)
     drawerQuery.addEventListener("change", syncSidebarMode)
     return () => {
-      mobileQuery.removeEventListener("change", syncSidebarMode)
       drawerQuery.removeEventListener("change", syncSidebarMode)
     }
   }, [setOpen])
@@ -35,5 +29,5 @@ export function useSidebarDrawer() {
     }
   }, [drawerMode, setOpen])
 
-  return { layout, drawerMode, open, setOpen, closeIfDrawer }
+  return { drawerMode, open, setOpen, closeIfDrawer }
 }
