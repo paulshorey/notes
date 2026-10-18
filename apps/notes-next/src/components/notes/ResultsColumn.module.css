@@ -11,10 +11,6 @@
   display: none;
 }
 
-.mobileDrawerTrigger {
-  display: none;
-}
-
 .resultsColumn {
   position: relative;
   margin: 0;
@@ -477,7 +473,7 @@
   outline: none;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .resultsColumnShell,
   .resultsColumnShellCollapsed {
     position: absolute;
@@ -498,6 +494,7 @@
     max-width: none !important;
     flex: 1 1 0 !important;
     border-left: solid 10px var(--g-color-line-generic);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     transition: none;
   }
 
@@ -508,55 +505,6 @@
   .resultsColumnShellCollapsed .resultsColumn {
     visibility: hidden;
     transition: visibility 0s 0.4s;
-  }
-}
-
-@media (width < 500px) {
-  .resultsColumnShell,
-  .resultsColumnShellCollapsed {
-    top: max(47px, 8dvh);
-    width: 100%;
-    border-radius: 12px 12px 0 0;
-    overflow: hidden;
-    transform: translateY(calc(100% - var(--mobile-nav-trigger-height)));
-  }
-
-  .resultsColumnShellOpen {
-    transform: translateY(0);
-  }
-
-  .resultsColumn {
-    border-left: 0;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-
-  .mobileDrawerTrigger {
-    display: flex;
-    flex: 0 0 var(--mobile-nav-trigger-height);
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    padding: 0 8px;
-    border: 0;
-    background: var(--g-color-line-generic);
-    color: var(--g-color-text-secondary);
-    font: inherit;
-    cursor: pointer;
-    touch-action: none;
-    user-select: none;
-  }
-
-  .resultsColumnShellOpen .mobileDrawerTrigger {
-    flex-basis: 34px;
-  }
-
-  .mobileDrawerTrigger:focus-visible {
-    outline: 2px solid var(--g-color-line-focus);
-    outline-offset: -2px;
-  }
-
-  .mobileDrawerCaretOpen {
-    transform: rotate(180deg);
   }
 }
 

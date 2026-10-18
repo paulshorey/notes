@@ -4,7 +4,6 @@ import type { CategoryRecord, NoteRecord, StatusRecord, TagRecord } from "@lib/d
 import {
   ArrowsLeftRight,
   CaretRight,
-  CaretUp,
   DotsThreeVertical,
   MagnifyingGlass,
   PencilSimple,
@@ -19,7 +18,6 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
-  type PointerEvent,
   type ReactNode,
   useEffect,
   useMemo,
@@ -150,36 +148,6 @@ export function ResultsColumn({
 }: ResultsColumnProps) {
   const [expandedSection, setExpandedSection] = useState<ResultsAccordionId>("categories")
   const searchQuery = useNotesAppStore((state) => state.searchQuery)
-  const setResultsListVisible = useNotesAppStore((state) => state.setResultsListVisible)
-  const drawerGestureRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
-  const suppressDrawerClickRef = useRef(false)
-
-  const handleDrawerPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
-    if (!event.isPrimary || event.button !== 0) return
-    suppressDrawerClickRef.current = false
-    drawerGestureRef.current = {
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-    }
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  const handleDrawerPointerUp = (event: PointerEvent<HTMLButtonElement>) => {
-    const gesture = drawerGestureRef.current
-    if (!gesture || gesture.pointerId !== event.pointerId) return
-    drawerGestureRef.current = null
-    const deltaX = event.clientX - gesture.x
-    const deltaY = event.clientY - gesture.y
-    // A swipe must not also trigger the button's subsequent click.
-    suppressDrawerClickRef.current = Math.max(Math.abs(deltaX), Math.abs(deltaY)) >= 32
-    if (Math.abs(deltaY) >= 32 && Math.abs(deltaY) > Math.abs(deltaX)) {
-      setResultsListVisible(deltaY < 0)
-    }
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
-    }
-  }
   const setSearchQuery = useNotesAppStore((state) => state.setSearchQuery)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<number[]>([])
@@ -388,29 +356,6 @@ export function ResultsColumn({
         visible ? styles.resultsColumnShellOpen : styles.resultsColumnShellCollapsed
       }`}
     >
-      <button
-        type="button"
-        className={styles.mobileDrawerTrigger}
-        aria-label={visible ? "Hide notes list" : "Show notes list"}
-        aria-expanded={visible}
-        aria-controls="notes-navigation"
-        onPointerDown={handleDrawerPointerDown}
-        onPointerUp={handleDrawerPointerUp}
-        onPointerCancel={() => {
-          drawerGestureRef.current = null
-        }}
-        onLostPointerCapture={() => {
-          drawerGestureRef.current = null
-        }}
-        onClick={(event) => {
-          if (!suppressDrawerClickRef.current || event.detail === 0) {
-            setResultsListVisible((current) => !current)
-          }
-          suppressDrawerClickRef.current = false
-        }}
-      >
-        <CaretUp size={28} className={visible ? styles.mobileDrawerCaretOpen : ""} aria-hidden />
-      </button>
       <section
         id="notes-navigation"
         aria-label="Notes navigation"

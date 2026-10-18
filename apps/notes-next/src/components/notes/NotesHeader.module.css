@@ -106,7 +106,7 @@
   transform: scaleX(1);
 }
 
-@media (500px <= width <= 900px) {
+@media (max-width: 720px) {
   .resultsToggleButton {
     display: inline-flex;
   }
