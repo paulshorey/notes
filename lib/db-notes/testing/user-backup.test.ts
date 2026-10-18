@@ -201,6 +201,24 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
     })
   })
 
+  test("restores a legacy literal category as empty links under the reserved-name constraint", async () => {
+    const id = await realUser()
+    const file = backupFixture()
+    const workspace = file.workspaces[0]!
+    workspace.categories.push({ ...workspace.categories[0]!, label: "uncategorized" })
+    workspace.notes[0]!.categories = ["uncategorized"]
+    await restoreUserBackup(id, file)
+    const restored = await exportUserBackup(id)
+    const note = restored.workspaces[0]!.notes.find(
+      (n) => n.description === workspace.notes[0]!.description,
+    )!
+    assert.deepEqual(note, { ...workspace.notes[0]!, categories: [] })
+    assert.equal(
+      restored.workspaces[0]!.categories.some((c) => c.label === "uncategorized"),
+      false,
+    )
+  })
+
   test("preserves identical twin notes and serializes concurrent restores without duplicates", async () => {
     const id = await realUser()
     const file = backupFixture()

@@ -219,7 +219,8 @@ CREATE TABLE public.workspace_note_category_v1 (
     embedding_updated_at timestamp with time zone,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workspace_note_category_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
+    CONSTRAINT workspace_note_category_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label))))),
+    CONSTRAINT workspace_note_category_v1_label_not_reserved_check CHECK ((label <> 'uncategorized'::text))
 );
 
 

@@ -16,6 +16,10 @@ vocabularies and longer category names such as `uncategorized ideas` are unaffec
 
 ## Ordered releases
 
+Runtime compatibility is [PR #101](https://github.com/paulshorey/notes/pull/101),
+commit `f62bf107eef143a2ae00211e4071d5ac8b5354ce`. Deploy that commit (or a later
+commit containing it) before the migration in the cleanup PR.
+
 The compatibility/runtime PR must deploy before the cleanup migration PR. The old
 server seeds the literal category during bootstrap, including after the category
 is removed. Applying the new constraint while an old server still serves traffic
