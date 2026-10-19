@@ -79,7 +79,6 @@ class NotesRepository(
         val workspaceId = requireWorkspaceId(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
-        require(categoryNameError(trimmed) == null) { categoryNameError(trimmed)!! }
         return try {
             val tag = apiClient.createTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
@@ -166,7 +165,6 @@ class NotesRepository(
         val workspaceId = requireWorkspaceId(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
-        require(categoryNameError(trimmed) == null) { categoryNameError(trimmed)!! }
         return runWithErrorPersistence(snapshot) {
             apiClient.updateTag(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, tagId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
