@@ -18,7 +18,7 @@ interface NoteResultsListProps {
   loading: boolean
   emptyMessage: string
   onEdit: (note: NoteRecord) => void
-  renderAction?: (note: NoteRecord) => ReactNode
+  renderAction: (note: NoteRecord) => ReactNode
 }
 
 const formatSimilarity = (value: number | null | undefined) => {
@@ -82,11 +82,15 @@ export function NoteResultsList({
             <div className={styles.noteLine}>
               <div className={styles.noteTitleCollapsed}>{noteHeadline(note.description)}</div>
               {relevanceLabel && <span className={styles.similarityBadge}>{relevanceLabel}</span>}
-              {renderAction && (
-                <div className={styles.noteAction} onClick={(event) => event.stopPropagation()}>
-                  {renderAction(note)}
-                </div>
-              )}
+              <div
+                className={styles.noteAction}
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") event.stopPropagation()
+                }}
+              >
+                {renderAction(note)}
+              </div>
             </div>
           </div>
         )
