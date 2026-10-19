@@ -264,3 +264,14 @@ test("the back stack stays bounded across a long session", () => {
 
   assert.ok(state.backStack.length <= 6, `back stack grew to ${state.backStack.length}`)
 })
+
+test("a general new-note action clears category context when reusing an empty draft", () => {
+  const initial = openNewDraft(createEmptyOpenNotesState(), {
+    categoryIds: [7],
+    categoryLabel: "work",
+  }).state
+  const reused = openNewDraft(initial).state
+  assert.equal(reused.openNotes.length, 1)
+  assert.deepEqual(getActiveEntry(reused)?.form.selectedCategoryIds, [])
+  assert.equal(getActiveEntry(reused)?.categoryInputValue, "")
+})

@@ -4,6 +4,7 @@ import android.content.Context
 import com.eighthbrain.notesandroid.app.BuildConfig
 import com.eighthbrain.notesandroid.app.model.AppSnapshot
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.categoryNameError
 import com.eighthbrain.notesandroid.app.model.TagRecord
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
@@ -105,6 +106,7 @@ class NotesRepository(
         val workspaceId = requireWorkspaceId(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
+        require(categoryNameError(trimmed) == null) { categoryNameError(trimmed)!! }
         return try {
             val category = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
@@ -135,6 +137,7 @@ class NotesRepository(
         val workspaceId = requireWorkspaceId(snapshot)
         val trimmed = label.trim()
         require(trimmed.isNotEmpty()) { "label is required." }
+        require(categoryNameError(trimmed) == null) { categoryNameError(trimmed)!! }
         return runWithErrorPersistence(snapshot) {
             apiClient.updateCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, categoryId, trimmed)
             syncSnapshot(snapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())
@@ -194,6 +197,7 @@ class NotesRepository(
             val categoryLabel = noteDraft.newCategoryLabel.trim()
             if (categoryLabel.isNotEmpty()) {
                 val category = snapshot.categories.findLabelMatch(categoryLabel) ?: run {
+                    require(categoryNameError(categoryLabel) == null) { categoryNameError(categoryLabel)!! }
                     val created = apiClient.createCategory(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, categoryLabel)
                     resolvedSnapshot = syncSnapshot(snapshot, refreshSearch = false)
                     created
@@ -223,8 +227,6 @@ class NotesRepository(
                         newTagLabel = "",
                     )
             }
-
-            require(resolvedDraft.selectedCategoryId != null) { "Choose or type a category before saving." }
 
             apiClient.saveNote(BuildConfig.DEFAULT_API_BASE_URL, token, user.id, workspaceId, noteId, resolvedDraft)
             syncSnapshot(resolvedSnapshot, refreshSearch = snapshot.lastSearchQuery.isNotBlank())

@@ -70,7 +70,7 @@ rows:
 Owned content hangs from `user_workspace_v1`. Notes belong to one workspace;
 category and tag links are many-to-many, status is nullable, and every relation
 is constrained to the note's workspace. Anonymous creation seeds a `personal`
-workspace with `uncategorized`, `backlog`, and `important` vocabulary rows.
+workspace with no categories and the `backlog` status and `important` tag.
 
 ## Auth stack (NextAuth / Auth.js)
 

@@ -1,7 +1,6 @@
 import type { PoolClient } from "pg"
 import type { WorkspaceRecord } from "../contracts/notes-app"
 import { getDb } from "../lib/db/postgres"
-import { ensureDefaultCategoryForWorkspace } from "./category"
 import { ensureDefaultTagForWorkspace } from "./tag"
 import { ensureDefaultStatusForWorkspace } from "./status"
 export const DEFAULT_WORKSPACE_LABEL = "personal"
@@ -19,7 +18,6 @@ const map = (r: Row): WorkspaceRecord => ({
 })
 const select = `SELECT w.id,w.user_id,w.label,(SELECT COUNT(*)::int FROM public.user_note_v1 n WHERE n.workspace_id=w.id) note_count FROM public.user_workspace_v1 w`
 export const seedWorkspaceDefaults = async (client: PoolClient, workspaceId: number) => {
-  await ensureDefaultCategoryForWorkspace(client, workspaceId)
   await ensureDefaultStatusForWorkspace(client, workspaceId)
   await ensureDefaultTagForWorkspace(client, workspaceId)
 }

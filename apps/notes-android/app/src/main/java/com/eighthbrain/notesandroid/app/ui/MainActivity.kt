@@ -86,6 +86,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.eighthbrain.notesandroid.app.NotesApplication
 import com.eighthbrain.notesandroid.app.model.AppSnapshot
 import com.eighthbrain.notesandroid.app.model.CategoryRecord
+import com.eighthbrain.notesandroid.app.model.categoryNameError
 import com.eighthbrain.notesandroid.app.model.NoteDraft
 import com.eighthbrain.notesandroid.app.model.NoteRecord
 import com.eighthbrain.notesandroid.app.model.TagRecord
@@ -440,7 +441,6 @@ class NotesViewModel(
         val categories = _uiState.value.snapshot.categories
         val resolvedCategory =
             categoryId?.let { id -> categories.firstOrNull { it.id == id } }
-                ?: categories.minByOrNull { it.id }
         _uiState.update {
             it.copy(
                 showNoteEditor = true,
@@ -455,10 +455,6 @@ class NotesViewModel(
 
     fun saveNote() {
         val current = uiState.value
-        if (current.noteDraft.selectedCategoryId == null && current.noteDraft.newCategoryLabel.trim().isEmpty()) {
-            _uiState.update { it.copy(error = "Choose or type a category before saving.") }
-            return
-        }
         runAction {
             repository.saveNote(current.editingNoteId, current.noteDraft)
             _uiState.update {
@@ -522,17 +518,6 @@ class NotesViewModel(
     fun startDeletingCategory(categoryId: Int) {
         val current = _uiState.value
         val category = current.snapshot.categories.firstOrNull { it.id == categoryId } ?: return
-        val fallbackId = current.snapshot.categories.minByOrNull { it.id }?.id
-        if (categoryId == fallbackId) {
-            _uiState.update { it.copy(error = "The default category cannot be deleted.") }
-            return
-        }
-        if (current.snapshot.categories.size <= 1) {
-            _uiState.update {
-                it.copy(error = "Create another category before deleting the last one.")
-            }
-            return
-        }
         if (category.noteCount == 0) {
             runAction {
                 repository.deleteCategory(categoryId)
@@ -970,7 +955,7 @@ private fun MainContent(
             selectedTagId,
         ) {
             val matchesCategory: (NoteRecord) -> Boolean = { note ->
-                selectedCategoryId == null || note.category.id == selectedCategoryId
+                selectedCategoryId == null || note.categories.any { it.id == selectedCategoryId }
             }
             val matchesTag: (NoteRecord) -> Boolean = { note ->
                 selectedTagId == null ||
@@ -1270,7 +1255,6 @@ private fun CategoriesPickerDialog(
                     editingCategoryId = uiState.editingCategoryId,
                     editingDraft = uiState.editingCategoryLabel,
                     deletingCategoryId = uiState.deletingCategoryId,
-                    protectedCategoryId = uiState.snapshot.categories.minByOrNull { it.id }?.id,
                     busy = uiState.isBusy,
                     onSelect = { id ->
                         viewModel.selectCategoryFilter(id)
@@ -1664,6 +1648,7 @@ private fun CategoryComboField(
     val hasExactMatch = remember(categories, trimmedValue) {
         categories.any { it.label.equals(trimmedValue, ignoreCase = true) }
     }
+    val nameError = categoryNameError(value)
     val canShowDropdown = expanded && (trimmedValue.isNotEmpty() || categories.isNotEmpty())
 
     Box(modifier = modifier) {
@@ -1686,6 +1671,8 @@ private fun CategoryComboField(
                     },
             singleLine = true,
             label = { Text("Category") },
+            isError = nameError != null,
+            supportingText = { nameError?.let { Text(it) } },
             placeholder = { Text("Type or select category") },
             trailingIcon = {
                 IconButton(onClick = { expanded = true }) {
@@ -1701,7 +1688,7 @@ private fun CategoryComboField(
             if (trimmedValue.isNotEmpty() && !hasExactMatch) {
                 DropdownMenuItem(
                     text = { Text("Add \"$trimmedValue\"") },
-                    enabled = !busy,
+                    enabled = !busy && nameError == null,
                     onClick = {
                         expanded = false
                         focusManager.clearFocus()

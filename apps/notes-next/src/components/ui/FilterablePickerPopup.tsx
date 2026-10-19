@@ -8,6 +8,7 @@ import {
   type ReactNode,
   type RefObject,
   useEffect,
+  useId,
 } from "react"
 import styles from "./FilterablePickerPopup.module.css"
 
@@ -26,6 +27,7 @@ export interface FilterablePickerPopupProps {
   inputValue: string
   inputPlaceholder?: string
   inputDisabled?: boolean
+  inputError?: string | null
   inputRef?: RefObject<HTMLInputElement | null>
   onInputChange: (value: string) => void
   onInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
@@ -48,6 +50,7 @@ export function FilterablePickerPopup({
   inputValue,
   inputPlaceholder = "Enter new...",
   inputDisabled = false,
+  inputError = null,
   inputRef,
   onInputChange,
   onInputKeyDown,
@@ -60,7 +63,8 @@ export function FilterablePickerPopup({
   emptyWithoutQueryMessage = null,
 }: FilterablePickerPopupProps) {
   const trimmedInputValue = inputValue.trim()
-  const canSubmit = trimmedInputValue !== "" && !inputDisabled
+  const canSubmit = trimmedInputValue !== "" && !inputDisabled && !inputError
+  const errorId = useId()
 
   useEffect(() => {
     if (!open) {
@@ -80,12 +84,14 @@ export function FilterablePickerPopup({
     >
       <div className={styles.panel}>
         <div className={styles.options} role="listbox" aria-label={listboxAriaLabel}>
-          {options.length === 0 && trimmedInputValue !== "" ? (
+          {inputError ? (
+            <div className={styles.empty} id={errorId} role="alert">
+              {inputError}
+            </div>
+          ) : options.length === 0 && trimmedInputValue !== "" ? (
             <div className={styles.empty}>
               {emptyWithQueryMessage?.(trimmedInputValue) ?? (
-                <>
-                  Press Enter to create &quot;{trimmedInputValue}&quot;
-                </>
+                <>Press Enter to create &quot;{trimmedInputValue}&quot;</>
               )}
             </div>
           ) : (
@@ -128,6 +134,8 @@ export function FilterablePickerPopup({
             className={styles.input}
             placeholder={inputPlaceholder}
             value={inputValue}
+            aria-invalid={Boolean(inputError)}
+            aria-describedby={inputError ? errorId : undefined}
             disabled={inputDisabled}
             onChange={(event) => {
               onInputChange(event.currentTarget.value)

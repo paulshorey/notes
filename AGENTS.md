@@ -35,6 +35,7 @@ Goal is to expand this to be much more than a simple note app. It will be a pers
 ## Data
 
 - `@lib/db-notes` owns all Notes schema changes and migration scripts.
+- Notes have zero or more categories. `uncategorized` is reserved display text for no category links; categories have no default or protected row.
 - `notes-next` consumes `@lib/db-notes` at runtime.
 - `notes-android` validates against the generated Notes app contract but does not touch Postgres directly.
 

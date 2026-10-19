@@ -5,6 +5,7 @@ import { Button, Popup } from "@gravity-ui/uikit"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { CalendarBlank, DotsThree, FolderOpen, Plus, Tag, X } from "@phosphor-icons/react"
 import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
+import { getCategoryNameError } from "@lib/db-notes/contracts/category-name"
 import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-notes"
 import type { NoteFormState } from "@/types/notes"
 import { normalizeLabel } from "@/lib/strings"
@@ -42,9 +43,6 @@ interface NoteFormProps {
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
   onDeleteEditingNote: () => void
-  defaultCategoryId: number | null
-  defaultCategoryLabel: string
-  onAddDefaultNote: () => void
   onAddNoteInCategory: () => void
 }
 
@@ -71,9 +69,6 @@ export function NoteForm({
   onTagValuesChange,
   onCancelEdit,
   onDeleteEditingNote,
-  defaultCategoryId,
-  defaultCategoryLabel,
-  onAddDefaultNote,
   onAddNoteInCategory,
 }: NoteFormProps) {
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -84,9 +79,9 @@ export function NoteForm({
     (category) => category.id === form.selectedCategoryIds[0],
   )
   const selectedCategoryLabel = selectedCategory?.label ?? ""
-  const addNoteCategoryLabel = selectedCategory?.label ?? defaultCategoryLabel
-  const showDefaultNoteButton =
-    selectedCategory !== undefined && selectedCategory.id !== defaultCategoryId
+  const addNoteLabel = selectedCategory
+    ? `Add new note in current category ${selectedCategory.label}`
+    : "Add new note"
 
   const selectedTagLabels = useMemo(() => {
     const next = [
@@ -246,30 +241,19 @@ export function NoteForm({
         />
 
         <div className={styles.formToolbar}>
-          {showDefaultNoteButton && (
-            <button
-              type="button"
-              className={`${styles.addNoteButton} ${styles.addDefaultNoteButton}`}
-              onClick={onAddDefaultNote}
-              aria-label={`Add new note in default category ${defaultCategoryLabel}`}
-            >
-              <Plus size={16} weight="bold" aria-hidden />
-              <span>{defaultCategoryLabel}</span>
-            </button>
-          )}
           <div className={styles.categoryControls}>
             <button
               type="button"
               className={styles.addNoteButton}
               onClick={onAddNoteInCategory}
-              aria-label={`Add new note in current category ${addNoteCategoryLabel}`}
-              title={`Add new note in current category ${addNoteCategoryLabel}`}
+              aria-label={addNoteLabel}
+              title={addNoteLabel}
             >
               <Plus size={16} weight="bold" aria-hidden />
             </button>
             <FilterablePicker
               variant="inline"
-              value={selectedCategoryLabel || defaultCategoryLabel}
+              value={selectedCategoryLabel}
               triggerAriaLabel="Categories"
               listboxAriaLabel="Category options"
               triggerIcon={
@@ -284,6 +268,7 @@ export function NoteForm({
               }}
               onSelectOption={(category) => selectCategory(Number(category.id))}
               onCreateOption={onCreateCategory}
+              validateInput={getCategoryNameError}
               emptyWithoutQueryMessage="No categories yet"
               inputPlaceholder="Enter new category..."
             />

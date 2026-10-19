@@ -562,6 +562,37 @@ export const registerNotesApiAdapterSuite = (
     assert.deepEqual(updateRequests, [{ userId: 7, workspaceId: 3, categoryId: 5, label: "work" }])
   })
 
+  test(`${adapterName} rejects the reserved category name on create and rename before service writes`, async (t) => {
+    let writes = 0
+    const adapter = await createAdapter(
+      createFakeNotesAppService({
+        createCategoryForNotesApp: async () => {
+          writes += 1
+          return { category: sampleCategory }
+        },
+        updateCategoryForNotesApp: async () => {
+          writes += 1
+          return { category: sampleCategory }
+        },
+      }),
+    )
+    t.after(async () => adapter.close?.())
+    for (const method of ["POST", "PATCH"] as const) {
+      const response = await adapter.request({
+        method,
+        path: "/api/categories",
+        headers: authHeaders,
+        body: { workspaceId: 3, categoryId: 5, label: "  UNCATEGORIZED  " },
+      })
+      assert.equal(response.status, 400)
+      assert.match(
+        String((response.body as { error: string }).error),
+        /reserved for notes without a category/,
+      )
+    }
+    assert.equal(writes, 0)
+  })
+
   test(`${adapterName} deletes a category without deleting notes`, async (t) => {
     const requests: Array<{ userId: number; workspaceId: number; categoryId: number }> = []
     const adapter = await createAdapter(

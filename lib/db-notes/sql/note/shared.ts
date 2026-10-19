@@ -1,5 +1,6 @@
 import type { NoteCategoryRef, NoteTagRef, NoteRecord } from "./types"
 import type { PoolClient } from "pg"
+import { assertCategoryNameAllowed } from "../../contracts/category-name"
 
 export const noteColumns = `
   n.id, n.workspace_id, n.description, n.time_due, n.time_remind,
@@ -144,6 +145,9 @@ export const resolveCategoryIdForWorkspace = (
   client: PoolClient,
   workspaceId: number,
   label: string,
-) => resolve(client, "workspace_note_category_v1", workspaceId, label)
+) => {
+  assertCategoryNameAllowed(label)
+  return resolve(client, "workspace_note_category_v1", workspaceId, label)
+}
 export const resolveTagIdForWorkspace = (client: PoolClient, workspaceId: number, label: string) =>
   resolve(client, "workspace_note_tag_v1", workspaceId, label)
