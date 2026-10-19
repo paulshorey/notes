@@ -278,41 +278,28 @@ export function ResultsColumn({
     setActiveMovePicker(null)
   }
 
-  const openCategoryMovePicker = (note: NoteRecord, categoryId: number) => {
-    setOpenActionMenuId(null)
-    setActiveMovePicker({
-      kind: "category",
-      note,
-      id: `category-${categoryId}-note-${note.id}`,
-    })
-  }
-
-  const openTagMovePicker = (note: NoteRecord, tagId: number) => {
-    setOpenActionMenuId(null)
-    setActiveMovePicker({
-      kind: "tag",
-      note,
-      fromTagId: tagId,
-      id: `tag-${tagId}-note-${note.id}`,
-    })
-  }
-
-  const renderNoteRowAction = (
-    note: NoteRecord,
-    menuId: string,
-    pickerId: string,
-    onOpenMovePicker: () => void,
-  ) => (
+  const renderNoteRowAction = (note: NoteRecord, id: string, fromTagId?: number) => (
     <NoteActionMenu
-      id={menuId}
+      id={id}
       noteLabel={note.description?.trim() || "Untitled"}
       openActionMenuId={openActionMenuId}
       onOpenActionMenuChange={setOpenActionMenuId}
-      onMove={onOpenMovePicker}
+      onAssignCategory={() => {
+        setOpenActionMenuId(null)
+        setActiveMovePicker({ kind: "category", note, id })
+      }}
+      onChangeTag={
+        fromTagId === undefined
+          ? undefined
+          : () => {
+              setOpenActionMenuId(null)
+              setActiveMovePicker({ kind: "tag", note, fromTagId, id })
+            }
+      }
       onDelete={() => onDeleteNote(note.id)}
       deletePending={deletingNoteId === note.id}
-      movePickerActive={activeMovePicker?.id === pickerId}
-      movePickerContent={renderMovePicker(note, pickerId)}
+      movePickerActive={activeMovePicker?.id === id}
+      movePickerContent={renderMovePicker(note, id)}
       onCloseMovePicker={closeMovePicker}
     />
   )
@@ -421,6 +408,7 @@ export function ResultsColumn({
                       : "No search results."
                   }
                   onEdit={handleResultEdit}
+                  renderAction={(note) => renderNoteRowAction(note, `search-note-${note.id}`)}
                 />
               </div>
             )}
@@ -493,12 +481,7 @@ export function ResultsColumn({
                             emptyMessage=""
                             onEdit={handleResultEdit}
                             renderAction={(note) =>
-                              renderNoteRowAction(
-                                note,
-                                `category-${category.id}-note-${note.id}`,
-                                `category-${category.id}-note-${note.id}`,
-                                () => openCategoryMovePicker(note, category.id),
-                              )
+                              renderNoteRowAction(note, `category-${category.id}-note-${note.id}`)
                             }
                           />
                         </ScrollableNotesPanel>
@@ -530,6 +513,9 @@ export function ResultsColumn({
                       loading={false}
                       emptyMessage=""
                       onEdit={handleResultEdit}
+                      renderAction={(note) =>
+                        renderNoteRowAction(note, `uncategorized-note-${note.id}`)
+                      }
                     />
                   </ScrollableNotesPanel>
                 )}
@@ -578,6 +564,9 @@ export function ResultsColumn({
                             loading={false}
                             emptyMessage=""
                             onEdit={handleResultEdit}
+                            renderAction={(note) =>
+                              renderNoteRowAction(note, `status-${status.id}-note-${note.id}`)
+                            }
                           />
                         </ScrollableNotesPanel>
                       )}
@@ -614,6 +603,9 @@ export function ResultsColumn({
                           loading={false}
                           emptyMessage=""
                           onEdit={handleResultEdit}
+                          renderAction={(note) =>
+                            renderNoteRowAction(note, `no-status-note-${note.id}`)
+                          }
                         />
                       </ScrollableNotesPanel>
                     )}
@@ -686,12 +678,7 @@ export function ResultsColumn({
                             emptyMessage=""
                             onEdit={handleResultEdit}
                             renderAction={(note) =>
-                              renderNoteRowAction(
-                                note,
-                                `tag-${tag.id}-note-${note.id}`,
-                                `tag-${tag.id}-note-${note.id}`,
-                                () => openTagMovePicker(note, tag.id),
-                              )
+                              renderNoteRowAction(note, `tag-${tag.id}-note-${note.id}`, tag.id)
                             }
                           />
                         </ScrollableNotesPanel>
@@ -996,7 +983,8 @@ interface NoteActionMenuProps {
   noteLabel: string
   openActionMenuId: string | null
   onOpenActionMenuChange: (id: string | null) => void
-  onMove: () => void
+  onAssignCategory: () => void
+  onChangeTag?: () => void
   onDelete: () => void
   deletePending?: boolean
   movePickerActive: boolean
@@ -1009,7 +997,8 @@ function NoteActionMenu({
   noteLabel,
   openActionMenuId,
   onOpenActionMenuChange,
-  onMove,
+  onAssignCategory,
+  onChangeTag,
   onDelete,
   deletePending = false,
   movePickerActive,
@@ -1053,12 +1042,26 @@ function NoteActionMenu({
             role="menuitem"
             onClick={() => {
               onOpenActionMenuChange(null)
-              onMove()
+              onAssignCategory()
             }}
           >
             <ArrowsLeftRight size={14} weight="regular" />
-            <span>Move</span>
+            <span>Assign category</span>
           </button>
+          {onChangeTag && (
+            <button
+              type="button"
+              className={styles.categoryActionMenuItem}
+              role="menuitem"
+              onClick={() => {
+                onOpenActionMenuChange(null)
+                onChangeTag()
+              }}
+            >
+              <ArrowsLeftRight size={14} weight="regular" />
+              <span>Change tag</span>
+            </button>
+          )}
           <button
             type="button"
             className={`${styles.categoryActionMenuItem} ${styles.categoryActionMenuItemDanger}`}
