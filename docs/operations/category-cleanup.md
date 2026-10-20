@@ -47,7 +47,7 @@ can make workspace startup fail.
 
 1. Merge and deploy the compatibility/runtime PR: remove category seeding,
    implicit assignment, fallback repair, and protection; support empty categories
-   in web and Android; validate new names; accept legacy backups. Existing literal
+   in the web app; validate new names; accept legacy backups. Existing literal
    category rows remain readable during this intermediate release.
 2. Verify the exact compatibility commit is serving and old replicas have drained
    in the target environment. Check bootstrap on a workspace with no categories.
@@ -99,5 +99,4 @@ all 25 ECMAScript trim characters, direct SQL insert/rename rejection, unchanged
 note rows and tag links, cross-workspace cleanup, and retained longer names.
 Web tests cover draft reconciliation and context-free capture;
 manual browser checks cover icon-only rendering, placeholder grouping, and
-create/rename validation. Android contract validation and APK assembly establish
-build compatibility; device acceptance remains a separate check.
+create/rename validation.

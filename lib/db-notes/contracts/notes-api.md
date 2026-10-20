@@ -1,12 +1,12 @@
 # Notes API
 
 This document describes the app-facing Notes HTTP API served by
-`apps/notes-next` and consumed by both the Notes web UI and the Android client.
+`apps/notes-next` and consumed by the Notes web UI and API clients.
 
 ## Source Of Truth
 
 - HTTP payload shapes: `contracts/notes-app.ts`
-- Generated cross-client contract artifact: `generated/contracts/notes-app.json`
+- Generated Notes contract artifact: `generated/contracts/notes-app.json`
 - Shared backend workflows: `services/notes-app.ts`
 - HTTP adapters:
   - `apps/notes-next/app/api/**`
@@ -20,7 +20,7 @@ and overridden server-side:
 
 - **Web UI**: the NextAuth (Auth.js) session cookie, set by signing in on the
   web app (credentials, social provider, or anonymous session).
-- **Android / API clients**: a per-user bearer token issued by
+- **API clients**: a per-user bearer token issued by
   `POST /api/auth/token` and sent as `Authorization: Bearer <token>` on every
   request.
 
@@ -124,8 +124,8 @@ Success `200`:
       "id": 41,
       "userId": 7,
       "title": "Ship Notes API tests",
-      "summary": "Verify both HTTP adapters",
-      "description": "The Next and Express routes should stay behaviorally aligned.",
+      "summary": "Verify the HTTP API contract",
+      "description": "The Notes API routes should follow the shared contract.",
       "timeDue": "2026-03-18T16:00:00.000Z",
       "timeRemind": "2026-03-18T15:30:00.000Z",
       "timeCreated": "2026-03-17T10:00:00.000Z",
@@ -145,8 +145,8 @@ server uses the authenticated user):
   "userId": 7,
   "note": {
     "title": "Ship Notes API tests",
-    "summary": "Verify both HTTP adapters",
-    "description": "The Next and Express routes should stay behaviorally aligned.",
+    "summary": "Verify the HTTP API contract",
+    "description": "The Notes API routes should follow the shared contract.",
     "timeDue": "2026-03-18T16:00:00.000Z",
     "timeRemind": "2026-03-18T15:30:00.000Z"
   }
@@ -161,8 +161,8 @@ Success `201`:
     "id": 41,
     "userId": 7,
     "title": "Ship Notes API tests",
-    "summary": "Verify both HTTP adapters",
-    "description": "The Next and Express routes should stay behaviorally aligned.",
+    "summary": "Verify the HTTP API contract",
+    "description": "The Notes API routes should follow the shared contract.",
     "timeDue": "2026-03-18T16:00:00.000Z",
     "timeRemind": "2026-03-18T15:30:00.000Z",
     "timeCreated": "2026-03-17T10:00:00.000Z",
@@ -234,8 +234,8 @@ Success `200`:
         "id": 41,
         "userId": 7,
         "title": "Ship Notes API tests",
-        "summary": "Verify both HTTP adapters",
-        "description": "The Next and Express routes should stay behaviorally aligned.",
+        "summary": "Verify the HTTP API contract",
+        "description": "The Notes API routes should follow the shared contract.",
         "timeDue": "2026-03-18T16:00:00.000Z",
         "timeRemind": "2026-03-18T15:30:00.000Z",
         "timeCreated": "2026-03-17T10:00:00.000Z",
@@ -282,11 +282,11 @@ Success `200`:
 
 ## Compatibility Checks
 
-When Notes backend code changes, CI should catch three classes of regression:
+When Notes backend code changes, CI should catch these regressions:
 
 1. Contract drift in `@lib/db-notes`
-2. HTTP adapter drift between Next and Express
-3. Client incompatibility in `notes-next` or `notes-android`
+2. HTTP adapter drift from the shared Notes service
+3. Client incompatibility in `notes-next`
 
 The expected checks are:
 
@@ -294,8 +294,6 @@ The expected checks are:
 - `pnpm --filter notes-next test`
 - `pnpm --filter notes-next check-types`
 - `pnpm --filter notes-next build`
-- `pnpm --filter notes-android test`
-- `pnpm --filter notes-android build`
 
 ## User backup and restore
 
@@ -358,17 +356,3 @@ Copy counts preserve identical twin notes while repeated imports remain stable.
 Changed versions are added alongside existing notes. Uploads are bounded by actual
 streamed bytes as well as declared length and by 100,000 aggregate records; export
 refuses files that could not subsequently be restored under these limits.
-
-## Android Base URLs
-
-The Android APK talks to a deployed `notes-next` over HTTPS. It does not read
-`DB_NOTES_URL` or `JINA_API_KEY`; those only affect the `notes-next` server
-that the APK calls.
-
-- Production `notes-next`: `https://notes-apps-notes-next.up.railway.app`
-- Dev `notes-next`: `https://notes-apps-notes-next-dev.up.railway.app`
-- The target environment must be specified at build time. Use
-  `pnpm --filter notes-android build:dist:dev` or `build:dist:prod`; there is
-  no ambiguous bare `build:dist` script.
-- For a custom URL (staging, local), pass `NOTES_ANDROID_API_BASE_URL` inline:
-  `NOTES_ANDROID_API_BASE_URL=https://... pnpm --filter notes-android build:dist:dev`.

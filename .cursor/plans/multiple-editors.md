@@ -681,12 +681,6 @@ This is a **contract** change, not a schema change:
   `pnpm --filter @lib/db-notes app:contract:generate`. `app:contract:check` runs
   inside both `notes-next`'s `check-types` and its `build`, so the build fails
   until this is done. Commit the regenerated artifact with the change.
-- **No Android change is required.**
-  `apps/notes-android/tools/validate-notes-contract.mjs` validates only
-  `UserSummary`, `TagRecord`, `NoteRecord`, and `SemanticSearchResult`, and
-  Kotlin's `NotesAppPreferences` already omits `pasteUrlAsMarkdown` and
-  `markdownEditorMode`. Adding another optional field will not break the APK
-  build.
 
 ### 7.2 Client plumbing
 
@@ -829,9 +823,9 @@ first if the ring does not have it.
 
 ### 9.4 Why not `pushState` per switch
 
-Wiring note switches to `history.pushState` so the browser and Android back
-gestures drive `goBack` is attractive: one history model, and free hardware-back
-support on the PWA. It is rejected for now because it changes global navigation
+Wiring note switches to `history.pushState` so browser back navigation
+drives `goBack` is attractive: one history model for the PWA. It is rejected for
+now because it changes global navigation
 behavior — every note switch becomes a history entry, so leaving the app would
 take N back presses — and it couples the feature to `popstate` ordering. The
 in-store `backStack` is deterministic and unit-testable. Revisit separately.
@@ -959,8 +953,7 @@ evict-on-lower.
 
 **Acceptance.** Drafts survive a reload. Lowering the cap evicts immediately and
 saves dirty removals. `pnpm --filter notes-next build` passes with the
-regenerated contract, and the Android APK build still passes contract
-validation.
+regenerated contract.
 
 ### Phase 6 — UI
 
@@ -1084,7 +1077,7 @@ These are races unit tests will not catch:
 | **Re-render cost.** The two bulk `useNotesAppStore()` destructures mean every `openNotes` write would re-render the whole app, editor included.                                                                                                                                                                                                                   | Selector subscriptions in Phase 1, listed as a deliverable rather than a cleanup.                                                                                                                                                       |
 | **localStorage quota.** Many long notes plus the existing full-notes cache could exceed the budget.                                                                                                                                                                                                                                                               | Debounced writes, a dirty-only retry, then a description-blanking fallback for clean entries, and an error surfaced rather than a silent drop (§6.3).                                                                                   |
 | **Two tabs share one storage key** and will overwrite each other's ring.                                                                                                                                                                                                                                                                                          | Out of scope by decision (§1.2). Last-writer-wins matches the existing behavior for note content. Each tab's in-memory ring stays correct for that tab; only the persisted copy races.                                                  |
-| **The contract change gates the build.** `app:contract:check` runs in `notes-next`'s `check-types` and `build`.                                                                                                                                                                                                                                                   | §7.1 makes regenerating `generated/contracts/notes-app.json` an explicit Phase 5 deliverable, and confirms no Android change is needed.                                                                                                 |
+| **The contract change gates the build.** `app:contract:check` runs in `notes-next`'s `check-types` and `build`.                                                                                                                                                                                                                                                   | §7.1 makes regenerating `generated/contracts/notes-app.json` an explicit Phase 5 deliverable.                                                                                                 |
 
 ---
 

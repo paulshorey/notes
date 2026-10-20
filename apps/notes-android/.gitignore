@@ -1,6 +1,0 @@
-.gradle/
-.android-sdk/
-app/build/
-dist/*
-!dist/notes-android.apk
-local.properties

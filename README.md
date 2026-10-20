@@ -1,9 +1,8 @@
 # Notes Monorepo
 
-Monorepo for two release targets:
+Monorepo for the Notes web app and its shared packages:
 
 - `apps/notes-next` - Notes web app and REST API, deployed to Railway
-- `apps/notes-android` - Android client, released as an APK artifact in the PR
 
 `lib/db-notes` is the source of truth for the Notes database schema, generated contracts, and shared Notes server workflows.
 
@@ -18,11 +17,9 @@ All day-to-day developer workflows run from the repo root. Each command is a thi
 | Command                        | What it does                                                                             |
 | ------------------------------ | ---------------------------------------------------------------------------------------- |
 | `pnpm run deps:install`        | Install all workspace dependencies (Turbo / pnpm).                                       |
-| `pnpm run verify`              | Repo-wide pre-push gate. Runs `verify:db-contracts` then every app's `verify`.           |
+| `pnpm run verify`              | Repo-wide pre-push gate. Runs `verify:db-contracts` then `verify:notes-web`.           |
 | `pnpm run verify:db-contracts` | Type-check `lib/db-notes` and confirm generated Notes contract artifacts are up to date. |
 | `pnpm run verify:notes-web`    | `notes-next`: type-check, tests, and production build.                                   |
-| `pnpm run verify:android`      | `notes-android`: contract validation plus debug APK assembly.                            |
-| `pnpm run verify:apps`         | Run `verify:notes-web` and `verify:android` back to back.                                |
 
 ### Build
 
@@ -30,9 +27,6 @@ All day-to-day developer workflows run from the repo root. Each command is a thi
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `pnpm run build`                   | Turbo `build` across every package.                                                                                                              |
 | `pnpm run build:notes-web`         | Production build of `apps/notes-next`.                                                                                                           |
-| `pnpm run build:android`           | Contract validation plus debug APK assembly.                                                                                                     |
-| `pnpm run build:android:dist:dev`  | Produce `apps/notes-android/dist/notes-android.apk` pointed at the **dev** `notes-next` (`https://notes-apps-notes-next-dev.up.railway.app`).    |
-| `pnpm run build:android:dist:prod` | Produce `apps/notes-android/dist/notes-android.apk` pointed at the **production** `notes-next` (`https://notes-apps-notes-next.up.railway.app`). |
 
 ### Database (`lib/db-notes`)
 
@@ -51,14 +45,11 @@ The real scripts live in `lib/db-notes/package.json`. App packages do not own mi
 | -------------------------------- | ------------------------------------------------------------------------------------- |
 | `pnpm run release:notes:prepare` | `verify:db-contracts` + `verify:notes-web`. Run before a `notes-next` Railway deploy. |
 
-For Android, run `pnpm run build:android:dist:dev` or `pnpm run build:android:dist:prod` — they produce the canonical APK pointed at the explicit target environment.
-
 ## Apps and deploy targets
 
 | Path                 | Deploy target     | Depends on `lib/db-notes` |
 | -------------------- | ----------------- | ------------------------- |
 | `apps/notes-next`    | Railway           | Yes                       |
-| `apps/notes-android` | APK artifact only | Contract validation only  |
 
 ## Environment variables
 
@@ -66,9 +57,6 @@ For Android, run `pnpm run build:android:dist:dev` or `pnpm run build:android:di
 | ---------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DB_NOTES_URL`               | `lib/db-notes`, `apps/notes-next` | PostgreSQL connection string for Notes. Set in your shell when running `db:`\* commands or `notes-next` locally; set in the Railway service for production. |
 | `JINA_API_KEY`               | `lib/db-notes`, `apps/notes-next` | Jina embeddings key for semantic search and embedding maintenance.                                                                                          |
-| `NOTES_ANDROID_API_BASE_URL` | `apps/notes-android`              | Override the `notes-next` base URL baked into the APK at build time.                                                                                        |
-
-> **Heads up.** `DB_NOTES_URL` and `JINA_API_KEY` are _server_ variables. They do not affect the Android APK. Which Notes database an APK ultimately reaches is determined by which `notes-next` deployment the APK calls, which is set by `NOTES_ANDROID_API_BASE_URL` at build time. See the Android release section below.
 
 ## Development setup
 
@@ -77,7 +65,6 @@ For Android, run `pnpm run build:android:dist:dev` or `pnpm run build:android:di
 - Node.js 20+
 - pnpm 10.x
 - PostgreSQL 17 client tools (`psql`, `pg_dump`) for `db:verify` and schema snapshots
-- Android Studio / Android SDK only if you are building the Android app
 
 ### Cloud AI agent VM
 
@@ -102,22 +89,19 @@ Focused installs are still available:
 
 ```bash
 pnpm run deps:install -- notes-next...
-pnpm run deps:install -- notes-android...
 ```
 
 ### Local app entry points
 
 ```bash
 pnpm --filter notes-next dev         # http://localhost:4100
-pnpm --filter notes-android build    # contract validation + debug APK
 ```
 
-`notes-next` needs `DB_NOTES_URL` and `JINA_API_KEY` in its shell (or `apps/notes-next/.env.local`). The Android build does not.
+`notes-next` needs `DB_NOTES_URL` and `JINA_API_KEY` in its shell (or `apps/notes-next/.env.local`).
 
-See the app README files for package-specific setup:
+See the package README files for package-specific setup:
 
 - `[apps/notes-next/README.md](apps/notes-next/README.md)`
-- `[apps/notes-android/README.md](apps/notes-android/README.md)`
 - `[lib/db-notes/README.md](lib/db-notes/README.md)`
 - `[lib/atomic-editor/README.md](lib/atomic-editor/README.md)`
 
@@ -203,7 +187,7 @@ Run migrations in these cases:
 - Run `pnpm run db:migrate:baseline` only once for a legacy Notes database that already has the baseline schema but has never been placed under migration tracking.
 - Run `pnpm run db:embeddings:regenerate` only when Notes search data is stale or the embedding/text format changed.
 
-Do not put Notes migration scripts in `apps/notes-next` or `apps/notes-android`. Those apps consume the DB contract; they do not own it.
+Do not put Notes migration scripts in `apps/notes-next`. The app consumes the DB contract; it does not own it.
 
 ## Production release order
 
@@ -216,7 +200,7 @@ pnpm run deps:install
 pnpm run verify
 ```
 
-`pnpm run verify` is the repo-wide pre-push/pre-release gate. It verifies the DB contract package, `notes-next`, and `notes-android` with package-specific checks.
+`pnpm run verify` checks the DB contract package and `notes-next` with package-specific checks.
 
 ### 2. Notes web / API (`apps/notes-next`)
 
@@ -251,61 +235,15 @@ pnpm run release:notes:prepare
 
 Or call: 6. Use `pnpm run db:verify` when you explicitly want to validate contract reproducibility against the target DB. It is not read-only and rewrites local generated files, so it is usually better before merge than during every production push.
 
-### 3. Android (`apps/notes-android`)
-
-Use this when Android code changed or when the APK should target a different `notes-next` base URL.
-
-The Android release is **not a Railway deploy**. The deliverable is a canonical APK at `apps/notes-android/dist/notes-android.apk` that gets attached to or linked from the PR.
-
-#### Pick the backend the APK talks to
-
-The APK never reads `DB_NOTES_URL`. Exporting it in your shell has no effect on the build. What matters is which `notes-next` deployment the APK calls, which is controlled by `NOTES_ANDROID_API_BASE_URL` at build time:
-
-- Production `notes-next`: `https://notes-apps-notes-next.up.railway.app`
-- Dev `notes-next`: `https://notes-apps-notes-next-dev.up.railway.app`
-
-Use the explicit scripts so there is no ambiguity:
-
-```bash
-pnpm run build:android:dist:prod   # APK pointed at the prod notes-next
-pnpm run build:android:dist:dev    # APK pointed at the dev notes-next
-```
-
-Both commands write `apps/notes-android/dist/notes-android.apk`. During Gradle configuration the build logs `notes-android: API base URL = <url>` so you can confirm which backend was baked in before installing.
-
-To target a custom URL (e.g. a staging or local `notes-next`), pass `NOTES_ANDROID_API_BASE_URL` inline:
-
-```bash
-NOTES_ANDROID_API_BASE_URL="https://staging.example/" pnpm --filter notes-android build:dist:dev
-```
-
-The inline assignment overrides the URL embedded in `build:dist:dev`. Use whichever named script is closest to your target and override only the URL.
-
-> **Gotcha:** Gradle resolves `NOTES_ANDROID_API_BASE_URL` in this order: `apps/notes-android/local.properties`, `-P` Gradle property, shell environment, script-level inline assignment. If a rebuild does not change which backend the APK hits, check for a stale `NOTES_ANDROID_API_BASE_URL=...` line in `apps/notes-android/local.properties` and remove it. That file should normally only contain `sdk.dir`.
-
-#### Install the APK on a device
-
-The repo ships a committed debug keystore so you can upgrade between builds (dev-pointing and prod-pointing) in place, without uninstalling first:
-
-```bash
-adb install -r apps/notes-android/dist/notes-android.apk
-```
-
-For a phone-side sideload, copy the APK to the device, then open the file and accept the install.
-
 ## Troubleshooting
 
 - **`git subtree` / `atomic-editor-sync.sh pull` fails with `working tree has modifications. Cannot add.`** The working tree must be clean. Run `git status`, then commit or stash before pulling.
-- **"I set `DB_NOTES_URL` to prod and rebuilt the APK, but it still hits dev."** `DB_NOTES_URL` is a `notes-next` server variable. It does not affect the APK. Run `pnpm run build:android:dist:prod` to build an APK that calls the production `notes-next`.
-- `**pnpm run build:android:dist:prod` appears to succeed but the APK still hits dev.\*\* Check `apps/notes-android/local.properties` for a stale `NOTES_ANDROID_API_BASE_URL=...` line; `local.properties` wins over the shell. The Gradle configuration log line (`notes-android: API base URL = ...`) shows the value actually baked into the APK.
 - `**pnpm run db:verify` fails unexpectedly.\*\* `db:verify` is not read-only: it re-runs migrations, regenerates generated artifacts, and diffs them. Run it on a clean feature branch after schema changes, then commit the regenerated artifacts alongside the migration.
-- **Android build cannot find the SDK.** Either install Android Studio and export `ANDROID_HOME`, or run `bash apps/notes-android/tools/setup-android-sdk.sh`, which provisions a repo-local SDK under `.android-sdk` and falls back there automatically if `ANDROID_HOME` points at an unwritable path.
 
 ## Quick reference
 
 - Notes schema owner: `lib/db-notes`
 - Notes production app: `apps/notes-next` (Railway)
-- Android release artifact: `apps/notes-android/dist/notes-android.apk` (built via `build:android:dist:{dev,prod}`)
 - Editor package (git subtree): `lib/atomic-editor` — edit in place; sync with `bash scripts/atomic-editor-sync.sh push|pull` (see above)
 - Repo-wide pre-push gate: `pnpm run verify`
 

@@ -1,7 +1,7 @@
 # Semantic Search & Vector Embeddings
 
 This document describes how vector-based semantic search works across the Notes
-apps (`notes-next`, `notes-android`) and the shared database layer
+web app (`notes-next`) and the shared database layer
 (`@lib/db-notes`).
 
 ## Overview
@@ -303,13 +303,6 @@ excluded.
 chronological order to relevance order and shows a similarity percentage badge.
 The app can also trigger embedding maintenance from the UI.
 
-### notes-android
-
-The Android client calls the same `POST /api/notes/search` endpoint on the
-deployed `notes-next` REST API (`NotesApiClient.kt`). Ranking is identical.
-Search results are cached in `SessionStore` and restored on session reload when
-`lastSearchQuery` is non-blank.
-
 ## Environment
 
 | Variable       | Required          | Purpose                                             |
@@ -359,4 +352,3 @@ embedding return a 500 with "JINA_API_KEY environment variable not set."
 | `apps/notes-next/app/api/notes/search/route.ts`                     | Next.js search route                                        |
 | `apps/notes-next/app/api/notes/maintenance/embeddings/route.ts`     | Maintenance route                                           |
 | `apps/notes-next/src/components/notes/NotesApp.tsx`                 | Client search UI and debounce                               |
-| `apps/notes-android/.../NotesApiClient.kt`                          | Android search API client                                   |

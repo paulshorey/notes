@@ -32,9 +32,6 @@ todos:
   - id: frontend
     content: Rework NotesApp/ResultsColumn/NoteForm/notesAppStore/notesCache from two flat accordions into a hierarchy tree with a three-step picker and id-based hierarchical URL state
     status: pending
-  - id: android_contract
-    content: Update Android Models.kt/JsonCodec.kt/NotesApiClient.kt (adding TaxonomyLevelRecord and persisting the vocabulary in AppSnapshot so the widget can label itself offline) and the widget filters, then run contracts:check and rebuild the APK
-    status: pending
   - id: schema_migration_phase2
     content: "Phase 2 (cutover) migration, only after the new code is deployed: drop user_note_v1.category_id, drop user_note_category_v1, and flip verify-contract assertions to must-be-absent"
     status: pending
@@ -123,12 +120,11 @@ is effectively dead weight under the current query shape.
 ## 1.2 Layering
 
 ```
-apps/notes-next  (Next.js: UI + REST API)          apps/notes-android (Kotlin)
-        │  app/api/**/route.ts                              │ NotesApiClient.kt
-        │  wired through                                     │ HTTP + Bearer token
-        │  app/api/_lib/notes-app-route-handlers.ts          │
-        └──────────────────┬─────────────────────────────────┘
-                           ▼
+apps/notes-next  (Next.js: UI + REST API)
+        │  app/api/**/route.ts
+        │  wired through
+        │  app/api/_lib/notes-app-route-handlers.ts
+        ▼
         lib/db-notes/services/notes-app.ts   ← request parsing, orchestration,
                            │                   embed-on-write, error → HTTP status
                            ├── services/notes-embeddings.ts  → Jina AI
@@ -306,16 +302,11 @@ Committed derived artifacts: `schema/current.sql`,
 `generated/typescript/db-types.ts`, `generated/contracts/db-schema.json`,
 `generated/contracts/notes-app.json`.
 
-Two guards will fire on this work and must be satisfied deliberately:
+The schema-coverage guard must be satisfied deliberately:
 
 - **`MERGE_TABLE_STRATEGIES` guard** — `db:verify` diffs the registry in
   `sql/user/anonymous.ts` against every table with an FK to `user_v1`. A new
   user-owned table fails the build until a merge strategy is declared.
-- **Android contract validator** — `apps/notes-android/tools/validate-notes-contract.mjs`
-  checks `Models.kt` field _order_, names and Kotlin types, `JsonCodec.kt`
-  decoder order, and required payload snippets in `NotesApiClient.kt` against
-  `generated/contracts/notes-app.json`. Any contract change breaks
-  `pnpm --filter notes-android contracts:check`.
 
 ---
 
@@ -350,7 +341,7 @@ Two guards will fire on this work and must be satisfied deliberately:
 - But it triples almost everything: three near-identical tables each with
   `label_embedding` / `embedding_model` / `embedding_updated_at` and an HNSW
   index, three sets of CRUD SQL, three list/missing/stale embedding queries,
-  three route files, three Kotlin models, three merge-strategy entries. Adding a
+  three route files, three merge-strategy entries. Adding a
   fifth level later means doing it all a fourth time.
 
 **Option B (recommended) — one self-referencing table.** A single
@@ -906,9 +897,8 @@ must be delivered on the initial load rather than fetched lazily, or the UI
 flashes default English before correcting itself. The natural home is the session
 payload — `SessionResponse` already carries `UserSummary`, so adding
 `taxonomyLevels: TaxonomyLevelRecord[]` there gets the vocabulary to the client
-in a request that already happens. Note that `notes-app.json` is generated from
-these interfaces, and the Android validator checks field order, so add fields at
-the end of existing interfaces rather than in the middle.
+in a request that already happens. Regenerate `notes-app.json` from
+these interfaces when the contract changes.
 
 ## 4.2 Routes
 
@@ -921,7 +911,7 @@ the end of existing interfaces rather than in the middle.
 | `POST /api/taxonomy/suggest`             | new; level-scoped label autocomplete                                                                          |
 | `GET /api/taxonomy/levels`               | new; the user's tier vocabulary (also folded into the session payload)                                        |
 | `PATCH /api/taxonomy/levels`             | new; rename a tier — `{ level, label }`. 409 on a duplicate name                                              |
-| `GET/POST/PATCH/DELETE /api/categories`  | removed at phase 2; see the compatibility note below                                                          |
+| `GET/POST/PATCH/DELETE /api/categories`  | removed at phase 2                                                          |
 | `DELETE /api/categories/with-notes`      | folded into `DELETE /api/taxonomy`                                                                            |
 | `POST /api/notes`, `PATCH /api/notes`    | `note.categoryId` → `note.groupId`                                                                            |
 | `GET /api/notes`                         | response gains `group` / `category` / `epic`                                                                  |
@@ -929,14 +919,6 @@ the end of existing interfaces rather than in the middle.
 | `POST /api/notes/maintenance/embeddings` | counts now cover three taxonomy levels                                                                        |
 | `POST /api/embeddings/debug`             | drop the composite formula                                                                                    |
 | `GET/POST/PATCH/DELETE /api/tags`        | **unchanged**                                                                                                 |
-
-**Compatibility note.** A released APK in the wild talks to the deployed
-`notes-next` and will break the moment `/api/categories` stops answering.
-`AGENTS.md` positions the Android app as an experiment to be updated after the
-web app stabilizes, so breaking it is acceptable — but it should be a decision,
-not a surprise. The cheap mitigation is to keep `GET /api/categories` alive as a
-thin read-only alias projecting level-2 rows to the old `CategoryRecord` shape
-until the APK is rebuilt.
 
 ## 4.3 SQL and service layer
 
@@ -1222,29 +1204,6 @@ elsewhere show the label as stored, which is why tier labels preserve case
 The tag strings are listed for completeness but are **not** in scope: tags are
 not a tier and keep their fixed name. Only the four tier words become data.
 
-## 6.2 `apps/notes-android`
-
-Gated by `apps/notes-android/tools/validate-notes-contract.mjs`, which checks
-field _order_ and Kotlin types, so these edits are mandatory, not optional:
-
-- `app/.../model/Models.kt` — replace `CategoryRecord`/`NoteCategoryRef` with
-  `TaxonomyRecord`/`TaxonomyRef`; add `TaxonomyLevelRecord`; update `NoteRecord`,
-  `NoteDraft` (`selectedCategoryId` → `selectedGroupId`),
-  `SemanticSearchResult`, `AppSnapshot` (which must persist the tier vocabulary
-  so the widget can label itself offline).
-- `app/.../data/JsonCodec.kt` — decoders in matching field order.
-- `app/.../data/NotesApiClient.kt` — `/api/taxonomy` calls; `groupId` in the
-  note payload.
-- `app/.../widget/NotesHomeWidget.kt` and `WidgetOverlayActivities.kt` — the
-  Glance `widgetCategoryFilterKey` filter and the category picker overlay.
-- `app/.../ui/CategoriesPopup.kt` — level-aware.
-- Then `pnpm --filter notes-android contracts:check` and
-  `pnpm run build:android:dist:dev`.
-
-Note: `apps/notes-android/test/notes-api-adapter.test.ts` is already broken (it
-imports a non-existent `../server/src/app`), so the Node contract validator is
-the only real gate on the Android side.
-
 ---
 
 # Part 7 — Rollout order
@@ -1260,14 +1219,13 @@ the only real gate on the Android side.
    including the simplified search. Update the shared adapter suite in the same
    commit — it is the contract's executable specification.
 3. Land the `notes-next` API routes, then the UI.
-4. Land the Android contract updates; `contracts:check`; build the APK.
-5. Deploy: `pnpm run release:notes:prepare`, run `db:migrate` against the target
+4. Deploy: `pnpm run release:notes:prepare`, run `db:migrate` against the target
    Notes DB, deploy `notes-next` on Railway.
-6. Run embedding maintenance (`mode: "missing"`) or the extended
+5. Run embedding maintenance (`mode: "missing"`) or the extended
    `db:embeddings:regenerate` so the backfilled taxonomy rows get label vectors —
    the migration inserts them with `label_embedding` NULL and autocomplete stays
    empty until this runs.
-7. Only then land phase 2 (drop `category_id` and `user_note_category_v1`, flip
+6. Only then land phase 2 (drop `category_id` and `user_note_category_v1`, flip
    the verify assertions to must-be-absent, optionally drop the note HNSW
    index).
 
@@ -1278,7 +1236,7 @@ sudo pg_ctlcluster 17 main start
 export PATH="/usr/lib/postgresql/17/bin:$PATH"
 pnpm run db:migrate && pnpm run db:verify
 pnpm --filter @lib/db-notes test          # set DB_NOTES_TEST_URL for the DB suite
-pnpm run verify                            # db contracts + notes-web + android
+pnpm run verify                            # db contracts + notes-web
 ```
 
 `DB_NOTES_TEST_URL` must point at a throwaway database — the merge suite
@@ -1295,8 +1253,7 @@ the real Notes database.
 | Backfill leaves notes without a group                                                                                                                                                                                   | `SET NOT NULL` in the same migration fails the transaction; plus the 3.3 structural invariants in `db:verify`                                                                 |
 | `db:verify` fails after merge because `verify-contract.mjs` was not updated                                                                                                                                             | Called out as the known top cause; update it in the same commit as the migration                                                                                              |
 | Anonymous merge loses data on the three-level remap                                                                                                                                                                     | Level-ordered remap (3.4), `FOR UPDATE` locks preserved, expanded DB-backed regression tests                                                                                  |
-| Released APK breaks when `/api/categories` disappears                                                                                                                                                                   | Keep a read-only level-2 alias until the APK is rebuilt (4.2)                                                                                                                 |
-| Autocomplete returns nothing after rollout                                                                                                                                                                              | Embeddings are NULL until step 6 runs; the literal prefix half of the hybrid still works, which is why hybrid is recommended                                                  |
+| Autocomplete returns nothing after rollout                                                                                                                                                                              | Embeddings are NULL until step 5 runs; the literal prefix half of the hybrid still works, which is why hybrid is recommended                                                  |
 | Phase 2 runs before the new code deploys                                                                                                                                                                                | Two separate migrations; phase 1 is additive and leaves the old table readable                                                                                                |
 | Code branches on a tier _label_ instead of `level`, so a rename breaks filtering, routing or cached state                                                                                                               | The guardrail in 2.3: ids and `level` in every URL, cache key and API filter; labels are render-time only                                                                     |
 | A new user is created without tier definitions, so their first taxonomy write fails the level FK                                                                                                                        | `ensureTaxonomyLevelsForUser` on the user-creation path (4.3), plus the "every user has all four tier definitions" invariant in `db:verify` (3.3)                             |

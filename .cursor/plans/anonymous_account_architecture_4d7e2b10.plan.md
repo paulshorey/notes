@@ -131,8 +131,8 @@ to `verifyPassword(password, row.password)`. On a successful **legacy** match,
 rehash: `UPDATE user_v1 SET password = <hash> WHERE id = <id>` (best-effort; login
 must succeed even if the rehash write fails).
 
-This one function covers both clients: the web credentials provider (`auth.ts`) and
-the Android token login (`loginNotesAppUser` → `POST /api/auth/token`) both call it.
+The web credentials provider (`auth.ts`) and API token login
+(`loginNotesAppUser` → `POST /api/auth/token`) both call this function.
 No other call sites exist.
 
 ## Part B — Claim the anonymous user in place (signup)

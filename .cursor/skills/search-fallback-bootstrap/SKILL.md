@@ -34,9 +34,9 @@ command -v fd
 Typical commands:
 
 ```bash
-rg -n "WidgetTagPickerActivity" "apps/notes-android"
-fd "NotesHomeWidget.kt" "apps/notes-android"
-fd "AGENTS.md" "apps/notes-android"
+rg -n "NotesHeader" "apps/notes-next"
+fd "NotesApp.tsx" "apps/notes-next"
+fd "AGENTS.md" "apps/notes-next"
 ```
 
 ## Cloud agent bootstrap
@@ -56,7 +56,7 @@ fd --version || fdfind --version
 If `fd` is still unavailable after install, use `fdfind` in commands instead:
 
 ```bash
-fdfind "AGENTS.md" "apps/notes-android"
+fdfind "AGENTS.md" "apps/notes-next"
 ```
 
 ## Search workflow

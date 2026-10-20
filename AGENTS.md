@@ -4,14 +4,13 @@ Monorepo using pnpm + Turborepo.
 
 ## Product
 
-This is a note-taking app. The main app is `apps/notes-next` - a full-stack NextJS web app. The Android app is an experiment which will later be updated after the web app is stable and has the required features. Database structure can be found in `lib/db-notes`.
+This is a note-taking app. The app is `apps/notes-next` - a full-stack Next.js web app. Database structure can be found in `lib/db-notes`.
 
 Goal is to expand this to be much more than a simple note app. It will be a personal productivity suite and eventually be used by multiple collaborators to manage all knowledgebase, tasks, and website content for all projects in a team. The start of that now is categories.
 
 ### Apps
 
 - `apps/notes-next` - Notes web UI and REST API, deployed to Railway
-- `apps/notes-android` - native Android client; release is an APK artifact, not a hosted service
 
 ### Libraries
 
@@ -37,7 +36,6 @@ Goal is to expand this to be much more than a simple note app. It will be a pers
 - `@lib/db-notes` owns all Notes schema changes and migration scripts.
 - Notes have zero or more categories. `uncategorized` is reserved display text for no category links; categories have no default or protected row.
 - `notes-next` consumes `@lib/db-notes` at runtime.
-- `notes-android` validates against the generated Notes app contract but does not touch Postgres directly.
 
 ## Context
 
@@ -48,7 +46,7 @@ This codebase is developed by AI agents.
 
 ## Script ownership
 
-- Root `package.json` should expose the human-friendly entry points for install, verify, app builds, APK generation, and proxied `db:*` commands.
+- Root `package.json` should expose the human-friendly entry points for install, verify, app builds, and proxied `db:*` commands.
 - Root `package.json` should also expose `release:notes:prepare` (a meaningful multi-step aggregation) and `verify:*` aliases so the documented release order maps to actual commands. Avoid adding single-command aliases that just wrap one other script.
 - `lib/db-notes/package.json` is the canonical home for real migration and contract-generation scripts.
 - App `package.json` files should stay focused on app-local build, run, and verification commands.
@@ -60,7 +58,6 @@ This codebase is developed by AI agents.
 - Keep the repo root as the default working directory.
 - Prefer root-scoped commands such as `pnpm run db:migrate` or `pnpm --filter <pkg> ...`.
 - In `apps/notes-next`, use Zustand stores for app-wide UI state instead of prop-drilling state through multiple components.
-- For Android Gradle, prefer `bash apps/notes-android/gradlew --no-daemon -p apps/notes-android <task>`.
 - Do not add package-local install steps to build, dev, test, or start scripts.
 
 ## Railway infrastructure
@@ -74,7 +71,6 @@ require their environment ID and explicit `RAILWAY_IAC_BRANCH`.
 ## Release model
 
 - `notes-next`: run `release:notes:prepare`, then deploy on Railway. The committed Railway pre-deploy command applies tracked Notes migrations before a release becomes healthy; run `db:migrate` manually for local/shared development or an intentional target-database preflight.
-- `notes-android`: run `build:android:dist:dev` or `build:android:dist:prod`, then share the APK download link in the PR; no Railway deploy.
 
 ## Deployment diagnostics
 
@@ -91,13 +87,6 @@ After changing Notes schema or contracts in `lib/db-notes`:
 4. Commit generated artifacts with the schema change.
 
 Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already contains the baseline schema but has never been tracked by migrations.
-
-## Android conventions
-
-- All Android tooling lives in `apps/notes-android/tools/`.
-- Repo-local Android tool paths include `.jdk/current`, `.android-sdk`, `.android-user-home`, and `.gradle`.
-- `apps/notes-android/local.properties` is machine-local; do not rely on it for committed behavior.
-- `pnpm run build:android:dist:dev` and `build:android:dist:prod` produce `apps/notes-android/dist/notes-android.apk` pointed at the respective `notes-next` deployment. There is no ambiguous bare `build:android:dist` — the target environment must be specified.
 
 ## Documentation
 
@@ -145,7 +134,6 @@ source .agent-env.sh
 
 That command is idempotent. It installs system tools and Node.js if needed, pnpm workspace dependencies, PostgreSQL 17 + pgvector, writes local throwaway DB URLs plus an `AUTH_SECRET`, starts the cluster, and applies Notes migrations to both `notes` and `notes_test`. Do not point `DB_NOTES_URL` at a deployed Railway database from an agent VM.
 
-- `--android` also provisions the repo-local JDK/SDK (only needed to build the APK).
 - `--dev` starts `notes-next` on port 4100 and waits for `/api/health`. `NOTES_DEV_PORT` overrides the port; a reserved port 6000 override falls back to 6100.
 - `--verify` runs `pnpm run diagnose:notes`.
 - Semantic search needs `JINA_API_KEY` in the environment; core CRUD, tests, and builds do not.
