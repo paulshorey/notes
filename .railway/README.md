@@ -6,11 +6,11 @@ so a whole-project definition containing only Notes would delete unrelated resou
 The partial owns only the existing Notes app, preserves its five Railway variables,
 and leaves databases, volumes, domains, and other repositories under their existing ownership.
 
-| Environment | Service | Source branch | Environment ID |
-| --- | --- | --- | --- |
-| dev | apps/notes-next | main | 4e7d33aa-1de0-441f-a105-352bbe3b6697 |
-| production | notes | prod | 46907359-520d-41a3-adf3-6ed23379b418 |
-| Notes PR preview | apps/notes-next | existing PR branch | dynamic |
+| Environment      | Service         | Source branch      | Environment ID                       |
+| ---------------- | --------------- | ------------------ | ------------------------------------ |
+| dev              | apps/notes-next | main               | 4e7d33aa-1de0-441f-a105-352bbe3b6697 |
+| production       | notes           | prod               | 46907359-520d-41a3-adf3-6ed23379b418 |
+| Notes PR preview | apps/notes-next | existing PR branch | dynamic                              |
 
 ## Applied configuration
 
@@ -82,6 +82,12 @@ persistent environments by ID. Omitting `source.branch` can clear the selected b
 so preview evaluation fails until `RAILWAY_IAC_BRANCH` is provided. Preserve the current
 branch; never silently replace a preview with `main`.
 
+The desired pre-deploy command is `pnpm --filter @lib/db-items db:migrate`.
+The deprecated `@lib/db-notes` package forwards migration commands while older
+applied settings still reference it. Both package paths remain in build watches.
+`DB_NOTES_URL` stays preserved in Railway; the item service accepts it as a fallback.
+See [the item-core rollout](../docs/db/item-core.md).
+
 The backend migrations are a pre-deploy step and the `/api/health` readiness endpoint
 must return 200. Watch paths include the app, shared libraries, lockfile, and workspace
 build configuration. Sealed variables are not cloned into previews; provision any
@@ -91,11 +97,11 @@ required sealed values separately. Existing DB connection references remain in R
 
 WebArts' four former Config as Code app services are now represented by named partials:
 
-| Repository | Partial | Service names | Authoring file |
-| --- | --- | --- | --- |
-| paulshorey/notes | notes | apps/notes-next (dev/previews), notes (production) | .railway/railway.ts |
-| paulshorey/nlp | nlp | apps/be, apps/fe | .railway/railway.ts |
-| paulshorey/map | map | apps/map | .railway/webarts.ts |
+| Repository       | Partial | Service names                                      | Authoring file      |
+| ---------------- | ------- | -------------------------------------------------- | ------------------- |
+| paulshorey/notes | notes   | apps/notes-next (dev/previews), notes (production) | .railway/railway.ts |
+| paulshorey/nlp   | nlp     | apps/be, apps/fe                                   | .railway/railway.ts |
+| paulshorey/map   | map     | apps/map                                           | .railway/webarts.ts |
 
 Map's default `.railway/railway.ts` targets the separate **World** project. Use its
 explicit `webarts.ts` file for WebArts. Every file targeting WebArts exports a partial;

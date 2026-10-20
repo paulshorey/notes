@@ -1,0 +1,598 @@
+"use client"
+
+import type { FormEvent } from "react"
+import { useRef, useState } from "react"
+import { Button, Checkbox, Popup, Select, Spin, Text, TextInput } from "@gravity-ui/uikit"
+import { Notification } from "@mantine/core"
+import {
+  Check,
+  ClockCounterClockwise,
+  Cloud,
+  SidebarSimple,
+  User,
+  WarningCircle,
+  X,
+} from "@phosphor-icons/react"
+import type { UserSummary, WorkspaceRecord } from "@lib/db-items"
+import { FilterablePicker } from "@/components/ui/FilterablePicker"
+import { itemHeadline } from "@/lib/strings"
+import {
+  selectActiveSaveStatus,
+  selectHasBackgroundSaveActivity,
+  useItemsAppStore,
+} from "@/stores/itemsAppStore"
+import type { OpenItemKey } from "@/stores/openItems"
+import type { EmbeddingMaintenanceMode, ItemSaveStatus } from "@/types/items"
+import styles from "./WorkspaceHeader.module.css"
+import { BackupControls, BackupRestoreModal } from "./BackupControls"
+import type { RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
+
+const OPEN_ITEMS_CHOICES = [1, 3, 5, 10, 15, 20, 25]
+
+const SAVE_STATUS_LABELS: Record<ItemSaveStatus, string> = {
+  idle: "Ready to save",
+  unsaved: "Unsaved changes",
+  saving: "Saving…",
+  saved: "All changes saved",
+  error: "Could not save — retrying",
+}
+
+function SaveStatusIndicator() {
+  const saveStatus = useItemsAppStore(selectActiveSaveStatus)
+
+  const label = SAVE_STATUS_LABELS[saveStatus]
+
+  return (
+    <span
+      className={styles.saveIndicator}
+      data-status={saveStatus}
+      role="status"
+      aria-live="polite"
+      title={label}
+      aria-label={label}
+    >
+      {saveStatus === "saving" && <Spin size="xs" />}
+      {saveStatus === "saved" && <Check size={14} weight="bold" aria-hidden />}
+      {(saveStatus === "idle" || saveStatus === "unsaved") && (
+        <Cloud size={15} weight="regular" aria-hidden />
+      )}
+      {saveStatus === "error" && <WarningCircle size={15} weight="bold" aria-hidden />}
+    </span>
+  )
+}
+
+function RecentItemsMenu({
+  categoryLabelById,
+  onSelect,
+  onClose,
+}: {
+  categoryLabelById: (categoryId: number | null) => string
+  onSelect: (key: OpenItemKey) => void
+  onClose: (key: OpenItemKey) => void
+}) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = useState(false)
+  const openItems = useItemsAppStore((state) => state.openItems)
+  const activeKey = useItemsAppStore((state) => state.activeKey)
+  const hasBackgroundActivity = useItemsAppStore(selectHasBackgroundSaveActivity)
+
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        view="flat"
+        size="m"
+        onClick={() => setOpen((value) => !value)}
+        aria-label="Recent notes"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        title="Recent notes"
+        className={`${styles.headerButton} ${styles.recentButton}`}
+      >
+        <ClockCounterClockwise size={18} weight="regular" className={styles.headerIcon} />
+        {hasBackgroundActivity && <span className={styles.recentBadge} aria-hidden />}
+      </Button>
+
+      <Popup
+        anchorRef={triggerRef}
+        open={open}
+        onClose={() => setOpen(false)}
+        placement={["bottom-start", "bottom-end"]}
+        offset={6}
+      >
+        <div className={styles.recentMenu} role="menu" aria-label="Recent notes">
+          {openItems.length === 0 ? (
+            <Text variant="caption-1" color="secondary" className={styles.recentEmpty}>
+              No open notes
+            </Text>
+          ) : (
+            openItems.map((entry) => {
+              const isActive = entry.key === activeKey
+              const title = itemHeadline(entry.form.description)
+
+              return (
+                <div
+                  key={entry.key}
+                  className={`${styles.recentRow} ${isActive ? styles.recentRowActive : ""}`}
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    aria-current={isActive}
+                    className={styles.recentRowButton}
+                    onClick={() => {
+                      onSelect(entry.key)
+                      setOpen(false)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Delete" && event.key !== "Backspace") return
+                      event.preventDefault()
+                      onClose(entry.key)
+                    }}
+                  >
+                    <span className={styles.recentTitle}>{title}</span>
+                    <span className={styles.recentMeta}>
+                      {entry.form.selectedCategoryIds.map(categoryLabelById).join(", ") ||
+                        "uncategorized"}
+                    </span>
+                  </button>
+                  <span
+                    className={styles.recentStatus}
+                    data-status={entry.saveStatus}
+                    aria-label={SAVE_STATUS_LABELS[entry.saveStatus] || undefined}
+                    title={SAVE_STATUS_LABELS[entry.saveStatus] || undefined}
+                  />
+                  <button
+                    type="button"
+                    className={styles.recentCloseButton}
+                    aria-label={`Close “${title}”`}
+                    title="Close"
+                    onClick={(event) => {
+                      // The row itself is clickable, so this must not also
+                      // activate the note it is removing.
+                      event.stopPropagation()
+                      onClose(entry.key)
+                    }}
+                  >
+                    <X size={12} weight="bold" />
+                  </button>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </Popup>
+    </>
+  )
+}
+
+export interface SignupFields {
+  username: string
+  email: string
+  password: string
+}
+
+interface WorkspaceHeaderProps {
+  onDownloadBackup: () => Promise<void>
+  onRestoreBackup: (file: File) => Promise<RestoreBackupResponse>
+  user: UserSummary
+  isAnonymous: boolean
+  resultsListVisible: boolean
+  pasteUrlAsMarkdown: boolean
+  onPasteUrlAsMarkdownChange: (enabled: boolean) => void
+  onAddItem: () => void
+  workspaces: WorkspaceRecord[]
+  activeWorkspaceId: number
+  onWorkspaceChange: (id: number) => void | Promise<void>
+  onCreateWorkspace: (label: string) => void | Promise<void>
+  onLogout: () => void
+  maxOpenItems: number
+  onMaxOpenItemsChange: (value: number) => void
+  categoryLabelById: (categoryId: number | null) => string
+  onSelectOpenItem: (key: OpenItemKey) => void
+  onCloseOpenItem: (key: OpenItemKey) => void
+  embeddingMaintenancePending: EmbeddingMaintenanceMode | null
+  onRunEmbeddingMaintenance: (mode: EmbeddingMaintenanceMode) => void
+  identifier: string
+  password: string
+  onIdentifierChange: (value: string) => void
+  onPasswordChange: (value: string) => void
+  onLoginSubmit: (event: FormEvent<HTMLFormElement>) => Promise<boolean>
+  onSignupSubmit: (fields: SignupFields) => Promise<boolean>
+  authPending: boolean
+  loginErrorMessage: string | null
+  onDismissLoginError: () => void
+}
+
+export function WorkspaceHeader({
+  onDownloadBackup,
+  onRestoreBackup,
+  user,
+  isAnonymous,
+  resultsListVisible,
+  pasteUrlAsMarkdown,
+  onPasteUrlAsMarkdownChange,
+  onAddItem,
+  workspaces,
+  activeWorkspaceId,
+  onWorkspaceChange,
+  onCreateWorkspace,
+  onLogout,
+  maxOpenItems,
+  onMaxOpenItemsChange,
+  categoryLabelById,
+  onSelectOpenItem,
+  onCloseOpenItem,
+  embeddingMaintenancePending,
+  onRunEmbeddingMaintenance,
+  identifier,
+  password,
+  onIdentifierChange,
+  onPasswordChange,
+  onLoginSubmit,
+  onSignupSubmit,
+  authPending,
+  loginErrorMessage,
+  onDismissLoginError,
+}: WorkspaceHeaderProps) {
+  const userBtnRef = useRef<HTMLButtonElement>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [restoreOpen, setRestoreOpen] = useState(false)
+  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
+  const [signupUsername, setSignupUsername] = useState("")
+  const [signupEmail, setSignupEmail] = useState("")
+  const [signupPassword, setSignupPassword] = useState("")
+  const setResultsListVisible = useItemsAppStore((state) => state.setResultsListVisible)
+  const transferPending = useItemsAppStore((state) => state.backupOperation !== null)
+  const activeWorkspaceLabel =
+    workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.label ?? "Workspace"
+
+  const resetAuthPopupState = () => {
+    setAuthMode("signin")
+    setSignupUsername("")
+    setSignupEmail("")
+    setSignupPassword("")
+  }
+
+  const closeAuthMenu = () => {
+    setMenuOpen(false)
+    resetAuthPopupState()
+  }
+
+  const handleSigninSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    if (transferPending) {
+      event.preventDefault()
+      return
+    }
+    const success = await onLoginSubmit(event)
+    if (success) {
+      closeAuthMenu()
+    }
+  }
+
+  const handleSignupFormSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (transferPending) return
+    const success = await onSignupSubmit({
+      username: signupUsername,
+      email: signupEmail,
+      password: signupPassword,
+    })
+    if (success) {
+      closeAuthMenu()
+    }
+  }
+
+  const pasteUrlPreference = (
+    <Checkbox
+      size="m"
+      checked={pasteUrlAsMarkdown}
+      disabled={transferPending}
+      onUpdate={onPasteUrlAsMarkdownChange}
+      className={styles.userMenuPreference}
+    >
+      Paste URLs as markdown links
+    </Checkbox>
+  )
+
+  // A fixed set of choices rather than a free number field. Lowering the cap
+  // evicts immediately, so a text input would apply every intermediate value
+  // as you type — typing "15" would pass through 1 and close notes on the way.
+  const openItemsPreference = (
+    <div className={styles.userMenuSelectPreference}>
+      <Text variant="body-2">Keep open notes</Text>
+      <Select
+        size="s"
+        value={[String(maxOpenItems)]}
+        disabled={transferPending}
+        onUpdate={([next]) => {
+          if (next !== undefined) onMaxOpenItemsChange(Number(next))
+        }}
+        options={OPEN_ITEMS_CHOICES.map((count) => ({
+          value: String(count),
+          content: String(count),
+        }))}
+        width="max"
+      />
+    </div>
+  )
+
+  return (
+    <div className={styles.headerActions}>
+      <div className={styles.headerBrand}>
+        <span
+          className={styles.headerLogo}
+          onClick={onAddItem}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              onAddItem()
+            }
+          }}
+          role="button"
+          tabIndex={0}
+        >
+          jot.new
+        </span>
+        <FilterablePicker
+          variant="header"
+          value={activeWorkspaceLabel}
+          triggerAriaLabel="Current workspace"
+          listboxAriaLabel="Workspace options"
+          options={workspaces}
+          selectedIds={[activeWorkspaceId]}
+          onSelectOption={(workspace) => onWorkspaceChange(Number(workspace.id))}
+          onCreateOption={onCreateWorkspace}
+          emptyWithoutQueryMessage="No workspaces yet"
+          inputPlaceholder="Enter new workspace..."
+          placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
+        />
+        <SaveStatusIndicator />
+        <RecentItemsMenu
+          categoryLabelById={categoryLabelById}
+          onSelect={onSelectOpenItem}
+          onClose={onCloseOpenItem}
+        />
+      </div>
+
+      <span className={styles.headerButtons}>
+        <Button
+          ref={userBtnRef}
+          view="flat"
+          size="m"
+          onClick={() => setMenuOpen((v) => !v)}
+          className={styles.headerButton + " " + styles.headerButtonUser}
+          aria-label="Account menu"
+          aria-expanded={menuOpen}
+        >
+          <User size={18} weight="regular" className={styles.headerIcon} />
+        </Button>
+
+        <Button
+          view="flat"
+          size="m"
+          onClick={() => setResultsListVisible(!resultsListVisible)}
+          aria-label={resultsListVisible ? "Hide notes list" : "Show notes list"}
+          aria-pressed={resultsListVisible}
+          aria-expanded={resultsListVisible}
+          aria-controls="notes-navigation"
+          title={resultsListVisible ? "Hide notes list" : "Show notes list"}
+          className={`${styles.headerButton} ${styles.resultsToggleButton}`}
+        >
+          <SidebarSimple
+            size={18}
+            weight="regular"
+            className={`${styles.headerIcon} ${styles.resultsToggleIcon} ${
+              resultsListVisible ? styles.resultsToggleIconExpanded : ""
+            }`}
+          />
+        </Button>
+      </span>
+      {restoreOpen && (
+        <BackupRestoreModal
+          opened
+          onClose={() => setRestoreOpen(false)}
+          onRestore={onRestoreBackup}
+        />
+      )}
+      <Popup anchorRef={userBtnRef} open={menuOpen} onClose={closeAuthMenu} placement="bottom-end">
+        <div className={styles.userMenu}>
+          {pasteUrlPreference}
+          {openItemsPreference}
+          <BackupControls
+            isAnonymous={isAnonymous}
+            onDownload={onDownloadBackup}
+            onOpenRestore={() => {
+              closeAuthMenu()
+              setRestoreOpen(true)
+            }}
+          />
+          {isAnonymous ? (
+            authMode === "signin" ? (
+              <form
+                onSubmit={(event) => {
+                  void handleSigninSubmit(event)
+                }}
+                className={styles.loginFormInPopup}
+              >
+                <Text variant="body-2">Sign in to keep your notes</Text>
+                <TextInput
+                  size="m"
+                  placeholder="Username, email, or phone"
+                  value={identifier}
+                  onUpdate={onIdentifierChange}
+                  autoComplete="username"
+                />
+                <TextInput
+                  size="m"
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onUpdate={onPasswordChange}
+                  autoComplete="current-password"
+                />
+                <Button
+                  view="action"
+                  size="m"
+                  type="submit"
+                  loading={authPending}
+                  disabled={transferPending}
+                  width="max"
+                >
+                  Sign in
+                </Button>
+                <Button
+                  type="button"
+                  view="flat"
+                  size="m"
+                  width="max"
+                  disabled={authPending || transferPending}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setAuthMode("signup")
+                  }}
+                >
+                  Create account
+                </Button>
+                {loginErrorMessage && (
+                  <Notification
+                    color="red"
+                    radius="md"
+                    title="Unable to sign in"
+                    withCloseButton
+                    onClose={onDismissLoginError}
+                  >
+                    {loginErrorMessage}
+                  </Notification>
+                )}
+              </form>
+            ) : (
+              <form
+                onSubmit={(event) => {
+                  void handleSignupFormSubmit(event)
+                }}
+                className={styles.loginFormInPopup}
+              >
+                <Text variant="body-2">Create an account to keep your notes</Text>
+                <TextInput
+                  size="m"
+                  placeholder="Username"
+                  value={signupUsername}
+                  onUpdate={setSignupUsername}
+                  autoComplete="username"
+                />
+                <TextInput
+                  size="m"
+                  type="email"
+                  placeholder="Email (optional)"
+                  value={signupEmail}
+                  onUpdate={setSignupEmail}
+                  autoComplete="email"
+                />
+                <TextInput
+                  size="m"
+                  type="password"
+                  placeholder="Password (8+ characters)"
+                  value={signupPassword}
+                  onUpdate={setSignupPassword}
+                  autoComplete="new-password"
+                />
+                <Button
+                  view="action"
+                  size="m"
+                  type="submit"
+                  loading={authPending}
+                  disabled={transferPending}
+                  width="max"
+                >
+                  Create account
+                </Button>
+                <Button
+                  type="button"
+                  view="flat"
+                  size="m"
+                  width="max"
+                  disabled={authPending || transferPending}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    setAuthMode("signin")
+                  }}
+                >
+                  I already have an account
+                </Button>
+                {loginErrorMessage && (
+                  <Notification
+                    color="red"
+                    radius="md"
+                    title="Unable to create account"
+                    withCloseButton
+                    onClose={onDismissLoginError}
+                  >
+                    {loginErrorMessage}
+                  </Notification>
+                )}
+              </form>
+            )
+          ) : (
+            <>
+              <Text variant="body-2">{user.username}</Text>
+              {user.email && (
+                <Text variant="caption-1" color="secondary">
+                  {user.email}
+                </Text>
+              )}
+              {user.phone && (
+                <Text variant="caption-1" color="secondary">
+                  {user.phone}
+                </Text>
+              )}
+              <div className={styles.userMenuSection}>
+                <Text variant="caption-1" color="secondary">
+                  Debug
+                </Text>
+                <Button
+                  view="flat-secondary"
+                  size="s"
+                  width="max"
+                  loading={embeddingMaintenancePending === "missing"}
+                  disabled={embeddingMaintenancePending !== null || transferPending}
+                  onClick={() => {
+                    onRunEmbeddingMaintenance("missing")
+                    setMenuOpen(false)
+                  }}
+                >
+                  Repair missing embeddings
+                </Button>
+                <Button
+                  view="flat-secondary"
+                  size="s"
+                  width="max"
+                  loading={embeddingMaintenancePending === "stale"}
+                  disabled={embeddingMaintenancePending !== null || transferPending}
+                  onClick={() => {
+                    onRunEmbeddingMaintenance("stale")
+                    setMenuOpen(false)
+                  }}
+                >
+                  Reindex stale embeddings
+                </Button>
+              </div>
+              <Button
+                view="flat-danger"
+                size="s"
+                disabled={transferPending}
+                onClick={() => {
+                  onLogout()
+                  setMenuOpen(false)
+                }}
+                width="max"
+              >
+                Sign out
+              </Button>
+            </>
+          )}
+        </div>
+      </Popup>
+    </div>
+  )
+}

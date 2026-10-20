@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --port 4100 --hostname 127.0.0.1",
-    "contracts:check": "pnpm --filter @lib/db-notes app:contract:check",
+    "contracts:check": "pnpm --filter @lib/db-items app:contract:check",
     "build:contracts": "pnpm run contracts:check",
     "build": "pnpm run contracts:check && pnpm --filter @atomic-editor/editor build && next build",
     "start": "next start --port ${PORT:-4100}",
@@ -29,7 +29,7 @@
     "@gravity-ui/uikit": "^7.35.2",
     "@lezer/common": "^1.5.2",
     "@lezer/highlight": "^1.2.3",
-    "@lib/db-notes": "workspace:*",
+    "@lib/db-items": "workspace:*",
     "@mantine/core": "^9.1.0",
     "@mantine/hooks": "^9.1.0",
     "@phosphor-icons/react": "^2.1.10",

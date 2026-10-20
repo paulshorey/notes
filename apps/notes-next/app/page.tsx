@@ -1,5 +1,5 @@
-import NotesApp from "@/components/notes/NotesApp"
+import ItemsApp from "@/components/items/ItemsApp"
 
 export default function Home() {
-  return <NotesApp />
+  return <ItemsApp />
 }

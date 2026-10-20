@@ -5,7 +5,7 @@ share the same schema truth.
 
 ## Packages
 
-- `@lib/db-notes` for `DB_NOTES_URL`
+- `@lib/db-items` for `DB_NOTES_URL`
 
 Each package contains:
 
@@ -16,7 +16,7 @@ Each package contains:
 
 ## Current app usage
 
-- `apps/notes-next` uses `@lib/db-notes/services/notes-app` in its API
+- `apps/notes-next` uses `@lib/db-items/services/items-app` in its API
   routes.
 
 ## Migration policy

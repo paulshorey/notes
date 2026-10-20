@@ -7,7 +7,7 @@ export const toLowercaseInput = (value: string) => value.toLocaleLowerCase()
  * list and the recent-notes dropdown; takes the raw description rather than a
  * record so an unsaved draft can use it too.
  */
-export const noteHeadline = (description: string | null | undefined): string => {
+export const itemHeadline = (description: string | null | undefined): string => {
   const raw = description?.trim() ?? ""
   if (raw === "") return "Untitled"
 

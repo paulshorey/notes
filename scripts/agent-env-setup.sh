@@ -14,13 +14,17 @@
 # See docs/operations/agent-environment.md.
 set -euo pipefail
 
+# Accept existing local environment files while emitting canonical item keys.
+export DB_ITEMS_URL="${DB_ITEMS_URL:-${DB_NOTES_URL:-}}"
+export DB_ITEMS_TEST_URL="${DB_ITEMS_TEST_URL:-${DB_NOTES_TEST_URL:-}}"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 PNPM_VERSION="10.28.1"
 NODE_MIN_MAJOR=20
 NODE_FALLBACK_VERSION="20.20.2"
-LOCAL_NOTES_URL="postgres:///notes?host=/var/run/postgresql"
+LOCAL_ITEMS_URL="postgres:///notes?host=/var/run/postgresql"
 LOCAL_TEST_URL="postgres:///notes_test?host=/var/run/postgresql"
 AGENT_ENV_FILE="$ROOT_DIR/.agent-env.sh"
 APP_ENV_FILE="$ROOT_DIR/apps/notes-next/.env.local"
@@ -352,8 +356,8 @@ existing_secret() {
 }
 
 write_env_files() {
-  export DB_NOTES_URL="${DB_NOTES_URL:-$LOCAL_NOTES_URL}"
-  export DB_NOTES_TEST_URL="${DB_NOTES_TEST_URL:-$LOCAL_TEST_URL}"
+  export DB_ITEMS_URL="${DB_ITEMS_URL:-$LOCAL_ITEMS_URL}"
+  export DB_ITEMS_TEST_URL="${DB_ITEMS_TEST_URL:-$LOCAL_TEST_URL}"
   export AUTH_TRUST_HOST="${AUTH_TRUST_HOST:-true}"
   export AUTH_SECRET="${AUTH_SECRET:-$(existing_secret)}"
   if [[ -z "$AUTH_SECRET" ]]; then
@@ -373,8 +377,8 @@ export TURBO_TELEMETRY_DISABLED="${TURBO_TELEMETRY_DISABLED}"
 export PNPM_HOME="${PNPM_HOME}"
 export PNPM_STORE_DIR="${PNPM_STORE_DIR}"
 export PATH="${PNPM_HOME}:/usr/lib/postgresql/17/bin:\$PATH"
-export DB_NOTES_URL="${DB_NOTES_URL}"
-export DB_NOTES_TEST_URL="${DB_NOTES_TEST_URL}"
+export DB_ITEMS_URL="${DB_ITEMS_URL}"
+export DB_ITEMS_TEST_URL="${DB_ITEMS_TEST_URL}"
 export AUTH_SECRET="${AUTH_SECRET}"
 export AUTH_TRUST_HOST="${AUTH_TRUST_HOST}"
 EOF
@@ -382,8 +386,8 @@ EOF
   if [[ -n "${JINA_API_KEY:-}" ]]; then
     printf 'export JINA_API_KEY=%q\n' "$JINA_API_KEY" >> "$AGENT_ENV_FILE"
   fi
-  upsert_kv "$APP_ENV_FILE" "DB_NOTES_URL" "$DB_NOTES_URL"
-  upsert_kv "$APP_ENV_FILE" "DB_NOTES_TEST_URL" "$DB_NOTES_TEST_URL"
+  upsert_kv "$APP_ENV_FILE" "DB_ITEMS_URL" "$DB_ITEMS_URL"
+  upsert_kv "$APP_ENV_FILE" "DB_ITEMS_TEST_URL" "$DB_ITEMS_TEST_URL"
   upsert_kv "$APP_ENV_FILE" "AUTH_SECRET" "$AUTH_SECRET"
   upsert_kv "$APP_ENV_FILE" "AUTH_TRUST_HOST" "$AUTH_TRUST_HOST"
   if [[ -n "${JINA_API_KEY:-}" ]]; then
@@ -434,8 +438,8 @@ launch_next_dev() {
 start_dev_server() {
   ensure_pnpm_path
   discover_node || true
-  export DB_NOTES_URL="${DB_NOTES_URL:-$LOCAL_NOTES_URL}"
-  export DB_NOTES_TEST_URL="${DB_NOTES_TEST_URL:-$LOCAL_TEST_URL}"
+  export DB_ITEMS_URL="${DB_ITEMS_URL:-$LOCAL_ITEMS_URL}"
+  export DB_ITEMS_TEST_URL="${DB_ITEMS_TEST_URL:-$LOCAL_TEST_URL}"
   export AUTH_SECRET="${AUTH_SECRET:-$(existing_secret)}"
   export AUTH_TRUST_HOST="${AUTH_TRUST_HOST:-true}"
 
@@ -490,8 +494,8 @@ Environment files:
   ${APP_ENV_FILE}
 
 Database:
-  DB_NOTES_URL=${DB_NOTES_URL:-$LOCAL_NOTES_URL}
-  DB_NOTES_TEST_URL=${DB_NOTES_TEST_URL:-$LOCAL_TEST_URL}
+  DB_ITEMS_URL=${DB_ITEMS_URL:-$LOCAL_ITEMS_URL}
+  DB_ITEMS_TEST_URL=${DB_ITEMS_TEST_URL:-$LOCAL_TEST_URL}
 
 In every new shell:
   source .agent-env.sh
@@ -500,7 +504,7 @@ Recommended commands:
   pnpm --filter notes-next dev          # http://localhost:${DEV_PORT}
   pnpm --filter notes-next test
   pnpm --filter notes-next build
-  pnpm --filter @lib/db-notes test
+  pnpm --filter @lib/db-items test
   pnpm run diagnose:notes
   pnpm run verify:notes-web
 
@@ -541,12 +545,12 @@ if [[ $DO_MIGRATE -eq 1 ]]; then
   log "Applying Notes migrations to the local database"
   discover_node || true
   ensure_pnpm
-  export DB_NOTES_URL="${DB_NOTES_URL:-$LOCAL_NOTES_URL}"
-  export DB_NOTES_TEST_URL="${DB_NOTES_TEST_URL:-$LOCAL_TEST_URL}"
+  export DB_ITEMS_URL="${DB_ITEMS_URL:-$LOCAL_ITEMS_URL}"
+  export DB_ITEMS_TEST_URL="${DB_ITEMS_TEST_URL:-$LOCAL_TEST_URL}"
   pnpm run db:migrate
-  if [[ "$DB_NOTES_TEST_URL" != "$DB_NOTES_URL" ]]; then
+  if [[ "$DB_ITEMS_TEST_URL" != "$DB_ITEMS_URL" ]]; then
     log "Applying Notes migrations to the local test database"
-    DB_NOTES_URL="$DB_NOTES_TEST_URL" pnpm --filter @lib/db-notes db:migrate
+    DB_ITEMS_URL="$DB_ITEMS_TEST_URL" pnpm --filter @lib/db-items db:migrate
   fi
 fi
 
@@ -558,8 +562,8 @@ if [[ $DO_VERIFY -eq 1 ]]; then
   log "Running diagnose:notes"
   discover_node || true
   ensure_pnpm
-  export DB_NOTES_URL="${DB_NOTES_URL:-$LOCAL_NOTES_URL}"
-  export DB_NOTES_TEST_URL="${DB_NOTES_TEST_URL:-$LOCAL_TEST_URL}"
+  export DB_ITEMS_URL="${DB_ITEMS_URL:-$LOCAL_ITEMS_URL}"
+  export DB_ITEMS_TEST_URL="${DB_ITEMS_TEST_URL:-$LOCAL_TEST_URL}"
   pnpm run diagnose:notes
 fi
 

@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
-import { getDb } from "@lib/db-notes"
+import { getDb } from "@lib/db-items"
 
 const REQUIRED_RELATIONS = [
   "public.user_workspace_v1",
-  "public.workspace_note_category_v1",
-  "public.workspace_note_status_v1",
-  "public.workspace_note_tag_v1",
-  "public.user_note_v1",
+  "public.workspace_category_v1",
+  "public.workspace_status_v1",
+  "public.workspace_tag_v1",
+  "public.workspace_item_v1",
 ] as const
 
 /**

@@ -70,7 +70,7 @@ No changes are required in `lib/atomic-editor`.
 
 ## Core design decision
 
-Keep the modal flow inside `apps/notes-next/src/components/editor/AtomicEditor.tsx` rather than pushing it up into `NoteForm.tsx`.
+Keep the modal flow inside `apps/notes-next/src/components/editor/AtomicEditor.tsx` rather than pushing it up into `TextCaptureForm.tsx`.
 
 Reason:
 

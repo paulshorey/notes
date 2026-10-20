@@ -1,0 +1,19 @@
+database: postgres
+env_var: DB_ITEMS_URL
+legacy_env_vars:
+  - DB_NOTES_URL
+owners:
+  - apps/notes-next
+source_of_truth:
+  migrations: ./migrations
+  schema_snapshot: ./schema/current.sql
+  app_contracts: ./contracts/items-app.ts
+  query_contracts: ./queries
+generated_artifacts:
+  - ./generated/typescript
+  - ./generated/contracts
+compatibility:
+  policy: additive-first
+  breaking_changes_require:
+    - deprecation_window
+    - migration_plan

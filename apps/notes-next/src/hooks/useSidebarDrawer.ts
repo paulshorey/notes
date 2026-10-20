@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react"
-import { SIDEBAR_OVERLAY_MEDIA_QUERY } from "@/constants/notes"
-import { useNotesAppStore } from "@/stores/notesAppStore"
+import { SIDEBAR_OVERLAY_MEDIA_QUERY } from "@/constants/items"
+import { useItemsAppStore } from "@/stores/itemsAppStore"
 
 export function useSidebarDrawer() {
   const [drawerMode, setDrawerMode] = useState(false)
-  const open = useNotesAppStore((state) => state.resultsListVisible)
-  const setOpen = useNotesAppStore((state) => state.setResultsListVisible)
+  const open = useItemsAppStore((state) => state.resultsListVisible)
+  const setOpen = useItemsAppStore((state) => state.setResultsListVisible)
 
   useEffect(() => {
     const drawerQuery = window.matchMedia(SIDEBAR_OVERLAY_MEDIA_QUERY)

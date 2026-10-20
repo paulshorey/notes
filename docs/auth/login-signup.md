@@ -20,7 +20,7 @@ Every new visitor can use the app immediately — create workspaces, notes,
 categories, statuses, and tags — without registering. Behind the scenes:
 
 1. The browser has **no session** on first load.
-2. `NotesApp` detects `authStatus === "unauthenticated"` and calls
+2. `ItemsApp` detects `authStatus === "unauthenticated"` and calls
    `signIn("anonymous")`.
 3. NextAuth creates a real `user_v1` row with `is_anonymous = true` and issues
    a JWT session cookie.
@@ -103,7 +103,7 @@ request bodies are ignored.
 
 ### Password hashing
 
-`lib/db-notes/sql/user/password.ts` implements scrypt (`node:crypto`, no extra
+`lib/db-items/sql/user/password.ts` implements scrypt (`node:crypto`, no extra
 dependency). Format: `scrypt$<N>$<r>$<p>$<saltB64>$<hashB64>`.
 
 `verifyUserCredentials` uses `verifyPassword`. Legacy plaintext rows still
@@ -112,7 +112,7 @@ work; on successful login the password is rehashed in place.
 ## Anonymous session bootstrap
 
 ```typescript
-// NotesApp.tsx — runs when authStatus is "unauthenticated"
+// ItemsApp.tsx — runs when authStatus is "unauthenticated"
 void signIn("anonymous", { redirect: false })
 ```
 
@@ -139,8 +139,8 @@ between users, so there is no merge token and no load-path race.
 
 - Requires an authenticated **anonymous** session (`401` otherwise)
 - Body: `{ username, password, email? }`
-- Calls `claimAnonymousNotesAppSession` → `claimAnonymousUser` in
-  `lib/db-notes/sql/user/anonymous.ts`
+- Calls `claimAnonymousItemsAppSession` → `claimAnonymousUser` in
+  `lib/db-items/sql/user/anonymous.ts`
 - In one transaction: verify row is still anonymous, check identifier conflicts
   against non-anonymous users, set username/email/password hash,
   `is_anonymous = false`
@@ -149,7 +149,7 @@ between users, so there is no merge token and no load-path race.
 Validation (service layer): non-empty username, password ≥ 8 characters,
 optional email must contain `@` if present.
 
-### Client (`handleSignup` in `NotesApp.tsx`)
+### Client (`handleSignup` in `ItemsApp.tsx`)
 
 1. `await flushPendingNoteSave()` — persist any debounced draft on the same row
 2. `POST /api/anon-session/claim` with form fields
@@ -176,7 +176,7 @@ reconciled server-side.
 ### Critical invariant (Phase 1)
 
 > **There is exactly one writer of post-login session data:** the
-> `restoreSession` effect in `NotesApp.tsx`.
+> `restoreSession` effect in `ItemsApp.tsx`.
 
 Login handlers must **not** load notes or run the merge themselves. They only:
 
@@ -234,7 +234,7 @@ Anonymous data remains on the orphaned row for manual recovery or cleanup.
 
 ## Session restore & caching
 
-`restoreSession` (effect in `NotesApp.tsx`) is the central loader after any auth
+`restoreSession` (effect in `ItemsApp.tsx`) is the central loader after any auth
 change:
 
 - Waits for `authStatus !== "loading"`
@@ -262,7 +262,7 @@ Dependencies include `authSession.user.notesUserId` and
 ## UI entry points
 
 All auth UI for the web app lives in the header user popup
-(`NotesHeader.tsx`), not a separate login page (`auth.config.ts` sets
+(`WorkspaceHeader.tsx`), not a separate login page (`auth.config.ts` sets
 `signIn: "/"`).
 
 Anonymous users see a toggle between two modes (`authMode` local state):
@@ -292,7 +292,7 @@ Permanent users see account info, debug embedding actions, and Sign out.
 
 | Item                           | Status  | Notes                                                                                                              |
 | ------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------ |
-| Embedding backfill after merge | Pending | Call `maintainNoteEmbeddingsForNotesApp({ mode: "missing" })` after merge so merged categories/tags are searchable |
+| Embedding backfill after merge | Pending | Call `maintainNoteEmbeddingsForItemsApp({ mode: "missing" })` after merge so merged categories/tags are searchable |
 | Preferences on merge           | Pending | Anon `preferences` are discarded when anon row is deleted; product decision needed                                 |
 | Automated merge tests          | Pending | No harness coverage for anonymous → permanent flows yet                                                            |
 
@@ -335,7 +335,7 @@ the user has typed anything.
 
 Relevant code today:
 
-```184:192:apps/notes-next/src/components/notes/NotesHeader.tsx
+```184:192:apps/notes-next/src/components/items/WorkspaceHeader.tsx
                 <Button
                   view="flat"
                   size="m"
@@ -350,7 +350,7 @@ Relevant code today:
 The signup form submit handler (correct for the primary **Create account**
 button, incorrect when triggered by the toggle):
 
-```206:214:apps/notes-next/src/components/notes/NotesHeader.tsx
+```206:214:apps/notes-next/src/components/items/WorkspaceHeader.tsx
               <form
                 onSubmit={(event) => {
                   event.preventDefault()
@@ -409,8 +409,8 @@ claim + credentials sign-in. On validation or `409` conflict, keep the popup
 open on the signup form so the user can correct input or switch to sign-in.
 
 Wire this by moving `setMenuOpen(false)` into the success paths of
-`handleLogin` / `handleSignup` in `NotesApp.tsx` (or returning success/failure
-from handlers to `NotesHeader`).
+`handleLogin` / `handleSignup` in `ItemsApp.tsx` (or returning success/failure
+from handlers to `WorkspaceHeader`).
 
 #### 5. Verification checklist
 
@@ -431,8 +431,8 @@ Automated (follow-up): a component test that clicks the toggle and asserts
 
 | File                                                   | Change                                                                                                           |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `apps/notes-next/src/components/notes/NotesHeader.tsx` | `type="button"` on toggles; popup close resets `authMode` + signup fields; defer menu close to parent on success |
-| `apps/notes-next/src/components/notes/NotesApp.tsx`    | Optional client validation in `handleSignup`; close popup only on success                                        |
+| `apps/notes-next/src/components/items/WorkspaceHeader.tsx` | `type="button"` on toggles; popup close resets `authMode` + signup fields; defer menu close to parent on success |
+| `apps/notes-next/src/components/items/ItemsApp.tsx`    | Optional client validation in `handleSignup`; close popup only on success                                        |
 | `apps/notes-next/AGENTS.md`                            | Note the sign-in/signup toggle behavior once fixed                                                               |
 
 No server or schema changes are required for this fix — it is purely client-side

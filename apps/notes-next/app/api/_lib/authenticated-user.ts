@@ -1,5 +1,5 @@
 import { auth } from "@/auth"
-import type { SessionUserResolver } from "./notes-app-route-handlers"
+import type { SessionUserResolver } from "./items-app-route-handlers"
 
 /**
  * Production resolver for cookie-based auth: maps the NextAuth JWT session to
@@ -8,7 +8,7 @@ import type { SessionUserResolver } from "./notes-app-route-handlers"
  */
 export const resolveSessionUserId: SessionUserResolver = async () => {
   const session = await auth()
-  const notesUserId = session?.user?.notesUserId
+  const itemsUserId = session?.user?.itemsUserId
 
-  return typeof notesUserId === "number" ? notesUserId : null
+  return typeof itemsUserId === "number" ? itemsUserId : null
 }

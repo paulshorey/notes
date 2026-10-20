@@ -2,12 +2,12 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createBackupRouteHandlers } from "../app/api/_lib/backup-route-handlers"
 import {
-  createFakeNotesAppService,
+  createFakeItemsAppService,
   sampleApiToken,
-} from "@lib/db-notes/testing/notes-api-adapter-suite"
-import { backupFixture } from "@lib/db-notes/testing/user-backup-fixture"
-import { USER_BACKUP_MAX_BYTES } from "@lib/db-notes/contracts/user-backup"
-import { BackupAccountError } from "@lib/db-notes/services/notes-app"
+} from "@lib/db-items/testing/items-api-adapter-suite"
+import { backupFixture } from "@lib/db-items/testing/user-backup-fixture"
+import { USER_BACKUP_MAX_BYTES } from "@lib/db-items/contracts/user-backup"
+import { BackupAccountError } from "@lib/db-items/services/items-app"
 
 const request = (body: unknown, headers: Record<string, string> = {}) =>
   new Request("http://notes.test/api/backup", {
@@ -19,11 +19,11 @@ const request = (body: unknown, headers: Record<string, string> = {}) =>
       ...headers,
     },
   })
-const sampleUser = (await createFakeNotesAppService().getNotesAppSession({ userId: 1 }))!.user
+const sampleUser = (await createFakeItemsAppService().getItemsAppSession({ userId: 1 }))!.user
 
 test("backup authentication derives identity from cookie or token and exports a private attachment", async () => {
   let exportedUser: number | undefined
-  const service = createFakeNotesAppService({
+  const service = createFakeItemsAppService({
     exportUserBackup: async (id) => {
       exportedUser = id
       return backupFixture()
@@ -36,7 +36,7 @@ test("backup authentication derives identity from cookie or token and exports a 
   )
   const result = await handlers.GET(
     new Request("http://notes.test/api/backup?userId=999", {
-      headers: { Authorization: `Bearer ${sampleApiToken}` },
+      headers: { Authorization: `Bearer ${sampleApiToken}`, "X-Items-Contract": "1" },
     }),
   )
   assert.equal(exportedUser, sampleUser.id)
@@ -53,10 +53,10 @@ test("backup authentication derives identity from cookie or token and exports a 
 test("restore validates before service call and ignores uploaded or query-string user ids", async () => {
   const calls: unknown[] = []
   const handlers = createBackupRouteHandlers(
-    createFakeNotesAppService({
+    createFakeItemsAppService({
       restoreUserBackup: async (id, file) => {
         calls.push([id, file])
-        return { notesImported: 1, notesSkipped: 0 }
+        return { itemsImported: 1, itemsSkipped: 0 }
       },
     }),
   )
@@ -96,10 +96,10 @@ test("restore validates before service call and ignores uploaded or query-string
 test("restore rejects invalid UTF-8 instead of silently replacing note text", async () => {
   let calls = 0
   const handlers = createBackupRouteHandlers(
-    createFakeNotesAppService({
+    createFakeItemsAppService({
       restoreUserBackup: async () => {
         calls++
-        return { notesImported: 1, notesSkipped: 0 }
+        return { itemsImported: 1, itemsSkipped: 0 }
       },
     }),
   )
@@ -118,9 +118,9 @@ test("restore rejects invalid UTF-8 instead of silently replacing note text", as
 
 test("export refuses an attachment too large for a later restore", async () => {
   const file = backupFixture()
-  file.workspaces[0]!.notes[0]!.description = "a".repeat(USER_BACKUP_MAX_BYTES)
+  file.workspaces[0]!.items[0]!.description = "a".repeat(USER_BACKUP_MAX_BYTES)
   const handlers = createBackupRouteHandlers(
-    createFakeNotesAppService({ exportUserBackup: async () => file }),
+    createFakeItemsAppService({ exportUserBackup: async () => file }),
   )
   const result = await handlers.GET(
     new Request("http://notes.test/api/backup", {
@@ -132,7 +132,7 @@ test("export refuses an attachment too large for a later restore", async () => {
 })
 
 test("restore enforces actual streamed size even without Content-Length", async () => {
-  const handlers = createBackupRouteHandlers(createFakeNotesAppService())
+  const handlers = createBackupRouteHandlers(createFakeItemsAppService())
   let sent = 0
   let cancelled = false
   const body = new ReadableStream({
@@ -173,7 +173,7 @@ test("backup errors keep credentials and SQL private and return useful status co
     [new Error("SQL failure: postgres://secret:password@host"), 500],
   ] as const) {
     const handlers = createBackupRouteHandlers(
-      createFakeNotesAppService({
+      createFakeItemsAppService({
         restoreUserBackup: async () => {
           throw error
         },

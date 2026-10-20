@@ -9,8 +9,8 @@
   "env": {
     "CI": "true",
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
-    "DB_NOTES_TEST_URL": "postgres:///notes_test?host=/var/run/postgresql",
-    "DB_NOTES_URL": "postgres:///notes?host=/var/run/postgresql",
+    "DB_ITEMS_TEST_URL": "postgres:///notes_test?host=/var/run/postgresql",
+    "DB_ITEMS_URL": "postgres:///notes?host=/var/run/postgresql",
     "HUSKY": "0",
     "PNPM_HOME": "/home/ubuntu/.local/share/pnpm",
     "PNPM_STORE_DIR": "/workspace/.pnpm-store",

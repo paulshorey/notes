@@ -7,6 +7,7 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "lib/atomic-editor/**"
+      - "lib/db-items/**"
       - "lib/db-notes/**"
       - "apps/notes-next/**"
   push:
@@ -17,13 +18,14 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "lib/atomic-editor/**"
+      - "lib/db-items/**"
       - "lib/db-notes/**"
       - "apps/notes-next/**"
   workflow_dispatch:
 
 jobs:
-  verify-notes:
-    name: Verify Notes contract
+  verify-items:
+    name: Verify Items contract
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -40,7 +42,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DB_NOTES_URL: postgres://postgres:postgres@localhost:5432/app_contracts
+      DB_ITEMS_URL: postgres://postgres:postgres@localhost:5432/app_contracts
     steps:
       - uses: actions/checkout@v4
 
@@ -67,22 +69,22 @@ jobs:
           which pg_dump
           pg_dump --version
           psql --version
-          psql "$DB_NOTES_URL" -Atqc "SELECT version()"
+          psql "$DB_ITEMS_URL" -Atqc "SELECT version()"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify @lib/db-notes
-        run: pnpm --filter @lib/db-notes db:verify
+      - name: Verify @lib/db-items
+        run: pnpm --filter @lib/db-items db:verify
 
       # DB-backed regression tests (anonymous merge). Requires the schema that
       # db:verify just migrated into the service container. The tests only run
-      # against an explicit DB_NOTES_TEST_URL so they can never write to a
-      # real DB_NOTES_URL by accident.
-      - name: Test @lib/db-notes
-        run: pnpm --filter @lib/db-notes test
+      # against an explicit DB_ITEMS_TEST_URL so they can never write to a
+      # real DB_ITEMS_URL by accident.
+      - name: Test @lib/db-items
+        run: pnpm --filter @lib/db-items test
         env:
-          DB_NOTES_TEST_URL: ${{ env.DB_NOTES_URL }}
+          DB_ITEMS_TEST_URL: ${{ env.DB_ITEMS_URL }}
 
   verify-notes-web:
     name: Verify Notes web app

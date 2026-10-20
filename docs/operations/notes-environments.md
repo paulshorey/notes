@@ -16,21 +16,21 @@ credentials.
 
 | Environment            | App and API                                                                          | Database                                                                                                                            | Lifecycle                                                         | Migration owner                                                                          |
 | ---------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Local laptop           | `http://localhost:5500`; UI and `/api/*` are served by the same `notes-next` process | `DB_NOTES_URL` from the process, then `apps/notes-next/.env.local` or `.env`; this may be a persistent Railway development database | App process is disposable; the configured database usually is not | Developer runs `pnpm run db:migrate` intentionally                                       |
+| Local laptop           | `http://localhost:5500`; UI and `/api/*` are served by the same `notes-next` process | `DB_ITEMS_URL` from the process, then `apps/notes-next/.env.local` or `.env`; this may be a persistent Railway development database | App process is disposable; the configured database usually is not | Developer runs `pnpm run db:migrate` intentionally                                       |
 | Cursor Cloud           | `notes-next` runs inside the cloud workspace                                         | `.cursor/environment.json` provides local socket URLs for throwaway `notes` and `notes_test` PostgreSQL 17 databases                | Databases belong to the cloud workspace and start empty           | Run `pnpm run db:migrate` before app or DB work                                          |
 | Other AI agent VMs     | `notes-next` on `http://localhost:6000` after `bash scripts/agent-env-setup.sh`      | Script writes local socket URLs for throwaway `notes` and `notes_test` PostgreSQL 17 databases                                      | Databases belong to the agent VM and start empty                  | The setup script applies `pnpm run db:migrate`                                           |
-| Railway PR preview     | Preview URL created by the Railway GitHub deployment check                           | Railway injects `DB_NOTES_URL`; confirm in Railway that the preview references the intended preview database rather than production | Preview app and, when configured, its database are temporary      | Railway `preDeployCommand` applies pending migrations before the preview starts          |
-| Railway production     | Production Railway domain; UI and API deploy together                                | Production `DB_NOTES_URL`, injected by Railway                                                                                      | Persistent production data                                        | Railway `preDeployCommand` applies pending migrations before the release becomes healthy |
+| Railway PR preview     | Preview URL created by the Railway GitHub deployment check                           | Railway injects `DB_ITEMS_URL`; confirm in Railway that the preview references the intended preview database rather than production | Preview app and, when configured, its database are temporary      | Railway `preDeployCommand` applies pending migrations before the preview starts          |
+| Railway production     | Production Railway domain; UI and API deploy together                                | Production `DB_ITEMS_URL`, injected by Railway                                                                                      | Persistent production data                                        | Railway `preDeployCommand` applies pending migrations before the release becomes healthy |
 | GitHub DB Contracts CI | No user-facing app                                                                   | Fresh PostgreSQL 17 service container                                                                                               | Destroyed after the workflow                                      | Workflow runs migrations and contract verification against the fresh database            |
 
 ## Configuration sources
 
-`@lib/db-notes` owns the Notes schema, migration runner, generated contracts,
+`@lib/db-items` owns the Notes schema, migration runner, generated contracts,
 and runtime database pool. `apps/notes-next` owns the HTTP API and web UI.
 
 Database configuration precedence for local diagnosis is:
 
-1. exported `DB_NOTES_URL`
+1. exported `DB_ITEMS_URL`
 2. `apps/notes-next/.env.local`
 3. `apps/notes-next/.env`
 
@@ -75,7 +75,7 @@ pnpm run diagnose:notes -- --base-url https://DEPLOYMENT_DOMAIN
 ```
 
 This still diagnoses the database configured on the machine running the
-command; it cannot read the deployment's secret `DB_NOTES_URL`. The remote
+command; it cannot read the deployment's secret `DB_ITEMS_URL`. The remote
 health response confirms whether that deployment can reach its own database
 and minimum schema.
 
@@ -89,7 +89,7 @@ CI credentials, preview updates, and ownership. Keep the legacy Railway Config F
 The applied Notes deployment lifecycle is:
 
 1. build with `pnpm --filter notes-next build`
-2. run `pnpm --filter @lib/db-notes db:migrate` as `preDeployCommand`
+2. run `pnpm --filter @lib/db-items db:migrate` as `preDeployCommand`
 3. start with `pnpm --filter notes-next start`
 4. require `GET /api/health` to pass before accepting the release
 
@@ -126,7 +126,7 @@ Follow these boundaries in order:
    write.
 5. **Authentication:** a healthy service plus `401` from `/api/bootstrap` means
    the request lacks a valid web session or API bearer token.
-6. **Request contract:** a `400` from `/api/notes` is an application validation
+6. **Request contract:** a `400` from `/api/items` is an application validation
    failure. Read the JSON response body and verify workspace/category/status/tag
    IDs all belong to the active workspace.
 7. **Persistence:** confirm writes in PostgreSQL. The UI and `localStorage` can

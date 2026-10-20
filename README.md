@@ -4,7 +4,12 @@ Monorepo for the Notes web app and its shared packages:
 
 - `apps/notes-next` - Notes web app and REST API, deployed to Railway
 
-`lib/db-notes` is the source of truth for the Notes database schema, generated contracts, and shared Notes server workflows.
+`lib/db-items` is the source of truth for the item database schema, generated contracts, and shared item workflows.
+
+The web app presents text items as notes. Internals use `ItemRecord`, item services,
+and `/api/items`; existing clients keep working through compatibility adapters.
+See [the item core design](docs/db/item-core.md). `DB_NOTES_URL` remains a supported
+fallback for deployed environments during rollout.
 
 `lib/atomic-editor` is the markdown editor package used by `notes-next`. It is vendored as regular files via **git subtree** (not a submodule), and can optionally be synced with the standalone fork [`paulshorey/atomic-editor`](https://github.com/paulshorey/atomic-editor).
 
@@ -14,30 +19,30 @@ All day-to-day developer workflows run from the repo root. Each command is a thi
 
 ### Install and verify
 
-| Command                        | What it does                                                                             |
-| ------------------------------ | ---------------------------------------------------------------------------------------- |
-| `pnpm run deps:install`        | Install all workspace dependencies (Turbo / pnpm).                                       |
-| `pnpm run verify`              | Repo-wide pre-push gate. Runs `verify:db-contracts` then `verify:notes-web`.           |
-| `pnpm run verify:db-contracts` | Type-check `lib/db-notes` and confirm generated Notes contract artifacts are up to date. |
-| `pnpm run verify:notes-web`    | `notes-next`: type-check, tests, and production build.                                   |
+| Command                        | What it does                                                                            |
+| ------------------------------ | --------------------------------------------------------------------------------------- |
+| `pnpm run deps:install`        | Install all workspace dependencies (Turbo / pnpm).                                      |
+| `pnpm run verify`              | Repo-wide pre-push gate. Runs `verify:db-contracts` then `verify:notes-web`.            |
+| `pnpm run verify:db-contracts` | Type-check `lib/db-items` and confirm generated item contract artifacts are up to date. |
+| `pnpm run verify:notes-web`    | `notes-next`: type-check, tests, and production build.                                  |
 
 ### Build
 
-| Command                            | What it does                                                                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `pnpm run build`                   | Turbo `build` across every package.                                                                                                              |
-| `pnpm run build:notes-web`         | Production build of `apps/notes-next`.                                                                                                           |
+| Command                    | What it does                           |
+| -------------------------- | -------------------------------------- |
+| `pnpm run build`           | Turbo `build` across every package.    |
+| `pnpm run build:notes-web` | Production build of `apps/notes-next`. |
 
-### Database (`lib/db-notes`)
+### Database (`lib/db-items`)
 
 | Command                             | What it does                                                                                                                                                                      |
 | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm run db:migrate`               | Bring the Notes database at `DB_NOTES_URL` up to the latest tracked schema.                                                                                                       |
+| `pnpm run db:migrate`               | Bring the Notes database at `DB_ITEMS_URL` up to the latest tracked schema.                                                                                                       |
 | `pnpm run db:migrate:baseline`      | Legacy recovery tool: mark baseline migrations as applied for a legacy Notes DB that already has the baseline schema but has never been tracked. Not part of normal release flow. |
 | `pnpm run db:verify`                | Re-run migrations then regenerate and diff contract artifacts against the live DB. Not read-only.                                                                                 |
 | `pnpm run db:embeddings:regenerate` | Rebuild stale Notes embeddings. Only needed when search data drifts or embedding format changes.                                                                                  |
 
-The real scripts live in `lib/db-notes/package.json`. App packages do not own migration scripts.
+The real scripts live in `lib/db-items/package.json`. App packages do not own migration scripts.
 
 ### Release preparation
 
@@ -47,16 +52,16 @@ The real scripts live in `lib/db-notes/package.json`. App packages do not own mi
 
 ## Apps and deploy targets
 
-| Path                 | Deploy target     | Depends on `lib/db-notes` |
-| -------------------- | ----------------- | ------------------------- |
-| `apps/notes-next`    | Railway           | Yes                       |
+| Path              | Deploy target | Depends on `lib/db-items` |
+| ----------------- | ------------- | ------------------------- |
+| `apps/notes-next` | Railway       | Yes                       |
 
 ## Environment variables
 
-| Variable                     | Used by                           | Purpose                                                                                                                                                     |
-| ---------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DB_NOTES_URL`               | `lib/db-notes`, `apps/notes-next` | PostgreSQL connection string for Notes. Set in your shell when running `db:`\* commands or `notes-next` locally; set in the Railway service for production. |
-| `JINA_API_KEY`               | `lib/db-notes`, `apps/notes-next` | Jina embeddings key for semantic search and embedding maintenance.                                                                                          |
+| Variable       | Used by                           | Purpose                                                                                                                                                     |
+| -------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DB_ITEMS_URL` | `lib/db-items`, `apps/notes-next` | PostgreSQL connection string for Notes. Set in your shell when running `db:`\* commands or `notes-next` locally; set in the Railway service for production. |
+| `JINA_API_KEY` | `lib/db-items`, `apps/notes-next` | Jina embeddings key for semantic search and embedding maintenance.                                                                                          |
 
 ## Development setup
 
@@ -97,12 +102,12 @@ pnpm run deps:install -- notes-next...
 pnpm --filter notes-next dev         # http://localhost:4100
 ```
 
-`notes-next` needs `DB_NOTES_URL` and `JINA_API_KEY` in its shell (or `apps/notes-next/.env.local`).
+`notes-next` needs `DB_ITEMS_URL` and `JINA_API_KEY` in its shell (or `apps/notes-next/.env.local`).
 
 See the package README files for package-specific setup:
 
 - `[apps/notes-next/README.md](apps/notes-next/README.md)`
-- `[lib/db-notes/README.md](lib/db-notes/README.md)`
+- `[lib/db-items/README.md](lib/db-items/README.md)`
 - `[lib/atomic-editor/README.md](lib/atomic-editor/README.md)`
 
 ## Daily development loop
@@ -117,13 +122,13 @@ pnpm --filter <pkg> dev              # iterate on the relevant app
 pnpm run verify                      # repo-wide gate
 ```
 
-If you changed the Notes schema or any `lib/db-notes` contract:
+If you changed the Notes schema or any `lib/db-items` contract:
 
 ```bash
-export DB_NOTES_URL=postgres://.../<your dev db>
+export DB_ITEMS_URL=postgres://.../<your dev db>
 pnpm run db:migrate                  # apply your new migration
 pnpm run db:verify                   # regenerate and diff contract artifacts
-git add lib/db-notes/generated   # commit regenerated artifacts with the migration
+git add lib/db-items/generated   # commit regenerated artifacts with the migration
 ```
 
 ## `lib/atomic-editor` (git subtree)
@@ -148,11 +153,11 @@ Keep editor-focused commit messages if you might later push commits to the fork 
 
 Use the wrapper script from the repo root. Do **not** pass `--squash`.
 
-| Command | Direction | Effect |
-| ------- | --------- | ------ |
-| `bash scripts/atomic-editor-sync.sh push <fork-branch>` | monorepo → fork | Creates/updates `<fork-branch>` on `paulshorey/atomic-editor`. **Does not change this monorepo.** Prefer a new feature branch name, not `main`. |
-| `bash scripts/atomic-editor-sync.sh pull` | fork `main` → monorepo | Merges fork changes into `lib/atomic-editor/` and creates a merge commit here. |
-| `bash scripts/atomic-editor-sync.sh pull <fork-branch>` | fork branch → monorepo | Same as pull, from a specific fork branch. |
+| Command                                                 | Direction              | Effect                                                                                                                                          |
+| ------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash scripts/atomic-editor-sync.sh push <fork-branch>` | monorepo → fork        | Creates/updates `<fork-branch>` on `paulshorey/atomic-editor`. **Does not change this monorepo.** Prefer a new feature branch name, not `main`. |
+| `bash scripts/atomic-editor-sync.sh pull`               | fork `main` → monorepo | Merges fork changes into `lib/atomic-editor/` and creates a merge commit here.                                                                  |
+| `bash scripts/atomic-editor-sync.sh pull <fork-branch>` | fork branch → monorepo | Same as pull, from a specific fork branch.                                                                                                      |
 
 **Pull requires a clean working tree** (`git status` must show nothing to commit). Commit or stash local changes first, or you will get `fatal: working tree has modifications. Cannot add.`
 
@@ -178,7 +183,7 @@ Full details (what each repo changes, non-squash rationale, troubleshooting): [`
 
 ## Migrations
 
-All Notes DB migrations live in `lib/db-notes`.
+All Notes DB migrations live in `lib/db-items`.
 
 Run migrations in these cases:
 
@@ -212,28 +217,20 @@ For the code-only preparation step, you can run:
 pnpm run release:notes:prepare
 ```
 
-1. Point `DB_NOTES_URL` at the target Notes database.
-2. If the target DB is already tracked by migrations, run:
+Deploy `apps/notes-next` on Railway after this preparation. The committed
+pre-deploy command applies tracked item migrations before the release becomes
+healthy; `.railway/railway.ts` owns the desired settings. Existing applied settings
+that still reference `@lib/db-notes` work through its migration-command adapter.
 
-```bash
- pnpm run db:migrate
-```
+Manual migration or verification against a deployed database is an intentional
+operational action that requires explicit authorization and confirmation of the
+actual target. `db:verify` runs migrations and rewrites local artifacts, so normal
+contract checks belong on an isolated development database before merge. Use
+`db:migrate:baseline` only once for a legacy untracked database that already has
+the baseline schema. Regenerate embeddings separately if search data needs repair.
 
-3. If the target DB is a legacy untracked database with the baseline schema already present, run this once instead:
-
-```bash
- pnpm run db:migrate:baseline
- pnpm run db:migrate
-```
-
-4. Deploy `apps/notes-next` on Railway. Railway build/start behavior is defined in the root `.railway/railway.ts`.
-5. If Notes embeddings are stale after the deploy, run one of these maintenance paths:
-
-```bash
- pnpm run db:embeddings:regenerate
-```
-
-Or call: 6. Use `pnpm run db:verify` when you explicitly want to validate contract reproducibility against the target DB. It is not read-only and rewrites local generated files, so it is usually better before merge than during every production push.
+See [the item core rollout](docs/db/item-core.md) and
+[the environment matrix](docs/operations/notes-environments.md).
 
 ## Troubleshooting
 
@@ -242,7 +239,7 @@ Or call: 6. Use `pnpm run db:verify` when you explicitly want to validate contra
 
 ## Quick reference
 
-- Notes schema owner: `lib/db-notes`
+- Notes schema owner: `lib/db-items`
 - Notes production app: `apps/notes-next` (Railway)
 - Editor package (git subtree): `lib/atomic-editor` — edit in place; sync with `bash scripts/atomic-editor-sync.sh push|pull` (see above)
 - Repo-wide pre-push gate: `pnpm run verify`

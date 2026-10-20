@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { STATUS_MESSAGE_TTL_MS } from "@/constants/notes"
+import { STATUS_MESSAGE_TTL_MS } from "@/constants/items"
 
 export function useAutoDismissStatus(
   message: string | null,

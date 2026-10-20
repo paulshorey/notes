@@ -5,7 +5,7 @@ monorepo.
 
 ## Packages and source of truth
 
-- `@lib/db-notes` owns `DB_NOTES_URL`
+- `@lib/db-items` owns `DB_ITEMS_URL`
 - Source of truth is:
   - `migrations/*.sql` (history)
   - `schema/current.sql` (current snapshot)
@@ -29,7 +29,7 @@ Always:
 
 Before running package scripts, export the correct DB URL:
 
-- Notes: `DB_NOTES_URL`
+- Notes: `DB_ITEMS_URL`
 
 The app `.env` files already contain these values.
 
@@ -44,26 +44,26 @@ server major versions do not match.
 For a brand-new empty database, use the normal migration flow:
 
 ```bash
-pnpm --filter @lib/db-notes db:migrate
+pnpm --filter @lib/db-items db:migrate
 ```
 
 ## First-time setup for existing databases
 
 The DB package includes a baseline migration generated from the live DB:
 
-- `lib/db-notes/migrations/202603141200__baseline.sql`
+- `lib/db-items/migrations/202603141200__baseline.sql`
 
 For a database that already has the baseline schema, mark only the baseline as
 applied:
 
 ```bash
-pnpm --filter @lib/db-notes db:migrate:baseline
+pnpm --filter @lib/db-items db:migrate:baseline
 ```
 
 After baselining, run the normal migration flow so later migrations still apply:
 
 ```bash
-pnpm --filter @lib/db-notes db:migrate
+pnpm --filter @lib/db-items db:migrate
 ```
 
 ## Verification workflow
@@ -71,7 +71,7 @@ pnpm --filter @lib/db-notes db:migrate
 Each DB package now has a contract verification command:
 
 ```bash
-pnpm --filter @lib/db-notes db:verify
+pnpm --filter @lib/db-items db:verify
 ```
 
 Each command:
@@ -99,7 +99,7 @@ request. Before running them from a cloud agent:
 ## Creating a new migration
 
 ```bash
-pnpm --filter @lib/db-notes db:migration:new -- add_notes_index
+pnpm --filter @lib/db-items db:migration:new -- add_notes_index
 ```
 
 Important:
@@ -159,7 +159,7 @@ Example: add column `nickname` to `user_v1`.
 
 1. Create migration:
    ```bash
-   pnpm --filter @lib/db-notes db:migration:new -- add_user_nickname
+   pnpm --filter @lib/db-items db:migration:new -- add_user_nickname
    ```
 2. Edit the new migration file:
 
@@ -173,20 +173,20 @@ Example: add column `nickname` to `user_v1`.
 
 3. Apply migration:
    ```bash
-   pnpm --filter @lib/db-notes db:migrate
+   pnpm --filter @lib/db-items db:migrate
    ```
 4. Verify and refresh contracts:
    ```bash
-   pnpm --filter @lib/db-notes db:verify
+   pnpm --filter @lib/db-items db:verify
    ```
-5. Update query contracts in `lib/db-notes/queries/*` if needed.
-6. Update adapters (`lib/db-notes/sql/*`) to read/write the new column.
+5. Update query contracts in `lib/db-items/queries/*` if needed.
+6. Update adapters (`lib/db-items/sql/*`) to read/write the new column.
 
 ## Add a new table
 
 1. Create migration:
    ```bash
-   pnpm --filter @lib/db-notes db:migration:new -- create_campaign_v1
+   pnpm --filter @lib/db-items db:migration:new -- create_campaign_v1
    ```
 2. Write forward-only SQL:
 
@@ -208,7 +208,7 @@ Example: add column `nickname` to `user_v1`.
 
 Generated files:
 
-- `lib/db-notes/generated/typescript/db-types.ts`
+- `lib/db-items/generated/typescript/db-types.ts`
 
 How to enforce:
 
@@ -239,9 +239,9 @@ How to enforce:
 
 Notes package:
 
-- `pnpm --filter @lib/db-notes db:migration:new -- <name>`
-- `pnpm --filter @lib/db-notes db:migrate`
-- `pnpm --filter @lib/db-notes db:verify`
-- `pnpm --filter @lib/db-notes db:migrate:baseline`
-- `pnpm --filter @lib/db-notes db:schema:snapshot`
-- `pnpm --filter @lib/db-notes db:types:generate`
+- `pnpm --filter @lib/db-items db:migration:new -- <name>`
+- `pnpm --filter @lib/db-items db:migrate`
+- `pnpm --filter @lib/db-items db:verify`
+- `pnpm --filter @lib/db-items db:migrate:baseline`
+- `pnpm --filter @lib/db-items db:schema:snapshot`
+- `pnpm --filter @lib/db-items db:types:generate`

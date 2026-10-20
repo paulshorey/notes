@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { notesAppService, type NotesAppService } from "@lib/db-notes/services/notes-app"
-import { resolveRequestUserId, type SessionUserResolver } from "./notes-app-route-handlers"
+import { itemJson } from "./legacy-note-contract"
+import { itemsAppService, type ItemsAppService } from "@lib/db-items/services/items-app"
+import { resolveRequestUserId, type SessionUserResolver } from "./items-app-route-handlers"
 
 /**
  * One startup request rather than four independently authenticated requests.
@@ -9,7 +10,7 @@ import { resolveRequestUserId, type SessionUserResolver } from "./notes-app-rout
  */
 export const createBootstrapRouteHandler =
   (
-    service: NotesAppService = notesAppService,
+    service: ItemsAppService = itemsAppService,
     resolveSessionUserId: SessionUserResolver = async () => null,
   ) =>
   async (request: Request) => {
@@ -21,13 +22,13 @@ export const createBootstrapRouteHandler =
 
       // A signed cookie can outlive its user. Validate before workspace loading,
       // which may insert a default workspace and requires an existing user.
-      const session = await service.getNotesAppSession({ userId })
+      const session = await service.getItemsAppSession({ userId })
 
       if (!session) {
         return NextResponse.json({ error: "The session is no longer valid." }, { status: 401 })
       }
 
-      const workspaceResult = await service.listWorkspacesForNotesApp({ userId })
+      const workspaceResult = await service.listWorkspacesForItemsApp({ userId })
       const requested = Number.parseInt(
         new URL(request.url).searchParams.get("workspaceId") ?? "",
         10,
@@ -38,17 +39,17 @@ export const createBootstrapRouteHandler =
         workspaceResult.workspaces.find((w) => w.id === preferred) ??
         workspaceResult.workspaces[0]
       if (!active) throw new Error("No workspace is available.")
-      const [notes, categories, statuses, tags] = await Promise.all([
-        service.listNotesForNotesApp({ userId, workspaceId: active.id }),
-        service.listCategoriesForNotesApp({ userId, workspaceId: active.id }),
-        service.listStatusesForNotesApp({ userId, workspaceId: active.id }),
-        service.listTagsForNotesApp({ userId, workspaceId: active.id }),
+      const [items, categories, statuses, tags] = await Promise.all([
+        service.listItemsForItemsApp({ userId, workspaceId: active.id }),
+        service.listCategoriesForItemsApp({ userId, workspaceId: active.id }),
+        service.listStatusesForItemsApp({ userId, workspaceId: active.id }),
+        service.listTagsForItemsApp({ userId, workspaceId: active.id }),
       ])
-      return NextResponse.json({
+      return itemJson(request, {
         ...session,
         ...workspaceResult,
         activeWorkspaceId: active.id,
-        ...notes,
+        ...items,
         ...categories,
         ...statuses,
         ...tags,

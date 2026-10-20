@@ -4,7 +4,7 @@ Monorepo using pnpm + Turborepo.
 
 ## Product
 
-This is a note-taking app. The app is `apps/notes-next` - a full-stack Next.js web app. Database structure can be found in `lib/db-notes`.
+This is a note-taking app. The app is `apps/notes-next` - a full-stack Next.js web app. Database structure can be found in `lib/db-items`.
 
 Goal is to expand this to be much more than a simple note app. It will be a personal productivity suite and eventually be used by multiple collaborators to manage all knowledgebase, tasks, and website content for all projects in a team. The start of that now is categories.
 
@@ -15,7 +15,7 @@ Goal is to expand this to be much more than a simple note app. It will be a pers
 ### Libraries
 
 - `lib/config` - shared tooling and config
-- `lib/db-notes` - Notes database schema, migrations, generated contracts, and shared Notes service logic
+- `lib/db-items` - Notes database schema, migrations, generated contracts, and shared Notes service logic
 - `lib/atomic-editor` - fork of `@atomic-editor/editor`, tracked as a git subtree (see below)
 
 ## atomic-editor package (git subtree)
@@ -33,9 +33,13 @@ Goal is to expand this to be much more than a simple note app. It will be a pers
 
 ## Data
 
-- `@lib/db-notes` owns all Notes schema changes and migration scripts.
+- `@lib/db-items` owns all item schema changes and migration scripts.
+- The persistent unit is an **item**, owned by one workspace. Its `description` is nullable; no exclusive content-type discriminator is stored.
+- The current web client is a text-focused projection: a **note** is an item with nonblank text. Keep its note wording and text-required capture UI.
+- Use item terminology in backend tables, services, contracts, generic web state, and new APIs. See `docs/db/item-core.md` for the rename and compatibility boundaries.
+- Historical migrations remain immutable. Legacy SQL views, signed-session fields, old backup/browser formats, and `DB_NOTES_URL` are compatibility protocols, not a second domain model.
 - Notes have zero or more categories. `uncategorized` is reserved display text for no category links; categories have no default or protected row.
-- `notes-next` consumes `@lib/db-notes` at runtime.
+- `notes-next` consumes `@lib/db-items` at runtime.
 
 ## Context
 
@@ -48,7 +52,7 @@ This codebase is developed by AI agents.
 
 - Root `package.json` should expose the human-friendly entry points for install, verify, app builds, and proxied `db:*` commands.
 - Root `package.json` should also expose `release:notes:prepare` (a meaningful multi-step aggregation) and `verify:*` aliases so the documented release order maps to actual commands. Avoid adding single-command aliases that just wrap one other script.
-- `lib/db-notes/package.json` is the canonical home for real migration and contract-generation scripts.
+- `lib/db-items/package.json` is the canonical home for real migration and contract-generation scripts.
 - App `package.json` files should stay focused on app-local build, run, and verification commands.
 - Do not define duplicate migration scripts inside app packages.
 
@@ -79,9 +83,9 @@ require their environment ID and explicit `RAILWAY_IAC_BRANCH`.
 
 ## Database rules
 
-After changing Notes schema or contracts in `lib/db-notes`:
+After changing Notes schema or contracts in `lib/db-items`:
 
-1. Update `lib/db-notes/scripts/verify-contract.mjs`.
+1. Update `lib/db-items/scripts/verify-contract.mjs`.
 2. Run `pnpm run db:migrate`.
 3. Run `pnpm run db:verify`.
 4. Commit generated artifacts with the schema change.
