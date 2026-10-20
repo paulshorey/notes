@@ -59,7 +59,7 @@ const readBearerToken = (request: Request): string | null => {
 
 /**
  * Derives the authenticated user id for a request. Clients never choose their
- * own userId: a bearer token (Android) or the NextAuth session cookie (web)
+ * own userId: a bearer token or the NextAuth session cookie
  * is the only source of identity. Returns null when unauthenticated.
  */
 export const resolveRequestUserId = async (

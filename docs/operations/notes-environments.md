@@ -23,9 +23,6 @@ credentials.
 | Railway production     | Production Railway domain; UI and API deploy together                                | Production `DB_NOTES_URL`, injected by Railway                                                                                      | Persistent production data                                        | Railway `preDeployCommand` applies pending migrations before the release becomes healthy |
 | GitHub DB Contracts CI | No user-facing app                                                                   | Fresh PostgreSQL 17 service container                                                                                               | Destroyed after the workflow                                      | Workflow runs migrations and contract verification against the fresh database            |
 
-The Android app never connects to PostgreSQL directly. It consumes the deployed
-`notes-next` API and validates against the generated Notes app contract.
-
 ## Configuration sources
 
 `@lib/db-notes` owns the Notes schema, migration runner, generated contracts,
@@ -128,7 +125,7 @@ Follow these boundaries in order:
    but required relations are absent. Compare the migration ledger before any
    write.
 5. **Authentication:** a healthy service plus `401` from `/api/bootstrap` means
-   the request lacks a valid web session or Android bearer token.
+   the request lacks a valid web session or API bearer token.
 6. **Request contract:** a `400` from `/api/notes` is an application validation
    failure. Read the JSON response body and verify workspace/category/status/tag
    IDs all belong to the active workspace.

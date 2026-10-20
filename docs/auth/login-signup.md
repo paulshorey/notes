@@ -85,9 +85,9 @@ store).
 | `anonymous`   | Auto sign-in for new visitors             |
 | `credentials` | Username / email / phone + password login |
 
-OAuth/social login was removed as unfinished (Phase 2). The Android client uses
+OAuth/social login was removed as unfinished (Phase 2). API clients can use
 `POST /api/auth/token` (bearer tokens) with the same `verifyUserCredentials`
-path — it does not use anonymous sessions.
+path.
 
 ### JWT / session fields
 
@@ -98,7 +98,7 @@ The `jwt` and `session` callbacks attach:
   or credentials login
 
 API routes resolve the acting user from the session cookie (web) or
-`Authorization: Bearer` header (Android). Client-supplied `userId` fields in
+`Authorization: Bearer` header (API clients). Client-supplied `userId` fields in
 request bodies are ignored.
 
 ### Password hashing
@@ -251,7 +251,7 @@ Dependencies include `authSession.user.notesUserId` and
 | Route                           | Method | Caller session    | Purpose                           |
 | ------------------------------- | ------ | ----------------- | --------------------------------- |
 | `/api/auth/[...nextauth]`       | \*     | —                 | NextAuth sign-in/out              |
-| `/api/auth/token`               | POST   | —                 | Android credentials → bearer      |
+| `/api/auth/token`               | POST   | —                 | Credentials → bearer      |
 | `/api/auth/token`               | DELETE | Bearer            | Revoke token                      |
 | `/api/session`                  | GET    | Any authenticated | Current user summary              |
 | `/api/session`                  | PATCH  | Any authenticated | Save UI preferences               |

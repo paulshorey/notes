@@ -20,11 +20,8 @@ todos:
   - id: web_ui
     content: Add a workspace switcher/creator, status controls, multi-category note editing, and independent category/status/tag sidebar groupings and filters.
     status: completed
-  - id: android_contract
-    content: Update the Android API models/codec/repository enough to consume the new workspace-aware contract; defer richer Android workspace UX until the web product stabilizes.
-    status: completed
   - id: verification
-    content: Extend schema/contract assertions and regression coverage, regenerate committed artifacts, run database migration/verification plus web tests/build and Android contract/build checks, then create the comprehensive PR handoff.
+    content: Extend schema/contract assertions and regression coverage, regenerate committed artifacts, run database migration/verification plus web tests/build, then create the comprehensive PR handoff.
     status: completed
 isProject: true
 ---
@@ -192,15 +189,7 @@ nor creates a save storm. Never silently discard an unknown snapshot.
 - On workspace change, no records from the previous workspace remain visible or
   selectable.
 
-## 8. Android scope
-
-Update generated-contract consumers so Android remains buildable and cannot send
-obsolete single-category payloads. Persist the selected workspace and workspace
-snapshot, and expose a basic workspace/status/category mapping. Rich workspace
-management UI can follow after the web app is validated; the web app remains the
-product source of truth.
-
-## 9. Verification and rollout
+## 8. Verification and rollout
 
 Database tests must prove:
 

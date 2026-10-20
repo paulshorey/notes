@@ -8,7 +8,6 @@ on:
       - "pnpm-lock.yaml"
       - "lib/atomic-editor/**"
       - "lib/db-notes/**"
-      - "apps/notes-android/**"
       - "apps/notes-next/**"
   push:
     branches:
@@ -19,7 +18,6 @@ on:
       - "pnpm-lock.yaml"
       - "lib/atomic-editor/**"
       - "lib/db-notes/**"
-      - "apps/notes-android/**"
       - "apps/notes-next/**"
   workflow_dispatch:
 
@@ -86,8 +84,8 @@ jobs:
         env:
           DB_NOTES_TEST_URL: ${{ env.DB_NOTES_URL }}
 
-  verify-notes-clients:
-    name: Verify Notes clients
+  verify-notes-web:
+    name: Verify Notes web app
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -102,24 +100,6 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      # Repo-local SDK provisioning (~400MB) is slow and flaky on cold download.
-      # Cache it between runs; key rotates when SDK package list or compileSdk changes.
-      - name: Cache Android SDK and Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            .android-sdk
-            .android-user-home
-            .gradle
-          key: android-sdk-${{ runner.os }}-api36-${{ hashFiles('apps/notes-android/tools/install-android-sdk.sh', 'apps/notes-android/app/build.gradle.kts') }}
-          restore-keys: |
-            android-sdk-${{ runner.os }}-api36-
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -129,10 +109,7 @@ jobs:
       - name: Type-check notes-next
         run: pnpm --filter notes-next check-types
 
-      - name: Test notes-android adapter parity
-        run: pnpm --filter notes-android test
-
       # Turbo forwards args after `--` to each package script (e.g. `next build`), not to
       # Turbo's own --filter. Use `turbo run build --filter=...` so only those packages build.
-      - name: Build notes clients (turbo-filtered)
-        run: pnpm exec turbo run build --filter=notes-next --filter=notes-android
+      - name: Build notes web app (turbo-filtered)
+        run: pnpm exec turbo run build --filter=notes-next

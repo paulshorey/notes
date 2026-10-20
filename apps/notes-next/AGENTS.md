@@ -1,6 +1,6 @@
 # `notes-next`
 
-Next.js 16 web app for the Notes product. Serves both the React UI and the REST API consumed by the Android client. This package is deployed to Railway.
+Next.js 16 web app for the Notes product. Serves the React UI and the REST API. This package is deployed to Railway.
 
 ## Key directories
 
@@ -18,7 +18,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
       authenticated-user.ts         — maps the NextAuth session cookie to a Notes user id
     auth/
       [...nextauth]/        — Auth.js (NextAuth) sign-in routes for the web UI
-      token/                — POST (credentials -> bearer token, used by Android), DELETE (revoke)
+      token/                — POST (credentials -> bearer token for API clients), DELETE (revoke)
     anon-session/
       merge-token/          — POST (anonymous session mints a signed merge token)
       merge/                — POST (real session merges anonymous data using the token)
@@ -131,7 +131,7 @@ Selectors passed to `useNotesAppStore` must return an existing reference or a pr
 
 ## User preferences
 
-`notesApp.*` in `user_v1.preferences` (JSONB). Adding a key means editing `NotesAppPreferences` in `lib/db-notes/contracts/notes-app.ts` and regenerating `generated/contracts/notes-app.json` with `pnpm --filter @lib/db-notes app:contract:generate` — `app:contract:check` gates both `check-types` and `build`. No migration is needed. The Android contract validator checks shared user, workspace, category, status, tag, note, and search-result models.
+`notesApp.*` in `user_v1.preferences` (JSONB). Adding a key means editing `NotesAppPreferences` in `lib/db-notes/contracts/notes-app.ts` and regenerating `generated/contracts/notes-app.json` with `pnpm --filter @lib/db-notes app:contract:generate` — `app:contract:check` gates both `check-types` and `build`. No migration is needed.
 
 Writes go through a 500ms debounced `PATCH /api/session`. Its response must also call `updateNotesCacheUser`, and the background session refresh only keeps the in-memory copy when there is genuinely an unsaved edit — otherwise a changed preference takes two reloads to appear, because the next launch paints from the cached snapshot.
 
@@ -157,7 +157,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
   and pending preference writes. Restore is additive: refresh bootstrap/cache
   without resetting open-note drafts. Keep the restore modal outside the account
   Popup so outside-click handling cannot unmount the portaled modal.
-- **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (Android, tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
+- **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
 - This package validates Notes contracts, but it does not own Notes migration scripts.
 
 ## Embedding debug page

@@ -53,9 +53,6 @@ pnpm run agent:setup
 Useful variants:
 
 ```bash
-# Default plus Android JDK/SDK (only if the agent will build an APK)
-bash scripts/agent-env-setup.sh --android
-
 # Default, then start notes-next and wait for /api/health
 # (falls back to port 6100 because Next.js reserves 6000 for X11)
 bash scripts/agent-env-setup.sh --dev
@@ -90,13 +87,6 @@ pnpm run verify:notes-web
 
 `pnpm --filter notes-next dev` still uses `--port 6000` from `apps/notes-next/package.json` and exits with Next.js's reserved-port error. Prefer `scripts/agent-env-setup.sh --dev` in agent VMs until that package script changes.
 
-Android is optional and slow:
-
-```bash
-bash scripts/agent-env-setup.sh --android
-pnpm --filter notes-android build
-```
-
 ## Requirements
 
 - Debian or Ubuntu (apt). Other distros work only if PostgreSQL 17 + pgvector
@@ -113,6 +103,5 @@ pnpm --filter notes-android build
 | Per-boot services | `scripts/cloud-agent-start.sh` | `scripts/agent-env-setup.sh --start --env` |
 | Env vars | `.cursor/environment.json` | `.agent-env.sh` + `apps/notes-next/.env.local` |
 | Migrations | Agent runs `pnpm run db:migrate` | Included in the default setup |
-| Android toolchain | Always provisioned | Only with `--android` |
 
 `scripts/cloud-agent-postgres.sh` is shared. It accepts root without `sudo`.

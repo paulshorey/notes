@@ -8,7 +8,6 @@
 # Default (no phase flags): install + start + env + migrate
 #
 #   bash scripts/agent-env-setup.sh
-#   bash scripts/agent-env-setup.sh --android --verify
 #   source .agent-env.sh
 #   pnpm --filter notes-next dev
 #
@@ -34,7 +33,6 @@ DO_INSTALL=0
 DO_START=0
 DO_ENV=0
 DO_MIGRATE=0
-DO_ANDROID=0
 DO_DEV=0
 DO_VERIFY=0
 SKIP_DEPS=0
@@ -57,7 +55,6 @@ Phase flags (when any are passed, only those phases run):
   --migrate     Apply Notes schema to local notes and notes_test
 
 Modifiers (always additive):
-  --android     Also provision the repo-local JDK / Android SDK
   --dev         Start notes-next after setup (4100; NOTES_DEV_PORT overrides)
   --verify      Run pnpm run diagnose:notes after setup
   --skip-deps   Skip pnpm install during --install
@@ -87,7 +84,6 @@ while [[ $# -gt 0 ]]; do
     --start) DO_START=1; HAVE_PHASE=1 ;;
     --env) DO_ENV=1; HAVE_PHASE=1 ;;
     --migrate) DO_MIGRATE=1; HAVE_PHASE=1 ;;
-    --android) DO_ANDROID=1 ;;
     --dev) DO_DEV=1 ;;
     --verify) DO_VERIFY=1 ;;
     --skip-deps) SKIP_DEPS=1 ;;
@@ -386,16 +382,6 @@ EOF
   if [[ -n "${JINA_API_KEY:-}" ]]; then
     printf 'export JINA_API_KEY=%q\n' "$JINA_API_KEY" >> "$AGENT_ENV_FILE"
   fi
-  if [[ -n "${JAVA_HOME:-}" ]]; then
-    printf 'export JAVA_HOME=%q\n' "$JAVA_HOME" >> "$AGENT_ENV_FILE"
-    printf 'export PATH=%q:"$PATH"\n' "$JAVA_HOME/bin" >> "$AGENT_ENV_FILE"
-  fi
-  if [[ -n "${ANDROID_HOME:-}" ]]; then
-    printf 'export ANDROID_HOME=%q\n' "$ANDROID_HOME" >> "$AGENT_ENV_FILE"
-    printf 'export ANDROID_USER_HOME=%q\n' "${ANDROID_USER_HOME:-$ROOT_DIR/.android-user-home}" >> "$AGENT_ENV_FILE"
-    printf 'export GRADLE_USER_HOME=%q\n' "${GRADLE_USER_HOME:-$ROOT_DIR/.gradle}" >> "$AGENT_ENV_FILE"
-  fi
-
   upsert_kv "$APP_ENV_FILE" "DB_NOTES_URL" "$DB_NOTES_URL"
   upsert_kv "$APP_ENV_FILE" "DB_NOTES_TEST_URL" "$DB_NOTES_TEST_URL"
   upsert_kv "$APP_ENV_FILE" "AUTH_SECRET" "$AUTH_SECRET"
@@ -520,7 +506,6 @@ Recommended commands:
 
 Optional:
   export JINA_API_KEY=...               # required only for semantic search
-  bash scripts/agent-env-setup.sh --android
   bash scripts/agent-env-setup.sh --dev
 EOF
 }
@@ -540,16 +525,6 @@ if [[ $DO_INSTALL -eq 1 ]]; then
   else
     log "Skipping workspace dependency install (--skip-deps)."
   fi
-fi
-
-if [[ $DO_ANDROID -eq 1 ]]; then
-  log "Provisioning Android toolchain"
-  ensure_node
-  bash "$ROOT_DIR/apps/notes-android/tools/cloud-provision.sh"
-  export JAVA_HOME="${JAVA_HOME:-$ROOT_DIR/.jdk/current}"
-  export ANDROID_HOME="${ANDROID_HOME:-$ROOT_DIR/.android-sdk}"
-  export ANDROID_USER_HOME="${ANDROID_USER_HOME:-$ROOT_DIR/.android-user-home}"
-  export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$ROOT_DIR/.gradle}"
 fi
 
 if [[ $DO_START -eq 1 ]]; then

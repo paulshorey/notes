@@ -38,8 +38,8 @@ const sampleNote = {
   workspaceId: 3,
   categories: [{ id: 5, label: "work" }],
   status: null,
-  tags: [{ id: 12, label: "verify both http adapters" }],
-  description: "The Next and Express routes should stay behaviorally aligned.",
+  tags: [{ id: 12, label: "verify the http api contract" }],
+  description: "The Notes API routes should follow the shared contract.",
   timeDue: "2026-03-18T16:00:00.000Z",
   timeRemind: "2026-03-18T15:30:00.000Z",
   timeCreated: "2026-03-17T10:00:00.000Z",
@@ -54,7 +54,7 @@ const sampleSearchResult = {
 const sampleTag = {
   id: 12,
   workspaceId: 3,
-  label: "verify both http adapters",
+  label: "verify the http api contract",
   noteCount: 0,
   lastUsedAt: null,
 }
@@ -148,7 +148,7 @@ export const registerNotesApiAdapterSuite = (
 ) => {
   test(`${adapterName} adapter parity`, async (t) => {
     t.diagnostic(
-      "Verifies that Notes API route semantics stay aligned across the Next and Express adapters.",
+      "Verifies that Notes API route semantics follow the shared service contract.",
     )
   })
 
@@ -649,7 +649,7 @@ export const registerNotesApiAdapterSuite = (
       method: "POST",
       path: "/api/tags",
       headers: authHeaders,
-      body: { userId: 7, workspaceId: 3, label: "  Verify Both HTTP Adapters  " },
+      body: { userId: 7, workspaceId: 3, label: "  Verify The HTTP API Contract  " },
     })
     const updateResponse = await adapter.request({
       method: "PATCH",
@@ -659,17 +659,17 @@ export const registerNotesApiAdapterSuite = (
         userId: 7,
         workspaceId: 3,
         tagId: 12,
-        label: "  VERIFY BOTH HTTP ADAPTERS  ",
+        label: "  VERIFY THE HTTP API CONTRACT  ",
       },
     })
 
     assert.equal(createResponse.status, 201)
     assert.equal(updateResponse.status, 200)
     assert.deepEqual(createRequests, [
-      { userId: 7, workspaceId: 3, label: "verify both http adapters" },
+      { userId: 7, workspaceId: 3, label: "verify the http api contract" },
     ])
     assert.deepEqual(updateRequests, [
-      { userId: 7, workspaceId: 3, tagId: 12, label: "verify both http adapters" },
+      { userId: 7, workspaceId: 3, tagId: 12, label: "verify the http api contract" },
     ])
   })
 
@@ -699,7 +699,7 @@ export const registerNotesApiAdapterSuite = (
           categoryIds: [5],
           statusId: null,
           tagIds: [12],
-          description: "The Next and Express routes should stay behaviorally aligned.",
+          description: "The Notes API routes should follow the shared contract.",
           timeDue: "2026-03-18T16:00:00.000Z",
           timeRemind: "2026-03-18T15:30:00.000Z",
         },
@@ -716,7 +716,7 @@ export const registerNotesApiAdapterSuite = (
           categoryIds: [5],
           statusId: null,
           tagIds: [12],
-          description: "The Next and Express routes should stay behaviorally aligned.",
+          description: "The Notes API routes should follow the shared contract.",
           timeDue: "2026-03-18T16:00:00.000Z",
           timeRemind: "2026-03-18T15:30:00.000Z",
         },
@@ -801,7 +801,7 @@ export const registerNotesApiAdapterSuite = (
           categoryIds: [5],
           statusId: null,
           tagIds: [12],
-          description: "The Next and Express routes should stay behaviorally aligned.",
+          description: "The Notes API routes should follow the shared contract.",
           timeDue: "2026-03-18T16:00:00.000Z",
           timeRemind: "2026-03-18T15:30:00.000Z",
         },
