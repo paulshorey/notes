@@ -90,6 +90,13 @@ The root layout reads Auth.js once and seeds `SessionProvider`, so returning use
 
 Every note belongs to exactly one active workspace, has zero or more category links and multiple tags, and may have one status. Category/status/tag ids must come from that same workspace. New notes start without categories unless an action explicitly specifies one. The category trigger shows only its folder icon for an empty selection. The sidebar groups zero-category notes under the display-only `uncategorized` label; this is never a category record. All real categories, including the last one, can be deleted. Reserve the normalized category name `uncategorized` through `@lib/db-notes/contracts/category-name` in both UI and service writes. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
 
+`src/lib/noteGroups.ts` builds one sidebar list containing real categories and the
+computed `uncategorized` group. Sort every group by its newest visible note's
+`timeModified`, with notes newest first inside it; apply tag filtering before
+building groups. Never append `uncategorized` after sorting. Stable group keys
+preserve expansion and note actions when saved edits reorder the list. Hide the
+computed group when empty, and keep empty real categories after groups with notes.
+
 The local server-data snapshot may paint immediately for a returning user, but a failed refresh must not clear workspace-scoped open-note storage or other draft state. A first visit with no usable snapshot must finish in a visible, retryable error state; startup must never retry automatically in a loop.
 
 A confirmed bootstrap `401` ends the expired Auth.js session on both cached and uncached startup, then uses the normal single visitor-session attempt. Persist open-note drafts before resetting session state; network errors and `5xx` must never trigger logout. Bootstrap must confirm the user still exists before loading workspaces, because workspace loading can insert defaults.

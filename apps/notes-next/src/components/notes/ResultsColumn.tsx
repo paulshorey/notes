@@ -1,6 +1,6 @@
 "use client"
 
-import { getCategoryNameError } from "@lib/db-notes/contracts/category-name"
+import { getCategoryNameError, UNCATEGORIZED_LABEL } from "@lib/db-notes/contracts/category-name"
 import type { CategoryRecord, NoteRecord, StatusRecord, TagRecord } from "@lib/db-notes"
 import {
   ArrowsLeftRight,
@@ -26,7 +26,8 @@ import {
   useState,
 } from "react"
 import type { OpenNoteKey } from "@/stores/openNotes"
-import { NoteResultsList, type DisplayNoteItem } from "./NoteResultsList"
+import { NoteResultsList } from "./NoteResultsList"
+import type { CategoryNoteGroup, DisplayNoteItem } from "@/lib/noteGroups"
 import styles from "./ResultsColumn.module.css"
 
 type ResultsAccordionId = "search" | "categories" | "statuses" | "tags"
@@ -57,12 +58,6 @@ type MovePickerState =
       fromTagId: number
     }
 
-export interface CategoryNoteGroup {
-  category: CategoryRecord
-  items: DisplayNoteItem[]
-  sortTime: number
-}
-
 export interface TagNoteGroup {
   tag: TagRecord
   items: DisplayNoteItem[]
@@ -88,7 +83,6 @@ interface ResultsColumnProps {
   searchItems: DisplayNoteItem[]
   searchLoading: boolean
   categoryNoteGroups: CategoryNoteGroup[]
-  uncategorizedItems: DisplayNoteItem[]
   noStatusItems: DisplayNoteItem[]
   tagNoteGroups: TagNoteGroup[]
   activeNoteId: number | null
@@ -125,7 +119,6 @@ export function ResultsColumn({
   searchItems,
   searchLoading,
   categoryNoteGroups,
-  uncategorizedItems,
   noStatusItems,
   tagNoteGroups,
   activeNoteId,
@@ -160,7 +153,6 @@ export function ResultsColumn({
   const prevCategoryIdsRef = useRef<number[]>([])
   const prevStatusIdRef = useRef<number | null | undefined>(undefined)
   const prevTagIdsRef = useRef<number[]>([])
-  const visibleCategoryNoteGroups = categoryNoteGroups
 
   useEffect(() => {
     const validIds = new Set(categories.map((category) => category.id))
@@ -252,10 +244,14 @@ export function ResultsColumn({
 
   const isCategoryExpanded = (categoryId: number) => expandedCategoryIds.includes(categoryId)
 
-  const toggleCategory = (categoryId: number) => {
+  const toggleCategoryGroup = (group: CategoryNoteGroup) => {
     setOpenActionMenuId(null)
     setActiveMovePicker(null)
-    setExpandedCategoryIds((current) => toggleId(current, categoryId))
+    if (group.kind === "category") {
+      setExpandedCategoryIds((current) => toggleId(current, group.category.id))
+    } else {
+      setUncategorizedExpanded((value) => !value)
+    }
   }
 
   const toggleStatus = (statusId: number) => {
@@ -427,99 +423,79 @@ export function ResultsColumn({
                   Loading…
                 </Text>
               </div>
-            ) : categories.length === 0 ? (
+            ) : categoryNoteGroups.length === 0 ? (
               <div className={styles.accordionStatus}>
                 <Text variant="body-1" color="secondary">
                   &ensp;No categories yet
                 </Text>
               </div>
             ) : (
-              <>
-                {visibleCategoryNoteGroups.map(({ category, items }) => {
-                  const expanded = isCategoryExpanded(category.id)
-                  const panelId = `category-notes-${category.id}`
-                  return (
-                    <div className={styles.categoryGroup} key={category.id} role="listitem">
-                      <div className={styles.categoryRow}>
-                        <SectionTitle
-                          count={getFilteredNoteCount(category, items)}
-                          label={category.label}
-                          active={expanded}
-                          selected={activeCategoryIds.includes(category.id)}
-                          expanded={expanded}
-                          panelId={panelId}
-                          onToggle={() => toggleCategory(category.id)}
-                        >
-                          <SectionAddNoteButton
-                            label={`Add note in ${category.label}`}
-                            active={expanded}
-                            selected={activeCategoryIds.includes(category.id)}
-                            onClick={() => {
-                              setExpandedCategoryIds((current) =>
-                                addUniqueIds(current, [category.id]),
-                              )
-                              onAddNoteForCategory(category)
-                            }}
-                          />
-                          <SectionActionMenu
-                            id={`category-${category.id}`}
-                            label={category.label}
-                            openActionMenuId={openActionMenuId}
-                            onOpenActionMenuChange={setOpenActionMenuId}
-                            onEdit={() => onEditCategory(category)}
-                            onDelete={() => onDeleteCategory(category)}
-                          />
-                        </SectionTitle>
-                      </div>
-                      {expanded && items.length > 0 && (
-                        <ScrollableNotesPanel id={panelId}>
-                          <NoteResultsList
-                            items={items}
-                            activeNoteId={activeNoteId}
-                            openNoteIds={openNoteIds}
-                            loading={false}
-                            emptyMessage=""
-                            onEdit={handleResultEdit}
-                            renderAction={(note) =>
-                              renderNoteRowAction(note, `category-${category.id}-note-${note.id}`)
-                            }
-                          />
-                        </ScrollableNotesPanel>
-                      )}
+              categoryNoteGroups.map((group) => {
+                const { items } = group
+                const category = group.kind === "category" ? group.category : null
+                const key = category ? `category-${category.id}` : "uncategorized"
+                const expanded = category ? isCategoryExpanded(category.id) : uncategorizedExpanded
+                const selected = category
+                  ? activeCategoryIds.includes(category.id)
+                  : activeCategoryIds.length === 0
+                const panelId = category ? `category-notes-${category.id}` : "uncategorized-notes"
+                return (
+                  <div className={styles.categoryGroup} key={key} role="listitem">
+                    <div className={styles.categoryRow}>
+                      <SectionTitle
+                        count={category ? getFilteredNoteCount(category, items) : items.length}
+                        label={category?.label ?? UNCATEGORIZED_LABEL}
+                        active={expanded}
+                        selected={selected}
+                        expanded={expanded}
+                        panelId={panelId}
+                        onToggle={() => toggleCategoryGroup(group)}
+                      >
+                        {category ? (
+                          <>
+                            <SectionAddNoteButton
+                              label={`Add note in ${category.label}`}
+                              active={expanded}
+                              selected={selected}
+                              onClick={() => {
+                                setExpandedCategoryIds((current) =>
+                                  addUniqueIds(current, [category.id]),
+                                )
+                                onAddNoteForCategory(category)
+                              }}
+                            />
+                            <SectionActionMenu
+                              id={`category-${category.id}`}
+                              label={category.label}
+                              openActionMenuId={openActionMenuId}
+                              onOpenActionMenuChange={setOpenActionMenuId}
+                              onEdit={() => onEditCategory(category)}
+                              onDelete={() => onDeleteCategory(category)}
+                            />
+                          </>
+                        ) : (
+                          <span />
+                        )}
+                      </SectionTitle>
                     </div>
-                  )
-                })}
-              </>
-            )}
-            {!notesLoading && uncategorizedItems.length > 0 && (
-              <div className={styles.categoryGroup} role="listitem">
-                <div className={styles.categoryRow}>
-                  <SectionTitle
-                    count={uncategorizedItems.length}
-                    label="uncategorized"
-                    expanded={uncategorizedExpanded}
-                    panelId="uncategorized-notes"
-                    onToggle={() => setUncategorizedExpanded((value) => !value)}
-                  >
-                    <span />
-                  </SectionTitle>
-                </div>
-                {uncategorizedExpanded && (
-                  <ScrollableNotesPanel id="uncategorized-notes">
-                    <NoteResultsList
-                      items={uncategorizedItems}
-                      activeNoteId={activeNoteId}
-                      openNoteIds={openNoteIds}
-                      loading={false}
-                      emptyMessage=""
-                      onEdit={handleResultEdit}
-                      renderAction={(note) =>
-                        renderNoteRowAction(note, `uncategorized-note-${note.id}`)
-                      }
-                    />
-                  </ScrollableNotesPanel>
-                )}
-              </div>
+                    {expanded && items.length > 0 && (
+                      <ScrollableNotesPanel id={panelId}>
+                        <NoteResultsList
+                          items={items}
+                          activeNoteId={activeNoteId}
+                          openNoteIds={openNoteIds}
+                          loading={false}
+                          emptyMessage=""
+                          onEdit={handleResultEdit}
+                          renderAction={(note) =>
+                            renderNoteRowAction(note, `${key}-note-${note.id}`)
+                          }
+                        />
+                      </ScrollableNotesPanel>
+                    )}
+                  </div>
+                )
+              })
             )}
           </AccordionSection>
           <AccordionSection
