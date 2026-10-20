@@ -4,12 +4,8 @@ import type { NoteRecord } from "@lib/db-notes"
 import { Text } from "@gravity-ui/uikit"
 import type { ReactNode } from "react"
 import { noteHeadline } from "@/lib/strings"
+import type { DisplayNoteItem } from "@/lib/noteGroups"
 import styles from "./NoteResultsList.module.css"
-
-export interface DisplayNoteItem {
-  note: NoteRecord
-  relevance?: number | null
-}
 
 interface NoteResultsListProps {
   items: DisplayNoteItem[]

@@ -88,14 +88,14 @@ import {
 import { selectActiveEntry, useNotesAppStore } from "@/stores/notesAppStore"
 import { FeedbackNotifications } from "./FeedbackNotifications"
 import { NoteForm } from "./NoteForm"
-import type { DisplayNoteItem } from "./NoteResultsList"
-import { NotesHeader, type SignupFields } from "./NotesHeader"
 import {
-  ResultsColumn,
-  type CategoryNoteGroup,
-  type StatusNoteGroup,
-  type TagNoteGroup,
-} from "./ResultsColumn"
+  buildCategoryNoteGroups,
+  getGroupSortTime,
+  getNoteSortTime,
+  type DisplayNoteItem,
+} from "@/lib/noteGroups"
+import { NotesHeader, type SignupFields } from "./NotesHeader"
+import { ResultsColumn, type StatusNoteGroup, type TagNoteGroup } from "./ResultsColumn"
 import { DeleteCategoryModal } from "./modals/DeleteCategoryModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
 import { EditCategoryModal } from "./modals/EditCategoryModal"
@@ -325,17 +325,6 @@ const withMaxOpenNotesPreference = (
 
 const getDefaultTagId = (tagList: TagRecord[]) =>
   tagList.length > 0 ? tagList.reduce((a, b) => (a.id < b.id ? a : b)).id : null
-
-const getTimeValue = (value: string | null | undefined) => {
-  if (!value) return 0
-  const time = new Date(value).getTime()
-  return Number.isFinite(time) ? time : 0
-}
-
-const getNoteSortTime = (note: NoteRecord) => getTimeValue(note.timeModified)
-
-const getGroupSortTime = (items: DisplayNoteItem[]) =>
-  items.reduce((latest, { note }) => Math.max(latest, getNoteSortTime(note)), 0)
 
 type NoteGroupSortRecord = CategoryRecord | TagRecord
 
@@ -2010,36 +1999,9 @@ export default function NotesApp() {
     [allNoteItems, matchesSelectedTag],
   )
 
-  const categoryNoteGroups = useMemo<CategoryNoteGroup[]>(() => {
-    const notesByCategory = new Map<number, NoteRecord[]>()
-    for (const category of categories) {
-      notesByCategory.set(category.id, [])
-    }
-
-    for (const note of notes) {
-      for (const category of note.categories) notesByCategory.get(category.id)?.push(note)
-    }
-
-    return categories
-      .map((category) => {
-        const categoryNotes = notesByCategory.get(category.id) ?? []
-        const items = [...categoryNotes]
-          .filter(matchesSelectedTag)
-          .sort((left, right) => getNoteSortTime(right) - getNoteSortTime(left))
-          .map((note) => ({ note }))
-
-        return {
-          category,
-          items,
-          sortTime: getGroupSortTime(items),
-        }
-      })
-      .sort(compareNoteGroups)
-  }, [categories, matchesSelectedTag, notes])
-
-  const uncategorizedItems = useMemo(
-    () => allCategoryItems.filter(({ note }) => note.categories.length === 0),
-    [allCategoryItems],
+  const categoryNoteGroups = useMemo(
+    () => buildCategoryNoteGroups(categories, allCategoryItems),
+    [categories, allCategoryItems],
   )
 
   const tagNoteGroups = useMemo<TagNoteGroup[]>(() => {
@@ -3374,7 +3336,6 @@ export default function NotesApp() {
           searchItems={searchItems}
           searchLoading={searchLoading}
           categoryNoteGroups={categoryNoteGroups}
-          uncategorizedItems={uncategorizedItems}
           noStatusItems={noStatusItems}
           tagNoteGroups={tagNoteGroups}
           activeNoteId={activeEntry?.noteId ?? null}
