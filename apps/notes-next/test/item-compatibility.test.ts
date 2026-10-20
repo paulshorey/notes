@@ -8,6 +8,8 @@ import {
 import {
   createItemsRouteHandlers,
   createCategoriesRouteHandlers,
+  createStatusesRouteHandlers,
+  createWorkspacesRouteHandlers,
 } from "../app/api/_lib/items-app-route-handlers"
 import { legacyNoteHandler } from "../app/api/_lib/legacy-note-contract"
 import { readItemsUserId } from "../src/lib/sessionIdentity"
@@ -154,3 +156,45 @@ test("legacy PATCH and DELETE translate streamed Next.js requests and retain aut
     { method: "DELETE", itemId: 41, userId: 7 },
   ])
 })
+
+for (const { path, createHandlers, singular, plural } of [
+  {
+    path: "statuses",
+    createHandlers: createStatusesRouteHandlers,
+    singular: "status",
+    plural: "statuses",
+  },
+  {
+    path: "workspaces",
+    createHandlers: createWorkspacesRouteHandlers,
+    singular: "workspace",
+    plural: "workspaces",
+  },
+]) {
+  for (const method of ["GET", "POST"] as const) {
+    for (const canonical of [false, true]) {
+      test(`${method} /api/${path} preserves ${canonical ? "canonical item" : "legacy note"} counts`, async () => {
+        const handlers = createHandlers(createFakeItemsAppService())
+        const response = await handlers[method](
+          new NextRequest(`https://test/api/${path}?workspaceId=3`, {
+            method,
+            headers: {
+              authorization: `Bearer ${sampleApiToken}`,
+              ...(canonical ? { "x-items-contract": "1" } : {}),
+              ...(method === "POST" ? { "content-type": "application/json" } : {}),
+            },
+            ...(method === "POST"
+              ? { body: JSON.stringify({ userId: 999, workspaceId: 3, label: "project" }) }
+              : {}),
+          }),
+        )
+        assert.equal(response.status, method === "POST" ? 201 : 200)
+        const payload = await response.json()
+        const record = method === "GET" ? payload[plural][0] : payload[singular]
+        assert.equal(typeof record.itemCount, "number")
+        assert.equal(record.noteCount, canonical ? undefined : record.itemCount)
+        assert.ok(response.headers.get("vary")?.includes("X-Items-Contract"))
+      })
+    }
+  }
+}

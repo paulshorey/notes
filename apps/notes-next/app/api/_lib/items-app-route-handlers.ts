@@ -479,7 +479,8 @@ export const createStatusesRouteHandlers = (
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
       if (userId === null) return unauthorizedResponse()
-      return NextResponse.json(
+      return itemJson(
+        request,
         await service.listStatusesForItemsApp(
           parseStatusesRequest(userId, request.nextUrl.searchParams.get("workspaceId")),
         ),
@@ -492,7 +493,8 @@ export const createStatusesRouteHandlers = (
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
       if (userId === null) return unauthorizedResponse()
-      return NextResponse.json(
+      return itemJson(
+        request,
         await service.createStatusForItemsApp(
           parseCreateStatusRequest(await readAuthorizedJsonObject(request, userId)),
         ),
@@ -540,7 +542,8 @@ export const createWorkspacesRouteHandlers = (
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
       if (userId === null) return unauthorizedResponse()
-      return NextResponse.json(
+      return itemJson(
+        request,
         await service.listWorkspacesForItemsApp(parseWorkspacesRequest(userId)),
       )
     } catch (error) {
@@ -551,7 +554,8 @@ export const createWorkspacesRouteHandlers = (
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
       if (userId === null) return unauthorizedResponse()
-      return NextResponse.json(
+      return itemJson(
+        request,
         await service.createWorkspaceForItemsApp(
           parseCreateWorkspaceRequest(await readAuthorizedJsonObject(request, userId)),
         ),
