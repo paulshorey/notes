@@ -78,9 +78,9 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
-      '@lib/db-notes':
+      '@lib/db-items':
         specifier: workspace:*
-        version: link:../../lib/db-notes
+        version: link:../../lib/db-items
       '@mantine/core':
         specifier: ^9.1.0
         version: 9.1.0(@mantine/hooks@9.1.0(react@19.2.4))(@types/react@19.2.17)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -309,7 +309,9 @@ importers:
         specifier: ^8.37.0
         version: 8.55.0(eslint@9.35.0(jiti@2.5.1))(typescript@5.8.3)
 
-  lib/db-notes:
+  lib/db-notes: {}
+
+  lib/db-items:
     dependencies:
       pg:
         specifier: ^8.16.3

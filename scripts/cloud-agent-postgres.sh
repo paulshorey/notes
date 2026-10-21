@@ -21,7 +21,7 @@ NOTES_TEST_DB="notes_test"
 
 # Unix-socket URLs (peer auth as the workspace user). node-pg treats
 # postgres:///dbname as TCP localhost, so the host query param is required.
-LOCAL_NOTES_URL="postgres:///${NOTES_DB}?host=/var/run/postgresql"
+LOCAL_ITEMS_URL="postgres:///${NOTES_DB}?host=/var/run/postgresql"
 LOCAL_TEST_URL="postgres:///${NOTES_TEST_DB}?host=/var/run/postgresql"
 
 usage() {
@@ -243,8 +243,8 @@ start_postgres() {
 
   echo "PostgreSQL ${PG_MAJOR}/${PG_CLUSTER} is online."
   echo "  psql ${NOTES_DB}                          # peer auth as $(id -un)"
-  echo "  DB_NOTES_URL=${LOCAL_NOTES_URL}"
-  echo "  DB_NOTES_TEST_URL=${LOCAL_TEST_URL}"
+  echo "  DB_ITEMS_URL=${LOCAL_ITEMS_URL}"
+  echo "  DB_ITEMS_TEST_URL=${LOCAL_TEST_URL}"
 }
 
 print_status() {

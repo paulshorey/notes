@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server"
+import { itemJson, legacyNotePayload } from "./legacy-note-contract"
 import {
   BackupAccountError,
-  notesAppService,
-  type NotesAppService,
-} from "@lib/db-notes/services/notes-app"
+  itemsAppService,
+  type ItemsAppService,
+} from "@lib/db-items/services/items-app"
 import {
   BackupValidationError,
   parseUserBackup,
   USER_BACKUP_MAX_BYTES,
-} from "@lib/db-notes/contracts/user-backup"
-import { resolveRequestUserId, type SessionUserResolver } from "./notes-app-route-handlers"
+} from "@lib/db-items/contracts/user-backup"
+import { resolveRequestUserId, type SessionUserResolver } from "./items-app-route-handlers"
 
 class BackupTooLargeError extends Error {}
 const json = (body: unknown, status = 200) =>
@@ -17,11 +18,11 @@ const json = (body: unknown, status = 200) =>
     status,
     headers: { "Cache-Control": "no-store" },
   })
-const errorResponse = (error: unknown, service: NotesAppService) => {
+const errorResponse = (error: unknown, service: ItemsAppService) => {
   if (error instanceof BackupTooLargeError) return json({ error: error.message }, 413)
   if (error instanceof BackupValidationError) return json({ error: error.message }, 400)
   if (error instanceof BackupAccountError) return json({ error: error.message }, error.status)
-  const status = service.getNotesAppErrorStatus(error) === 503 ? 503 : 500
+  const status = service.getItemsAppErrorStatus(error) === 503 ? 503 : 500
   // Do not expose SQL, table names, connection details, or uploaded text.
   return json(
     {
@@ -66,14 +67,18 @@ const readBackup = async (request: Request) => {
 }
 
 export const createBackupRouteHandlers = (
-  service: NotesAppService = notesAppService,
+  service: ItemsAppService = itemsAppService,
   resolveSessionUserId: SessionUserResolver = async () => null,
 ) => ({
   GET: async (request: Request) => {
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
       if (userId === null) return json({ error: "Authentication required." }, 401)
-      const backup = await service.exportUserBackup(userId)
+      const exported = await service.exportUserBackup(userId)
+      const backup =
+        request.headers.get("x-items-contract") === "1"
+          ? exported
+          : { ...(legacyNotePayload(exported) as Record<string, unknown>), version: 1 }
       const body = JSON.stringify(backup)
       // Never download a file that this restore endpoint cannot accept.
       if (Buffer.byteLength(body) > USER_BACKUP_MAX_BYTES)
@@ -84,7 +89,7 @@ export const createBackupRouteHandlers = (
       return new Response(body, {
         headers: {
           "Content-Type": "application/json; charset=utf-8",
-          "Content-Disposition": `attachment; filename="jot-new-backup-${backup.exportedAt.slice(0, 10)}.json"`,
+          "Content-Disposition": `attachment; filename="jot-new-backup-${exported.exportedAt.slice(0, 10)}.json"`,
           "Cache-Control": "no-store",
           "X-Content-Type-Options": "nosniff",
         },
@@ -103,7 +108,9 @@ export const createBackupRouteHandlers = (
       ) {
         return json({ error: "Upload the backup as application/json." }, 415)
       }
-      return json(await service.restoreUserBackup(userId, await readBackup(request)))
+      return itemJson(request, await service.restoreUserBackup(userId, await readBackup(request)), {
+        headers: { "Cache-Control": "no-store" },
+      })
     } catch (error) {
       return errorResponse(error, service)
     }

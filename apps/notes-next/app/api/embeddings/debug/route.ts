@@ -14,7 +14,12 @@ const VALID_TASKS = new Set([
   "clustering",
 ])
 
-type JinaTask = "retrieval.query" | "retrieval.passage" | "text-matching" | "classification" | "clustering"
+type JinaTask =
+  | "retrieval.query"
+  | "retrieval.passage"
+  | "text-matching"
+  | "classification"
+  | "clustering"
 
 interface JinaEmbeddingItem {
   index: number

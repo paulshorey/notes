@@ -1,0 +1,111 @@
+/* Match .itemItem horizontal padding; vertical padding separates status from search above. */
+.listStatus {
+  padding: 8px 8px 8px 6px;
+}
+
+.itemList {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.itemItem {
+  position: relative;
+  padding: 0 0 0 12px;
+  cursor: pointer;
+  border-radius: 0;
+  user-select: none;
+}
+
+.itemItem:hover {
+  /* background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.03)); */
+  text-decoration: underline;
+}
+
+.itemItemActive {
+  /* border-color: var(--g-color-base-brand); */
+  color: var(--g-color-base-brand);
+}
+
+/* Open in the ring: a bullet rather than a row color. Inactive tabs use
+   text-primary so the mark matches the title; the active item stays brand. */
+.itemItemOpen::before {
+  content: "∙";
+  position: absolute;
+  inset-block: 3px;
+  left: 1.5px;
+  width: 2px;
+  border-radius: 1px;
+  color: var(--g-color-text-primary);
+  opacity: 0.75;
+  line-height: 22px;
+}
+
+.itemItemActive.itemItemOpen::before {
+  color: var(--g-color-base-brand);
+}
+
+.itemLine {
+  display: flex;
+  align-items: center;
+  padding-right: 1px;
+}
+
+.itemTitleCollapsed {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 0;
+  line-height: 28px;
+}
+
+.similarityBadge {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--g-color-text-info, #60a5fa);
+  flex-shrink: 0;
+}
+
+.itemItemActive .similarityBadge {
+  color: var(--g-color-base-brand);
+}
+
+.moveActionWrap {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.moveActionButton {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.58;
+}
+
+.itemItem:hover .moveActionButton,
+.moveActionButton:focus-visible,
+.moveActionWrapOpen .moveActionButton {
+  opacity: 1;
+}
+
+.moveActionButton:hover,
+.moveActionButton:focus-visible,
+.moveActionWrapOpen .moveActionButton {
+  background: var(--g-color-base-simple-hover, rgba(255, 255, 255, 0.06));
+  outline: none;
+}

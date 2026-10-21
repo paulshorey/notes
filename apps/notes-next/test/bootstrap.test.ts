@@ -1,23 +1,23 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { createFakeNotesAppService } from "@lib/db-notes/testing/notes-api-adapter-suite"
+import { createFakeItemsAppService } from "@lib/db-items/testing/items-api-adapter-suite"
 import { createBootstrapRouteHandler } from "../app/api/_lib/bootstrap-route-handler"
 import { readJson, RequestError } from "../src/lib/api"
-import { readOpenNotesSnapshot, writeOpenNotesSnapshot } from "../src/lib/openNotesStorage"
-import { clearNotesCache } from "../src/lib/notesCache"
-import { useNotesAppStore } from "../src/stores/notesAppStore"
+import { readOpenItemsSnapshot, writeOpenItemsSnapshot } from "../src/lib/openItemsStorage"
+import { clearItemsCache } from "../src/lib/itemsCache"
+import { useItemsAppStore } from "../src/stores/itemsAppStore"
 import { recoverExpiredSession } from "../src/lib/sessionRecovery"
 
 const request = () => new Request("https://notes.test/api/bootstrap")
 
 test("a deleted cookie user returns 401 without attempting workspace creation", async () => {
   let workspaceCalls = 0
-  const service = createFakeNotesAppService({
-    getNotesAppSession: async ({ userId }) => {
+  const service = createFakeItemsAppService({
+    getItemsAppSession: async ({ userId }) => {
       assert.equal(userId, 331)
       return null
     },
-    listWorkspacesForNotesApp: async () => {
+    listWorkspacesForItemsApp: async () => {
       workspaceCalls += 1
       throw new Error("user_workspace_v1_user_id_fkey")
     },
@@ -30,7 +30,7 @@ test("a deleted cookie user returns 401 without attempting workspace creation", 
 })
 
 test("a deleted session recovers through the real bootstrap response and client error parser", async () => {
-  const service = createFakeNotesAppService({ getNotesAppSession: async () => null })
+  const service = createFakeItemsAppService({ getItemsAppSession: async () => null })
   const response = await createBootstrapRouteHandler(service, async () => 331)(request())
   const events: string[] = []
   try {
@@ -56,16 +56,16 @@ test("a deleted session recovers through the real bootstrap response and client 
 })
 
 test("a valid user loads bootstrap data after session validation", async () => {
-  const service = createFakeNotesAppService()
-  const getSession = service.getNotesAppSession
-  const listWorkspaces = service.listWorkspacesForNotesApp
+  const service = createFakeItemsAppService()
+  const getSession = service.getItemsAppSession
+  const listWorkspaces = service.listWorkspacesForItemsApp
   let validated = false
-  service.getNotesAppSession = async (input) => {
+  service.getItemsAppSession = async (input) => {
     const session = await getSession(input)
     validated = true
     return session
   }
-  service.listWorkspacesForNotesApp = async (input) => {
+  service.listWorkspacesForItemsApp = async (input) => {
     assert.equal(validated, true, "validate the user before loading workspaces")
     return listWorkspaces(input)
   }
@@ -74,12 +74,12 @@ test("a valid user loads bootstrap data after session validation", async () => {
   const payload = await response.json()
   assert.equal(payload.user.id, 7)
   assert.equal(payload.activeWorkspaceId, 3)
-  assert.equal(payload.notes[0].id, 41)
+  assert.equal(payload.items[0].id, 41)
 })
 
 test("an unauthenticated bootstrap does not query user data", async () => {
-  const service = createFakeNotesAppService({
-    getNotesAppSession: async () => {
+  const service = createFakeItemsAppService({
+    getItemsAppSession: async () => {
       assert.fail("no user lookup without authentication")
     },
   })
@@ -88,8 +88,8 @@ test("an unauthenticated bootstrap does not query user data", async () => {
 
 test("database failures remain 503 and do not invalidate the session", async (t) => {
   t.mock.method(console, "error", () => undefined)
-  const service = createFakeNotesAppService({
-    getNotesAppSession: async () => {
+  const service = createFakeItemsAppService({
+    getItemsAppSession: async () => {
       throw new Error("database unavailable")
     },
   })
@@ -149,10 +149,10 @@ test("expired-session recovery keeps unsaved text under the old identity and emp
     key: (index: number) => [...values.keys()][index] ?? null,
   }
   Object.defineProperty(globalThis, "window", { value: { localStorage }, configurable: true })
-  const store = useNotesAppStore
+  const store = useItemsAppStore
   store.getState().resetDefaultState()
   store.getState().openNewDraft()
-  const draft = store.getState().openNotes[0]!
+  const draft = store.getState().openItems[0]!
   store.getState().patchEntry(draft.key, {
     form: { ...draft.form, description: "unsaved text from the expired account" },
   })
@@ -160,27 +160,27 @@ test("expired-session recovery keeps unsaved text under the old identity and emp
     await recoverExpiredSession(new RequestError("Expired", 401), {
       persistDrafts: () => {
         assert.equal(
-          writeOpenNotesSnapshot(331, 3, store.getState(), () => true),
+          writeOpenItemsSnapshot(331, 3, store.getState(), () => true),
           true,
         )
       },
       resetSession: () => {
-        clearNotesCache()
+        clearItemsCache()
         store.getState().resetDefaultState()
       },
       signOut: async () => {
         assert.equal(
-          store.getState().openNotes.length,
+          store.getState().openItems.length,
           0,
           "old notes must not enter the next session",
         )
       },
     })
     assert.equal(
-      readOpenNotesSnapshot(331, 3)?.entries[0]?.form.description,
+      readOpenItemsSnapshot(331, 3)?.entries[0]?.form.description,
       "unsaved text from the expired account",
     )
-    assert.equal(readOpenNotesSnapshot(332, 3), null, "drafts remain scoped to their original user")
+    assert.equal(readOpenItemsSnapshot(332, 3), null, "drafts remain scoped to their original user")
   } finally {
     store.getState().resetDefaultState()
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow)

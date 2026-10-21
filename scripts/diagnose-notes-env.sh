@@ -27,10 +27,10 @@ migration ledger, GitHub PR checks, and optional Railway CLI linkage.
 
 Options:
   --base-url URL  Check URL/api/health (default: http://localhost:5500)
-  --skip-db       Do not connect to DB_NOTES_URL
+  --skip-db       Do not connect to the configured item database
   --help          Show this help
 
-DB_NOTES_URL is read from the process environment first, then from
+DB_ITEMS_URL (or legacy DB_NOTES_URL) is read from the environment, then from
 apps/notes-next/.env.local or apps/notes-next/.env. Credentials are never
 printed. This command never applies migrations.
 EOF
@@ -171,9 +171,9 @@ sanitize_db_error() {
   local db_url="$2"
   local db_password=""
 
-  db_password="$(NOTES_DIAG_DB_URL="$db_url" node <<'NODE'
+  db_password="$(ITEMS_DIAG_DB_URL="$db_url" node <<'NODE'
 try {
-  process.stdout.write(new URL(process.env.NOTES_DIAG_DB_URL).password)
+  process.stdout.write(new URL(process.env.ITEMS_DIAG_DB_URL).password)
 } catch {}
 NODE
 )"
@@ -216,14 +216,17 @@ else
 fi
 
 section "Application configuration"
-db_setting="$(resolve_app_setting DB_NOTES_URL)"
-notes_db_url="${db_setting%%$'\t'*}"
+db_setting="$(resolve_app_setting DB_ITEMS_URL)"
+if [[ -z "${db_setting%%$'\t'*}" ]]; then
+  db_setting="$(resolve_app_setting DB_NOTES_URL)"
+fi
+items_db_url="${db_setting%%$'\t'*}"
 db_url_source="${db_setting#*$'\t'}"
 
-if [[ -n "$notes_db_url" ]]; then
-  db_description="$(NOTES_DIAG_DB_URL="$notes_db_url" node <<'NODE'
+if [[ -n "$items_db_url" ]]; then
+  db_description="$(ITEMS_DIAG_DB_URL="$items_db_url" node <<'NODE'
 try {
-  const url = new URL(process.env.NOTES_DIAG_DB_URL)
+  const url = new URL(process.env.ITEMS_DIAG_DB_URL)
   const database = decodeURIComponent(url.pathname.replace(/^\//, "")) || "(default)"
   const socket = url.searchParams.get("host")
   const transport = url.hostname
@@ -238,9 +241,9 @@ try {
 }
 NODE
 )"
-  pass "DB_NOTES_URL source=$db_url_source ($db_description; credentials redacted)"
+  pass "DB_ITEMS_URL source=$db_url_source ($db_description; credentials redacted)"
 else
-  warn "DB_NOTES_URL is not configured in the environment or Notes app env files"
+  warn "DB_ITEMS_URL/DB_NOTES_URL is not configured in the environment or Notes app env files"
 fi
 
 for pool_setting in \
@@ -289,29 +292,29 @@ fi
 section "Database"
 if [[ $skip_db -eq 1 ]]; then
   info "Database checks skipped by --skip-db"
-elif [[ -z "$notes_db_url" ]]; then
-  warn "Database checks skipped because DB_NOTES_URL is not configured"
+elif [[ -z "$items_db_url" ]]; then
+  warn "Database checks skipped because DB_ITEMS_URL/DB_NOTES_URL is not configured"
 else
   psql_bin="$(resolve_psql)"
   if [[ -z "$psql_bin" ]]; then
     warn "psql is unavailable; install a PostgreSQL client to check the target database"
   else
-    if server_version="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_setting('server_version')" 2>"$db_error_file")"; then
+    if server_version="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$items_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 -c "SELECT current_setting('server_version')" 2>"$db_error_file")"; then
       pass "Connected with $($psql_bin --version) to PostgreSQL $server_version"
 
       relation_query_succeeded=0
-      if missing_relations="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 <<'SQL' 2>"$db_error_file"
+      if missing_relations="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$items_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 <<'SQL' 2>"$db_error_file"
 WITH required(name) AS (
   VALUES
     ('public.user_v1'),
     ('public.user_api_token_v1'),
     ('public.user_workspace_v1'),
-    ('public.user_note_v1'),
-    ('public.workspace_note_category_v1'),
-    ('public.workspace_note_status_v1'),
-    ('public.workspace_note_tag_v1'),
-    ('public.user_note_category_link_v1'),
-    ('public.user_note_tag_link_v1'),
+    ('public.workspace_item_v1'),
+    ('public.workspace_category_v1'),
+    ('public.workspace_status_v1'),
+    ('public.workspace_tag_v1'),
+    ('public.item_category_link_v1'),
+    ('public.item_tag_link_v1'),
     ('public.schema_migrations_cursor')
 )
 SELECT name FROM required WHERE to_regclass(name) IS NULL ORDER BY name;
@@ -325,14 +328,14 @@ SQL
         fi
       else
         db_error="$(tr '\n' ' ' < "$db_error_file" | cut -c1-500)"
-        db_error="$(sanitize_db_error "$db_error" "$notes_db_url")"
+        db_error="$(sanitize_db_error "$db_error" "$items_db_url")"
         fail "Required-relation query failed${db_error:+: $db_error}"
       fi
 
       if [[ $relation_query_succeeded -eq 1 && "$missing_relations" != *"public.schema_migrations_cursor"* ]]; then
-        if ! migration_ledger="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$notes_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 -F '|' -c "SELECT filename, checksum FROM public.schema_migrations_cursor ORDER BY filename" 2>"$db_error_file")"; then
+        if ! migration_ledger="$(PGCONNECT_TIMEOUT=5 "$psql_bin" "$items_db_url" --no-password -X -qAt -v ON_ERROR_STOP=1 -F '|' -c "SELECT filename, checksum FROM public.schema_migrations_cursor ORDER BY filename" 2>"$db_error_file")"; then
           db_error="$(tr '\n' ' ' < "$db_error_file" | cut -c1-500)"
-          db_error="$(sanitize_db_error "$db_error" "$notes_db_url")"
+          db_error="$(sanitize_db_error "$db_error" "$items_db_url")"
           fail "Migration-ledger query failed${db_error:+: $db_error}"
           migration_ledger=""
           continue_migration_check=0
@@ -341,7 +344,7 @@ SQL
         fi
 
         if [[ $continue_migration_check -eq 1 ]]; then
-        repo_migration_count="$(find lib/db-notes/migrations -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
+        repo_migration_count="$(find lib/db-items/migrations -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
         applied_migration_count=0
         if [[ -n "$migration_ledger" ]]; then
           applied_migration_count="$(printf '%s\n' "$migration_ledger" | wc -l | tr -d ' ')"
@@ -360,11 +363,11 @@ SQL
           elif [[ "$actual_checksum" != "$expected_checksum" ]]; then
             changed_migrations+=("$migration_name")
           fi
-        done < <(find lib/db-notes/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+        done < <(find lib/db-items/migrations -maxdepth 1 -type f -name '*.sql' | sort)
 
         while IFS='|' read -r migration_name _checksum; do
           [[ -z "$migration_name" ]] && continue
-          if [[ ! -f "lib/db-notes/migrations/$migration_name" ]]; then
+          if [[ ! -f "lib/db-items/migrations/$migration_name" ]]; then
             extra_migrations+=("$migration_name")
           fi
         done <<< "$migration_ledger"
@@ -384,7 +387,7 @@ SQL
       fi
     else
       db_error="$(tr '\n' ' ' < "$db_error_file" | cut -c1-500)"
-      db_error="$(sanitize_db_error "$db_error" "$notes_db_url")"
+      db_error="$(sanitize_db_error "$db_error" "$items_db_url")"
       fail "Database connection failed${db_error:+: $db_error}"
     fi
   fi

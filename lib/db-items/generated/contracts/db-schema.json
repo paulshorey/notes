@@ -1,0 +1,310 @@
+{
+  "item_category_link_v1": [
+    {
+      "column": "item_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "category_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "workspace_id",
+      "nullable": false,
+      "type": "number"
+    }
+  ],
+  "item_tag_link_v1": [
+    {
+      "column": "item_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "tag_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "workspace_id",
+      "nullable": false,
+      "type": "number"
+    }
+  ],
+  "user_api_token_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "token_hash",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_last_used",
+      "nullable": true,
+      "type": "Date"
+    }
+  ],
+  "user_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "username",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "email",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "phone",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "preferences",
+      "nullable": false,
+      "type": "unknown"
+    },
+    {
+      "column": "password",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "is_anonymous",
+      "nullable": false,
+      "type": "boolean"
+    }
+  ],
+  "user_workspace_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    }
+  ],
+  "workspace_category_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "workspace_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "category_embedding",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_model",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_updated_at",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    }
+  ],
+  "workspace_item_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "workspace_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "status_id",
+      "nullable": true,
+      "type": "number"
+    },
+    {
+      "column": "description",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "time_due",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "time_remind",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "description_embedding",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_model",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_updated_at",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    }
+  ],
+  "workspace_status_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "workspace_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "position",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    }
+  ],
+  "workspace_tag_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "workspace_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "tag_embedding",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_model",
+      "nullable": true,
+      "type": "string"
+    },
+    {
+      "column": "embedding_updated_at",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    }
+  ]
+}

@@ -53,12 +53,12 @@ if [[ $missing_env -eq 1 ]]; then
   if [[ -n "${INFISICAL_TOKEN:-}" && -n "${INFISICAL_PROJECT_ID:-}" ]]; then
     echo "Hydrating app .env files from Infisical..."
     if ! pnpm run init; then
-      echo "Infisical hydration failed. Local PostgreSQL is still available via DB_NOTES_URL."
+      echo "Infisical hydration failed. Local PostgreSQL is still available via DB_ITEMS_URL."
     fi
   else
     echo "App .env files are missing, but Infisical bootstrap secrets are not configured."
     echo "Set INFISICAL_TOKEN and INFISICAL_PROJECT_ID in Cursor Cloud Agent secrets, then rerun pnpm run init."
-    echo "Local PostgreSQL is available without Infisical via DB_NOTES_URL."
+    echo "Local PostgreSQL is available without Infisical via DB_ITEMS_URL."
   fi
 fi
 

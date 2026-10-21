@@ -5,13 +5,13 @@ import { createMergeToken } from "@/lib/anonymousMergeToken"
 export const POST = async () => {
   const session = await auth()
 
-  if (!session?.user?.notesUserId || !session.user.isAnonymous) {
+  if (!session?.user?.itemsUserId || !session.user.isAnonymous) {
     return NextResponse.json(
       { error: "Must be authenticated as an anonymous user." },
       { status: 400 },
     )
   }
 
-  const mergeToken = createMergeToken(session.user.notesUserId)
+  const mergeToken = createMergeToken(session.user.itemsUserId)
   return NextResponse.json({ mergeToken })
 }

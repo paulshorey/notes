@@ -1,6 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
-import { createAnonymousUser, verifyUserCredentials } from "@lib/db-notes/sql/user"
+import { readItemsUserId } from "./lib/sessionIdentity"
+import { createAnonymousUser, verifyUserCredentials } from "@lib/db-items/sql/user"
 import { authConfig } from "./auth.config"
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
@@ -31,7 +32,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           id: String(user.id),
           name: user.username,
           email: user.email,
-          notesUserId: user.id,
+          itemsUserId: user.id,
           isAnonymous: false,
         }
       },
@@ -45,7 +46,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         return {
           id: String(user.id),
           name: user.username,
-          notesUserId: user.id,
+          itemsUserId: user.id,
           isAnonymous: true,
         }
       },
@@ -54,30 +55,40 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   callbacks: {
     ...authConfig.callbacks,
     async jwt({ token, user, account }) {
-      if (user?.notesUserId) {
-        token.notesUserId = user.notesUserId
+      if (user?.itemsUserId) {
+        token.itemsUserId = user.itemsUserId
+        token.notesUserId = user.itemsUserId
         token.isAnonymous = user.isAnonymous ?? false
         return token
       }
 
       if (account?.provider === "anonymous" && user?.id) {
-        token.notesUserId = Number.parseInt(user.id, 10)
+        token.itemsUserId = Number.parseInt(user.id, 10)
+        token.notesUserId = token.itemsUserId
         token.isAnonymous = true
         return token
       }
 
       if (account?.provider === "credentials" && user?.id) {
-        token.notesUserId = Number.parseInt(user.id, 10)
+        token.itemsUserId = Number.parseInt(user.id, 10)
+        token.notesUserId = token.itemsUserId
         token.isAnonymous = false
         return token
       }
 
+      const existingId = readItemsUserId(token)
+      if (existingId !== null) {
+        token.itemsUserId = existingId
+        token.notesUserId = existingId
+      }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        if (typeof token.notesUserId === "number") {
-          session.user.notesUserId = token.notesUserId
+        const userId = readItemsUserId(token)
+        if (userId !== null) {
+          session.user.itemsUserId = userId
+          session.user.notesUserId = userId
         }
         session.user.isAnonymous = (token.isAnonymous as boolean | undefined) ?? false
       }

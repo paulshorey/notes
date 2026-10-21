@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import {
-  claimAnonymousNotesAppSession,
-  getNotesAppErrorStatus,
+  claimAnonymousItemsAppSession,
+  getItemsAppErrorStatus,
   parseClaimAnonymousSessionRequest,
-} from "@lib/db-notes/services/notes-app"
+} from "@lib/db-items/services/items-app"
 
 export const POST = async (request: Request) => {
   const session = await auth()
 
-  if (!session?.user?.notesUserId || !session.user.isAnonymous) {
+  if (!session?.user?.itemsUserId || !session.user.isAnonymous) {
     return NextResponse.json(
       { error: "Must be authenticated as an anonymous user." },
       { status: 401 },
@@ -25,15 +25,15 @@ export const POST = async (request: Request) => {
 
   try {
     const claimRequest = parseClaimAnonymousSessionRequest(body)
-    const result = await claimAnonymousNotesAppSession({
-      anonUserId: session.user.notesUserId,
+    const result = await claimAnonymousItemsAppSession({
+      anonUserId: session.user.itemsUserId,
       ...claimRequest,
     })
     return NextResponse.json(result)
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Claim failed." },
-      { status: getNotesAppErrorStatus(error) },
+      { status: getItemsAppErrorStatus(error) },
     )
   }
 }

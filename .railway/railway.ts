@@ -29,6 +29,7 @@ export default defineRailway((ctx) => {
       buildCommand: "pnpm --filter notes-next build",
       watchPatterns: [
         "apps/notes-next/**",
+        "lib/db-items/**",
         "lib/db-notes/**",
         "lib/atomic-editor/**",
         "lib/config/**",
@@ -39,7 +40,7 @@ export default defineRailway((ctx) => {
       ],
     },
     deploy: {
-      preDeployCommand: ["pnpm --filter @lib/db-notes db:migrate"],
+      preDeployCommand: ["pnpm --filter @lib/db-items db:migrate"],
       startCommand: "pnpm --filter notes-next start",
       healthcheckPath: "/api/health",
       healthcheckTimeout: 30,

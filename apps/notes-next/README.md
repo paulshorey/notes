@@ -1,19 +1,19 @@
 # Notes Web / API
 
-`apps/notes-next` is the Railway-deployed Notes web app and REST API. It depends on `@lib/db-notes` for schema, runtime DB access, and generated Notes contracts.
+`apps/notes-next` is the Railway-deployed Notes web app and REST API. It depends on `@lib/db-items` for schema, runtime DB access, and generated Notes contracts.
 
 ## Environment variables
 
 | Variable       | Required | Purpose                                                                                |
 | -------------- | -------- | -------------------------------------------------------------------------------------- |
-| `DB_NOTES_URL` | Yes      | PostgreSQL connection string for Notes                                                 |
+| `DB_ITEMS_URL` | Yes      | PostgreSQL connection string for Notes                                                 |
 | `JINA_API_KEY` | Yes      | Jina embeddings key for semantic search and maintenance                                |
 | `PG_POOL_MAX`  | No       | Process-wide PostgreSQL connection limit; defaults to `1` for remote-proxy reliability |
 
 Create `apps/notes-next/.env.local` or export the values in your shell:
 
 ```bash
-DB_NOTES_URL=postgres://...
+DB_ITEMS_URL=postgres://...
 JINA_API_KEY=jina_...
 ```
 
@@ -44,23 +44,23 @@ pnpm --filter notes-next check-types
 pnpm --filter notes-next verify
 ```
 
-This package only validates the Notes contract. It does not own migration scripts; those stay in `lib/db-notes`.
+This package only validates the Notes contract. It does not own migration scripts; those stay in `lib/db-items`.
 
 ## API routes
 
-| Method                | Path                                | Purpose                                       |
-| --------------------- | ----------------------------------- | --------------------------------------------- |
-| GET                   | `/api/bootstrap`                    | Load workspaces and the active workspace      |
-| GET/PATCH             | `/api/session`                      | Read session or update preferences            |
+| Method                | Path                                | Purpose                                        |
+| --------------------- | ----------------------------------- | ---------------------------------------------- |
+| GET                   | `/api/bootstrap`                    | Load workspaces and the active workspace       |
+| GET/PATCH             | `/api/session`                      | Read session or update preferences             |
 | GET/POST              | `/api/backup`                       | Download backup or merge a backup into account |
-| GET/POST/PATCH/DELETE | `/api/notes`                        | List, create, update, delete notes            |
-| GET/POST/PATCH/DELETE | `/api/categories`                   | Manage workspace categories                   |
-| GET/POST/PATCH/DELETE | `/api/statuses`                     | Manage workspace statuses                     |
-| GET/POST/PATCH/DELETE | `/api/tags`                         | Manage workspace tags                         |
-| GET/POST/PATCH/DELETE | `/api/workspaces`                   | Manage user workspaces                        |
-| POST                  | `/api/notes/search`                 | Semantic search                               |
-| POST                  | `/api/notes/maintenance/embeddings` | Backfill or repair stale embeddings           |
-| GET                   | `/api/health`                       | Railway liveness probe                        |
+| GET/POST/PATCH/DELETE | `/api/items`                        | List, create, update, delete notes             |
+| GET/POST/PATCH/DELETE | `/api/categories`                   | Manage workspace categories                    |
+| GET/POST/PATCH/DELETE | `/api/statuses`                     | Manage workspace statuses                      |
+| GET/POST/PATCH/DELETE | `/api/tags`                         | Manage workspace tags                          |
+| GET/POST/PATCH/DELETE | `/api/workspaces`                   | Manage user workspaces                         |
+| POST                  | `/api/items/search`                 | Semantic search                                |
+| POST                  | `/api/items/maintenance/embeddings` | Backfill or repair stale embeddings            |
+| GET                   | `/api/health`                       | Railway liveness probe                         |
 
 ## Backup and restore
 
@@ -88,7 +88,7 @@ The complete file is validated before writes. Restore stages a temporary source
 and uses the same merge core as anonymous sign-in within one database transaction;
 a failure rolls back the whole import. The server always obtains the destination
 user from the cookie or bearer token, never from the backup. Format and API details
-are documented in [`notes-api.md`](../../lib/db-notes/contracts/notes-api.md).
+are documented in [`notes-api.md`](../../lib/db-items/contracts/items-api.md).
 
 ## Production release notes
 
@@ -103,7 +103,7 @@ When promoting Notes to production:
 2. Deploy `apps/notes-next` on Railway. Railway runs the package-owned migration command before activating the release:
 
    ```bash
-   pnpm --filter @lib/db-notes db:migrate
+   pnpm --filter @lib/db-items db:migrate
    ```
 
    A failed migration blocks deployment, and the health endpoint rejects a connected but outdated database. Run `pnpm run db:migrate` manually only for local/shared development or an intentional target-database preflight.
@@ -111,7 +111,7 @@ When promoting Notes to production:
 3. If search data is stale after the deploy, run `pnpm run db:embeddings:regenerate` or call the maintenance endpoint:
 
    ```text
-   POST /api/notes/maintenance/embeddings
+   POST /api/items/maintenance/embeddings
    Body: { "userId": <id>, "mode": "stale", "limit": 100 }
    ```
 

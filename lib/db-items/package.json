@@ -1,0 +1,48 @@
+{
+  "name": "@lib/db-items",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./item-search-constants": "./item-search-constants.ts",
+    "./contracts/items-app": "./contracts/items-app.ts",
+    "./contracts/user-backup": "./contracts/user-backup.ts",
+    "./contracts/category-name": "./contracts/category-name.ts",
+    "./db/postgres": "./lib/db/postgres.ts",
+    "./generated/*": "./generated/*",
+    "./generated/typescript/db-types": "./generated/typescript/db-types.ts",
+    "./lib/*": "./lib/*.ts",
+    "./services/items-app": "./services/items-app.ts",
+    "./testing/*": "./testing/*.ts",
+    "./sql/item": "./sql/item/index.ts",
+    "./sql/user": "./sql/user/index.ts",
+    "./sql/*": "./sql/*.ts",
+    "./contracts/item-content": "./contracts/item-content.ts"
+  },
+  "scripts": {
+    "app:contract:check": "node scripts/generate-app-contract.mjs --check",
+    "app:contract:generate": "node scripts/generate-app-contract.mjs --write",
+    "check-types": "tsc --noEmit && pnpm app:contract:check",
+    "db:schema:snapshot": "bash scripts/snapshot-schema.sh",
+    "db:types:generate": "node scripts/generate-types.mjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:verify": "node scripts/verify-contract.mjs",
+    "db:migrate:baseline": "node scripts/baseline.mjs",
+    "db:migration:new": "node scripts/new-migration.mjs",
+    "db:sync": "pnpm db:migrate && pnpm db:schema:snapshot && pnpm db:types:generate && pnpm app:contract:generate",
+    "db:embeddings:regenerate": "node scripts/regenerate-embeddings.mjs",
+    "db:anon:cleanup": "node scripts/cleanup-anonymous-users.mjs",
+    "test": "node --import tsx --test ./testing/*.test.ts"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@lib/config": "workspace:*",
+    "@types/pg": "^8.11.10",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
+    "typescript": "5.9.2"
+  }
+}

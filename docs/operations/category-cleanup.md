@@ -9,7 +9,7 @@ The web category picker shows only the folder icon when empty. The sidebar's
 has matching notes, and has no category edit/delete menu. Real categories have no
 default identity, oldest-id semantics, protected row, or special sort order.
 
-`contracts/category-name.ts` in `@lib/db-notes` reserves exactly the trimmed,
+`contracts/category-name.ts` in `@lib/db-items` reserves exactly the trimmed,
 case-insensitive category name `uncategorized`. UI validation, service validation,
 and the cleanup migration's database constraint enforce that rule. Other
 vocabularies and longer category names such as `uncategorized ideas` are unaffected.

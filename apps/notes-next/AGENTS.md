@@ -6,7 +6,7 @@ Next.js 16 web app for the Notes product. Serves the React UI and the REST API. 
 
 ```
 app/                        — Next.js App Router: pages, layouts, API routes only
-  page.tsx                  — renders <NotesApp /> from src/
+  page.tsx                  — renders <ItemsApp /> from src/
   layout.tsx                — root layout with ThemeProvider (Gravity UI) + MantineProvider
   providers.tsx             — client-side providers
   globals.css
@@ -14,8 +14,8 @@ app/                        — Next.js App Router: pages, layouts, API routes o
   search/                   — legacy redirect -> /
   api/
     _lib/
-      notes-app-route-handlers.ts   — shared route handler factories (auth-bound)
-      authenticated-user.ts         — maps the NextAuth session cookie to a Notes user id
+      items-app-route-handlers.ts   — shared route handler factories (auth-bound)
+      authenticated-user.ts         — maps the NextAuth session cookie to an item-service user id
     auth/
       [...nextauth]/        — Auth.js (NextAuth) sign-in routes for the web UI
       token/                — POST (credentials -> bearer token for API clients), DELETE (revoke)
@@ -26,13 +26,14 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     bootstrap/              — GET (user/workspaces + one workspace snapshot for startup/switching)
     backup/                 — GET (JSON download), POST (validated atomic merge into permanent account)
     session/                — GET (authenticated user), PATCH (preferences)
-    notes/                  — GET (list), POST (create), PATCH (update), DELETE
+    items/                  — GET (list), POST (create), PATCH (update), DELETE
+    notes/                  — legacy payload facade over the item routes
     tags/                   — GET (list), POST (create)
     categories/             — GET (list), POST (create), PATCH, DELETE
     statuses/               — workspace-scoped GET/POST/PATCH/DELETE
     workspaces/             — user-scoped GET/POST/PATCH/DELETE
-    notes/search/           — POST (semantic search)
-    notes/maintenance/
+    items/search/           — POST (semantic search)
+    items/maintenance/
       embeddings/           — POST (backfill/repair missing or stale embeddings)
     embeddings/
       debug/                — POST (standalone Jina debug route for /embeddings page)
@@ -40,14 +41,14 @@ app/                        — Next.js App Router: pages, layouts, API routes o
 
 src/                        — non-route code (import with "@/..." alias)
   components/
-    notes/                  — notes-feature UI (NotesApp and sub-components)
-      NotesApp.tsx          — top-level notes page container
-      NotesApp.module.css   — shared notes CSS module
-      NotesHeader.tsx       — app-wide header (logo, save status, recent notes, user menu, sidebar toggle)
+    items/                  — text-focused Notes UI (ItemsApp and sub-components)
+      ItemsApp.tsx          — top-level notes page container
+      ItemsApp.module.css   — shared notes CSS module
+      WorkspaceHeader.tsx       — app-wide header (logo, save status, recent notes, user menu, sidebar toggle)
       FeedbackNotifications.tsx
       ResultsColumn.tsx     — notes sidebar (categories, tags, note actions)
-      NoteResultsList.tsx
-      NoteForm.tsx
+      ItemResultsList.tsx
+      TextCaptureForm.tsx
       modals/
         EditCategoryModal.tsx
         DeleteCategoryModal.tsx
@@ -56,12 +57,12 @@ src/                        — non-route code (import with "@/..." alias)
     ui/
       icons/                — small inline SVG icons
   hooks/                    — shared React hooks (useSidebarDrawer, useAutoDismissStatus,
-                              useOpenNotesAutosave)
-  lib/                      — shared utilities (api, dates, strings, noteDraft,
-                              notesCache, openNotesStorage)
-  stores/                   — Zustand store (notesAppStore) and the pure open-note ring
-                              reducers (openNotes)
-  types/                    — shared types (NoteFormState, EmbeddingMaintenanceMode, ...)
+                              useOpenItemsAutosave)
+  lib/                      — shared utilities (api, dates, strings, itemDraft,
+                              itemsCache, openItemsStorage)
+  stores/                   — Zustand store (itemsAppStore) and the pure open-item ring
+                              reducers (openItems)
+  types/                    — shared types (TextCaptureFormState, EmbeddingMaintenanceMode, ...)
   constants/                — shared constants
 ```
 
@@ -69,12 +70,12 @@ src/                        — non-route code (import with "@/..." alias)
 
 - **Routes vs. shared code.** `app/` is reserved for Next.js App Router (pages, layouts, API route handlers). All other React components, hooks, utilities, types, and constants belong under `src/`.
 - **New pages.** Add new pages as `app/<route>/page.tsx` and keep the bulk of their implementation (components, hooks, utilities) under `src/` so they can be shared. Feature-scoped components live under `src/components/<feature>/`.
-- **Component file names use `PascalCase.tsx`** (e.g. `NoteForm.tsx`), matching the exported component. Non-component files (hooks, utilities, types, constants) use `camelCase.ts` or `kebab-case.ts`.
+- **Component file names use `PascalCase.tsx`** (e.g. `TextCaptureForm.tsx`), matching the exported component. Non-component files (hooks, utilities, types, constants) use `camelCase.ts` or `kebab-case.ts`.
 - **Path alias.** `tsconfig.json` maps `@/*` to `./src/*`. Prefer `@/components/...`, `@/lib/...`, etc. over deep relative paths.
 
 ## Architecture
 
-- All database access and embedding logic is in `@lib/db-notes`. API routes call `notesAppService` from `@lib/db-notes/services/notes-app` — no SQL or Jina calls in this package.
+- All database access and embedding logic is in `@lib/db-items`. API routes call `itemsAppService` from `@lib/db-items/services/items-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
 
 Navigation stays on the right at every screen size: up to 720px it is a collapsed
@@ -82,15 +83,15 @@ right drawer toggled by the top-right header button; above 720px it is a visible
 resizable right column. There is no bottom trigger or swipe gesture.
 `useSidebarDrawer` synchronizes the store when crossing this boundary and preserves
 visibility when resizing within a layout. Keep `SIDEBAR_OVERLAY_MEDIA_QUERY` in
-`src/constants/notes.ts` aligned with the notes CSS modules.
+`src/constants/items.ts` aligned with the notes CSS modules.
 
 ## Startup and service worker
 
-The root layout reads Auth.js once and seeds `SessionProvider`, so returning users do not need a client-side session round trip before startup. `NotesApp` then calls `GET /api/bootstrap`, which authenticates once and loads the session, notes, categories, and tags in parallel. Keep this as the single cold-start data path; separate startup requests add auth and database work and can race one another.
+The root layout reads Auth.js once and seeds `SessionProvider`, so returning users do not need a client-side session round trip before startup. `ItemsApp` then calls `GET /api/bootstrap`, which authenticates once and loads the session, notes, categories, and tags in parallel. Keep this as the single cold-start data path; separate startup requests add auth and database work and can race one another.
 
-Every note belongs to exactly one active workspace, has zero or more category links and multiple tags, and may have one status. Category/status/tag ids must come from that same workspace. New notes start without categories unless an action explicitly specifies one. The category trigger shows only its folder icon for an empty selection. The sidebar groups zero-category notes under the display-only `uncategorized` label; this is never a category record. All real categories, including the last one, can be deleted. Reserve the normalized category name `uncategorized` through `@lib/db-notes/contracts/category-name` in both UI and service writes. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
+Every note belongs to exactly one active workspace, has zero or more category links and multiple tags, and may have one status. Category/status/tag ids must come from that same workspace. New notes start without categories unless an action explicitly specifies one. The category trigger shows only its folder icon for an empty selection. The sidebar groups zero-category notes under the display-only `uncategorized` label; this is never a category record. All real categories, including the last one, can be deleted. Reserve the normalized category name `uncategorized` through `@lib/db-items/contracts/category-name` in both UI and service writes. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
 
-`src/lib/noteGroups.ts` builds one sidebar list containing real categories and the
+`src/lib/itemGroups.ts` builds one sidebar list containing real categories and the
 computed `uncategorized` group. Sort every group by its newest visible note's
 `timeModified`, with notes newest first inside it; apply tag filtering before
 building groups. Never append `uncategorized` after sorting. Stable group keys
@@ -107,15 +108,15 @@ A confirmed bootstrap `401` ends the expired Auth.js session on both cached and 
 
 Several notes are open at once, in a bounded most-recently-used **ring**. Opening a note adds an entry rather than replacing one, so switching never waits for a save.
 
-- `src/stores/openNotes.ts` — pure, React-free reducers over the ring. The open sequence is **insert → activate → evict**, and the order is load-bearing: eviction protects the active entry, so evicting first protects the _outgoing_ note and at a cap of 1 leaves nothing droppable. There is a unit test pinned at `cap === 1`; larger caps hide the bug.
-- `src/lib/openNotesStorage.ts` — persists a separate ring per `(userId, workspaceId)` and upgrades the legacy `notes-open-notes-v1` shape. It is deliberately **not** part of `notesCache`, which expires after 14 days and contains only replaceable server data. A transient session-restore failure must not wipe either cache; it would remove the offline view and could destroy unsaved text. `reconcileOpenNotes` is pure and takes a lookup rather than the note array.
-- `src/hooks/useOpenNotesAutosave.ts` — one debounce per dirty entry, re-armed only when that entry's own signature changes so typing in one note cannot starve a background save.
+- `src/stores/openItems.ts` — pure, React-free reducers over the ring. The open sequence is **insert → activate → evict**, and the order is load-bearing: eviction protects the active entry, so evicting first protects the _outgoing_ note and at a cap of 1 leaves nothing droppable. There is a unit test pinned at `cap === 1`; larger caps hide the bug.
+- `src/lib/openItemsStorage.ts` — persists a separate ring per `(userId, workspaceId)` and upgrades the legacy `notes-open-notes-v1` and scoped `notes-open-notes-v2` shapes. It is deliberately **not** part of `itemsCache`, which expires after 14 days and contains only replaceable server data. A transient session-restore failure must not wipe either cache; it would remove the offline view and could destroy unsaved text. `reconcileOpenItems` is pure and takes a lookup rather than the note array.
+- `src/hooks/useOpenItemsAutosave.ts` — one debounce per dirty entry, re-armed only when that entry's own signature changes so typing in one note cannot starve a background save.
 
-The editor has **no submit control** — notes only ever save in the background. `NoteForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so Enter in an expanded date field cannot implicitly submit and reload the page. Do not reintroduce a save mode that resets the editor after saving: it would recycle the ring slot holding the just-saved note, and throw away anything typed while the request was in flight.
+The editor has **no submit control** — notes only ever save in the background. `TextCaptureForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so Enter in an expanded date field cannot implicitly submit and reload the page. Do not reintroduce a save mode that resets the editor after saving: it would recycle the ring slot holding the just-saved note, and throw away anything typed while the request was in flight.
 
-Notes persist through `saveEntry(key, mode)` in `NotesApp.tsx`, keyed by entry:
+Notes persist through `saveEntry(key, mode)` in `ItemsApp.tsx`, keyed by entry:
 
-- `autosave` — trailing debounce (`NOTE_AUTOSAVE_DEBOUNCE_MS`, 3s). Saves for different entries run concurrently; a second save of the _same_ entry queues behind the first.
+- `autosave` — trailing debounce (`ITEM_AUTOSAVE_DEBOUNCE_MS`, 3s). Saves for different entries run concurrently; a second save of the _same_ entry queues behind the first.
 - `flush` — awaited save, used only where the session itself changes (`handleLogin`, `handleSignup`, `handleLogout`) via `flushAllPendingSaves()`. Ordinary note switching no longer flushes.
 - `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is never retried, because a repeated `POST` for a never-saved draft would create a second note.
 
@@ -127,38 +128,42 @@ Notes persist through `saveEntry(key, mode)` in `NotesApp.tsx`, keyed by entry:
 
 ## Store selectors
 
-Selectors passed to `useNotesAppStore` must return an existing reference or a primitive. One that builds a new object or array each call hands `useSyncExternalStore` a fresh snapshot on every render and hangs the app in an infinite loop. Derive that kind of value with `useMemo` in the component instead.
+Selectors passed to `useItemsAppStore` must return an existing reference or a primitive. One that builds a new object or array each call hands `useSyncExternalStore` a fresh snapshot on every render and hangs the app in an infinite loop. Derive that kind of value with `useMemo` in the component instead.
 
 ## User preferences
 
-`notesApp.*` in `user_v1.preferences` (JSONB). Adding a key means editing `NotesAppPreferences` in `lib/db-notes/contracts/notes-app.ts` and regenerating `generated/contracts/notes-app.json` with `pnpm --filter @lib/db-notes app:contract:generate` — `app:contract:check` gates both `check-types` and `build`. No migration is needed.
+`notesApp.*` in `user_v1.preferences` (JSONB). Adding a key means editing `TextClientPreferences` in `lib/db-items/contracts/items-app.ts` and regenerating `generated/contracts/items-app.json` with `pnpm --filter @lib/db-items app:contract:generate` — `app:contract:check` gates both `check-types` and `build`. No migration is needed.
 
-Writes go through a 500ms debounced `PATCH /api/session`. Its response must also call `updateNotesCacheUser`, and the background session refresh only keeps the in-memory copy when there is genuinely an unsaved edit — otherwise a changed preference takes two reloads to appear, because the next launch paints from the cached snapshot.
+Writes go through a 500ms debounced `PATCH /api/session`. Its response must also call `updateItemsCacheUser`, and the background session refresh only keeps the in-memory copy when there is genuinely an unsaved edit — otherwise a changed preference takes two reloads to appear, because the next launch paints from the cached snapshot.
 
 ## Anonymous → permanent account (claim or merge, single load path)
 
 Anonymous visitors are real `user_v1` rows (`is_anonymous = true`). Two ways they become permanent, both credentials-based (OAuth login was removed as unfinished):
 
 Anonymous users see a sign-in / create-account toggle in the header popup
-(`NotesHeader.tsx`). Mode-switch buttons use `type="button"` so they never
+(`WorkspaceHeader.tsx`). Mode-switch buttons use `type="button"` so they never
 submit the form; the popup closes only after a successful login or signup.
 
 - **Create account (common path, claim-in-place):** `handleSignup` flushes pending saves, POSTs `/api/anon-session/claim` (which sets username/email/hashed password and flips `is_anonymous` on the _same_ row), then re-runs `signIn("credentials")` for the same user id so the JWT's `isAnonymous` flips. No data moves between users, no merge token exists in this path.
-- **Sign in to an existing account (merge path):** to keep this race-free there is exactly **one** writer of post-login session data: the `restoreSession` effect in `NotesApp.tsx`. `handleLogin` only flushes, captures a signed merge token while still anonymous (stashed in `sessionStorage` under `notes-pending-merge-token`), and calls `signIn`. The flush ignores an untouched new editor slot: `savedSignature: null` can make it technically dirty, but it has no content to save and must not block sign-in. Started drafts are still flushed (and a started draft that cannot save still blocks the session change). When `restoreSession` next runs for a real (non-anonymous) session and finds a pending token, it POSTs `/api/anon-session/merge`, then loads the account's data once (skipping the stale cache paint). The login handlers must not load data or run the merge themselves — doing so reintroduces the clobber race.
+- **Sign in to an existing account (merge path):** to keep this race-free there is exactly **one** writer of post-login session data: the `restoreSession` effect in `ItemsApp.tsx`. `handleLogin` only flushes, captures a signed merge token while still anonymous (stashed in `sessionStorage` under `notes-pending-merge-token`), and calls `signIn`. The flush ignores an untouched new editor slot: `savedSignature: null` can make it technically dirty, but it has no content to save and must not block sign-in. Started drafts are still flushed (and a started draft that cannot save still blocks the session change). When `restoreSession` next runs for a real (non-anonymous) session and finds a pending token, it POSTs `/api/anon-session/merge`, then loads the account's data once (skipping the stale cache paint). The login handlers must not load data or run the merge themselves — doing so reintroduces the clobber race.
 
-Merge failure handling (no silent loss): if merge-token capture fails in `handleLogin` while the visitor has notes, the sign-in is aborted with an error so the user retries while still anonymous. If the merge POST itself fails transiently (network/5xx), `restoreSession` re-stashes the token so a page reload retries within the token's 10-minute TTL; a 4xx is permanent (token/anon row invalid) and only shows a warning. Server-side, the merge also carries the visitor's explicitly-set preferences into the real account (per-property, anon wins) — see `lib/db-notes`.
+Merge failure handling (no silent loss): if merge-token capture fails in `handleLogin` while the visitor has notes, the sign-in is aborted with an error so the user retries while still anonymous. If the merge POST itself fails transiently (network/5xx), `restoreSession` re-stashes the token so a page reload retries within the token's 10-minute TTL; a 4xx is permanent (token/anon row invalid) and only shows a warning. Server-side, the merge also carries the visitor's explicitly-set preferences into the real account (per-property, anon wins) — see `lib/db-items`.
 
-`noteSaveStatus` in `notesAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `NotesHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
+`itemSaveStatus` in `itemsAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `WorkspaceHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
 
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
-- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/status/tag selector. It owns the value-and-icon trigger (`triggerIcon` replaces the default caret), filtered popup, focused create input, and `multiple` vs single-select behavior (checkboxes and staying open only when `multiple`). Keep the status selector inside `NoteForm`'s More menu; category and tags use the editor toolbar pickers. Do not replace these with native selects or prompt dialogs.
-- Routes are wired through `app/api/_lib/notes-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
+- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/status/tag selector. It owns the value-and-icon trigger (`triggerIcon` replaces the default caret), filtered popup, focused create input, and `multiple` vs single-select behavior (checkboxes and staying open only when `multiple`). Keep the status selector inside `TextCaptureForm`'s More menu; category and tags use the editor toolbar pickers. Do not replace these with native selects or prompt dialogs.
+- Routes are wired through `app/api/_lib/items-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
 - Backup routes use `_lib/backup-route-handlers.ts`. Before transfers, flush notes
   and pending preference writes. Restore is additive: refresh bootstrap/cache
   without resetting open-note drafts. Keep the restore modal outside the account
   Popup so outside-click handling cannot unmount the portaled modal.
 - **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
-- This package validates Notes contracts, but it does not own Notes migration scripts.
+- This package consumes item contracts; `@lib/db-items` owns migrations.
+  The text client selects `isTextItem` records and requires nonblank text when saving.
+  Canonical requests use `/api/items` and `X-Items-Contract: 1`; the legacy Notes
+  HTTP facade and persisted identity/storage names are rollout compatibility boundaries.
+  See `docs/db/item-core.md`.
 
 ## Embedding debug page
 
@@ -166,13 +171,13 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 
 - Select **Search task** (default: `retrieval.query`) and **Passage task** (default: `retrieval.passage`) to control the Jina `task` parameter sent for each embedding call.
 - These defaults match what the production app uses. Select `(none)` to omit `task` entirely and observe baseline behavior.
-- The debug route is standalone — it does not use `notesAppService` or write to the DB. Search score is cosine similarity between the query embedding and the note description embedding.
+- The debug route is standalone — it does not use `itemsAppService` or write to the DB. Search score is cosine similarity between the query embedding and the note description embedding.
 
 ## Environment variables
 
 | Variable       | Purpose                                                          |
 | -------------- | ---------------------------------------------------------------- |
-| `DB_NOTES_URL` | PostgreSQL connection string                                     |
+| `DB_ITEMS_URL` | PostgreSQL connection string (`DB_NOTES_URL` fallback)           |
 | `JINA_API_KEY` | Jina AI embeddings key (semantic search + embedding maintenance) |
 
 ## Build and dev
@@ -202,8 +207,8 @@ sidebar, the recent list, and even a page reload will faithfully show a note
 that was never stored on the server. Confirming a note "is there" in the
 browser proves nothing about persistence.
 
-This is not hypothetical. The open-note ring was manually tested across several
-sessions — including recorded demos — while `user_note_v1` was empty the whole
+This is not hypothetical. The open-item ring was manually tested across several
+sessions — including recorded demos — while `workspace_item_v1` was empty the whole
 time. Every session ran as a fresh anonymous user, and a brand-new account had
 no category, so every autosave returned before reaching the network. The local
 snapshot reproduced the notes perfectly on reload and nothing looked wrong.
@@ -212,7 +217,7 @@ So when testing anything that claims to save:
 
 - **Clear `localStorage` and reload.** Whatever comes back came from the server.
 - **Check the database**, not the screen:
-  `PGPASSWORD=… psql -h localhost -U postgres -d notes_dev -tAc "SELECT id, left(description,40) FROM public.user_note_v1 ORDER BY id DESC LIMIT 10;"`
+  `PGPASSWORD=… psql -h localhost -U postgres -d notes_dev -tAc "SELECT id, left(description,40) FROM public.workspace_item_v1 ORDER BY id DESC LIMIT 10;"`
 - **Watch the network tab** for the request and its status. Silence is the
   failure mode to look for — a save that never fires looks identical to one
   that succeeded.
@@ -223,9 +228,9 @@ So when testing anything that claims to save:
 ### When adding automated tests
 
 - Pure logic goes in a module with no React or DOM import so it can be tested
-  by the node runner (`src/stores/openNotes.ts` is the pattern). There is no
+  by the node runner (`src/stores/openItems.ts` is the pattern). There is no
   DOM or React testing setup here and none should be added casually.
-- Anything touching persistence belongs in `lib/db-notes`' DB-backed suite,
+- Anything touching persistence belongs in `lib/db-items`' DB-backed suite,
   which runs against `DB_NOTES_TEST_URL` only.
 - **Check that a new test fails without its fix.** Two tests in this change
   initially passed either way; one was rewritten after that check, and the
@@ -238,9 +243,9 @@ So when testing anything that claims to save:
 
 ## Release rules
 
-- Notes DB migration commands belong in `lib/db-notes/package.json`, with root-level wrappers in the repo `package.json`.
+- Notes DB migration commands belong in `lib/db-items/package.json`, with root-level wrappers in the repo `package.json`.
 - For Notes production changes, the normal order is: repo verify, then Railway deploy; Railway applies pending Notes migrations before activating the release.
-- The root `.railway/railway.ts` runs `pnpm --filter @lib/db-notes db:migrate` as a pre-deploy command. A migration failure blocks the new release, and `/api/health` returns `DATABASE_SCHEMA_OUTDATED` until the required workspace tables exist. Keep this protection aligned with schema changes rather than allowing code and database deployments to drift.
+- The root `.railway/railway.ts` runs `pnpm --filter @lib/db-items db:migrate` as a pre-deploy command. A migration failure blocks the new release, and `/api/health` returns `DATABASE_SCHEMA_OUTDATED` until the required workspace tables exist. Keep this protection aligned with schema changes rather than allowing code and database deployments to drift.
 - Use `db:verify` deliberately; it is not read-only and is mainly for branch validation and controlled contract checks.
 
 ## UI

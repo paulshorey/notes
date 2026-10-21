@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { verifyMergeToken } from "@/lib/anonymousMergeToken"
-import { mergeAnonymousNotesAppSession } from "@lib/db-notes/services/notes-app"
+import { mergeAnonymousItemsAppSession } from "@lib/db-items/services/items-app"
 
 export const POST = async (request: Request) => {
   const session = await auth()
 
-  if (!session?.user?.notesUserId || session.user.isAnonymous) {
+  if (!session?.user?.itemsUserId || session.user.isAnonymous) {
     return NextResponse.json(
       { error: "Must be authenticated as a real (non-anonymous) user." },
       { status: 401 },
@@ -35,9 +35,9 @@ export const POST = async (request: Request) => {
   }
 
   try {
-    const result = await mergeAnonymousNotesAppSession({
+    const result = await mergeAnonymousItemsAppSession({
       anonUserId: verified.anonUserId,
-      realUserId: session.user.notesUserId,
+      realUserId: session.user.itemsUserId,
     })
     return NextResponse.json(result)
   } catch (error) {
