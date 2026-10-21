@@ -5,6 +5,8 @@ set -euo pipefail
 # load row data from a data-only SQL file produced by items-backup-data.sh.
 # Uses DB_ITEMS_URL. Only named tables are truncated; other tables are untouched.
 # Run items-restore-schema.sh first so tables exist with the expected schema.
+# Truncation and loading are atomic. Foreign keys to unselected tables cause
+# failure instead of silently cascading into those tables.
 #
 # Usage:
 #   export DB_ITEMS_URL='postgresql://...'
@@ -81,6 +83,7 @@ for _t in "${tables[@]}"; do
   fi
 done
 
+items_db_require_dump_tables data "$backup_file" "${tables[@]}"
 items_db_require_url
 items_db_resolve_clients
 
@@ -112,15 +115,13 @@ trap 'rm -f "$truncate_sql"' EXIT
       printf ', '
     fi
     comma=1
-    printf 'public.%s' "$t"
+    printf 'public."%s"' "$t"
   done
-  printf ' RESTART IDENTITY CASCADE;\n'
+  printf ' RESTART IDENTITY;\n'
 } >"$truncate_sql"
 
-# shellcheck disable=SC2094
-{
-  cat "$truncate_sql"
-  cat "$backup_file"
-} | "${CURSOR_POSTGRES_PSQL}" "$DB_ITEMS_URL" -v ON_ERROR_STOP=1 -f -
+# Finish reading the dump before opening the destructive transaction.
+cat "$backup_file" >>"$truncate_sql"
+"${CURSOR_POSTGRES_PSQL}" "$DB_ITEMS_URL" -X --single-transaction -v ON_ERROR_STOP=1 -f "$truncate_sql"
 
 echo "Data restore complete for tables: ${tables[*]}" >&2

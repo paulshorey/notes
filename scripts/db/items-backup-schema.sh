@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Dump DDL only (no data) for selected public tables into a local SQL file.
 # Uses DB_ITEMS_URL. Does not dump the whole database — only named tables
-# (default: all Notes app tables in ITEMS_DB_DEFAULT_TABLES — see common.sh).
+# (default: all item-service tables in ITEMS_DB_DEFAULT_TABLES — see common.sh).
 #
 # Usage:
 #   export DB_ITEMS_URL='postgresql://...'
@@ -64,9 +64,7 @@ elif [[ $# -ne 0 ]]; then
   exit 1
 fi
 
-default_tables=0
 if [[ ${#tables[@]} -eq 0 ]]; then
-  default_tables=1
   tables=("${ITEMS_DB_DEFAULT_TABLES[@]}")
 fi
 
@@ -93,17 +91,18 @@ dump_args=(
   --schema=public
   --no-owner
   --no-privileges
+  --strict-names
 )
 
 while IFS= read -r -d '' flag; do
   dump_args+=("$flag")
 done < <(items_db_pg_dump_table_flags "${tables[@]}")
-if [[ "$default_tables" -eq 1 ]]; then
-  # Restoring the full app schema must also restore the old-server aliases.
-  for view in user_note_v1 workspace_note_category_v1 workspace_note_status_v1 workspace_note_tag_v1 user_note_category_link_v1 user_note_tag_link_v1; do
+for table in "${tables[@]}"; do
+  view="$(items_db_compatibility_view "$table")"
+  if [[ -n "$view" ]]; then
     dump_args+=("--table=public.${view}")
-  done
-fi
+  fi
+done
 
 tmp_err="$(mktemp)"
 tmp_sql="$(mktemp)"
@@ -112,10 +111,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
+items_db_schema_dependencies "${tables[@]}" >"$tmp_sql"
+
 set +e
 "${CURSOR_POSTGRES_PG_DUMP}" "${dump_args[@]}" 2>"$tmp_err" \
   | items_db_sql_strip_pg_dump_headers \
-  >"$tmp_sql"
+  >>"$tmp_sql"
 dump_status=$?
 set -e
 

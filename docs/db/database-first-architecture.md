@@ -5,14 +5,14 @@ share the same schema truth.
 
 ## Packages
 
-- `@lib/db-items` for `DB_NOTES_URL`
+- `@lib/db-items` for `DB_ITEMS_URL` (`DB_NOTES_URL` remains a deployment fallback)
 
 Each package contains:
 
 - `migrations/` - canonical schema history
 - `schema/current.sql` - generated snapshot
 - `queries/` - language-agnostic SQL contracts
-- `generated/` - derived language outputs (TypeScript, Python, C#, R)
+- `generated/` - derived TypeScript types and JSON contracts/schema metadata
 
 ## Current app usage
 

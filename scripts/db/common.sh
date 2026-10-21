@@ -29,7 +29,7 @@ items_db_resolve_clients() {
   )"
 }
 
-# Default Notes app tables for local schema backup/reset (does not touch other tables).
+# Default item-service tables for local schema backup/reset.
 # Keep in sync with lib/db-items/scripts/verify-contract.mjs expected tables.
 readonly ITEMS_DB_DEFAULT_TABLES=(
   user_v1
@@ -49,7 +49,77 @@ items_db_pg_dump_table_flags() {
   local t
   for t in "$@"; do
     printf '%s\0' "-t"
-    printf '%s\0' "public.${t}"
+    printf '%s\0' "public.\"${t}\""
+  done
+}
+
+# Known dependent views are part of an item table's schema backup. They contain
+# no separate rows and must be dropped/recreated alongside that table.
+items_db_compatibility_view() {
+  case "$1" in
+    workspace_item_v1) printf '%s' user_note_v1 ;;
+    workspace_category_v1) printf '%s' workspace_note_category_v1 ;;
+    workspace_status_v1) printf '%s' workspace_note_status_v1 ;;
+    workspace_tag_v1) printf '%s' workspace_note_tag_v1 ;;
+    item_category_link_v1) printf '%s' user_note_category_link_v1 ;;
+    item_tag_link_v1) printf '%s' user_note_tag_link_v1 ;;
+  esac
+}
+
+# pg_dump --table deliberately omits dependencies outside selected relations.
+# Include the item schema's extension and trigger function when selected tables
+# actually use them, so the dump also restores into an empty database.
+# Callers validate every table name before constructing this SQL list.
+items_db_schema_dependencies() {
+  local table table_list="" separator=""
+  for table in "$@"; do
+    table_list+="${separator}'${table}'"
+    separator=","
+  done
+  "${CURSOR_POSTGRES_PSQL}" "$DB_ITEMS_URL" -X -A -t -v ON_ERROR_STOP=1 <<SQL
+SELECT 'CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;'
+WHERE EXISTS (
+  SELECT 1 FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid
+  JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='public' AND c.relname IN (${table_list})
+    AND NOT a.attisdropped AND a.atttypid=to_regtype('public.vector')
+);
+SELECT pg_get_functiondef(p.oid) FROM pg_proc p
+WHERE p.oid=to_regprocedure('public.apply_row_timestamps_v1()') AND EXISTS (
+  SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+  JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE t.tgfoid=p.oid AND n.nspname='public' AND c.relname IN (${table_list})
+);
+SQL
+}
+
+# These tools restore their own plain pg_dump files. Reject empty, wrong-kind,
+# old-schema, or partial files before dropping/truncating the selected tables.
+items_db_require_dump_tables() {
+  local kind="$1" file="$2" table operation
+  shift 2
+  # EOF is accepted as the end of COPY input, so table headers alone cannot
+  # distinguish a complete dump from a transfer cut off inside its final table.
+  # Recognize the pg_dump footer only outside a terminated COPY data block.
+  if ! LC_ALL=C awk '
+    in_copy { if ($0 == "\\.") in_copy = 0; next }
+    /^COPY public\..* FROM stdin;$/ { in_copy = 1; next }
+    $0 == "-- PostgreSQL database dump complete" { complete = 1 }
+    END { exit !(complete && !in_copy) }
+  ' "$file"; then
+    echo "Invalid ${kind} backup: incomplete pg_dump file (missing completion marker or COPY terminator)." >&2
+    return 1
+  fi
+  if [[ "$kind" == "schema" ]]; then
+    operation="CREATE TABLE"
+  else
+    operation="COPY"
+  fi
+  for table in "$@"; do
+    if ! LC_ALL=C grep -Eq "^${operation} public\\.(\"${table}\"|${table})[[:space:]]*\\(" "$file"; then
+      echo "Invalid ${kind} backup: missing public.${table}; use the matching dump and the same table list." >&2
+      return 1
+    fi
   done
 }
 

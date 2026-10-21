@@ -4,7 +4,8 @@ set -euo pipefail
 # Drop the specified public tables (default: item-service tables), then
 # recreate them from a schema-only SQL file produced by items-backup-schema.sh.
 # Uses DB_ITEMS_URL. Only named tables are dropped; other tables are untouched.
-# CASCADE also removes dependent objects on those tables (e.g. views referencing them).
+# Known compatibility views are restored with their tables. Other external
+# dependencies cause failure; the transaction leaves the target unchanged.
 # Shared trigger function apply_row_timestamps_v1 is replaced via CREATE OR REPLACE when present in the dump.
 #
 # Usage:
@@ -82,6 +83,7 @@ for _t in "${tables[@]}"; do
   fi
 done
 
+items_db_require_dump_tables schema "$backup_file" "${tables[@]}"
 items_db_require_url
 items_db_resolve_clients
 
@@ -90,7 +92,7 @@ if [[ "$assume_yes" -ne 1 ]]; then
     echo "$0: stdin is not a terminal; use -y to confirm non-interactively" >&2
     exit 1
   fi
-  echo "This will DROP these tables (and dependent objects on them) then restore from:" >&2
+  echo "This will DROP these tables and their compatibility views, then restore from:" >&2
   echo "  $backup_file" >&2
   echo "Tables: ${tables[*]}" >&2
   echo "Database: (from DB_ITEMS_URL)" >&2
@@ -106,6 +108,12 @@ trap 'rm -f "$drop_sql"' EXIT
 
 {
   printf '%s\n' "SET client_min_messages = WARNING;"
+  for t in "${tables[@]}"; do
+    view="$(items_db_compatibility_view "$t")"
+    if [[ -n "$view" ]]; then
+      printf 'DROP VIEW IF EXISTS public."%s";\n' "$view"
+    fi
+  done
   printf 'DROP TABLE IF EXISTS '
   comma=0
   for t in "${tables[@]}"; do
@@ -113,15 +121,14 @@ trap 'rm -f "$drop_sql"' EXIT
       printf ', '
     fi
     comma=1
-    printf 'public.%s' "$t"
+    printf 'public."%s"' "$t"
   done
-  printf ' CASCADE;\n'
+  printf ';\n'
 } >"$drop_sql"
 
-# shellcheck disable=SC2094
-{
-  cat "$drop_sql"
-  items_db_sql_apply_row_timestamps_or_replace <"$backup_file"
-} | "${CURSOR_POSTGRES_PSQL}" "$DB_ITEMS_URL" -v ON_ERROR_STOP=1 -f -
+# Prepare the complete input before connecting: a read/transform failure must
+# never send only the destructive prefix to psql.
+items_db_sql_apply_row_timestamps_or_replace <"$backup_file" >>"$drop_sql"
+"${CURSOR_POSTGRES_PSQL}" "$DB_ITEMS_URL" -X --single-transaction -v ON_ERROR_STOP=1 -f "$drop_sql"
 
 echo "Restore complete for tables: ${tables[*]}" >&2

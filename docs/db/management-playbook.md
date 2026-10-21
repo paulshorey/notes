@@ -20,7 +20,7 @@ Never change database structure manually.
 
 Always:
 
-1. add or edit a migration
+1. add a forward migration (never edit an applied migration)
 2. run the migration script
 3. regenerate schema/types
 4. update app code that depends on the changed contract
@@ -99,7 +99,7 @@ request. Before running them from a cloud agent:
 ## Creating a new migration
 
 ```bash
-pnpm --filter @lib/db-items db:migration:new -- add_notes_index
+pnpm --filter @lib/db-items db:migration:new -- add_items_index
 ```
 
 Important:
