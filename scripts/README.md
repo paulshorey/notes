@@ -76,9 +76,13 @@ command back, including its initial drop or truncation. Schema and data restores
 are **separate transactions**: a successful schema restore leaves empty tables
 until the data restore succeeds. Use only the matching SQL files produced by
 these tools; they are not portable JSON imports or a converter for old schemas.
-Before changing the database, the tools also check that the file contains every
-selected table in the appropriate DDL or COPY format. Empty files, mismatched
-schema/data files, old table names, and incomplete table selections are rejected.
+Before changing the database, the tools check for the pg_dump completion marker,
+terminated COPY blocks, and every selected table in the appropriate DDL or COPY
+format. This rejects truncated transfers even when all table headers are present:
+psql otherwise accepts EOF inside COPY as a successful end of data. Empty files,
+mismatched schema/data files, old table names, and incomplete table selections are
+also rejected. These checks detect incomplete dumps; they are not checksums or
+validation of arbitrary edited SQL.
 
 ## Flags and partial copies
 
