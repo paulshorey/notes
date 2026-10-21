@@ -269,3 +269,57 @@ test(
     })
   },
 )
+
+test(
+  "CLI restores reject truncated dumps even when every selected table header is present",
+  { skip: !testDbUrl },
+  async () => {
+    await fixture(async (source, _target, sourceUrl, _targetUrl, folder) => {
+      const { schema, data } = makeBackup(sourceUrl, folder)
+      await source.query(
+        "UPDATE workspace_item_v1 SET description='newer than the backup' WHERE id=61",
+      )
+      await source.query("SELECT setval('public.user_note_v1_id_seq',91000,true)")
+      const before = await dumpRows(source)
+      const dataSql = await readFile(data, "utf8")
+      const copyHeaders = [...dataSql.matchAll(/^COPY public\..* FROM stdin;$/gm)]
+      assert.equal(copyHeaders.length, tables.length)
+      const lastHeader = copyHeaders.at(-1)!
+      // psql accepts EOF as COPY termination, even with no rows or terminator.
+      const truncatedData = join(folder, "truncated-data.sql")
+      await writeFile(
+        truncatedData,
+        dataSql.slice(0, lastHeader.index! + lastHeader[0].length) + "\n",
+      )
+      const dataResult = script("restore-data", sourceUrl, ["-y", truncatedData])
+      assert.notEqual(dataResult.status, 0, "truncated COPY must not commit")
+      assert.match(dataResult.stderr, /Invalid data backup/)
+      assert.deepEqual(await dumpRows(source), before)
+      // A footer-shaped line inside COPY data is not a completion marker.
+      await writeFile(
+        truncatedData,
+        (await readFile(truncatedData, "utf8")) + "-- PostgreSQL database dump complete\n",
+      )
+      const unterminatedResult = script("restore-data", sourceUrl, ["-y", truncatedData])
+      assert.notEqual(unterminatedResult.status, 0)
+      assert.match(unterminatedResult.stderr, /Invalid data backup/)
+      assert.deepEqual(await dumpRows(source), before)
+      assert.equal(
+        (await source.query("SELECT last_value FROM user_note_v1_id_seq")).rows[0]!.last_value,
+        "91000",
+      )
+
+      // Schema input may end at a valid SQL boundary before indexes/constraints.
+      // Even a cut immediately before the dump footer must fail before DROP.
+      const schemaSql = await readFile(schema, "utf8")
+      const footer = "-- PostgreSQL database dump complete"
+      assert.ok(schemaSql.includes(footer))
+      const truncatedSchema = join(folder, "truncated-schema.sql")
+      await writeFile(truncatedSchema, schemaSql.slice(0, schemaSql.lastIndexOf(footer)))
+      const schemaResult = script("restore-schema", sourceUrl, ["-y", truncatedSchema])
+      assert.notEqual(schemaResult.status, 0, "incomplete schema dump must not commit")
+      assert.match(schemaResult.stderr, /Invalid schema backup/)
+      assert.deepEqual(await dumpRows(source), before)
+    })
+  },
+)

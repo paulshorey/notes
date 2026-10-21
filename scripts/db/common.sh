@@ -98,6 +98,18 @@ SQL
 items_db_require_dump_tables() {
   local kind="$1" file="$2" table operation
   shift 2
+  # EOF is accepted as the end of COPY input, so table headers alone cannot
+  # distinguish a complete dump from a transfer cut off inside its final table.
+  # Recognize the pg_dump footer only outside a terminated COPY data block.
+  if ! LC_ALL=C awk '
+    in_copy { if ($0 == "\\.") in_copy = 0; next }
+    /^COPY public\..* FROM stdin;$/ { in_copy = 1; next }
+    $0 == "-- PostgreSQL database dump complete" { complete = 1 }
+    END { exit !(complete && !in_copy) }
+  ' "$file"; then
+    echo "Invalid ${kind} backup: incomplete pg_dump file (missing completion marker or COPY terminator)." >&2
+    return 1
+  fi
   if [[ "$kind" == "schema" ]]; then
     operation="CREATE TABLE"
   else
