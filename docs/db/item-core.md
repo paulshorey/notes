@@ -81,6 +81,13 @@ or their support window has ended. Removing compatibility is not part of this PR
 
 ## Verification
 
+Administrative SQL backups use the canonical table list in `scripts/db/common.sh`.
+They include owned sequence values, item compatibility views, and required vector
+and timestamp-function dependencies. Each restore command is transactional and
+refuses to cascade into unselected tables. Schema and data files are separate
+steps; see [the backup runbook](../../scripts/README.md) for the exact guarantees.
+Portable user backups remain the separately versioned JSON format described above.
+
 Run `pnpm run db:migrate` and `pnpm run db:verify` against an isolated database,
 `DB_ITEMS_TEST_URL=... pnpm --filter @lib/db-items test`, and
 `pnpm run release:notes:prepare`. Keep generated artifacts committed.

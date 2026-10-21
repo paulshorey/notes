@@ -1,2 +1,2 @@
-# Local schema/data dumps from notes-backup-schema.sh and notes-backup-data.sh
+# Local schema/data dumps from items-backup-schema.sh and items-backup-data.sh
 *.sql

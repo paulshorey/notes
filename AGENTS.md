@@ -15,7 +15,7 @@ Goal is to expand this to be much more than a simple note app. It will be a pers
 ### Libraries
 
 - `lib/config` - shared tooling and config
-- `lib/db-items` - Notes database schema, migrations, generated contracts, and shared Notes service logic
+- `lib/db-items` - item database schema, migrations, generated contracts, and shared item service logic
 - `lib/atomic-editor` - fork of `@atomic-editor/editor`, tracked as a git subtree (see below)
 
 ## atomic-editor package (git subtree)

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Dump data only (no DDL) for selected public tables into a local SQL file.
 # Uses DB_ITEMS_URL. Does not dump the whole database — only named tables
-# (default: all Notes app tables in ITEMS_DB_DEFAULT_TABLES — see common.sh).
+# (default: all item-service tables in ITEMS_DB_DEFAULT_TABLES — see common.sh).
 #
 # Usage:
 #   export DB_ITEMS_URL='postgresql://...'
@@ -91,6 +91,7 @@ dump_args=(
   --schema=public
   --no-owner
   --no-privileges
+  --strict-names
 )
 
 while IFS= read -r -d '' flag; do

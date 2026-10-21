@@ -404,7 +404,7 @@ export function ResultsColumn({
                       : "No search results."
                   }
                   onEdit={handleResultEdit}
-                  renderAction={(item) => renderItemRowAction(item, `search-note-${item.id}`)}
+                  renderAction={(item) => renderItemRowAction(item, `search-item-${item.id}`)}
                 />
               </div>
             )}
@@ -438,7 +438,7 @@ export function ResultsColumn({
                 const selected = category
                   ? activeCategoryIds.includes(category.id)
                   : activeCategoryIds.length === 0
-                const panelId = category ? `category-notes-${category.id}` : "uncategorized-notes"
+                const panelId = category ? `category-items-${category.id}` : "uncategorized-items"
                 return (
                   <div className={styles.categoryGroup} key={key} role="listitem">
                     <div className={styles.categoryRow}>
@@ -488,7 +488,7 @@ export function ResultsColumn({
                           emptyMessage=""
                           onEdit={handleResultEdit}
                           renderAction={(item) =>
-                            renderItemRowAction(item, `${key}-note-${item.id}`)
+                            renderItemRowAction(item, `${key}-item-${item.id}`)
                           }
                         />
                       </ScrollableItemsPanel>
@@ -516,7 +516,7 @@ export function ResultsColumn({
               <>
                 {statusItemGroups.map(({ status, items }) => {
                   const expanded = expandedStatusIds.includes(status.id)
-                  const panelId = `status-notes-${status.id}`
+                  const panelId = `status-items-${status.id}`
                   return (
                     <div className={styles.categoryGroup} key={status.id} role="listitem">
                       <div className={styles.categoryRow}>
@@ -541,7 +541,7 @@ export function ResultsColumn({
                             emptyMessage=""
                             onEdit={handleResultEdit}
                             renderAction={(item) =>
-                              renderItemRowAction(item, `status-${status.id}-note-${item.id}`)
+                              renderItemRowAction(item, `status-${status.id}-item-${item.id}`)
                             }
                           />
                         </ScrollableItemsPanel>
@@ -564,14 +564,14 @@ export function ResultsColumn({
                         label="No status"
                         selected={activeStatusId === null}
                         expanded={noStatusExpanded}
-                        panelId="no-status-notes"
+                        panelId="no-status-items"
                         onToggle={() => setNoStatusExpanded((value) => !value)}
                       >
                         <span />
                       </SectionTitle>
                     </div>
                     {noStatusExpanded && (
-                      <ScrollableItemsPanel id="no-status-notes">
+                      <ScrollableItemsPanel id="no-status-items">
                         <ItemResultsList
                           items={noStatusItems}
                           activeItemId={activeItemId}
@@ -580,7 +580,7 @@ export function ResultsColumn({
                           emptyMessage=""
                           onEdit={handleResultEdit}
                           renderAction={(item) =>
-                            renderItemRowAction(item, `no-status-note-${item.id}`)
+                            renderItemRowAction(item, `no-status-item-${item.id}`)
                           }
                         />
                       </ScrollableItemsPanel>
@@ -608,7 +608,7 @@ export function ResultsColumn({
               <>
                 {tagItemGroups.map(({ tag, items }) => {
                   const expanded = expandedTagIds.includes(tag.id)
-                  const panelId = `tag-notes-${tag.id}`
+                  const panelId = `tag-items-${tag.id}`
                   const deleteDisabled = tag.id === fallbackTagId
 
                   return (
@@ -654,7 +654,7 @@ export function ResultsColumn({
                             emptyMessage=""
                             onEdit={handleResultEdit}
                             renderAction={(item) =>
-                              renderItemRowAction(item, `tag-${tag.id}-note-${item.id}`, tag.id)
+                              renderItemRowAction(item, `tag-${tag.id}-item-${item.id}`, tag.id)
                             }
                           />
                         </ScrollableItemsPanel>

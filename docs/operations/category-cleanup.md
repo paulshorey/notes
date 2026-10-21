@@ -91,7 +91,8 @@ migrations are not edited or replayed.
 
 Use isolated local databases for `db:migrate`, `db:verify`, and DB-backed tests.
 The repository's normal `.env` may point at Railway, so explicitly override both
-`DB_NOTES_URL` and `DB_NOTES_TEST_URL` with the intended local targets. The database
+`DB_ITEMS_URL` and `DB_ITEMS_TEST_URL` with the intended local targets
+(the legacy `DB_NOTES_*` names remain supported fallbacks). The database
 suite covers empty-category saves and deletion, backup conversion, and migration
 preservation. Whitespace regression tests run the actual original/corrective SQL
 both as a fresh chain and as an upgrade to the original constraint; they check

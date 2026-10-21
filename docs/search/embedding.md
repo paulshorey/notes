@@ -14,9 +14,9 @@ ranks notes by cosine similarity between the query vector and stored vectors.
 
 Embeddings are stored on three entity types:
 
-| Entity   | Table                        | Embedded text | Column                  |
-| -------- | ---------------------------- | ------------- | ----------------------- |
-| Note     | `workspace_item_v1`               | `description` | `description_embedding` |
+| Entity   | Table                   | Embedded text | Column                  |
+| -------- | ----------------------- | ------------- | ----------------------- |
+| Note     | `workspace_item_v1`     | `description` | `description_embedding` |
 | Category | `workspace_category_v1` | `label`       | `category_embedding`    |
 | Tag      | `workspace_tag_v1`      | `label`       | `tag_embedding`         |
 
@@ -228,7 +228,7 @@ user. `limit` accepts 1–500 (default 100).
 embeddings outside the app:
 
 ```bash
-DB_NOTES_URL=… JINA_API_KEY=… node lib/db-items/scripts/regenerate-embeddings.mjs [--user <id>] [--dry-run] [--batch-size <n>]
+DB_ITEMS_URL=… JINA_API_KEY=… node lib/db-items/scripts/regenerate-embeddings.mjs [--user <id>] [--dry-run] [--batch-size <n>]
 ```
 
 Keep this script in sync with `services/item-embeddings.ts` when changing
@@ -308,7 +308,7 @@ The app can also trigger embedding maintenance from the UI.
 | Variable       | Required          | Purpose                                             |
 | -------------- | ----------------- | --------------------------------------------------- |
 | `JINA_API_KEY` | Yes               | Jina AI API authentication                          |
-| `DB_NOTES_URL` | Yes (script only) | Postgres connection for `regenerate-embeddings.mjs` |
+| `DB_ITEMS_URL` | Yes (script only) | Postgres connection for `regenerate-embeddings.mjs` |
 
 If `JINA_API_KEY` is missing, search and note/taxonomy writes that require
 embedding return a 500 with "JINA_API_KEY environment variable not set."
@@ -338,14 +338,14 @@ embedding return a 500 with "JINA_API_KEY environment variable not set."
 
 | Path                                                                | Role                                                        |
 | ------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `lib/db-items/services/item-embeddings.ts`                         | Jina API calls, text normalization, vector generation       |
+| `lib/db-items/services/item-embeddings.ts`                          | Jina API calls, text normalization, vector generation       |
 | `lib/db-items/services/items-app.ts`                                | Orchestrates embed-then-write for CRUD, search, maintenance |
 | `lib/db-items/sql/item/gets.ts`                                     | Search SQL with pgvector `<=>` ranking                      |
 | `lib/db-items/sql/item/add.ts`                                      | INSERT with `description_embedding`                         |
 | `lib/db-items/sql/item/update.ts`                                   | UPDATE with embeddings, backfill UPDATE                     |
 | `lib/db-items/sql/category.ts`                                      | Category embedding backfill queries                         |
 | `lib/db-items/sql/tag.ts`                                           | Tag embedding backfill queries                              |
-| `lib/db-items/item-search-constants.ts`                            | `NOTES_APP_SEARCH_MAX_RESULTS` (20)                         |
+| `lib/db-items/item-search-constants.ts`                             | `NOTES_APP_SEARCH_MAX_RESULTS` (20)                         |
 | `lib/db-items/migrations/202603151000__note_embeddings.sql`         | `CREATE EXTENSION vector`, initial indexes                  |
 | `lib/db-items/migrations/202604081200__jina_embeddings_v5_1024.sql` | Jina v5 / 1024-dim migration                                |
 | `lib/db-items/scripts/regenerate-embeddings.mjs`                    | Bulk offline regeneration                                   |
