@@ -445,7 +445,7 @@ export const createCategoriesRouteHandlers = (
 
       return itemJson(request, result)
     } catch (error) {
-      return toErrorResponse(error)
+      return toErrorResponse(error, service.getItemsAppErrorStatus(error))
     }
   },
 })

@@ -189,14 +189,13 @@ const actions: {
       throw new Error("Uncategorized items can only be deleted or assigned to a category.")
     if (action.deleteItems) {
       await deleteItemsForUserWithClient(client, userId, ids, selection.workspaceId)
-    } else {
-      await touchItems(client, ids)
     }
     if (state.category)
       await client.query(
         `DELETE FROM public.workspace_category_v1 WHERE workspace_id=$1 AND id=$2`,
         [selection.workspaceId, state.category.id],
       )
+    if (!action.deleteItems) await touchItems(client, ids)
     return {
       categoryId: null,
       removedCategoryId: state.category?.id ?? null,
