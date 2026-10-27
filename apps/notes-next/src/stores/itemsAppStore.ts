@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type { ItemRecord } from "@lib/db-items"
+import type { ItemGroupTarget } from "@lib/db-items/contracts/item-group-actions"
 import type { TextCaptureFormState, ItemSaveStatus } from "@/types/items"
 import {
   activate as activateEntryIn,
@@ -21,6 +22,7 @@ import {
 } from "./openItems"
 
 type State = OpenItemsState & {
+  itemGroupDialog: { target: ItemGroupTarget; intent: "rename" | "delete"; label: string } | null
   backupOperation: "download" | "restore" | null
   /**
    * Whether the navigation drawer is open on mobile/tablet. Desktop keeps
@@ -45,6 +47,7 @@ type State = OpenItemsState & {
 }
 
 type Actions = {
+  setItemGroupDialog: (dialog: State["itemGroupDialog"]) => void
   setBackupOperation: (operation: "download" | "restore" | null) => void
   resetDefaultState: () => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
@@ -77,6 +80,7 @@ type Actions = {
 export type ItemsAppStore = State & Actions
 
 const defaultState: State = {
+  itemGroupDialog: null,
   backupOperation: null,
   ...createEmptyOpenItemsState(),
   resultsListVisible: true,
@@ -94,6 +98,7 @@ const openItemsSlice = (state: State): OpenItemsState => ({
 
 export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
   ...defaultState,
+  setItemGroupDialog: (itemGroupDialog) => set({ itemGroupDialog }),
   setBackupOperation: (backupOperation) => set({ backupOperation }),
   resetDefaultState: () => {
     set({ ...defaultState, ...createEmptyOpenItemsState() })

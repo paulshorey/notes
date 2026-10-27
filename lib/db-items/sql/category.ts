@@ -1,29 +1,17 @@
-import type { CategoryRecord } from "../contracts/items-app"
 import { getDb } from "../lib/db/postgres"
 import { CURRENT_ITEM_EMBEDDING_MODEL } from "../services/item-embeddings"
+import {
+  mapCategory as map,
+  categorySelect as select,
+  type CategoryRow as Row,
+} from "./category-shared"
+import { executeItemGroupAction } from "./item-groups"
+import { ItemGroupNotFoundError } from "./item-group-errors"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
 export interface CategoryEmbeddingBackfillRow {
   id: number
   label: string
 }
-interface Row {
-  id: number
-  workspace_id: number
-  label: string
-  item_count: number | string | null
-  last_used_at: Date | string | null
-}
-const map = (r: Row): CategoryRecord => ({
-  id: r.id,
-  workspaceId: r.workspace_id,
-  label: r.label,
-  itemCount: Number(r.item_count ?? 0),
-  lastUsedAt: r.last_used_at ? new Date(r.last_used_at).toISOString() : null,
-})
-const select = `SELECT c.id,c.workspace_id,c.label,
-  (SELECT COUNT(*)::int FROM public.item_category_link_v1 l WHERE l.category_id=c.id) item_count,
-  (SELECT MAX(n.time_modified) FROM public.item_category_link_v1 l JOIN public.workspace_item_v1 n ON n.id=l.item_id WHERE l.category_id=c.id) last_used_at
-  FROM public.workspace_category_v1 c`
 export const listCategoriesByWorkspace = async (userId: number, workspaceId: number) => {
   const { rows } = await getDb().query<Row>(
     `${select} JOIN public.user_workspace_v1 w ON w.id=c.workspace_id
@@ -83,23 +71,34 @@ export const updateCategoryLabelForWorkspace = async (
   model: string | null,
 ) => {
   assertCategoryNameAllowed(label)
-  const { rows } = await getDb().query<Row>(
-    `UPDATE public.workspace_category_v1 c SET label=$4,category_embedding=$5::vector,embedding_model=$6,embedding_updated_at=CASE WHEN $6::text IS NULL THEN NULL ELSE now() END
-    FROM public.user_workspace_v1 w WHERE c.id=$3 AND c.workspace_id=$2 AND w.id=$2 AND w.user_id=$1
-    RETURNING c.id,c.workspace_id,c.label,0::int item_count,NULL::timestamptz last_used_at`,
-    [userId, workspaceId, id, label, embedding, model],
-  )
-  return rows[0] ? getCategoryByIdForWorkspace(userId, workspaceId, id) : null
+  try {
+    const result = await executeItemGroupAction(
+      userId,
+      { workspaceId, target: { kind: "category", categoryId: id } },
+      { kind: "rename", label },
+      undefined,
+      { vectorLiteral: embedding, embeddingModel: model },
+    )
+    return result.category
+  } catch (error) {
+    if (error instanceof ItemGroupNotFoundError) return null
+    throw error
+  }
 }
 export const deleteCategoryForWorkspace = async (
   userId: number,
   workspaceId: number,
   id: number,
 ) => {
-  const result = await getDb().query(
-    `DELETE FROM public.workspace_category_v1 c USING public.user_workspace_v1 w
-    WHERE c.id=$3 AND c.workspace_id=$2 AND w.id=$2 AND w.user_id=$1`,
-    [userId, workspaceId, id],
-  )
-  return result.rowCount === 1
+  try {
+    await executeItemGroupAction(
+      userId,
+      { workspaceId, target: { kind: "category", categoryId: id } },
+      { kind: "delete", deleteItems: false },
+    )
+    return true
+  } catch (error) {
+    if (error instanceof ItemGroupNotFoundError) return false
+    throw error
+  }
 }

@@ -50,8 +50,7 @@ src/                        — non-route code (import with "@/..." alias)
       ItemResultsList.tsx
       TextCaptureForm.tsx
       modals/
-        EditCategoryModal.tsx
-        DeleteCategoryModal.tsx
+        ItemGroupActionModal.tsx
         EditTagModal.tsx
         DeleteTagModal.tsx
     ui/
@@ -97,6 +96,17 @@ computed `uncategorized` group. Sort every group by its newest visible note's
 building groups. Never append `uncategorized` after sorting. Stable group keys
 preserve expansion and note actions when saved edits reorder the list. Hide the
 computed group when empty, and keep empty real categories after groups with notes.
+
+Category and uncategorized group menus use `ItemGroupActionModal` and the shared
+`/api/item-groups` preview/action API. Group actions cover the whole workspace
+group, independent of tag/search filters, including non-text items disclosed in
+the server preview. Uncategorized rename assigns its current members to a new or
+existing category; it never changes future capture defaults. Regular deletion
+offers keep-items (preserve other memberships) or permanent deletion everywhere.
+Opening the dialog pauses autosave/exit PATCHes, settles saved entries before
+preview, and excludes unsaved drafts. Apply the committed response to entries and
+caches before refreshing; deleted entries must never become detached saves.
+A conflict or uncertain response requires a fresh preview and confirmation.
 
 The local server-data snapshot may paint immediately for a returning user, but a failed refresh must not clear workspace-scoped open-note storage or other draft state. A first visit with no usable snapshot must finish in a visible, retryable error state; startup must never retry automatically in a loop.
 

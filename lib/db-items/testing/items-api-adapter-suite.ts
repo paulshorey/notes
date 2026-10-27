@@ -99,6 +99,20 @@ const authHeaders = { Authorization: `Bearer ${sampleApiToken}` }
 export const createFakeItemsAppService = (
   overrides: Partial<ItemsAppService> = {},
 ): ItemsAppService => ({
+  previewItemGroupForItemsApp: async () => ({
+    snapshot: "a".repeat(64),
+    label: "work",
+    itemIds: [41],
+    itemCount: 1,
+    textItemCount: 1,
+    sharedItemCount: 0,
+  }),
+  executeItemGroupActionForItemsApp: async () => ({
+    items: [],
+    deletedItemIds: [],
+    category: null,
+    removedCategoryId: null,
+  }),
   exportUserBackup: async () => {
     throw new Error("Backup not configured in this test.")
   },

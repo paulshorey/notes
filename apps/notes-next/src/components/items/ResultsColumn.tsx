@@ -92,14 +92,12 @@ interface ResultsColumnProps {
   activeCategoryIds: number[]
   activeTagIds: number[]
   onEditItem: (item: ItemRecord) => void
-  onAddItemForCategory: (category: CategoryRecord) => void
+  onAddItemForCategory: (category: CategoryRecord | null) => void
   onAddItemForTag: (tag: TagRecord) => void
   onMoveItemCategory: (item: ItemRecord, categoryLabel: string) => void | Promise<void>
   onMoveItemTag: (item: ItemRecord, fromTagId: number, tagLabel: string) => void | Promise<void>
   onDeleteItem: (itemId: number) => void
   deletingItemId: number | null
-  onEditCategory: (category: CategoryRecord) => void
-  onDeleteCategory: (category: CategoryRecord) => void
   onEditTag: (tag: TagRecord) => void
   onDeleteTag: (tag: TagRecord) => void
 }
@@ -133,11 +131,10 @@ export function ResultsColumn({
   onMoveItemTag,
   onDeleteItem,
   deletingItemId,
-  onEditCategory,
-  onDeleteCategory,
   onEditTag,
   onDeleteTag,
 }: ResultsColumnProps) {
+  const setItemGroupDialog = useItemsAppStore((state) => state.setItemGroupDialog)
   const [expandedSection, setExpandedSection] = useState<ResultsAccordionId>("categories")
   const searchQuery = useItemsAppStore((state) => state.searchQuery)
   const setSearchQuery = useItemsAppStore((state) => state.setSearchQuery)
@@ -433,6 +430,9 @@ export function ResultsColumn({
               categoryItemGroups.map((group) => {
                 const { items } = group
                 const category = group.kind === "category" ? group.category : null
+                const target = category
+                  ? { kind: "category" as const, categoryId: category.id }
+                  : { kind: "uncategorized" as const }
                 const key = category ? `category-${category.id}` : "uncategorized"
                 const expanded = category ? isCategoryExpanded(category.id) : uncategorizedExpanded
                 const selected = category
@@ -451,31 +451,40 @@ export function ResultsColumn({
                         panelId={panelId}
                         onToggle={() => toggleCategoryGroup(group)}
                       >
-                        {category ? (
-                          <>
-                            <SectionAddItemButton
-                              label={`Add note in ${category.label}`}
-                              active={expanded}
-                              selected={selected}
-                              onClick={() => {
-                                setExpandedCategoryIds((current) =>
-                                  addUniqueIds(current, [category.id]),
-                                )
-                                onAddItemForCategory(category)
-                              }}
-                            />
-                            <SectionActionMenu
-                              id={`category-${category.id}`}
-                              label={category.label}
-                              openActionMenuId={openActionMenuId}
-                              onOpenActionMenuChange={setOpenActionMenuId}
-                              onEdit={() => onEditCategory(category)}
-                              onDelete={() => onDeleteCategory(category)}
-                            />
-                          </>
-                        ) : (
-                          <span />
-                        )}
+                        <SectionAddItemButton
+                          label={`Add note in ${category?.label ?? UNCATEGORIZED_LABEL}`}
+                          active={expanded}
+                          selected={selected}
+                          onClick={() => {
+                            if (category)
+                              setExpandedCategoryIds((current) =>
+                                addUniqueIds(current, [category.id]),
+                              )
+                            else setUncategorizedExpanded(true)
+                            onAddItemForCategory(category)
+                          }}
+                        />
+                        <SectionActionMenu
+                          id={key}
+                          label={category?.label ?? UNCATEGORIZED_LABEL}
+                          editLabel="Rename"
+                          openActionMenuId={openActionMenuId}
+                          onOpenActionMenuChange={setOpenActionMenuId}
+                          onEdit={() =>
+                            setItemGroupDialog({
+                              target,
+                              label: category?.label ?? UNCATEGORIZED_LABEL,
+                              intent: "rename",
+                            })
+                          }
+                          onDelete={() =>
+                            setItemGroupDialog({
+                              target,
+                              label: category?.label ?? UNCATEGORIZED_LABEL,
+                              intent: "delete",
+                            })
+                          }
+                        />
                       </SectionTitle>
                     </div>
                     {expanded && items.length > 0 && (
@@ -879,6 +888,7 @@ interface SectionActionMenuProps {
   onDelete: () => void
   deleteDisabled?: boolean
   deleteTitle?: string
+  editLabel?: string
 }
 
 function SectionActionMenu({
@@ -890,6 +900,7 @@ function SectionActionMenu({
   onDelete,
   deleteDisabled = false,
   deleteTitle,
+  editLabel = "Edit",
 }: SectionActionMenuProps) {
   const open = openActionMenuId === id
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -932,7 +943,7 @@ function SectionActionMenu({
             }}
           >
             <PencilSimple size={14} weight="regular" />
-            <span>Edit</span>
+            <span>{editLabel}</span>
           </button>
           <button
             type="button"

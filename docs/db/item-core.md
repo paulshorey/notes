@@ -19,6 +19,10 @@ tag link tables now reference `item_id`. Composite foreign keys still reject
 cross-workspace relationships. `description` remains nullable in this first step.
 `isTextItem` is the explicit selection rule for the current note client.
 
+Category and uncategorized navigation groups share transactional bulk actions.
+See [item group actions](item-group-actions.md) for selection, rename/deletion,
+preview conflict handling, and client coordination.
+
 This change does not introduce exclusive item types, split text into a companion
 table, add UUIDs/revision checks, change scheduling, or implement attachments,
 money, contacts, tasks, project management, or agent workflows. Those are separate
