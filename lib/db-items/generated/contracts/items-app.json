@@ -1645,6 +1645,254 @@
           "nullable": false
         }
       ]
+    },
+    "CategoryItemGroupTarget": {
+      "fields": [
+        {
+          "name": "kind",
+          "optional": false,
+          "kind": "literal",
+          "value": "category",
+          "nullable": false
+        },
+        {
+          "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "UncategorizedItemGroupTarget": {
+      "fields": [
+        {
+          "name": "kind",
+          "optional": false,
+          "kind": "literal",
+          "value": "uncategorized",
+          "nullable": false
+        }
+      ]
+    },
+    "ItemGroupSelection": {
+      "fields": [
+        {
+          "name": "workspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "target",
+          "optional": false,
+          "kind": "model",
+          "type": "ItemGroupTarget",
+          "nullable": false
+        }
+      ]
+    },
+    "RenameItemGroupAction": {
+      "fields": [
+        {
+          "name": "kind",
+          "optional": false,
+          "kind": "literal",
+          "value": "rename",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "DeleteItemGroupAction": {
+      "fields": [
+        {
+          "name": "kind",
+          "optional": false,
+          "kind": "literal",
+          "value": "delete",
+          "nullable": false
+        },
+        {
+          "name": "deleteItems",
+          "optional": false,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
+        }
+      ]
+    },
+    "PreviewItemGroupRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "selection",
+          "optional": false,
+          "kind": "model",
+          "type": "ItemGroupSelection",
+          "nullable": false
+        }
+      ]
+    },
+    "ExecuteItemGroupActionRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "selection",
+          "optional": false,
+          "kind": "model",
+          "type": "ItemGroupSelection",
+          "nullable": false
+        },
+        {
+          "name": "action",
+          "optional": false,
+          "kind": "model",
+          "type": "ItemGroupAction",
+          "nullable": false
+        },
+        {
+          "name": "snapshot",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "ItemGroupPreview": {
+      "fields": [
+        {
+          "name": "snapshot",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "itemIds",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "scalar",
+            "type": "number"
+          },
+          "nullable": false
+        },
+        {
+          "name": "itemCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "textItemCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "sharedItemCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "ItemGroupActionResponse": {
+      "fields": [
+        {
+          "name": "items",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "ItemRecord"
+          },
+          "nullable": false
+        },
+        {
+          "name": "deletedItemIds",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "scalar",
+            "type": "number"
+          },
+          "nullable": false
+        },
+        {
+          "name": "category",
+          "optional": false,
+          "kind": "model",
+          "type": "CategoryRecord",
+          "nullable": true
+        },
+        {
+          "name": "removedCategoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        }
+      ]
+    },
+    "ItemGroupTarget": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "model",
+          "type": "CategoryItemGroupTarget"
+        },
+        {
+          "kind": "model",
+          "type": "UncategorizedItemGroupTarget"
+        }
+      ],
+      "nullable": false
+    },
+    "ItemGroupAction": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "model",
+          "type": "RenameItemGroupAction"
+        },
+        {
+          "kind": "model",
+          "type": "DeleteItemGroupAction"
+        }
+      ],
+      "nullable": false
     }
   }
 }

@@ -6,7 +6,6 @@ import type {
   CategoriesResponse,
   CategoryRecord,
   CreateCategoryResponse,
-  DeleteCategoryResponse,
   TagsResponse,
   TagRecord,
   CreateTagResponse,
@@ -16,7 +15,6 @@ import type {
   ItemRecord,
   SearchResponse,
   SessionResponse,
-  UpdateCategoryResponse,
   UpdateTagResponse,
   UserPreferences,
   UserSummary,
@@ -26,6 +24,8 @@ import type {
 } from "@lib/db-items"
 import type { RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
+import type { ItemGroupActionResponse } from "@lib/db-items/contracts/item-group-actions"
+import { applyItemGroupResult } from "@/lib/itemGroupActions"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
 import {
   type CSSProperties,
@@ -98,9 +98,8 @@ import {
 } from "@/lib/itemGroups"
 import { WorkspaceHeader, type SignupFields } from "./WorkspaceHeader"
 import { ResultsColumn, type StatusItemGroup, type TagItemGroup } from "./ResultsColumn"
-import { DeleteCategoryModal } from "./modals/DeleteCategoryModal"
+import { ItemGroupActionModal } from "./modals/ItemGroupActionModal"
 import { DeleteTagModal } from "./modals/DeleteTagModal"
-import { EditCategoryModal } from "./modals/EditCategoryModal"
 import { EditTagModal } from "./modals/EditTagModal"
 import styles from "./ItemsApp.module.css"
 
@@ -386,6 +385,7 @@ export default function ItemsApp() {
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const backupOperation = useItemsAppStore((s) => s.backupOperation)
+  const itemGroupDialog = useItemsAppStore((s) => s.itemGroupDialog)
   const [user, setUser] = useState<UserSummary | null>(null)
   const [userPreferences, setUserPreferences] = useState<UserPreferences>({})
   const [items, setItems] = useState<ItemRecord[]>([])
@@ -438,11 +438,6 @@ export default function ItemsApp() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [searchErrorMessage, setSearchErrorMessage] = useState<string | null>(null)
-  const [editingCategory, setEditingCategory] = useState<CategoryRecord | null>(null)
-  const [editCategoryLabel, setEditCategoryLabel] = useState("")
-  const [editCategoryPending, setEditCategoryPending] = useState(false)
-  const [deletingCategory, setDeletingCategory] = useState<CategoryRecord | null>(null)
-  const [deleteCategoryPending, setDeleteCategoryPending] = useState(false)
   const [editingTag, setEditingTag] = useState<TagRecord | null>(null)
   const [editTagLabel, setEditTagLabel] = useState("")
   const [editTagPending, setEditTagPending] = useState(false)
@@ -464,6 +459,7 @@ export default function ItemsApp() {
   // second save of the *same* note still queues behind the first.
   const saveInFlightRef = useRef(new Map<OpenItemKey, Promise<void>>())
   const queuedAutosaveKeysRef = useRef(new Set<OpenItemKey>())
+  const groupDeferredSaveKeysRef = useRef(new Set<OpenItemKey>())
   // Entries that left the ring while dirty. Their request still has to land,
   // and the exit keepalive has to know about them.
   const detachedSavesRef = useRef(new Map<OpenItemKey, DetachedSave>())
@@ -1670,6 +1666,10 @@ export default function ItemsApp() {
    */
   const saveEntry = useCallback(
     async function saveEntry(key: OpenItemKey, mode: ItemSaveMode): Promise<boolean> {
+      if (mode !== "flush" && useItemsAppStore.getState().itemGroupDialog) {
+        if (mode === "detached") groupDeferredSaveKeysRef.current.add(key)
+        return false
+      }
       const currentUser = userRef.current
       const workspaceId = activeWorkspaceIdRef.current
       // No session to save into. Not a failure the caller can act on, but not
@@ -1835,9 +1835,16 @@ export default function ItemsApp() {
 
   flushAllPendingSavesRef.current = flushAllPendingSaves
 
+  useEffect(() => {
+    if (itemGroupDialog !== null) return
+    const deferred = [...groupDeferredSaveKeysRef.current]
+    groupDeferredSaveKeysRef.current.clear()
+    for (const key of deferred) void saveEntry(key, "detached")
+  }, [itemGroupDialog, saveEntry])
+
   useOpenItemsAutosave({
     entries: openItems,
-    enabled: Boolean(user),
+    enabled: Boolean(user) && itemGroupDialog === null,
     saveEntry,
   })
 
@@ -1872,6 +1879,7 @@ export default function ItemsApp() {
       if (!currentUser || workspaceId === null) return
 
       persistOpenItemsRef.current()
+      if (useItemsAppStore.getState().itemGroupDialog) return
 
       const store = useItemsAppStore.getState()
       const pending = collectExitFlushItems(
@@ -2564,9 +2572,12 @@ export default function ItemsApp() {
     closeIfDrawer()
   }
 
-  const handleAddItemForCategory = (category: CategoryRecord) => {
+  const handleAddItemForCategory = (category: CategoryRecord | null) => {
     clearMessages()
-    openDraftEntry({ categoryIds: [category.id], categoryLabel: category.label })
+    openDraftEntry({
+      categoryIds: category ? [category.id] : [],
+      categoryLabel: category?.label ?? "",
+    })
     closeIfDrawer()
   }
 
@@ -2914,97 +2925,96 @@ export default function ItemsApp() {
     }
   }
 
-  const openEditCategory = (category: CategoryRecord) => {
-    clearMessages()
-    setEditingCategory(category)
-    setEditCategoryLabel(category.label)
-  }
-
-  const closeEditCategory = () => {
-    setEditingCategory(null)
-    setEditCategoryLabel("")
-  }
-
-  const handleSaveCategory = async () => {
-    if (!user || !editingCategory) return
-    const label = editCategoryLabel.trim()
-    const nameError = getCategoryNameError(label)
-    if (nameError) {
-      setErrorMessage(nameError)
-      return
+  const prepareItemGroupAction = useCallback(async () => {
+    const userId = userRef.current?.id
+    const workspaceId = activeWorkspaceIdRef.current
+    if (taxonomyRefreshTimeoutRef.current !== null) {
+      window.clearTimeout(taxonomyRefreshTimeoutRef.current)
+      taxonomyRefreshTimeoutRef.current = null
     }
-    if (label === "" || label === editingCategory.label) {
-      closeEditCategory()
-      return
-    }
-    clearMessages()
-    setEditCategoryPending(true)
-    try {
-      const response = await itemsFetch("/api/categories", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          workspaceId: activeWorkspaceId,
-          categoryId: editingCategory.id,
-          label,
-        }),
-      })
-      const data = await readJson<UpdateCategoryResponse>(response)
-      setCategories((prev) =>
-        prev
-          .map((category) => (category.id === data.category.id ? data.category : category))
-          .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" })),
+    // Opening the modal synchronously pauses autosave and exit PATCHes. Settle
+    // existing requests, then save dirty persisted entries only; new drafts are
+    // not members of a server-side group.
+    const settled = await Promise.allSettled([...saveInFlightRef.current.values()])
+    if (settled.some((result) => result.status === "rejected"))
+      throw new Error(
+        "A note could not be saved. Resolve the save error before changing this group.",
       )
-      await loadItems(user.id)
-      setStatusMessage(`Category renamed to “${data.category.label}”.`)
-      closeEditCategory()
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
-    } finally {
-      setEditCategoryPending(false)
-    }
-  }
+    if (userRef.current?.id !== userId || activeWorkspaceIdRef.current !== workspaceId)
+      throw new Error("The active workspace changed. Reopen the group action.")
+    const entries = useItemsAppStore
+      .getState()
+      .openItems.filter((entry) => entry.itemId !== null && isEntryDirty(entry))
+    const detached = [...detachedSavesRef.current].filter(([, entry]) => entry.itemId !== null)
+    const saved = await Promise.all([
+      ...entries.map((entry) => saveEntry(entry.key, "flush")),
+      ...detached.map(([key]) => saveEntry(key, "flush")),
+    ])
+    if (saved.some((value) => !value))
+      throw new Error("Save the pending note changes before changing this group.")
+    persistOpenItemsRef.current()
+  }, [saveEntry])
 
-  const performDeleteCategory = async (category: CategoryRecord) => {
-    if (!user) return
-    clearMessages()
-    setDeleteCategoryPending(true)
-    try {
-      const response = await itemsFetch("/api/categories", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          workspaceId: activeWorkspaceId,
-          categoryId: category.id,
-        }),
-      })
-      await readJson<DeleteCategoryResponse>(response)
-      await refreshResults(user.id)
-      setStatusMessage(`Category “${category.label}” deleted.`)
-      setDeletingCategory(null)
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
-    } finally {
-      setDeleteCategoryPending(false)
-    }
-  }
-
-  const openDeleteCategory = (category: CategoryRecord) => {
-    clearMessages()
-    setDeletingCategory(category)
-  }
-
-  const closeDeleteCategory = () => {
-    if (deleteCategoryPending) return
-    setDeletingCategory(null)
-  }
-
-  const handleDeleteCategory = async () => {
-    if (!deletingCategory) return
-    await performDeleteCategory(deletingCategory)
-  }
+  const applyItemGroupAction = useCallback(
+    (result: ItemGroupActionResponse) => {
+      const currentUser = userRef.current
+      const workspaceId = activeWorkspaceIdRef.current
+      if (!currentUser || workspaceId === null) return
+      const deleted = new Set(result.deletedItemIds)
+      for (const id of deleted) closeEntriesForItemInStore(id)
+      for (const [key, entry] of detachedSavesRef.current) {
+        if (entry.itemId !== null && deleted.has(entry.itemId)) {
+          detachedSavesRef.current.delete(key)
+          queuedAutosaveKeysRef.current.delete(key)
+          groupDeferredSaveKeysRef.current.delete(key)
+        }
+      }
+      const latestItems = applyItemGroupResult(itemsRef.current, result).filter(isTextItem)
+      const latestCategories = categoriesRef.current
+        .filter(
+          (category) =>
+            category.id !== result.removedCategoryId && category.id !== result.category?.id,
+        )
+        .concat(result.category ? [result.category] : [])
+      const validCategoryIds = new Set(latestCategories.map((category) => category.id))
+      for (const [key, entry] of detachedSavesRef.current) {
+        detachedSavesRef.current.set(key, {
+          ...entry,
+          form: {
+            ...entry.form,
+            selectedCategoryIds: entry.form.selectedCategoryIds.filter((id) =>
+              validCategoryIds.has(id),
+            ),
+          },
+        })
+      }
+      setItems(latestItems)
+      setCategories(latestCategories)
+      updateItemsCacheList(currentUser.id, workspaceId, "items", latestItems)
+      updateItemsCacheList(currentUser.id, workspaceId, "categories", latestCategories)
+      setSearchResults((previous) =>
+        previous
+          .filter(({ item }) => !deleted.has(item.id))
+          .map((entry) => ({
+            ...entry,
+            item: result.items.find((item) => item.id === entry.item.id) ?? entry.item,
+          })),
+      )
+      remapEntriesAfterCategoryChange(latestItems, latestCategories, statuses, tagsRef.current)
+      persistOpenItemsRef.current()
+      setStatusMessage(
+        result.deletedItemIds.length
+          ? `Deleted ${result.deletedItemIds.length} items.`
+          : "Category updated.",
+      )
+      // The committed result is already applied. A failed count/search refresh
+      // must never leave a completed destructive action available to replay.
+      void refreshResults(currentUser.id).catch((error) =>
+        setErrorMessage(`The change was saved. ${getErrorMessage(error)}`),
+      )
+    },
+    [closeEntriesForItemInStore, refreshResults, remapEntriesAfterCategoryChange, statuses],
+  )
 
   const openEditTag = (tag: TagRecord) => {
     clearMessages()
@@ -3356,28 +3366,20 @@ export default function ItemsApp() {
           onMoveItemTag={handleMoveItemTag}
           onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
           deletingItemId={deletingItemId}
-          onEditCategory={openEditCategory}
-          onDeleteCategory={openDeleteCategory}
           onEditTag={openEditTag}
           onDeleteTag={openDeleteTag}
         />
       </div>
 
-      <EditCategoryModal
-        category={editingCategory}
-        label={editCategoryLabel}
-        onLabelChange={setEditCategoryLabel}
-        onClose={closeEditCategory}
-        onSave={() => void handleSaveCategory()}
-        pending={editCategoryPending}
-      />
-
-      <DeleteCategoryModal
-        category={deletingCategory}
-        onClose={closeDeleteCategory}
-        onDelete={() => void handleDeleteCategory()}
-        pending={deleteCategoryPending}
-      />
+      {user !== null && activeWorkspaceId !== null && (
+        <ItemGroupActionModal
+          userId={user.id}
+          workspaceId={activeWorkspaceId}
+          categories={categories}
+          prepare={prepareItemGroupAction}
+          applied={applyItemGroupAction}
+        />
+      )}
 
       <EditTagModal
         tag={editingTag}

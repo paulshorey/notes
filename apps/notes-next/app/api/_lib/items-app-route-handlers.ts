@@ -35,6 +35,8 @@ import {
   parseCreateWorkspaceRequest,
   parseUpdateWorkspaceRequest,
   parseDeleteWorkspaceRequest,
+  parsePreviewItemGroupRequest,
+  parseExecuteItemGroupActionRequest,
   type ItemsAppService,
 } from "@lib/db-items/services/items-app"
 
@@ -108,6 +110,27 @@ const toErrorResponse = (error: unknown, status = 400) =>
     { error: error instanceof Error ? error.message : "Unexpected server error." },
     { status },
   )
+
+/** One authenticated transport for every group selector and bulk action. */
+export const createItemGroupRouteHandlers = (
+  service: ItemsAppService = itemsAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => {
+  const handle = (execute: boolean) => async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      const input = await readAuthorizedJsonObject(request, userId)
+      const result = execute
+        ? await service.executeItemGroupActionForItemsApp(parseExecuteItemGroupActionRequest(input))
+        : await service.previewItemGroupForItemsApp(parsePreviewItemGroupRequest(input))
+      return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } })
+    } catch (error) {
+      return toErrorResponse(error, service.getItemsAppErrorStatus(error))
+    }
+  }
+  return { POST: handle(false), PATCH: handle(true) }
+}
 
 export const createAuthTokenRouteHandlers = (service: ItemsAppService = itemsAppService) => ({
   POST: async (request: Request) => {

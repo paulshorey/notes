@@ -45,6 +45,15 @@ import type {
   WorkspacesResponse,
 } from "../contracts/items-app"
 import { getDb } from "../lib/db/postgres"
+import { ItemGroupConflictError, ItemGroupNotFoundError } from "../sql/item-group-errors"
+import {
+  executeItemGroupActionForItemsApp,
+  previewItemGroupForItemsApp,
+} from "./item-group-actions"
+export {
+  parseExecuteItemGroupActionRequest,
+  parsePreviewItemGroupRequest,
+} from "./item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
@@ -182,17 +191,21 @@ const labelRequest = (value: unknown) => {
   return { ...workspaceRequest(b.userId, b.workspaceId), label: label(b.label) }
 }
 export const getItemsAppErrorStatus = (error: unknown) =>
-  isDatabaseAvailabilityError(error)
-    ? 503
-    : error instanceof EmbeddingConfigurationError
-      ? 500
-      : error instanceof EmbeddingRequestError
-        ? error.status >= 400 && error.status < 500
-          ? 502
-          : error.status
-        : error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR
-          ? 409
-          : 400
+  error instanceof ItemGroupConflictError
+    ? 409
+    : error instanceof ItemGroupNotFoundError
+      ? 404
+      : isDatabaseAvailabilityError(error)
+        ? 503
+        : error instanceof EmbeddingConfigurationError
+          ? 500
+          : error instanceof EmbeddingRequestError
+            ? error.status >= 400 && error.status < 500
+              ? 502
+              : error.status
+            : error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR
+              ? 409
+              : 400
 export const parseSessionRequest = (userId: unknown): SessionRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 })
@@ -561,6 +574,8 @@ export const updateItemForItemsApp = async (
   r: ReturnType<typeof parseUpdateItemRequest>,
 ): Promise<ItemResponse | null> => {
   const stored = await selectItemEmbeddingStateById(r.itemId, r.userId)
+  // A stale editor must see the deletion immediately, before any provider call.
+  if (!stored) return null
   if (canReuse(stored, r.item.description)) {
     const item = await updateItemForUser(
       r.itemId,
@@ -659,6 +674,8 @@ export const mergeAnonymousItemsAppSession = async (r: {
 }
 
 export const itemsAppService = {
+  executeItemGroupActionForItemsApp,
+  previewItemGroupForItemsApp,
   exportUserBackup,
   restoreUserBackup,
   getItemsAppErrorStatus,

@@ -7,6 +7,7 @@
     ".": "./index.ts",
     "./item-search-constants": "./item-search-constants.ts",
     "./contracts/items-app": "./contracts/items-app.ts",
+    "./contracts/item-group-actions": "./contracts/item-group-actions.ts",
     "./contracts/user-backup": "./contracts/user-backup.ts",
     "./contracts/category-name": "./contracts/category-name.ts",
     "./db/postgres": "./lib/db/postgres.ts",
