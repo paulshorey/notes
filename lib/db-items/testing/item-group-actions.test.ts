@@ -350,6 +350,9 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
         `UPDATE public.workspace_item_v1 SET description='concurrent edit' WHERE id=$1`,
         [item.id],
       )
+      // Prime an activity snapshot before the bulk query starts so the first
+      // observation cannot accidentally make this test pass by timing alone.
+      await writer.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database()")
       operation = executeItemGroupAction(
         f.userId,
         f.selection,
@@ -359,10 +362,15 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
       // Wait for a database-observed lock, rather than assuming a scheduling delay.
       let blocked = false
       for (let attempt = 0; attempt < 100 && !blocked; attempt++) {
+        // pg_stat_activity is cached for this writer transaction. Refresh it
+        // before every poll, including when the first snapshot predates the wait.
+        await writer.query("SELECT pg_stat_clear_snapshot()")
         blocked =
           (
             await writer.query(
-              `SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE 'SELECT n.id FROM public.workspace_item_v1%'`,
+              `SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+               AND wait_event_type='Lock' AND pg_backend_pid()=ANY(pg_blocking_pids(pid))
+               AND query LIKE 'SELECT n.id FROM public.workspace_item_v1%'`,
             )
           ).rowCount! > 0
         if (!blocked) await new Promise((resolve) => setTimeout(resolve, 5))
