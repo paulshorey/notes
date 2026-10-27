@@ -238,6 +238,41 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
     }
   })
 
+  test("keep-items deletion removes memberships before item-update observers run", async () => {
+    const f = await fixture()
+    const trigger = `bulk_membership_order_${f.workspace.id}`
+    try {
+      const categoryId = await f.category("remove before touch")
+      const retained = await f.item("retain this", [categoryId])
+      // A test-only observer makes mutation ordering visible within the same
+      // transaction, as an item audit or timestamp trigger would see it.
+      await getDb().query(`
+        CREATE FUNCTION pg_temp.${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW.id=${retained.id} AND EXISTS (
+            SELECT 1 FROM public.item_category_link_v1
+            WHERE item_id=NEW.id AND category_id=${categoryId}
+          ) THEN
+            RAISE EXCEPTION 'item observer saw removed membership';
+          END IF;
+          RETURN NEW;
+        END;
+        $$;
+        CREATE TRIGGER ${trigger} BEFORE UPDATE ON public.workspace_item_v1
+        FOR EACH ROW EXECUTE FUNCTION pg_temp.${trigger}();
+      `)
+      assert.equal(await deleteCategoryForWorkspace(f.userId, f.workspace.id, categoryId), true)
+      const rows = await listItemsByUser(f.userId, f.workspace.id)
+      assert.equal(rows.length, 1)
+      assert.equal(rows[0]!.id, retained.id)
+      assert.deepEqual(rows[0]!.categories, [])
+    } finally {
+      await getDb().query(`DROP TRIGGER IF EXISTS ${trigger} ON public.workspace_item_v1`)
+      await getDb().query(`DROP FUNCTION IF EXISTS pg_temp.${trigger}()`)
+      await f.cleanup()
+    }
+  })
+
   test("destructive category and uncategorized actions delete only their members, including shared and non-text items", async () => {
     const f = await fixture()
     try {

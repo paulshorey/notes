@@ -1,6 +1,9 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { createItemGroupRouteHandlers } from "../app/api/_lib/items-app-route-handlers"
+import {
+  createCategoriesRouteHandlers,
+  createItemGroupRouteHandlers,
+} from "../app/api/_lib/items-app-route-handlers"
 import {
   createFakeItemsAppService,
   sampleApiToken,
@@ -98,6 +101,29 @@ test("bulk routes reject invalid actions before service writes and return action
     409,
   )
   assert.equal(calls, 1)
+})
+
+test("legacy category deletion preserves retryable group conflicts", async () => {
+  const handlers = createCategoriesRouteHandlers(
+    createFakeItemsAppService({
+      getItemsAppErrorStatus,
+      deleteCategoryForItemsApp: async () => {
+        throw new ItemGroupConflictError()
+      },
+    }),
+  )
+  const response = await handlers.DELETE(
+    new Request("https://test/api/categories", {
+      method: "DELETE",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${sampleApiToken}`,
+      },
+      body: JSON.stringify({ workspaceId: 3, categoryId: 9 }),
+    }),
+  )
+  assert.equal(response.status, 409)
+  assert.equal((await response.json()).error, new ItemGroupConflictError().message)
 })
 
 test("group responses replace changed items and remove deleted items without changing unrelated content", async () => {
