@@ -279,7 +279,8 @@ export const openNewDraft = (
       form: {
         ...active.form,
         selectedCategoryIds: options.categoryIds ?? [],
-        selectedStatusId: options.statusId ?? active.form.selectedStatusId,
+        selectedStatusId:
+          options.statusId === undefined ? active.form.selectedStatusId : options.statusId,
         selectedTagIds: options.tagIds ?? active.form.selectedTagIds,
       },
       categoryInputValue: options.categoryLabel ?? "",

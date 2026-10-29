@@ -43,6 +43,7 @@ interface TextCaptureFormProps {
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
   onDeleteEditingItem: () => void
+  onAddItem: () => void
   onAddItemInCategory: () => void
 }
 
@@ -69,6 +70,7 @@ export function TextCaptureForm({
   onTagValuesChange,
   onCancelEdit,
   onDeleteEditingItem,
+  onAddItem,
   onAddItemInCategory,
 }: TextCaptureFormProps) {
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -241,6 +243,15 @@ export function TextCaptureForm({
         />
 
         <div className={styles.formToolbar}>
+          <button
+            type="button"
+            className={`${styles.addItemButton} ${styles.addUncategorizedItemButton}`}
+            onClick={onAddItem}
+            aria-label="Add new uncategorized note"
+            title="Add new uncategorized note"
+          >
+            <Plus size={16} weight="bold" aria-hidden />
+          </button>
           <div className={styles.categoryControls}>
             <button
               type="button"

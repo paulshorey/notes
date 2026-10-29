@@ -900,7 +900,7 @@ export default function ItemsApp() {
     // outgoing entry keeps autosaving in the background, so there is nothing
     // to await here.
     clearMessages()
-    openDraftEntry()
+    openDraftEntry({ categoryIds: [], statusId: null, tagIds: [] })
   }, [clearMessages, openDraftEntry])
 
   const handleAddItemInCategory = useCallback(() => {
@@ -3298,6 +3298,7 @@ export default function ItemsApp() {
             onCreateStatus={handleCreateStatus}
             onTagValuesChange={handleTagValuesChange}
             onCancelEdit={handleCancelEdit}
+            onAddItem={handleCancelEdit}
             onAddItemInCategory={handleAddItemInCategory}
             onDeleteEditingItem={() => {
               if (activeEntry?.itemId != null) {
