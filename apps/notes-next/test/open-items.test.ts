@@ -275,3 +275,26 @@ test("a general new-note action clears category context when reusing an empty dr
   assert.deepEqual(getActiveEntry(reused)?.form.selectedCategoryIds, [])
   assert.equal(getActiveEntry(reused)?.categoryInputValue, "")
 })
+
+test("a blank new-note action clears an explicit status when reusing an untouched draft", () => {
+  const initial = openNewDraft(createEmptyOpenItemsState(), {
+    categoryIds: [7],
+    categoryLabel: "work",
+    statusId: 3,
+  }).state
+  const reused = openNewDraft(initial, { categoryIds: [], statusId: null, tagIds: [] }).state
+
+  assert.equal(reused.activeKey, initial.activeKey)
+  assert.equal(reused.nextDraftSequence, initial.nextDraftSequence)
+  assert.deepEqual(getActiveEntry(reused)?.form, {
+    selectedCategoryIds: [],
+    selectedStatusId: null,
+    selectedTagIds: [],
+    description: "",
+    timeDue: null,
+    timeRemind: null,
+    dueExpanded: false,
+    remindExpanded: false,
+  })
+  assert.equal(getActiveEntry(reused)?.categoryInputValue, "")
+})

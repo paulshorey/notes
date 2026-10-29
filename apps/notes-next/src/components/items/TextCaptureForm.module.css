@@ -120,6 +120,10 @@
   flex: 0 0 16px;
 }
 
+.addUncategorizedItemButton {
+  margin-inline-end: auto;
+}
+
 .addItemButton:hover {
   filter: brightness(1.08);
 }
