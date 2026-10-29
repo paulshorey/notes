@@ -101,9 +101,12 @@ Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already
 
 ## Pull requests
 
-PRs into `main` and `prod` use the completion gate in
+PRs into `main` require the completion gate in
 `docs/operations/pr-check-completion.md`. Only `PR checks finished` is required;
-failed checks remain visible for the developer to judge. When adding a CI
+failed checks remain visible for the developer to judge. `prod` allows direct
+pushes for developer-authorized production promotions; optional PRs into `prod`
+still receive the completion status. Run `release:notes:prepare` before promotion
+and verify Railway pre-deploy migrations and application health afterward. When adding a CI
 workflow, include its name in the completion workflow's `workflow_run` list.
 Never mark an aggregate successful while its checks are pending. Keep PR policy
 tests read-only and the status-writing observer on trusted default-branch code.
