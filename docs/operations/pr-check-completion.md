@@ -1,6 +1,6 @@
 # Wait for PR checks to finish
 
-PRs into `main` or `prod` require the **PR checks finished** commit status. This
+PRs into `main` require the **PR checks finished** commit status. This
 status means all registered checks finished; it does **not** mean their results
 passed. The developer reviews failures and decides whether to merge. Individual
 CI, security, review, and Railway results retain their original outcomes.
@@ -9,7 +9,14 @@ The GitHub repository ruleset is recorded in
 `.github/pr-check-completion-ruleset.json`. Only the aggregate status is required,
 with GitHub Actions (integration ID 15368) as its source and no bypass actors.
 Branches do not have to be updated with the base before merging. Like any native
-required status rule, this also prevents direct pushes without the required status.
+required status rule, this also prevents direct pushes to `main` without the required status.
+
+`prod` is intentionally outside the ruleset so the developer can push a production
+promotion directly, without opening a PR. The observer still reports check completion
+for optional PRs into `prod`, but its status does not block a direct production push.
+Run `pnpm run release:notes:prepare` before promotion and verify the Railway
+deployment, pre-deploy migrations, and application health afterward. See
+[the environment runbook](notes-environments.md) for the release checks.
 
 ## How the workflow works
 
@@ -32,7 +39,7 @@ releasing a gate to avoid publishing a result based on obsolete revisions.
 Historical statuses from earlier implementations remain on old commits; new
 heads receive a single aggregate report.
 
-The observer checks all open PRs into the protected branches, including PRs opened
+The observer checks all open PRs into `main` and `prod`, including PRs opened
 before the policy was installed. It polls every minute while any are unfinished.
 API failures or an 85-minute observation deadline leave unfinished gates pending.
 A later event or **Run workflow** resumes observation. The workflow never executes
@@ -98,7 +105,7 @@ No rule bypass or successful status should be fabricated to bootstrap installati
 The manually dispatched observer still checks all current work and waits for it
 to finish before publishing the aggregate.
 
-The live repository ruleset is [Wait for PR check completion](https://github.com/paulshorey/notes/rules/24278400) (ID `24278400`). It targets both `main` and `prod`. The checked-in ruleset document is desired configuration, not automatically
+The live repository ruleset is [Wait for PR check completion](https://github.com/paulshorey/notes/rules/24278400) (ID `24278400`). It targets only `main`. The checked-in ruleset document is desired configuration, not automatically
 applied by a source push. After observing the status from GitHub Actions, an admin
 can create the rule using:
 

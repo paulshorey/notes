@@ -5,7 +5,7 @@
   "bypass_actors": [],
   "conditions": {
     "ref_name": {
-      "include": ["refs/heads/main", "refs/heads/prod"],
+      "include": ["refs/heads/main"],
       "exclude": []
     }
   },
