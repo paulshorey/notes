@@ -1,152 +1,85 @@
-# Workspace
+# Project: Notes
 
-Monorepo using pnpm + Turborepo.
+A pnpm/Turborepo workspace with a text-focused Next.js notes app. The item model
+supports broader personal and team productivity; the current UI still requires text.
 
-## Product
+## Layout and contracts
 
-This is a note-taking app. The app is `apps/notes-next` - a full-stack Next.js web app. Database structure can be found in `lib/db-items`.
+- `apps/notes-next`: web UI and REST API, deployed to Railway.
+- `lib/db-items`: item schema, migrations, generated contracts, and shared service logic.
+- `lib/config`: shared tooling. `lib/atomic-editor`: editor fork tracked as a Git subtree.
 
-Goal is to expand this to be much more than a simple note app. It will be a personal productivity suite and eventually be used by multiple collaborators to manage all knowledgebase, tasks, and website content for all projects in a team. The start of that now is categories.
+An item belongs to one workspace, has a nullable description, and stores no exclusive
+content-type discriminator. A note is an item with nonblank text. Use item terminology
+in generic backend/state/API code; retain note wording in the text capture UI.
+See [item boundaries](docs/db/item-core.md). Keep historical migrations immutable;
+legacy views, session fields, backup formats, and `DB_NOTES_URL` remain compatibility protocols.
+Categories are optional with no default/protected rows; `uncategorized` is display text.
 
-### Apps
+## Editor and working conventions
 
-- `apps/notes-next` - Notes web UI and REST API, deployed to Railway
+Use pnpm from the root; never install dependencies inside build/dev/test/start scripts.
+Use Zustand for app-wide UI state. Read nested `AGENTS.md`; new guides also need a
+`CLAUDE.md` symlink. Edit the target only, since existing symlinks update automatically.
 
-### Libraries
+Edit `lib/atomic-editor` as a normal package; sync only on request through
+`scripts/atomic-editor-sync.sh`, without `--squash`. Preserve its standalone
+`package-lock.json` and `.github/`. Peer React/CodeMirror dependencies resolve from
+`notes-next`; do not duplicate them. The app build builds the editor; for live edits
+use `pnpm --filter @atomic-editor/editor exec tsc -w -p tsconfig.build.json`.
+See [the subtree guide](docs/atomic-editor/git-subtree.md).
 
-- `lib/config` - shared tooling and config
-- `lib/db-items` - item database schema, migrations, generated contracts, and shared item service logic
-- `lib/atomic-editor` - fork of `@atomic-editor/editor`, tracked as a git subtree (see below)
+## Database, scripts, and releases
 
-## atomic-editor package (git subtree)
+Real database scripts belong in `lib/db-items/package.json`; root scripts expose
+human entrypoints, `db:*`, `verify:*`, and the multi-step `release:notes:prepare`.
+Keep app scripts local; avoid duplicate migration scripts and trivial extra aliases.
 
-`lib/atomic-editor` is a fork of `kenforthewin/atomic-editor`. It is committed directly to this monorepo as regular files (NOT a git submodule) and linked to the standalone fork `paulshorey/atomic-editor` via **git subtree**. `notes-next` consumes it via `workspace:*`.
+For schema/contract changes, update `lib/db-items/scripts/verify-contract.mjs`, run
+`pnpm run db:migrate` and `pnpm run db:verify`, and commit generated artifacts.
+`db:migrate:baseline` is only for an existing legacy schema without a migration ledger.
+Run `release:notes:prepare` before release; Railway pre-deploy applies tracked migrations.
+Manual migration is for local/shared development or an intentional target preflight.
 
-**Full subtree guide:** `docs/atomic-editor/git-subtree.md` (sync commands, what changes in each repo, upstream PR implications).
+Follow [.railway/README.md](.railway/README.md): export only the `notes` partial in
+WebArts, preserve variables/service names, and explicitly apply settings changes.
+CI maps `main` to dev and `prod` to production; existing previews need their environment
+ID and `RAILWAY_IAC_BRANCH`. Run `pnpm run diagnose:notes` for read-only, credential-safe
+checks; [the environment matrix](docs/operations/notes-environments.md) owns diagnosis.
 
-- Build output lives in `lib/atomic-editor/dist/` (gitignored). `notes-next build` builds the editor first.
-- Peer deps (`@codemirror/*`, `react`) resolve from `notes-next` — do not add duplicate copies in this package.
-- Local dev: run `pnpm --filter @atomic-editor/editor exec tsc -w -p tsconfig.build.json` while editing `src/`, then `pnpm --filter notes-next dev`.
-- `lib/atomic-editor/package-lock.json` and `lib/atomic-editor/.github/` belong to the standalone fork repo; keep them intact for subtree syncs, but pnpm (not npm) manages deps inside this monorepo.
-- Day-to-day: edit `lib/atomic-editor/` like any package; no sync required.
-- Sync to/from fork (on demand only): `bash scripts/atomic-editor-sync.sh push <fork-branch>` / `pull [<fork-branch>]`. Do not use `--squash`.
+PRs into `main` require [the completion gate](docs/operations/pr-check-completion.md).
+Only `PR checks finished` is required; failed checks remain visible for human judgment.
+Never report aggregate success while checks are pending. New workflows must join its
+`workflow_run` list; keep policy tests read-only and status writes on trusted code.
+Publish one durable-head gate while inspecting head and test-merge checks. Developer-authorized
+promotions may push `prod` directly; optional PRs get the same completion
+status. Verify pre-deploy migrations and app health after promotion.
 
-## Data
+Write PR handoffs with the problem, resulting behavior, material decisions,
+validation, and remaining work; scale detail to the change.
 
-- `@lib/db-items` owns all item schema changes and migration scripts.
-- The persistent unit is an **item**, owned by one workspace. Its `description` is nullable; no exclusive content-type discriminator is stored.
-- The current web client is a text-focused projection: a **note** is an item with nonblank text. Keep its note wording and text-required capture UI.
-- Use item terminology in backend tables, services, contracts, generic web state, and new APIs. See `docs/db/item-core.md` for the rename and compatibility boundaries.
-- Historical migrations remain immutable. Legacy SQL views, signed-session fields, old backup/browser formats, and `DB_NOTES_URL` are compatibility protocols, not a second domain model.
-- Notes have zero or more categories. `uncategorized` is reserved display text for no category links; categories have no default or protected row.
-- `notes-next` consumes `@lib/db-items` at runtime.
+## Cloud environments
 
-## Context
+Cursor Cloud provides disposable PostgreSQL 17/pgvector databases through
+`DB_ITEMS_URL` and `DB_ITEMS_TEST_URL`. Migrate empty databases before use;
+Use `scripts/cloud-agent-postgres.sh` with `status`, `install`, or `start` to
+diagnose or prepare them.
 
-This codebase is developed by AI agents.
+Other Debian/Ubuntu agents use `bash scripts/agent-env-setup.sh`, then
+`source .agent-env.sh`. This installs tools/dependencies and creates/migrates local
+throwaway databases. Never point agent VM database URLs at deployed Railway data.
+`--dev` starts the app, `--verify` runs diagnosis; `JINA_API_KEY` is needed only for
+semantic search. See [agent setup](docs/operations/agent-environment.md) for flags/ports.
 
-- AGENTS.md - documentation for standard AI agents - source of truth - describes each folder structure and gotchas
-- CLAUDE.md - not a real file, only a symlink. When adding a new AGENTS.md file, also add a symlink to it called CLAUDE.md, so the non-standard Claude Code AI can read it also. When editing an AGENTS.md file, do not both changing CLAUDE.md, it will be automatically updated because it's only a symlink.
+# Research and report
 
-## Script ownership
+If something goes wrong, stop the affected operation and report relevant findings, data, and logs.
+Redact secrets and private content.
+If unsure about something, research, search the web, find latest techniques and best practices.
 
-- Root `package.json` should expose the human-friendly entry points for install, verify, app builds, and proxied `db:*` commands.
-- Root `package.json` should also expose `release:notes:prepare` (a meaningful multi-step aggregation) and `verify:*` aliases so the documented release order maps to actual commands. Avoid adding single-command aliases that just wrap one other script.
-- `lib/db-items/package.json` is the canonical home for real migration and contract-generation scripts.
-- App `package.json` files should stay focused on app-local build, run, and verification commands.
-- Do not define duplicate migration scripts inside app packages.
+# Next steps
 
-## Working conventions
+Consider what was recently done, what's in progress, and how it contributes to the goal.
+Decide and recommend what to do next.
 
-- Use `pnpm` only.
-- Keep the repo root as the default working directory.
-- Prefer root-scoped commands such as `pnpm run db:migrate` or `pnpm --filter <pkg> ...`.
-- In `apps/notes-next`, use Zustand stores for app-wide UI state instead of prop-drilling state through multiple components.
-- Do not add package-local install steps to build, dev, test, or start scripts.
-
-## Railway infrastructure
-
-Use `.railway/README.md` for WebArts IaC. This repository exports the `notes` partial;
-never replace it with a whole-project graph containing only Notes. Preserve Railway
-variables and exact live service names. Settings changes require an explicit apply;
-the GitHub workflow applies `main` to dev and `prod` to production. Existing previews
-require their environment ID and explicit `RAILWAY_IAC_BRANCH`.
-
-## Release model
-
-- `notes-next`: run `release:notes:prepare`, then deploy on Railway. The committed Railway pre-deploy command applies tracked Notes migrations before a release becomes healthy; run `db:migrate` manually for local/shared development or an intentional target-database preflight.
-
-## Deployment diagnostics
-
-- Use `docs/operations/notes-environments.md` for the local, Cursor Cloud, Railway preview, production, and CI environment matrix and troubleshooting runbook.
-- Run `pnpm run diagnose:notes` for read-only checks of the checkout, app health, sanitized database target, required relations, migration ledger, PR checks, and Railway CLI linkage. It must remain read-only and must never print connection credentials.
-
-## Database rules
-
-After changing Notes schema or contracts in `lib/db-items`:
-
-1. Update `lib/db-items/scripts/verify-contract.mjs`.
-2. Run `pnpm run db:migrate`.
-3. Run `pnpm run db:verify`.
-4. Commit generated artifacts with the schema change.
-
-Use `pnpm run db:migrate:baseline` only for a legacy Notes database that already contains the baseline schema but has never been tracked by migrations.
-
-## Documentation
-
-- Read the closest `AGENTS.md` before editing a folder.
-- Keep `AGENTS.md` concise and aligned with the real code and deployment model.
-- Remove stale instructions when structure or release flow changes.
-- `AGENTS.md` is for agents; `README.md` is for humans.
-
-## Pull requests
-
-PRs into `main` require the completion gate in
-`docs/operations/pr-check-completion.md`. Only `PR checks finished` is required;
-failed checks remain visible for the developer to judge. `prod` allows direct
-pushes for developer-authorized production promotions; optional PRs into `prod`
-still receive the completion status. Run `release:notes:prepare` before promotion
-and verify Railway pre-deploy migrations and application health afterward. When adding a CI
-workflow, include its name in the completion workflow's `workflow_run` list.
-Never mark an aggregate successful while its checks are pending. Keep PR policy
-tests read-only and the status-writing observer on trusted default-branch code.
-Report a single gate on the durable PR head; inspect both head and test merge
-revisions without publishing duplicate gates.
-
-- After completing a feature request, create or update the PR and include the PR link in the final response.
-- The PR description serves as a handoff to the next AI agent or engineer. Always write a comprehensive PR description that includes the full details of what was done and why. Include:
-  - A summary of the change and its motivation.
-  - Every file added or modified, with a brief explanation of what each file does.
-  - Key technical decisions (e.g. which approach was chosen and why).
-  - Any testing that was performed and the results.
-  - Handoff notes: anything the next person needs to know to continue, deploy, or review the work.
-- Do not write a minimal or abbreviated PR description. The PR description should contain all the information from the conversation that explains the code changes, so someone reading only the PR can fully understand the work without needing the original conversation.
-
-## Cursor Cloud specific instructions
-
-Cloud workspaces run their own PostgreSQL 17 server with pgvector. `DB_NOTES_URL` and `DB_NOTES_TEST_URL` are already set (in `.cursor/environment.json`) to local throwaway `notes` and `notes_test` databases, so `db:*` commands, tests, and `notes-next` never reach a deployed database.
-
-These databases start empty. Run `pnpm run db:migrate` before anything that needs schema.
-
-If Postgres is not running, `bash scripts/cloud-agent-postgres.sh status` reports what is missing; `install` adds the packages and `start` brings up the cluster and databases.
-
-## Generic AI agent environments
-
-Other cloud coding-agent VMs (or a fresh Debian/Ubuntu box) should run this after checkout, from the repository root:
-
-```bash
-bash scripts/agent-env-setup.sh
-source .agent-env.sh
-```
-
-That command is idempotent. It installs system tools and Node.js if needed, pnpm workspace dependencies, PostgreSQL 17 + pgvector, writes local throwaway DB URLs plus an `AUTH_SECRET`, starts the cluster, and applies Notes migrations to both `notes` and `notes_test`. Do not point `DB_NOTES_URL` at a deployed Railway database from an agent VM.
-
-- `--dev` starts `notes-next` on port 4100 and waits for `/api/health`. `NOTES_DEV_PORT` overrides the port; a reserved port 6000 override falls back to 6100.
-- `--verify` runs `pnpm run diagnose:notes`.
-- Semantic search needs `JINA_API_KEY` in the environment; core CRUD, tests, and builds do not.
-
-Full flag list and service-hook examples: `docs/operations/agent-environment.md`.
-
-## Maintenance
-
-Keep this file up to date after major workspace-level changes. Edit it when app boundaries, release workflows, script ownership, or shared contracts change.
+# Goal: Unify notes, knowledge, tasks, and website content for individuals and teams
