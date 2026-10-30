@@ -51,8 +51,8 @@ PRs into `main` require [the completion gate](docs/operations/pr-check-completio
 Only `PR checks finished` is required; failed checks remain visible for human judgment.
 Never report aggregate success while checks are pending. New workflows must join its
 `workflow_run` list; keep policy tests read-only and status writes on trusted code.
-Publish one durable-head gate while inspecting head and test-merge checks. Developer-
-authorized promotions may push `prod` directly; optional PRs get the same completion
+Publish one durable-head gate while inspecting head and test-merge checks. Developer-authorized
+promotions may push `prod` directly; optional PRs get the same completion
 status. Verify pre-deploy migrations and app health after promotion.
 
 Write PR handoffs with the problem, resulting behavior, material decisions,
@@ -62,7 +62,8 @@ validation, and remaining work; scale detail to the change.
 
 Cursor Cloud provides disposable PostgreSQL 17/pgvector databases through
 `DB_ITEMS_URL` and `DB_ITEMS_TEST_URL`. Migrate empty databases before use;
-`scripts/cloud-agent-postgres.sh status|install|start` diagnoses or prepares them.
+Use `scripts/cloud-agent-postgres.sh` with `status`, `install`, or `start` to
+diagnose or prepare them.
 
 Other Debian/Ubuntu agents use `bash scripts/agent-env-setup.sh`, then
 `source .agent-env.sh`. This installs tools/dependencies and creates/migrates local
@@ -72,7 +73,8 @@ semantic search. See [agent setup](docs/operations/agent-environment.md) for fla
 
 # Research and report
 
-If something went wrong, stop and report back. Include all info, data, and logs.
+If something goes wrong, stop the affected operation and report relevant findings, data, and logs.
+Redact secrets and private content.
 If unsure about something, research, search the web, find latest techniques and best practices.
 
 # Next steps
