@@ -71,6 +71,14 @@ throwaway databases. Never point agent VM database URLs at deployed Railway data
 `--dev` starts the app, `--verify` runs diagnosis; `JINA_API_KEY` is needed only for
 semantic search. See [agent setup](docs/operations/agent-environment.md) for flags/ports.
 
+# Documentation
+
+Docs, guides, and code comments describe only the current code and infrastructure.
+NEVER describe removed or replaced systems, former names or IDs, or how a change or
+migration happened; Git history and PR descriptions hold that. When something changes,
+rewrite the affected text to state the new reality. Compatibility code that still
+exists is current: describe what it does now.
+
 # Research and report
 
 If something goes wrong, stop the affected operation and report relevant findings, data, and logs.

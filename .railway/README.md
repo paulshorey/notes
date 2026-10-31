@@ -11,10 +11,6 @@ in the same project stay under dashboard ownership; the partial never edits them
 | production       | apps/notes-next | prod               | f65d1bcb-a786-4678-a431-e9f6c3ff154f | jot.new     |
 | Notes PR preview | apps/notes-next | existing PR branch | dynamic                              | dynamic     |
 
-Notes previously lived in the multi-repository WebArts project
-(`c6260c51-8b01-4934-8ccb-9cf32456744c`, since renamed **Experimental**). That project
-no longer serves Notes deployments; do not plan this file against it.
-
 ## Applied configuration
 
 Railway evaluates IaC through `railway config plan/apply`, **not during a GitHub
@@ -54,11 +50,11 @@ contains their values. The `media` bucket's S3 credentials are Railway reference
 (`MEDIA_BUCKET_NAME`, `_ENDPOINT`, `_REGION`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY`);
 buckets are private and use virtual-hosted-style URLs.
 
-| Variables                                                                           | Source                                                                         |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `AUTH_SECRET`, `AUTH_TRUST_HOST`, `DB_NOTES_URL`, `JINA_API_KEY`, `OPENAI_API_KEY`  | Existing Notes values                                                          |
-| `RESEND_EMAIL_API_KEY`, `RESEND_FROM_ADDRESS`                                       | Temporarily copied from Livx `apps/backend`; replace with a Notes sender later |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `TWILIO_TO_NUMBER` | Personal developer account copied from Paul; not registered for public SMS     |
+| Variables                                                                           | Account                                                                            |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `AUTH_SECRET`, `AUTH_TRUST_HOST`, `DB_NOTES_URL`, `JINA_API_KEY`, `OPENAI_API_KEY`  | Notes                                                                              |
+| `RESEND_EMAIL_API_KEY`, `RESEND_FROM_ADDRESS`                                       | Livx's Resend key and sender, shared with Livx `apps/backend`                      |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `TWILIO_TO_NUMBER` | Personal developer Twilio account, shared with Paul; not registered for public SMS |
 
 Adding a secret means setting it in each environment first
 (`railway variable set KEY --stdin --skip-deploys`), then adding `preserve()` here.
@@ -103,11 +99,10 @@ persistent environments by ID. Omitting `source.branch` can clear the selected b
 so preview evaluation fails until `RAILWAY_IAC_BRANCH` is provided. Preserve the current
 branch; never silently replace a preview with `main`.
 
-The desired pre-deploy command is `pnpm --filter @lib/db-items db:migrate`.
-The deprecated `@lib/db-notes` package forwards migration commands while older
-applied settings still reference it. Both package paths remain in build watches.
-`DB_NOTES_URL` stays preserved in Railway; the item service accepts it as a fallback.
-See [the item-core rollout](../docs/db/item-core.md).
+The pre-deploy command is `pnpm --filter @lib/db-items db:migrate`. `@lib/db-notes`
+only forwards migration commands to `@lib/db-items`; both package paths are build
+watches. Railway provides the database URL as `DB_NOTES_URL`; the item service reads
+`DB_ITEMS_URL` first and falls back to it. See [item core](../docs/db/item-core.md).
 
 The backend migrations are a pre-deploy step and the `/api/health` readiness endpoint
 must return 200. Watch paths include the app, shared libraries, lockfile, and workspace
