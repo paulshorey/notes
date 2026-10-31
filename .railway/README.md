@@ -17,25 +17,22 @@ Railway evaluates IaC through `railway config plan/apply`, **not during a GitHub
 source deployment**. The Settings page displays the live applied commands. Keep the
 legacy **Railway Config File** field empty; it must not point to `railway.ts`.
 
-Use Node 24, pnpm 10.28.1, pinned Railway CLI 5.62.1, and SDK 3.11.0. Run secret-bearing
-commands under `bash`; zsh prints an existing variable's value when `local`/`typeset`
-re-declares it inside a loop.
+Use Node 24, pnpm 10.28.1, pinned Railway CLI 5.62.1, and SDK 3.11.0. Every shell
+exports the Railway workspace token (`RAILWAY_API_TOKEN`) from `~/.secrets.sh`. A
+`RAILWAY_TOKEN` takes precedence over it, so unset that first. Never print or commit
+token values; handle secret values under `bash`, because zsh prints an existing
+variable's value when `local`/`typeset` re-declares it inside a loop.
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm railway:config:check
-bash --noprofile --norc -c '
-  source "$HOME/.secrets.sh" >/dev/null 2>&1
+(
   unset RAILWAY_TOKEN
   export RAILWAY_PROJECT_ID=7c451bd1-350a-4fb3-a08f-5295863269ce
   export RAILWAY_ENVIRONMENT_ID=8cbb1415-ac2b-46c3-ae8c-144265017189
   pnpm railway:config:plan
-'
+)
 ```
-
-The workspace API token in `~/.secrets.sh` uses the standard `RAILWAY_API_TOKEN`
-name. Never print or commit token values. A `RAILWAY_TOKEN` takes precedence over
-the API token, so unset it when deliberately using the workspace profile.
 
 Review every plan. An ordinary settings change should touch only the declared
 service and bucket. Stop on variable deletion, service replacement, source
