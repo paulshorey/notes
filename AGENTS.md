@@ -42,7 +42,7 @@ Run `release:notes:prepare` before release; Railway pre-deploy applies tracked m
 Manual migration is for local/shared development or an intentional target preflight.
 
 Follow [.railway/README.md](.railway/README.md): export only the `notes` partial in
-WebArts, preserve variables/service names, and explicitly apply settings changes.
+the Notes project, preserve variables/service names, and explicitly apply settings changes.
 CI maps `main` to dev and `prod` to production; existing previews need their environment
 ID and `RAILWAY_IAC_BRANCH`. Run `pnpm run diagnose:notes` for read-only, credential-safe
 checks; [the environment matrix](docs/operations/notes-environments.md) owns diagnosis.

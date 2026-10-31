@@ -1,11 +1,11 @@
-name: WebArts infrastructure
+name: Notes infrastructure
 
 on:
   push:
     branches: [main, prod]
     paths: &config_paths
       - ".railway/railway.ts"
-      - ".github/workflows/railway-webarts.yml"
+      - ".github/workflows/railway-iac.yml"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: webarts-iac-${{ github.base_ref || github.ref_name }}
+  group: notes-iac-${{ github.base_ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -27,9 +27,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      RAILWAY_TOKEN: ${{ (github.base_ref || github.ref_name) == 'prod' && secrets.WEBARTS_RAILWAY_TOKEN_PRODUCTION || secrets.WEBARTS_RAILWAY_TOKEN_DEV }}
-      RAILWAY_PROJECT_ID: c6260c51-8b01-4934-8ccb-9cf32456744c
-      RAILWAY_ENVIRONMENT_ID: ${{ (github.base_ref || github.ref_name) == 'prod' && '46907359-520d-41a3-adf3-6ed23379b418' || '4e7d33aa-1de0-441f-a105-352bbe3b6697' }}
+      RAILWAY_TOKEN: ${{ (github.base_ref || github.ref_name) == 'prod' && secrets.NOTES_RAILWAY_TOKEN_PRODUCTION || secrets.NOTES_RAILWAY_TOKEN_DEV }}
+      RAILWAY_PROJECT_ID: 7c451bd1-350a-4fb3-a08f-5295863269ce
+      RAILWAY_ENVIRONMENT_ID: ${{ (github.base_ref || github.ref_name) == 'prod' && 'f65d1bcb-a786-4678-a431-e9f6c3ff154f' || '8cbb1415-ac2b-46c3-ae8c-144265017189' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
