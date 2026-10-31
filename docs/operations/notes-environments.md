@@ -81,7 +81,7 @@ and minimum schema.
 
 ## Railway deployment contract
 
-The root `.railway/railway.ts` defines the `notes` partial in the multi-repository WebArts project.
+The root `.railway/railway.ts` defines the `notes` partial in the Notes Railway project.
 It is evaluated by an explicit CLI or CI apply; a GitHub source deployment does not read it.
 See [Railway setup and migration runbook](../../.railway/README.md) for environment IDs,
 CI credentials, preview updates, and ownership. Keep the legacy Railway Config File field empty.
