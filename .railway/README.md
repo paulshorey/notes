@@ -17,9 +17,10 @@ Railway evaluates IaC through `railway config plan/apply`, **not during a GitHub
 source deployment**. The Settings page displays the live applied commands. Keep the
 legacy **Railway Config File** field empty; it must not point to `railway.ts`.
 
-Use Node 24, pnpm 10.28.1, pinned Railway CLI 5.62.1, and SDK 3.11.0. Every shell
-exports the Railway workspace token (`RAILWAY_API_TOKEN`) from `~/.secrets.sh`. A
-`RAILWAY_TOKEN` takes precedence over it, so unset that first. Never print or commit
+Use Node 24, pnpm 10.28.1, pinned Railway CLI 5.62.1, and SDK 3.11.0. On Paul’s Mac,
+`~/.secrets.sh` exports the workspace token `RAILWAY_API_TOKEN`;
+`~/.shortcuts.sh` defines shell helpers. Clean noninteractive shells must receive
+the token explicitly. Unset `RAILWAY_TOKEN` and require a nonempty API token. Never print or commit
 token values; handle secret values under `bash`, because zsh prints an existing
 variable's value when `local`/`typeset` re-declares it inside a loop.
 
@@ -28,6 +29,7 @@ pnpm install --frozen-lockfile
 pnpm railway:config:check
 (
   unset RAILWAY_TOKEN
+  test -n "${RAILWAY_API_TOKEN:-}" || exit 1
   export RAILWAY_PROJECT_ID=7c451bd1-350a-4fb3-a08f-5295863269ce
   export RAILWAY_ENVIRONMENT_ID=8cbb1415-ac2b-46c3-ae8c-144265017189
   pnpm railway:config:plan
