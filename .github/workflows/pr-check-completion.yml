@@ -15,7 +15,7 @@ on:
   # GitHub suppresses check_run events originating in Actions. Keep this list
   # aligned with the names of CI workflows added to this repository.
   workflow_run:
-    workflows: [PR completion policy tests, DB Contracts, WebArts infrastructure]
+    workflows: [PR completion policy tests, DB Contracts, Notes infrastructure]
     types: [requested, in_progress, completed]
   workflow_dispatch:
     inputs:

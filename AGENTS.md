@@ -42,7 +42,7 @@ Run `release:notes:prepare` before release; Railway pre-deploy applies tracked m
 Manual migration is for local/shared development or an intentional target preflight.
 
 Follow [.railway/README.md](.railway/README.md): export only the `notes` partial in
-WebArts, preserve variables/service names, and explicitly apply settings changes.
+the Notes project, preserve variables/service names, and explicitly apply settings changes.
 CI maps `main` to dev and `prod` to production; existing previews need their environment
 ID and `RAILWAY_IAC_BRANCH`. Run `pnpm run diagnose:notes` for read-only, credential-safe
 checks; [the environment matrix](docs/operations/notes-environments.md) owns diagnosis.
@@ -70,6 +70,14 @@ Other Debian/Ubuntu agents use `bash scripts/agent-env-setup.sh`, then
 throwaway databases. Never point agent VM database URLs at deployed Railway data.
 `--dev` starts the app, `--verify` runs diagnosis; `JINA_API_KEY` is needed only for
 semantic search. See [agent setup](docs/operations/agent-environment.md) for flags/ports.
+
+# Documentation
+
+Docs, guides, and code comments describe only the current code and infrastructure.
+NEVER describe removed or replaced systems, former names or IDs, or how a change or
+migration happened; Git history and PR descriptions hold that. When something changes,
+rewrite the affected text to state the new reality. Compatibility code that still
+exists is current: describe what it does now.
 
 # Research and report
 

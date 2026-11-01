@@ -1,21 +1,27 @@
-import { defineRailway, preserve, project, service } from "railway/iac";
+import { bucket, defineRailway, preserve, project, ref, service } from "railway/iac";
 
-// WebArts also hosts Map and NLP. This repository owns only its Notes service.
+// The Notes project also contains Postgres, its volume, and the Postgres-PITR
+// backup bucket. Those stay under dashboard ownership; this partial owns only
+// the web service and the media bucket it uses.
 export const partial = "notes";
 
 export default defineRailway((ctx) => {
-  if (ctx.projectId !== "c6260c51-8b01-4934-8ccb-9cf32456744c") {
-    throw new Error("Notes IaC must target the WebArts Railway project.");
+  if (ctx.projectId !== "7c451bd1-350a-4fb3-a08f-5295863269ce") {
+    throw new Error("Notes IaC must target the Notes Railway project.");
   }
 
   // CLI 5.62.1 may omit ctx.environment; the persistent environment ID is stable.
-  const production = ctx.environmentId === "46907359-520d-41a3-adf3-6ed23379b418";
-  const development = ctx.environmentId === "4e7d33aa-1de0-441f-a105-352bbe3b6697";
+  const production = ctx.environmentId === "f65d1bcb-a786-4678-a431-e9f6c3ff154f";
+  const development = ctx.environmentId === "8cbb1415-ac2b-46c3-ae8c-144265017189";
   const branch = production ? "prod" : development ? "main" : process.env.RAILWAY_IAC_BRANCH;
   if (!branch) {
     throw new Error("Preview applies require RAILWAY_IAC_BRANCH set to the preview's existing branch.");
   }
-  const notesNext = service(production ? "notes" : "apps/notes-next", {
+
+  // Private S3-compatible storage for item files. Region cannot change later.
+  const media = bucket("media", { region: "iad" });
+
+  const notesNext = service("apps/notes-next", {
     source: { repo: "paulshorey/notes", branch },
     env: {
       AUTH_SECRET: preserve(),
@@ -23,6 +29,17 @@ export default defineRailway((ctx) => {
       DB_NOTES_URL: preserve(),
       JINA_API_KEY: preserve(),
       OPENAI_API_KEY: preserve(),
+      RESEND_EMAIL_API_KEY: preserve(),
+      RESEND_FROM_ADDRESS: preserve(),
+      TWILIO_ACCOUNT_SID: preserve(),
+      TWILIO_AUTH_TOKEN: preserve(),
+      TWILIO_FROM_NUMBER: preserve(),
+      TWILIO_TO_NUMBER: preserve(),
+      MEDIA_BUCKET_NAME: ref(media, "BUCKET"),
+      MEDIA_BUCKET_ENDPOINT: ref(media, "ENDPOINT"),
+      MEDIA_BUCKET_REGION: ref(media, "REGION"),
+      MEDIA_BUCKET_ACCESS_KEY_ID: ref(media, "ACCESS_KEY_ID"),
+      MEDIA_BUCKET_SECRET_ACCESS_KEY: ref(media, "SECRET_ACCESS_KEY"),
     },
     build: {
       builder: "RAILPACK",
@@ -48,5 +65,5 @@ export default defineRailway((ctx) => {
     },
   });
 
-  return project("WebArts", { resources: [notesNext] });
+  return project("Notes", { resources: [notesNext, media] });
 });
