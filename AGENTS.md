@@ -1,7 +1,10 @@
 # Project: Notes
 
-A pnpm/Turborepo workspace with a text-focused Next.js notes app. The item model
-supports broader personal and team productivity; the current UI still requires text.
+A monorepo workspace currently designed to support development of multiple apps.
+For now, focus on completing `apps/notes-next`, the minimal rpilot proof of concept.
+This database structure and logic should support multiple content types: text notes, scheduled tasks, multimedia posts, time monitoring, money management (invoices), etc. For now, focus on text notes.
+
+Deployed to `jot.new` - premise is to let the user jot down any idea very quickly without wasting context on deciding how to organize, categorize, what type of content they are recording, or even logging in. For this minimal user experience, we'll first focus on simple text notes, and continue in the future to use simple text notes as the default content type. But in the future, user should be able to add any other content type: alert, reminder, schedule, time, money, receipt, invoice, file, image, video, slideshow, etc. When user adds more content, the perceived "type" of the item will change. But the underlying database record and logic will not change, it will only be extended to convey and render more meaning.
 
 ## Layout and contracts
 
@@ -90,4 +93,4 @@ If unsure about something, research, search the web, find latest techniques and 
 Consider what was recently done, what's in progress, and how it contributes to the goal.
 Decide and recommend what to do next.
 
-# Goal: Unify notes, knowledge, tasks, and website content for individuals and teams
+# Goal: Unify notes, knowledge, tasks, and website content for the user, treat anonymous and signed in users the same, and let anonymous users merge temporary content with their permanent account.
