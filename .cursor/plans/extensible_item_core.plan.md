@@ -6,7 +6,7 @@ todos:
     content: "F1. Store authored text exactly as typed and labels as typed with a normalized key for uniqueness. Stops ongoing data loss; small and independent. PR #119."
     status: in_progress
   - id: permanent_ids
-    content: "F2. UUID keys in two releases: F2a adds uuid columns and references beside the integer ones (old servers keep working); F2b swaps keys after they drain, keeping a unique legacy_id. Retired IDs become one-hop aliases. Merge moves rows; restore never overwrites and clones on any changed or foreign-owned collision."
+    content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2a adds them beside the integer ones with bidirectional sync; F2b moves primary and foreign keys to them in the next release. Integer id stays as the legacy ID; retired IDs become one-hop aliases. Merge moves rows; restore never overwrites."
     status: pending
   - id: revisioned_writes
     content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark."
@@ -120,27 +120,32 @@ with migrations applied by Railway pre-deploy. Each keeps the web client working
 ### F2. Permanent IDs, in place
 
 The previous-release server queries `workspace_item_v1` and the other base tables
-directly with integer IDs, and Railway applies migrations before it is replaced. The key
-change is therefore split into two releases (expand, then contract), each a forward-only
-migration with no reset:
+directly with integer IDs, and Railway applies migrations before it is replaced. Every
+schema change therefore stays compatible with the release still running, and **no
+column is ever renamed** (a rename breaks whichever release still uses the old name):
+
+- UUID keys are new, permanently named columns: `uid` on each existing authored table
+  and `workspace_uid`, `item_uid`, `status_uid`, `category_uid`, `tag_uid` for
+  references to them. Tables created after F2 use `id uuid` for their own key and the
+  same `*_uid` names for references to pre-F2 tables. API field names (`id`,
+  `workspaceId`) are independent of column names.
+- Integer `id` columns stay as the legacy IDs. A column is dropped only in a release
+  after the last code that references it has shipped and drained.
 
 1. **F2a — expand (release N).** Add `app_uuid_v7()` (SQL; replaced by native
-   `uuidv7()` when the database runs PostgreSQL 18) and a `uuid` column with that default
-   to each authored table, backfilled and uniquely indexed. Add uuid reference columns
-   beside every integer reference — link tables and the direct `status_id` — kept in
-   sync by triggers in both directions, so writes from either release populate both.
-   Integer `id` stays the primary key and keeps its sequence; the base tables keep their
-   integer shape, so previous-release servers keep working. Release N's code reads and
-   writes by UUID through the unique indexes and exposes only UUIDs in the API.
-2. **F2b — contract (release N+1, after every release-N-1 server has drained).** Swap
-   primary keys and the composite workspace FKs to the uuid columns, drop the integer
-   reference columns and their sync triggers, and rename integer `id` → `legacy_id`
-   (unique, kept for lookups). `legacy_id` keeps its sequence default until F9, and the
-   compatibility views keep exposing it as their integer `id`/`note_id`. F9 drops its
-   `NOT NULL` together with the default, so only pre-F9 rows carry a legacy ID.
+   `uuidv7()` when the database runs PostgreSQL 18) and the `uid` / `*_uid` columns,
+   backfilled and uniquely indexed, beside every integer key and reference (link tables
+   and the direct `status_id` included). Triggers keep integer and UUID references in
+   sync in both directions, so writes from either release populate both. Integer `id`
+   stays the primary key with its sequence, so previous-release servers keep working.
+   Release N's code reads and writes by UUID and serves integer IDs only for contract 1.
+2. **F2b — key swap (release N+1).** Move primary keys and the composite workspace FKs
+   to the `uid` columns. This changes constraints only; no column is renamed or dropped,
+   so release N keeps working during the overlap. Integer `id` stays unique with its
+   sequence default until F9.
 3. `id_alias_v1(kind, alias_id uuid PRIMARY KEY, alias_legacy_id integer, target_id uuid)`
    records retired IDs (`kind` in `item`, `workspace`, `category`, `status`, `tag`),
-   including the retired row's `legacy_id` (unique per `kind`), so old numeric URLs,
+   including the retired row's integer `id` (unique per `kind`), so old numeric URLs,
    contract-1 requests, and the storage upgrader still resolve it. Aliases are always one
    hop: retiring a row in favor of another also repoints every alias that targeted the
    retired row, in the same transaction, and `db:verify` checks that no `target_id` is
@@ -152,7 +157,7 @@ Code:
   selected by a new contract version: clients that send `X-Items-Contract: 2` get and
   send UUIDs. A browser tab still running the previous build sends
   `X-Items-Contract: 1` and keeps receiving and sending integer IDs (served from the
-  integer keys in F2a and from `legacy_id` after F2b) until it reloads. Contract 1 is
+  integer columns) until it reloads. Contract 1 is
   retired in F9.
 - `GET /api/items/{id}` and open-item URLs accept a UUID, an alias, or a legacy integer
   and redirect to the canonical UUID form.
@@ -160,7 +165,7 @@ Code:
   through a lookup endpoint; dirty drafts are never discarded on failure.
 - Server-side preferences: F2a's migration rewrites `preferences.notesApp.currentWorkspaceId`
   from the integer to the workspace UUID, and bootstrap also resolves an integer value
-  through `legacy_id` (a previous-release server may write one during the rollout).
+  through the integer `id` (a previous-release server may write one during the rollout).
 - Anonymous merge **moves** rows instead of copying under new IDs:
   - no same-named destination workspace → the workspace itself moves (F5: membership and,
     `user_workspace_v1.user_id`), keeping its UUID;
@@ -170,7 +175,9 @@ Code:
     its vocabulary rows become aliases of their destination counterparts;
   - content-identical items are still deduplicated, but the skipped source item's UUID
     becomes an alias of the surviving destination item.
-- Backup v3 carries UUIDs. Restore never overwrites an existing row:
+- Portable backup versions are immutable and each phase that adds authored state ships
+  its own: v3 (UUIDs, F2), v4 (revisions, F3), v5 (trash, F4), v6 (times, F6). Every
+  version keeps an importer. Backup v3 carries UUIDs. Restore never overwrites an existing row:
   - UUID not present anywhere → inserted with that UUID;
   - UUID present in the restoring account with identical content → skipped;
   - UUID present in the restoring account with different content (an older backup of an
@@ -221,10 +228,15 @@ Code:
   records the highest `change_xid` it removed as the sync horizon; a cursor below the
   horizon gets `410 Gone` and a full resync.
 - `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`. Creation
-  is refused with `410 Gone` when the ID has a tombstone or alias, or when its UUIDv7
-  timestamp is older than the tombstone retention, so a delayed retry can never
-  recreate deleted content; only backup restore may bring back a retired ID, and it
-  does so by cloning.
+  is refused with `410 Gone` when the ID is in `retired_id_v1(uid uuid PRIMARY KEY)` or
+  `id_alias_v1`. Every hard-deleted item's UUID is added to `retired_id_v1` and kept
+  permanently (16 bytes per deleted item), independent of tombstone retention, so a
+  delayed retry can never recreate deleted content while an item created offline long
+  ago still syncs. Only backup restore may bring back a retired ID, and it does so by
+  cloning.
+- Every item mutation (create, update, links, facets) requires a live workspace; a write
+  into a trashed workspace returns `409`, so no live item can appear outside the
+  workspace's deletion batch.
   - matching `baseRevision` → applied, `200` with the new revision;
   - content identical to the current server copy → `200`, no change (makes every retry
     of an already-applied write a no-op);
@@ -237,7 +249,9 @@ Code:
     the client then notifies the user with a link to that history entry. If the server
     moved again in between, the overwrite request gets its own `409` and repeats.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
-  conflicting overwrite, delete, or merge).
+  conflicting overwrite, delete, or merge). Backup v4 ships with F3 and carries each
+  item's revisions; restore brings them back with an inserted or cloned item, and a
+  skipped identical item keeps the destination's history.
 - The client save engine drops the create/update split and the POST no-retry hazard:
   every save is a retryable PUT.
 
@@ -263,10 +277,10 @@ Code:
   `.railway/railway.ts`) that runs the purge command daily in each environment. It is
   replaced by the background worker when that exists. The 30-day promise ships only with
   the schedule.
-- Portable backups carry trash state: backup v4 adds `deletedAt` and `deletionId` to
+- Portable backups carry trash state: backup v5 adds `deletedAt` and `deletionId` to
   workspaces and items. Restore keeps trashed rows in Trash with the same batch
   grouping and their original `deletedAt` (so the remaining retention carries over);
-  v1–v3 files restore as live rows.
+  v1–v4 files restore as live rows.
 - Restore merges a backed-up workspace into a destination workspace only when both are
   live and share a `label_key`. A trashed backed-up workspace, or one whose label
   collides with a trashed destination workspace, is restored as a separate workspace
@@ -282,7 +296,10 @@ Code:
   membership, so workspaces created by a previous-release server during the rollout are
   covered; it stays until F9.
 - `user_workspace_v1.user_id` remains as the workspace **owner**, with the existing
-  unique `(user_id, label_key)`. Labels are unique among the workspaces a user owns;
+  unique `(user_id, label_key)`. Its FK changes from `ON DELETE CASCADE` to
+  `ON DELETE RESTRICT`: deleting an account first transfers ownership of each workspace
+  that has other members to one of them (an editor if any) and moves workspaces with no
+  other members to Trash, so an owner's deletion never destroys collaborators' content. Labels are unique among the workspaces a user owns;
   workspaces shared with them by others are never merge or restore targets. Anonymous
   merge and backup restore pick their destination among owned workspaces only.
 - One SQL predicate (`can_read_workspace` / `can_write_workspace`) replaces per-query
@@ -292,6 +309,9 @@ Code:
   **and** updates `user_workspace_v1.user_id` to the permanent account in the same
   transaction, so deleting the anonymous user cannot cascade through the owner FK.
   When the destination has a same-named workspace, items move as in F2.
+- Membership changes reach sync: granting access writes a per-user event that makes
+  the member's next sync fetch that workspace in full, and revoking access writes a
+  workspace tombstone for that user so their devices drop its content.
 - No sharing UI is built in this phase; roles other than `owner` stay unused until
   sharing is designed (D5).
 
@@ -300,7 +320,7 @@ Code:
 ```sql
 CREATE TABLE item_time_v1 (
   id uuid PRIMARY KEY DEFAULT app_uuid_v7(),
-  item_id uuid NOT NULL, workspace_id uuid NOT NULL,
+  item_uid uuid NOT NULL, workspace_uid uuid NOT NULL,
   role text NOT NULL,               -- 'due' | 'remind' | 'start' | 'end' | 'event' | ...
   at timestamptz,                   -- a specific instant
   on_date date,                     -- an all-day / floating date
@@ -313,11 +333,14 @@ CREATE TABLE item_time_v1 (
   CHECK (num_nonnulls(at, on_date) = 1),
   CHECK (end_at IS NULL OR at IS NOT NULL),
   CHECK (end_date IS NULL OR on_date IS NOT NULL),
-  FOREIGN KEY (item_id, workspace_id) REFERENCES workspace_item_v1(id, workspace_id)
+  -- A range never ends before it starts.
+  CHECK (end_at IS NULL OR end_at >= at),
+  CHECK (end_date IS NULL OR end_date >= on_date),
+  FOREIGN KEY (item_uid, workspace_uid) REFERENCES workspace_item_v1(uid, workspace_uid)
     ON DELETE CASCADE ON UPDATE CASCADE
 );
 -- Roles the text client shows as single fields have at most one row per item.
-CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_id, role)
+CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role)
   WHERE role IN ('due', 'remind');
 ```
 
@@ -327,11 +350,10 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_id, role)
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
   row, and a write to a projectable row updates the column. **F6b** (next release,
   after old servers drain) drops the triggers and the columns.
-- Portable backups gain an immutable version with `times[]` per item before F6 ships,
-  with importers for every earlier version; restore round-trips dates, zones,
+- Backup v6 carries `times[]` per item and ships with F6a; restore round-trips dates, zones,
   recurrence rules, and every role.
 - API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
-  `remind` row (an upsert on `(item_id, role)` when written) and adds `times[]`. New multi-valued roles get new role names, never
+  `remind` row (an upsert on `(item_uid, role)` when written) and adds `times[]`. New multi-valued roles get new role names, never
   a second `due`.
 - An all-day `due`/`remind` row (`on_date`) has no lossless timestamp form, so its
   projection is `null` and the record also reports it in `times[]`. On write, a non-null
@@ -351,16 +373,19 @@ walks the foreign-key graph and fails unless every table that reaches `user_v1`,
 example a child of `file_v1` keyed only by `file_id`) declares:
 
 - backup class: `authored` (in portable backups), `derived` (rebuildable, excluded), or
-  `nonportable` (credentials and sessions such as `user_api_token_v1`: never exported,
-  never restored, never moved to another account);
+  `account` (bound to specific accounts, never exported: credentials and sessions such
+  as `user_api_token_v1`, and `workspace_member`). Restore recreates only the restoring
+  user's owner membership; sharing grants are not portable;
 - move/merge strategy: `follows-item`, `follows-workspace`, `remap-by-key`, or `drop`.
 
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
 
-`drop` is allowed only for `derived` and `nonportable` tables; an `authored` table
-must use a lossless strategy. F3 extends the guard to require its revision trigger on
+`drop` is allowed only for `derived` and `account` tables; an `authored` table must use
+a lossless strategy. `account` tables that describe a workspace rather than a
+credential (`workspace_member`) use `follows-workspace`, so memberships move with a
+merged workspace; credentials use `drop`. F3 extends the guard to require its revision trigger on
 every `authored` + `follows-item` table; F7 does not check that rule, so it ships
 independently.
 A new content-type table therefore cannot ship without a deliberate backup and merge
@@ -386,8 +411,9 @@ Per D2 only the web app depends on these, so they go once the web client no long
 them and one release has drained previous-release servers:
 
 - API contract 1 (integer IDs) for previously loaded browser builds;
-- legacy SQL views and their insert triggers, the `legacy_id` sequence default and
-  `NOT NULL`, the
+- legacy SQL views and their insert triggers; the integer reference columns and their
+  sync triggers (in the release after the last code using them); the integer `id`
+  sequence defaults and `NOT NULL`, so only pre-F9 rows carry a legacy ID; the
   `user_note_v1_id_seq` name, the exact-label unique constraints kept by F1, and F5's
   owner-membership insert trigger;
 - `/api/notes*` facades, `X-Items-Contract` dual payloads, legacy response aliases,
@@ -398,11 +424,13 @@ them and one release has drained previous-release servers:
 
 Stays indefinitely: importers for every portable backup version, `id_alias_v1`, open-item storage v1/v2 draft upgraders (a
 browser that has not opened the app in months may still hold an unsaved draft), and
-`legacy_id` lookups/redirects.
+`retired_id_v1`, and integer-ID lookups/redirects.
 
 ## 6. Additive content types after the foundation
 
-None of these requires changing an existing column.
+None of these requires changing an existing column. Shapes use `item_id`,
+`workspace_id`, and `file_id` for brevity; references to pre-F2 tables are the `*_uid`
+columns from F2.
 
 | Capability        | Shape                                                                                                                                                                                                                                                                                                                                                                                                                                     | Enables                                                                        |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
