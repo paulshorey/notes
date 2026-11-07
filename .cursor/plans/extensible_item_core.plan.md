@@ -119,6 +119,11 @@ with migrations applied by Railway pre-deploy. Each keeps the web client working
 - Portable backup version 3 stores labels as typed. Version 1 and 2 files keep their
   lowercase label rule, and the version 1 download for older clients lowercases labels,
   so a file an older deployment can read never contains cased labels.
+- A version 1 or 2 file can hold two labels that were distinct under the old rules but
+  share a `label_key` (Unicode compatibility forms). F1 rejects such a file with a clear
+  error rather than merging them. A follow-up importer preflight makes it importable
+  losslessly: within a workspace, the later colliding label gets a suffix
+  (`ｑ3 (2)`) and every reference in the file is remapped to it before restore.
 
 ### F2. Permanent IDs, in place
 
@@ -231,8 +236,9 @@ Code:
   transaction. Link removals are item changes (they bump the
   item's revision).
 - Tombstones are retained for 180 days by `deleted_at` (indexed). The retention job
-  records the highest `change_xid` it removed as the sync horizon; a cursor below the
-  horizon gets `410 Gone` and a full resync.
+  records the highest `change_xid` it removed as the sync horizon; a cursor at or
+  below the horizon gets `410 Gone` and a full resync (sync reads `change_xid >= cursor`,
+  so a cursor equal to a purged tombstone's XID can no longer be served).
 - `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`. Creation
   is refused with `410 Gone` when the ID is in `retired_id_v1(uid uuid PRIMARY KEY)` or
   `id_alias_v1`. Every hard-deleted item's UUID is added to `retired_id_v1` and kept
@@ -240,9 +246,10 @@ Code:
   delayed retry can never recreate deleted content while an item created offline long
   ago still syncs. Only backup restore may bring back a retired ID, and it does so by
   cloning.
-- Every item mutation (create, update, links, facets) requires a live workspace; a write
-  into a trashed workspace returns `409`, so no live item can appear outside the
-  workspace's deletion batch.
+- Every ordinary item mutation (create, update, links, facets, and the pre-F3
+  `POST`/`PATCH` routes) requires both the item and its workspace to be live
+  (`deleted_at IS NULL`); a write to a trashed item or into a trashed workspace returns
+  `409`. Deleted rows are reachable only through the Trash read and restore.
   - matching `baseRevision` → applied, `200` with the new revision;
   - content identical to the current server copy → `200`, no change (makes every retry
     of an already-applied write a no-op);
@@ -399,9 +406,11 @@ example a child of `file_v1` keyed only by `file_id`) declares:
 - move/merge strategy: `follows-item`, `follows-workspace`, `remap-by-key`, or `drop`.
 
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
-(`id_alias_v1`, `sync_tombstone_v1`) are registered explicitly, and the guard fails on
+(`id_alias_v1`, `sync_tombstone_v1`, `retired_id_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
-Operational tables that hold no user data (the `schema_migrations_cursor` ledger, and
+`retired_id_v1` holds only UUIDs with no owner: it is excluded from backups and kept
+unchanged by merges. Operational tables that hold no user data (the
+`schema_migrations_cursor` ledger, and
 later the job queue if it lives in `public`) are registered as `operational`, which is
 excluded from backups and merges and exempt from the walk.
 
