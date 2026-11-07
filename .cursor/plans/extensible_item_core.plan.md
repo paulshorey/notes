@@ -268,7 +268,9 @@ Code:
     is paired with its equal-content counterpart on the survivor and its ID is aliased to
     that counterpart's in `id_alias_v1`, so a queued edit carrying a source facet ID
     follows it; the skipped item's revision history is appended to the survivor's before
-    the source is retired. The merge takes `FOR UPDATE` on the source workspace row,
+    the source is retired, and the survivor's revision is advanced past every merged
+    source revision (a rekeyed mutation receipt or a device holding a source revision then
+    sees a stale, not a future, revision). The merge takes `FOR UPDATE` on the source workspace row,
     then takes `FOR UPDATE` on the destination workspace row before it decides whether
     the pair is owner-only, and locks the source items, every candidate destination
     item, and every
@@ -383,9 +385,11 @@ Code:
   terms), as in an anonymous merge, so the move never leaves the item paired with
   source-workspace vocabulary.
 - Moving an item to another workspace is an update, not a delete, so a trigger on the
-  item's `workspace_uid` writes `moved` tombstones for the members of the source
-  workspace who cannot read the destination, before the change is visible, and those
-  members' devices drop the item.
+  item's `workspace_uid` writes `moved` tombstones for every member of the source
+  workspace, before the change is visible. A member who can also read the destination
+  receives the current row, which supersedes the tombstone; a member who cannot drops the
+  item. A later revocation from the destination therefore never leaves a cached item still
+  claiming the source workspace.
 - Tombstones are retained for 180 days by `deleted_at` (indexed). The retention job
   records the highest `change_xid` it removed as the sync horizon; a cursor at or
   below the horizon gets `410 Gone` and a full resync (sync reads `change_xid >= cursor`,
@@ -427,7 +431,9 @@ Code:
   `POST`/`PATCH` routes) requires both the item and its workspace to be live
   (`deleted_at IS NULL`); a write to a trashed item or into a trashed workspace returns
   `409`. Deleted rows are reachable only through the Trash read and restore. Each
-  mutation takes `FOR SHARE` on its workspace row, and a workspace delete takes
+  mutation takes `FOR SHARE` on its workspace row (a cross-workspace move takes it on
+  both the source and the destination workspace rows, in `workspace_uid` order, before
+  checking either lifecycle state), and a workspace delete takes
   `FOR UPDATE` on it for the whole batch, so a create cannot slip in beside a
   workspace being trashed.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
@@ -463,9 +469,11 @@ Code:
 - Snapshot capture is a database trigger, so it also covers a previous-release server's
   writes during F3's rollout: a `BEFORE UPDATE` trigger on items (and the facet
   triggers) snapshots the old version unless the transaction marks
-  `app.snapshot_handled` for that item: F3's code sets it to the UID of the one item it
-  just snapshotted and clears it after that item's write, so other items written in the
-  same transaction (a vocabulary deletion or a merge) still get their own snapshots.
+  `app.snapshot_handled` for that item: it holds a transaction-local set of item UIDs.
+  F3's code adds the item it just snapshotted, and a vocabulary delete's `BEFORE DELETE`
+  trigger adds every item it pre-snapshotted, each removed after that item's write (or at
+  the end of the transaction), so other items written in the same transaction still get
+  their own snapshots and none is snapshotted twice.
 
 ### F4. Soft delete and trash
 
