@@ -240,7 +240,10 @@ Code:
   UUID-first insert and remap path (no integer sequence or default is called), so
   removing integer allocation in F9 changes nothing for restores. Backup v4 carries
   UUIDs. Restore never overwrites an existing row:
-  - UUID not present anywhere → inserted with that UUID;
+  - UUID not present anywhere, and not in `retired_id_v1` or `id_alias_v1` (a retired or
+    aliased UUID counts as occupied) → inserted with that UUID;
+  - UUID that is retired or aliased → cloned under a new UUID, with the backup's
+    internal references remapped to it;
   - UUID present in the restoring account with identical content, in the workspace the
     backup's workspace maps to, and with the same lifecycle state (`deletedAt` and
     `deletionId`, v6 and later) → skipped; if it has since moved to another workspace
