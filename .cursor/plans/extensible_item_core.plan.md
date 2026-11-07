@@ -3,7 +3,7 @@ name: Extensible item core — settle the hard-to-change foundation in place, th
 overview: Before any content type beyond text ships, settle the parts of the item model that become expensive or destructive to change once more tables, clients, URLs, and devices depend on them — permanent IDs, lossless input, revisioned idempotent writes, soft delete, membership ownership, and a time facet. Every step is a forward, in-place migration applied by the existing Railway pre-deploy, so no database reset and no data export/import is ever required. After the foundation, every planned content type (reminders, schedules, files, media, money, kanban, time tracking, publishing, sharing) is an additive table plus a client capability module.
 todos:
   - id: lossless_input
-    content: "F1. In three releases: F1a (PR #119) stores item text exactly as typed and gives labels a locale-independent NFKC key, with rollout triggers keeping labels lowercased for previous-release servers; F1b drops those triggers and adds a full-case-folding key beside the old one; F1c switches matching to the folded key."
+    content: "F1. In three releases: F1a (PR #119) stores item text exactly as typed and gives labels a locale-independent NFKC key, with rollout triggers keeping labels lowercased for previous-release servers; F1b switches the exporter to the cased backup format and adds a full-case-folding key beside the old one; F1c drops the lowercasing triggers and switches matching to the folded key."
     status: in_progress
   - id: permanent_ids
     content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2-pre makes merges move rows and alias retired integer IDs; F2a adds the columns and UUID-aware servers while clients stay on integer IDs; F2b ships the UUID client and moves primary and foreign keys to the uid columns. Integer id stays as the legacy ID. Merge moves rows; restore never overwrites."
@@ -118,24 +118,24 @@ as lowercase:
   `labelKey`) that carries uniqueness, and labels are stored without surrounding
   (ECMAScript `trim()`) whitespace. Rollout triggers still store labels lowercased, while
   clients and APIs send them as typed.
-- **F1b (next release, after F1a has fully replaced the previous one).** A migration
-  drops the lowercasing triggers; labels then keep the casing typed. Existing labels
-  keep their current text. F1b also adds a second generated column,
-  `label_fold_key`, for full Unicode case folding (so `ΟΣ`/`οσ`/`ος` and `Straße`/`STRASSE`
-  are one label), implemented identically in SQL and the client and checked by a parity
-  test over every full-folding entry in Unicode's `CaseFolding.txt`, with the same
-  collision audit that stops the migration rather than merging labels. `label_key` keeps
-  its F1a value, and F1b's code matches a label by either key, so F1a servers still
-  running during the rollout see no change. Until F1c adds the unique index, F1b
-  creation takes a transaction-scoped advisory lock on `(scope, label_fold_key)` and a
-  `BEFORE INSERT/UPDATE` trigger rejects a fold-equal duplicate, so concurrent requests
-  cannot create `Straße` and `STRASSE` together.
-- **F1c (next release, after F1b has replaced every server).** Uniqueness, lookups,
-  merges, restores, and the client switch to `label_fold_key`, and the old unique index
-  is dropped. Importers disambiguate any key collision in any backup version (the later
-  label gets a numbered suffix and references follow it) rather than rejecting it, so a
-  file written under the older key stays restorable. Exports emit the cased format (v3)
-  only from F1c, so no v3 file ever exists with older-key semantics.
+- **F1b (next release, after F1a has fully replaced the previous one).** The exporter
+  switches to the cased format (v3), which every server now imports. F1b also adds a
+  second generated column, `label_fold_key`, for full Unicode case folding (so
+  `ΟΣ`/`οσ`/`ος` and `Straße`/`STRASSE` are one label), implemented identically in SQL
+  and the client and checked by a parity test over every full-folding entry in Unicode's
+  `CaseFolding.txt`, with the same collision audit that stops the migration rather than
+  merging labels. `label_key` keeps its F1a value, and F1b's code matches a label by
+  either key, so F1a servers still running during the rollout see no change. Until F1c
+  adds the unique index, a `BEFORE INSERT/UPDATE` trigger takes a transaction-scoped
+  advisory lock on `(scope, label_fold_key)` itself and rejects a fold-equal duplicate,
+  so concurrent writers from any release cannot create `Straße` and `STRASSE` together.
+  Labels are still stored lowercased.
+- **F1c (next release, after F1b has replaced every server).** The migration drops the
+  lowercasing triggers, so labels keep the casing typed (existing labels keep their
+  current text), and uniqueness, lookups, merges, restores, and the client switch to
+  `label_fold_key`; the old unique index is dropped. Importers disambiguate any key
+  collision in any backup version (the later label gets a numbered suffix and references
+  follow it) rather than rejecting it.
 - The migration audits existing rows first: legacy padding is trimmed, and any labels
   that would be blank or share a key after trimming and NFKC normalization (for example
   precomposed and decomposed `é`) stop the pre-deploy with a count. There is no automatic
@@ -244,10 +244,13 @@ Code:
     that also remaps `status_id`, and category/tag links are remapped, all by
     `label_key` (missing destination terms are created first); the source workspace and
     its vocabulary rows become aliases of their destination counterparts;
-  - a same-named pair where either workspace has other members is never merged: the
+  - a same-named pair where either workspace has other members, or either workspace is in
+    Trash (F4), is never merged: the
     source workspace moves as a whole with a suffixed label, so no member gains access
     to content outside the workspace they were given;
-  - content-identical items are still deduplicated, but the skipped source item's UUID
+  - content-identical items are still deduplicated, but only when both are live, or both
+    are in Trash with the same `deletion_id` (the identity includes `deleted_at` and
+    `deletion_id`), but the skipped source item's UUID
     becomes an alias of the surviving destination item. The identity covers every
     authored facet of the item's normalized content, without facet IDs (it is computed
     from the F7 registry of `authored` + `follows-item` tables), so items that differ in
@@ -339,9 +342,9 @@ Code:
   All lists and the new cursor are read in one `REPEATABLE READ` read-only
   transaction, so they come from the same snapshot and a commit between two reads cannot
   be skipped.
-- Tombstones: `sync_tombstone_v1` rows (`user_id`, `kind`, `entity_id`, `workspace_id`,
+- Tombstones: `sync_tombstone_v1` rows (`user_id`, `kind`, `entity_id`, `workspace_uid`,
   `reason` (`deleted`, `revoked`, `merged`, or `moved`), `revocation_id`, `replaced_by`
-  (the surviving ID for `merged`; the new workspace for `moved`),
+  (the surviving ID for `merged`; the destination workspace UUID for `moved`),
   `change_xid`, `deleted_at`) are written by `AFTER DELETE` triggers on items, workspaces, and
   vocabulary tables, so every existing hard-delete path (item and vocabulary deletion
   today, the F4 purge later) produces a deletion record from F3 onward. Each deletion
@@ -685,8 +688,10 @@ any table in the `public` schema that is neither reached by the walk nor registe
 both on its facets' markers, so they follow it to its new workspace and owner and that workspace's owner at retirement (`owner_user_id`, which an
 anonymous merge moves to the permanent account). A portable backup carries every marker
 owned by the exported account, including those of workspaces since purged, and restore re-inserts them (skipping any UUID that is live elsewhere), so a
-restored account still refuses retries of IDs retired before the backup. Merges leave
-it unchanged apart from moving `owner_user_id`. `id_alias_v1` is portable: a backup carries the aliases whose
+restored account still refuses retries of IDs retired before the backup. A merge
+that deduplicates an item reparents the source item's descendant markers to the survivor
+(`item_uid`, workspace, and owner) while recording the alias, and otherwise only moves
+`owner_user_id`. `id_alias_v1` is portable: a backup carries the aliases whose
 targets belong to the exported account, and restore recreates them with the same rules
 merges use (an alias UUID already in use elsewhere is remapped with its cloned target,
 never taken over). Operational tables that hold no user data (the
@@ -812,11 +817,12 @@ applied as listed.
 2. **F2a.** `*_uid` references, sync triggers, UUID-aware servers; the exporter emits v4.
    The client still sends contract 1.
 3. **F2b.** The UUID (contract 2) client and storage upgrader; key swap; the v5 importer
-   and the empty `item_revision` table. Exporter stays v4.
-4. **F3a.** The PUT endpoint, sync, tombstones; the exporter emits v5 and non-empty v5
-   imports are accepted. No snapshot writes yet; the client still saves with POST/PATCH.
-5. **F3b.** The client save engine switches to PUT; snapshot writes and revision triggers
-   turn on.
+   and the empty `item_revision` and `retired_id_v1` tables (with the marker section of
+   v5). Exporter stays v4, and no marker is recorded yet.
+4. **F3a.** The PUT endpoint, sync, tombstones; the exporter emits v5 (revisions and
+   markers) and non-empty v5 imports are accepted. No snapshot writes yet; the client still saves with POST/PATCH.
+5. **F3b.** The client save engine switches to PUT; snapshot writes, revision triggers,
+   and the marker-producing delete triggers turn on.
 6. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
    (rejects non-empty trash state). Exporter stays v5.
 7. **F4b.** The exporter emits v6 and non-empty v6 imports are accepted; hard-delete flags in account deletion, cleanup, and
