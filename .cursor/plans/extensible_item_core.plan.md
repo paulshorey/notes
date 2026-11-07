@@ -161,12 +161,15 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    guarantee starts once F2-pre has replaced every server: a merge served by a
    previous-release server during F2-pre's own rollout copies under new integer IDs,
    exactly as every merge does today, and the client reloads its items after sign-in as
-   it already does.
-1. **F2a — expand (release N).** Add `app_uuid_v7()` (SQL; replaced by native
-   `uuidv7()` when the database runs PostgreSQL 18) and the `uid` / `*_uid` columns,
-   backfilled and uniquely indexed, beside every integer key and reference (link tables
-   and the direct `status_id` included). Triggers keep integer and UUID references in
-   sync in both directions, so writes from either release populate both. Integer `id`
+   it already does. F2-pre also adds `app_uuid_v7()` (SQL; replaced by native
+   `uuidv7()` when the database runs PostgreSQL 18) and the `uid` column on every
+   authored table, with that default, backfilled and uniquely indexed, so the backup v4
+   exporter and importer have stored UUIDs to carry and generate new rows' UUIDs.
+   Nothing reads UUIDs for requests yet.
+1. **F2a — expand (release N).** Add the `*_uid` reference columns, backfilled, beside
+   every integer reference (link tables and the direct `status_id` included). Triggers
+   keep integer and UUID references in sync in both directions, so writes from either
+   release populate both. Integer `id`
    stays the primary key with its sequence, so previous-release servers keep working.
    Release N's servers read and write by UUID and understand both contracts, but the
    shipped client still sends contract 1 (integer IDs), so a request landing on an
@@ -229,7 +232,8 @@ Code:
     content are deduplicated only after each source facet ID is aliased to its surviving
     counterpart in `id_alias_v1`, so a queued edit carrying a source facet ID follows it; the skipped item's revision history is appended to the survivor's before
     the source is retired. The merge takes `FOR UPDATE` on the source workspace row,
-    then locks the source items and every candidate destination item
+    then locks the source items, every candidate destination item, and every
+    vocabulary row (status, category, tag) either side uses
     (`SELECT … FOR UPDATE`) before computing identities, and holds all of these locks
     through history transfer, aliasing, and retirement. From F2-pre on, creating or
     moving an item takes `FOR SHARE` on its workspace row, so no item can be created in
@@ -297,8 +301,8 @@ Code:
   transaction, so they come from the same snapshot and a commit between two reads cannot
   be skipped.
 - Tombstones: `sync_tombstone_v1` rows (`user_id`, `kind`, `entity_id`, `workspace_id`,
-  `reason` (`deleted`, `revoked`, or `merged`), `revocation_id`, `replaced_by` (the
-  surviving ID for `merged`),
+  `reason` (`deleted`, `revoked`, `merged`, or `moved`), `revocation_id`, `replaced_by`
+  (the surviving ID for `merged`; the new workspace for `moved`),
   `change_xid`, `deleted_at`) are written by `AFTER DELETE` triggers on items, workspaces, and
   vocabulary tables, so every existing hard-delete path (item and vocabulary deletion
   today, the F4 purge later) produces a deletion record from F3 onward. Each deletion
@@ -313,6 +317,10 @@ Code:
   has to look up authorization state that it is removing; the row triggers skip
   entities already tombstoned in that transaction. Link removals are item changes (they bump the
   item's revision).
+- Moving an item to another workspace is an update, not a delete, so a trigger on the
+  item's `workspace_uid` writes `moved` tombstones for the members of the source
+  workspace who cannot read the destination, before the change is visible, and those
+  members' devices drop the item.
 - Tombstones are retained for 180 days by `deleted_at` (indexed). The retention job
   records the highest `change_xid` it removed as the sync horizon; a cursor at or
   below the horizon gets `410 Gone` and a full resync (sync reads `change_xid >= cursor`,
