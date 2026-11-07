@@ -29,6 +29,15 @@ SET row_security = off;
 
 
 --
+-- Name: app_label_whitespace_v1(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_label_whitespace_v1() RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    RETURN ((((((((((((((((((((((((chr(9) || chr(10)) || chr(11)) || chr(12)) || chr(13)) || chr(32)) || chr(160)) || chr(5760)) || chr(8192)) || chr(8193)) || chr(8194)) || chr(8195)) || chr(8196)) || chr(8197)) || chr(8198)) || chr(8199)) || chr(8200)) || chr(8201)) || chr(8202)) || chr(8232)) || chr(8233)) || chr(8239)) || chr(8287)) || chr(12288)) || chr(65279));
+
+
+--
 -- Name: apply_row_timestamps_v1(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -223,7 +232,8 @@ CREATE TABLE public.user_workspace_v1 (
     label text NOT NULL,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_workspace_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
+    label_key text GENERATED ALWAYS AS (lower(NORMALIZE(label, NFKC))) STORED,
+    CONSTRAINT user_workspace_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 
 
@@ -260,8 +270,9 @@ CREATE TABLE public.workspace_category_v1 (
     embedding_updated_at timestamp with time zone,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workspace_category_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label))))),
-    CONSTRAINT workspace_category_v1_label_not_reserved_check CHECK ((lower(btrim(label, ((((((((((((((((((((((((chr(9) || chr(10)) || chr(11)) || chr(12)) || chr(13)) || chr(32)) || chr(160)) || chr(5760)) || chr(8192)) || chr(8193)) || chr(8194)) || chr(8195)) || chr(8196)) || chr(8197)) || chr(8198)) || chr(8199)) || chr(8200)) || chr(8201)) || chr(8202)) || chr(8232)) || chr(8233)) || chr(8239)) || chr(8287)) || chr(12288)) || chr(65279)))) <> 'uncategorized'::text))
+    label_key text GENERATED ALWAYS AS (lower(NORMALIZE(label, NFKC))) STORED,
+    CONSTRAINT workspace_category_v1_label_not_reserved_check CHECK ((lower(NORMALIZE(btrim(label, public.app_label_whitespace_v1()), NFKC)) <> 'uncategorized'::text)),
+    CONSTRAINT workspace_category_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 
 
@@ -312,7 +323,8 @@ CREATE TABLE public.workspace_status_v1 (
     "position" integer DEFAULT 0 NOT NULL,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workspace_status_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label))))),
+    label_key text GENERATED ALWAYS AS (lower(NORMALIZE(label, NFKC))) STORED,
+    CONSTRAINT workspace_status_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1())))),
     CONSTRAINT workspace_status_v1_position_check CHECK (("position" >= 0))
 );
 
@@ -344,7 +356,8 @@ CREATE TABLE public.workspace_tag_v1 (
     embedding_updated_at timestamp with time zone,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workspace_tag_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
+    label_key text GENERATED ALWAYS AS (lower(NORMALIZE(label, NFKC))) STORED,
+    CONSTRAINT workspace_tag_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 
 
@@ -635,6 +648,13 @@ CREATE INDEX user_workspace_v1_user_id_idx ON public.user_workspace_v1 USING btr
 
 
 --
+-- Name: user_workspace_v1_user_id_label_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX user_workspace_v1_user_id_label_key_idx ON public.user_workspace_v1 USING btree (user_id, label_key);
+
+
+--
 -- Name: workspace_category_v1_category_embedding_hnsw_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -646,6 +666,13 @@ CREATE INDEX workspace_category_v1_category_embedding_hnsw_idx ON public.workspa
 --
 
 CREATE INDEX workspace_category_v1_workspace_id_idx ON public.workspace_category_v1 USING btree (workspace_id);
+
+
+--
+-- Name: workspace_category_v1_workspace_id_label_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_category_v1_workspace_id_label_key_idx ON public.workspace_category_v1 USING btree (workspace_id, label_key);
 
 
 --
@@ -670,6 +697,13 @@ CREATE INDEX workspace_item_v1_workspace_id_idx ON public.workspace_item_v1 USIN
 
 
 --
+-- Name: workspace_status_v1_workspace_id_label_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_status_v1_workspace_id_label_key_idx ON public.workspace_status_v1 USING btree (workspace_id, label_key);
+
+
+--
 -- Name: workspace_status_v1_workspace_id_position_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -688,6 +722,13 @@ CREATE INDEX workspace_tag_v1_tag_embedding_hnsw_idx ON public.workspace_tag_v1 
 --
 
 CREATE INDEX workspace_tag_v1_workspace_id_idx ON public.workspace_tag_v1 USING btree (workspace_id);
+
+
+--
+-- Name: workspace_tag_v1_workspace_id_label_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_tag_v1_workspace_id_label_key_idx ON public.workspace_tag_v1 USING btree (workspace_id, label_key);
 
 
 --

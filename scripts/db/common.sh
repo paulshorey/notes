@@ -67,8 +67,8 @@ items_db_compatibility_view() {
 }
 
 # pg_dump --table deliberately omits dependencies outside selected relations.
-# Include the item schema's extension and trigger function when selected tables
-# actually use them, so the dump also restores into an empty database.
+# Include the item schema's extension, trigger function, and label-check function
+# when selected tables actually use them, so the dump also restores into an empty database.
 # Callers validate every table name before constructing this SQL list.
 items_db_schema_dependencies() {
   local table table_list="" separator=""
@@ -84,11 +84,18 @@ WHERE EXISTS (
   WHERE n.nspname='public' AND c.relname IN (${table_list})
     AND NOT a.attisdropped AND a.atttypid=to_regtype('public.vector')
 );
-SELECT pg_get_functiondef(p.oid) FROM pg_proc p
+SELECT pg_get_functiondef(p.oid) || ';' FROM pg_proc p
 WHERE p.oid=to_regprocedure('public.apply_row_timestamps_v1()') AND EXISTS (
   SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
   JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE t.tgfoid=p.oid AND n.nspname='public' AND c.relname IN (${table_list})
+);
+SELECT pg_get_functiondef(p.oid) || ';' FROM pg_proc p
+WHERE p.oid=to_regprocedure('public.app_label_whitespace_v1()') AND EXISTS (
+  SELECT 1 FROM pg_depend d JOIN pg_constraint con ON con.oid=d.objid
+  JOIN pg_class c ON c.oid=con.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE d.classid='pg_constraint'::regclass AND d.refobjid=p.oid
+    AND n.nspname='public' AND c.relname IN (${table_list})
 );
 SQL
 }

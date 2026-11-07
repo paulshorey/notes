@@ -2,7 +2,6 @@
 
 import { Button, Modal, Text, TextInput } from "@gravity-ui/uikit"
 import type { TagRecord } from "@lib/db-items"
-import { toLowercaseInput } from "@/lib/strings"
 import styles from "./EditTagModal.module.css"
 
 interface EditTagModalProps {
@@ -29,7 +28,7 @@ export function EditTagModal({
         <TextInput
           size="m"
           value={label}
-          onUpdate={(value) => onLabelChange(toLowercaseInput(value))}
+          onUpdate={onLabelChange}
           placeholder="Tag name"
           autoFocus
         />

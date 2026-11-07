@@ -13,7 +13,7 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
-import { firstLineLabel, normalizeLabel, toLowercaseInput } from "@/lib/strings"
+import { firstLineLabel, labelKey } from "@/lib/strings"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import {
   type CSSProperties,
@@ -354,7 +354,7 @@ export function ResultsColumn({
                 size="m"
                 placeholder="AI Search"
                 value={searchQuery}
-                onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
+                onUpdate={setSearchQuery}
                 onKeyDown={(event) => {
                   if (event.key !== "Escape") return
                   event.preventDefault()
@@ -1101,14 +1101,14 @@ function ItemMovePicker({
   const inputError = mode === "category" ? getCategoryNameError(inputValue) : null
   const currentOptionIdSet = useMemo(() => new Set(currentOptionIds), [currentOptionIds])
   const filteredOptions = useMemo(() => {
-    const query = normalizeLabel(inputValue)
+    const query = labelKey(inputValue)
 
     return options.filter((option) => {
       if (currentOptionIdSet.has(option.id)) {
         return false
       }
 
-      const normalized = normalizeLabel(option.label)
+      const normalized = labelKey(option.label)
       return query === "" || normalized.includes(query)
     })
   }, [currentOptionIdSet, inputValue, options])
@@ -1145,9 +1145,7 @@ function ItemMovePicker({
     if (label === "") {
       return
     }
-    const matchingOption = options.find(
-      (option) => normalizeLabel(option.label) === normalizeLabel(label),
-    )
+    const matchingOption = options.find((option) => labelKey(option.label) === labelKey(label))
     submitLabel(matchingOption?.label ?? label)
   }
 
@@ -1197,7 +1195,7 @@ function ItemMovePicker({
         placeholder={inputPlaceholder}
         value={inputValue}
         disabled={pending}
-        onChange={(event) => setInputValue(toLowercaseInput(event.currentTarget.value))}
+        onChange={(event) => setInputValue(event.currentTarget.value)}
         onKeyDown={handleKeyDown}
       />
     </div>

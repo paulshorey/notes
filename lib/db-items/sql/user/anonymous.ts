@@ -266,7 +266,7 @@ export const mergeAnonymousUserIntoWithClient = async (
   )
   for (const source of anonWorkspaces.rows) {
     const collision = await client.query<{ id: number }>(
-      `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 AND label=$2`,
+      `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 AND label_key=lower(normalize($2,NFKC))`,
       [realUserId, source.label],
     )
     if (!collision.rows[0] && !deduplicateItems) {
@@ -297,19 +297,19 @@ export const mergeAnonymousUserIntoWithClient = async (
     await client.query(
       `INSERT INTO public.workspace_category_v1(workspace_id,label,category_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
       SELECT $1,label,category_embedding,embedding_model,embedding_updated_at,time_created,time_modified FROM public.workspace_category_v1 WHERE workspace_id=$2
-      ON CONFLICT(workspace_id,label) DO NOTHING`,
+      ON CONFLICT(workspace_id,label_key) DO NOTHING`,
       [destinationId, source.id],
     )
     await client.query(
       `INSERT INTO public.workspace_status_v1(workspace_id,label,position,time_created,time_modified)
       SELECT $1,label,position,time_created,time_modified FROM public.workspace_status_v1 WHERE workspace_id=$2
-      ON CONFLICT(workspace_id,label) DO NOTHING`,
+      ON CONFLICT(workspace_id,label_key) DO NOTHING`,
       [destinationId, source.id],
     )
     await client.query(
       `INSERT INTO public.workspace_tag_v1(workspace_id,label,tag_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
       SELECT $1,label,tag_embedding,embedding_model,embedding_updated_at,time_created,time_modified FROM public.workspace_tag_v1 WHERE workspace_id=$2
-      ON CONFLICT(workspace_id,label) DO NOTHING`,
+      ON CONFLICT(workspace_id,label_key) DO NOTHING`,
       [destinationId, source.id],
     )
     const skippedIds: number[] = []
@@ -333,7 +333,7 @@ export const mergeAnonymousUserIntoWithClient = async (
           m.description_embedding,m.embedding_model,m.embedding_updated_at,m.time_created,m.time_modified
         FROM item_map m
         LEFT JOIN public.workspace_status_v1 ss ON ss.id=m.status_id AND ss.workspace_id=$2
-        LEFT JOIN public.workspace_status_v1 ds ON ds.workspace_id=$1 AND ds.label=ss.label
+        LEFT JOIN public.workspace_status_v1 ds ON ds.workspace_id=$1 AND ds.label_key=ss.label_key
         RETURNING id
       ) SELECT m.id source_id,m.new_id destination_id FROM item_map m JOIN inserted i ON i.id=m.new_id`,
       [destinationId, source.id, skippedIds],
@@ -345,7 +345,7 @@ export const mergeAnonymousUserIntoWithClient = async (
        SELECT m.destination_id,dc.id,$3 FROM unnest($1::int[],$2::int[]) m(source_id,destination_id)
        JOIN public.item_category_link_v1 l ON l.item_id=m.source_id
        JOIN public.workspace_category_v1 sc ON sc.id=l.category_id
-       JOIN public.workspace_category_v1 dc ON dc.workspace_id=$3 AND dc.label=sc.label`,
+       JOIN public.workspace_category_v1 dc ON dc.workspace_id=$3 AND dc.label_key=sc.label_key`,
       [sourceIds, destinationIds, destinationId],
     )
     await client.query(
@@ -353,7 +353,7 @@ export const mergeAnonymousUserIntoWithClient = async (
        SELECT m.destination_id,dt.id,$3 FROM unnest($1::int[],$2::int[]) m(source_id,destination_id)
        JOIN public.item_tag_link_v1 l ON l.item_id=m.source_id
        JOIN public.workspace_tag_v1 st ON st.id=l.tag_id
-       JOIN public.workspace_tag_v1 dt ON dt.workspace_id=$3 AND dt.label=st.label`,
+       JOIN public.workspace_tag_v1 dt ON dt.workspace_id=$3 AND dt.label_key=st.label_key`,
       [sourceIds, destinationIds, destinationId],
     )
     result.itemsImported += copied.rows.length

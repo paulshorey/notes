@@ -7,6 +7,7 @@ import type {
   UserPreferences,
 } from "./items-app"
 import { UNCATEGORIZED_LABEL } from "./category-name"
+import { labelKey } from "./label"
 
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
 export const USER_BACKUP_VERSION = 2
@@ -28,12 +29,9 @@ const validText = (value: string) =>
   !value.includes("\0") &&
   !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value)
 const label = (value: unknown): string =>
-  typeof value === "string" &&
-  value.length > 0 &&
-  value === value.trim().toLowerCase() &&
-  validText(value)
+  typeof value === "string" && value.length > 0 && value === value.trim() && validText(value)
     ? value
-    : fail("Backup labels must be nonempty, normalized text.")
+    : fail("Backup labels must be nonempty text without surrounding whitespace.")
 const timestamp = (value: unknown): string => {
   if (
     typeof value !== "string" ||
@@ -53,7 +51,7 @@ const timestamp = (value: unknown): string => {
 }
 const nullableTimestamp = (value: unknown) => (value === null ? null : timestamp(value))
 const unique = <T>(values: T[], getLabel: (value: T) => string): T[] => {
-  if (new Set(values.map(getLabel)).size !== values.length)
+  if (new Set(values.map((value) => labelKey(getLabel(value)))).size !== values.length)
     fail("Backup contains duplicate labels.")
   return values
 }
@@ -115,14 +113,15 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         }),
         (v) => v.label,
       )
-      const categoryLabels = new Set(categories.map((v) => v.label))
-      const tagLabels = new Set(tags.map((v) => v.label))
-      const statusLabels = new Set(statuses.map((v) => v.label))
+      const categoryLabels = new Set(categories.map((v) => labelKey(v.label)))
+      const tagLabels = new Set(tags.map((v) => labelKey(v.label)))
+      const statusLabels = new Set(statuses.map((v) => labelKey(v.label)))
       const refs = (value: unknown, available: Set<string>) =>
         unique(
           array(value).map((v) => {
             const result = label(v)
-            if (!available.has(result)) fail("An item refers to vocabulary outside its workspace.")
+            if (!available.has(labelKey(result)))
+              fail("An item refers to vocabulary outside its workspace.")
             return result
           }),
           (v) => v,
@@ -136,13 +135,13 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         )
           fail("Invalid item text.")
         const status = n.status === null ? null : label(n.status)
-        if (status !== null && !statusLabels.has(status))
+        if (status !== null && !statusLabels.has(labelKey(status)))
           fail("An item refers to an unknown status.")
         return {
           description: n.description as string | null,
           // Validate legacy references before converting the old fallback row.
           categories: refs(n.categories, categoryLabels).filter(
-            (name) => name !== UNCATEGORIZED_LABEL,
+            (name) => labelKey(name) !== UNCATEGORIZED_LABEL,
           ),
           status,
           tags: refs(n.tags, tagLabels),
@@ -154,7 +153,9 @@ export const parseUserBackup = (value: unknown): UserBackup => {
       })
       return {
         ...vocabulary(w),
-        categories: categories.filter((category) => category.label !== UNCATEGORIZED_LABEL),
+        categories: categories.filter(
+          (category) => labelKey(category.label) !== UNCATEGORIZED_LABEL,
+        ),
         statuses,
         tags,
         items,
@@ -165,7 +166,10 @@ export const parseUserBackup = (value: unknown): UserBackup => {
   if (workspaces.length === 0) fail("Backup must contain at least one workspace.")
   const activeWorkspaceLabel =
     b.activeWorkspaceLabel === null ? null : label(b.activeWorkspaceLabel)
-  if (activeWorkspaceLabel !== null && !workspaces.some((w) => w.label === activeWorkspaceLabel))
+  if (
+    activeWorkspaceLabel !== null &&
+    !workspaces.some((w) => labelKey(w.label) === labelKey(activeWorkspaceLabel))
+  )
     fail("Backup active workspace does not exist.")
   const prefs = preferences(object(b.preferences)) as UserPreferences
   if (prefs.notesApp !== undefined) {

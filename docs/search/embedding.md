@@ -177,7 +177,7 @@ INSERT/UPDATE queries cast the literal to `::vector` and set
 ### On category / tag create / update
 
 Creating or renaming a category or tag calls `createTagLabelEmbedding()` with
-the normalized label and `task: "retrieval.passage"`, then writes the vector to
+the label as typed and `task: "retrieval.passage"`, then writes the vector to
 `category_embedding` or `tag_embedding` respectively.
 
 ### On search

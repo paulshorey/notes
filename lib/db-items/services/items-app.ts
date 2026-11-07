@@ -55,6 +55,7 @@ export {
   parsePreviewItemGroupRequest,
 } from "./item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
+import { trimLabel } from "../contracts/label"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
@@ -143,8 +144,7 @@ const object = (value: unknown) => {
     throw new Error("Request body must be a JSON object.")
   return value as Record<string, unknown>
 }
-const label = (value: unknown) =>
-  typeof value === "string" ? value.trim().toLocaleLowerCase() : ""
+const label = (value: unknown) => (typeof value === "string" ? trimLabel(value) : "")
 export const parsePositiveInteger = (
   value: unknown,
   field: string,

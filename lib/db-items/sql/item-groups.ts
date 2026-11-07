@@ -7,6 +7,7 @@ import type {
   ItemGroupSelection,
 } from "../contracts/item-group-actions"
 import { assertCategoryNameAllowed, UNCATEGORIZED_LABEL } from "../contracts/category-name"
+import { trimLabel } from "../contracts/label"
 import { isTextItem } from "../contracts/item-content"
 import { getDb } from "../lib/db/postgres"
 import { readCategory } from "./category-shared"
@@ -154,14 +155,14 @@ const actions: {
       throw new ItemGroupConflictError("This group is empty. There are no items to categorize.")
     assertCategoryNameAllowed(action.label)
     if (!action.label.trim()) throw new Error("label is required.")
-    const label = action.label.trim().toLocaleLowerCase()
+    const label = trimLabel(action.label)
     const categoryId =
       state.category?.id ??
       (await resolveCategoryIdForWorkspace(client, selection.workspaceId, label))
     if (!categoryId) throw new Error("Failed to resolve category.")
     if (state.category || embedding) {
       await client.query(
-        `UPDATE public.workspace_category_v1 SET label=$3,
+        `UPDATE public.workspace_category_v1 SET label=CASE WHEN $6::boolean THEN $3 ELSE label END,
          category_embedding=$4::vector,embedding_model=$5,
          embedding_updated_at=CASE WHEN $5::text IS NULL THEN NULL ELSE now() END
          WHERE workspace_id=$1 AND id=$2`,
@@ -171,6 +172,7 @@ const actions: {
           label,
           embedding?.vectorLiteral ?? null,
           embedding?.embeddingModel ?? null,
+          state.category !== null,
         ],
       )
     }

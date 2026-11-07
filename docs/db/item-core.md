@@ -19,6 +19,19 @@ tag link tables now reference `item_id`. Composite foreign keys still reject
 cross-workspace relationships. `description` remains nullable in this first step.
 `isTextItem` is the explicit selection rule for the current note client.
 
+## Text and labels
+
+Item text is stored exactly as received, including leading and trailing whitespace.
+Whitespace-only text is stored as `NULL` (no text). Embeddings and the note selection
+rule trim when they read text; they never rewrite it.
+
+Workspace, category, status, and tag labels are stored as typed, without surrounding
+whitespace (the ECMAScript `trim()` set, enforced by `app_label_whitespace_v1()`).
+Identity is the generated `label_key` column, `lower(normalize(label, NFKC))`, which
+carries the unique indexes. Merge, restore, and backup reference checks match by key.
+The exact-label unique constraints remain as conflict targets for previous-release
+servers and are implied by key uniqueness.
+
 Category and uncategorized navigation groups share transactional bulk actions.
 See [item group actions](item-group-actions.md) for selection, rename/deletion,
 preview conflict handling, and client coordination.

@@ -33,7 +33,14 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
         await client.query("BEGIN")
         // Serialize with other DB tests; all fixtures and DDL are rolled back.
         await client.query(
-          `ALTER TABLE public.workspace_category_v1 DROP CONSTRAINT workspace_category_v1_label_not_reserved_check`,
+          `ALTER TABLE public.workspace_category_v1
+             DROP CONSTRAINT workspace_category_v1_label_not_reserved_check,
+             DROP CONSTRAINT workspace_category_v1_label_trimmed_check`,
+        )
+        // Recreate the pre-label_key state these historical migrations ran against.
+        await client.query(`DROP INDEX public.workspace_category_v1_workspace_id_label_key_idx`)
+        await client.query(
+          `ALTER TABLE public.workspace_tag_v1 DROP CONSTRAINT workspace_tag_v1_label_trimmed_check`,
         )
         const originalMigration = await readFile(
           new URL("../migrations/202610182100__retire_default_category.sql", import.meta.url),

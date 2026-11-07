@@ -23,14 +23,14 @@ const select = `SELECT s.id,s.workspace_id,s.label,s.position,(SELECT COUNT(*)::
 export const ensureDefaultStatusForWorkspace = async (client: PoolClient, workspaceId: number) => {
   await client.query(
     `INSERT INTO public.workspace_status_v1(workspace_id,label,position) SELECT $1,$2,0
- WHERE NOT EXISTS(SELECT 1 FROM public.workspace_status_v1 WHERE workspace_id=$1) ON CONFLICT(workspace_id,label) DO NOTHING`,
+ WHERE NOT EXISTS(SELECT 1 FROM public.workspace_status_v1 WHERE workspace_id=$1) ON CONFLICT(workspace_id,label_key) DO NOTHING`,
     [workspaceId, DEFAULT_STATUS_LABEL],
   )
 }
 export const listStatusesByWorkspace = async (userId: number, workspaceId: number) => {
   const { rows } = await getDb().query<Row>(
     `${select} JOIN public.user_workspace_v1 w ON w.id=s.workspace_id
- WHERE w.user_id=$1 AND s.workspace_id=$2 ORDER BY s.position,lower(s.label),s.id`,
+ WHERE w.user_id=$1 AND s.workspace_id=$2 ORDER BY s.position,s.label_key,s.id`,
     [userId, workspaceId],
   )
   return rows.map(map)

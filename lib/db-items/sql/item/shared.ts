@@ -1,16 +1,17 @@
 import type { CategoryRef, TagRef, ItemRecord } from "./types"
 import type { PoolClient } from "pg"
 import { assertCategoryNameAllowed } from "../../contracts/category-name"
+import { trimLabel } from "../../contracts/label"
 
 export const itemColumns = `
   n.id, n.workspace_id, n.description, n.time_due, n.time_remind,
   n.time_created, n.time_modified,
   CASE WHEN s.id IS NULL THEN NULL ELSE json_build_object('id', s.id, 'label', s.label) END AS status,
-  COALESCE((SELECT json_agg(json_build_object('id', c.id, 'label', c.label) ORDER BY lower(c.label), c.id)
+  COALESCE((SELECT json_agg(json_build_object('id', c.id, 'label', c.label) ORDER BY c.label_key, c.id)
     FROM public.item_category_link_v1 l
     JOIN public.workspace_category_v1 c ON c.id=l.category_id AND c.workspace_id=n.workspace_id
     WHERE l.item_id=n.id), '[]'::json) AS categories,
-  COALESCE((SELECT json_agg(json_build_object('id', t.id, 'label', t.label) ORDER BY lower(t.label), t.id)
+  COALESCE((SELECT json_agg(json_build_object('id', t.id, 'label', t.label) ORDER BY t.label_key, t.id)
     FROM public.item_tag_link_v1 l
     JOIN public.workspace_tag_v1 t ON t.id=l.tag_id AND t.workspace_id=n.workspace_id
     WHERE l.item_id=n.id), '[]'::json) AS tags
@@ -33,7 +34,7 @@ export interface ItemRow {
 }
 
 export const toNullableText = (value: string | null) =>
-  value == null || value.trim() === "" ? null : value.trim()
+  value == null || value.trim() === "" ? null : value
 
 const parseRefs = (value: unknown): CategoryRef[] =>
   Array.isArray(value)
@@ -133,12 +134,12 @@ export const selectItemById = async (client: PoolClient, itemId: number, userId:
 }
 
 const resolve = async (client: PoolClient, table: string, workspaceId: number, label: string) => {
-  const normalized = label.trim().toLocaleLowerCase()
-  if (!normalized) return null
+  const typed = trimLabel(label)
+  if (!typed) return null
   const { rows } = await client.query<{ id: number }>(
     `INSERT INTO public.${table} (workspace_id,label) VALUES ($1,$2)
-     ON CONFLICT (workspace_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
-    [workspaceId, normalized],
+     ON CONFLICT (workspace_id,label_key) DO UPDATE SET label=${table}.label RETURNING id`,
+    [workspaceId, typed],
   )
   return rows[0]?.id ?? null
 }

@@ -4,6 +4,7 @@ import type {
   PreviewItemGroupRequest,
 } from "../contracts/item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
+import { sameLabel, trimLabel } from "../contracts/label"
 import { executeItemGroupAction, previewItemGroup } from "../sql/item-groups"
 import { ItemGroupConflictError } from "../sql/item-group-errors"
 import { listCategoriesByWorkspace } from "../sql/category"
@@ -41,7 +42,7 @@ export const parseExecuteItemGroupActionRequest = (
   if (typeof input.snapshot !== "string" || !/^[a-f0-9]{64}$/.test(input.snapshot))
     throw new Error("A current group preview is required.")
   if (action.kind === "rename") {
-    const label = typeof action.label === "string" ? action.label.trim().toLocaleLowerCase() : ""
+    const label = typeof action.label === "string" ? trimLabel(action.label) : ""
     if (!label) throw new Error("label is required.")
     assertCategoryNameAllowed(label)
     return { ...request, snapshot: input.snapshot, action: { kind: "rename", label } }
@@ -78,7 +79,7 @@ export const executeItemGroupActionForItemsApp = async (input: ExecuteItemGroupA
       request.userId,
       request.selection.workspaceId,
     )
-    const existing = categories.find((category) => category.label === label)
+    const existing = categories.find((category) => sameLabel(category.label, label))
     // Reusing a category must not depend on the embedding provider. For a new
     // label, do the external work before acquiring the transactional DB client.
     if (request.selection.target.kind === "category" || !existing)
