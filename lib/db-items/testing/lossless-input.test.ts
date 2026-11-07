@@ -5,7 +5,7 @@ import { getCategoryNameError } from "../contracts/category-name"
 import { labelKey, sameLabel } from "../contracts/label"
 import { parseUserBackup } from "../contracts/user-backup"
 import { getDb } from "../lib/db/postgres"
-import { mergeAnonymousItemsAppSession } from "../services/items-app"
+import { createTagForItemsApp, mergeAnonymousItemsAppSession } from "../services/items-app"
 import { createItemForUser, listItemsByUser, parseItemInput } from "../sql/item"
 import { resolveTagIdForWorkspace } from "../sql/item/shared"
 import { createAnonymousUser } from "../sql/user/anonymous"
@@ -107,6 +107,51 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
         client.release()
       }
     } finally {
+      await getDb().query("DELETE FROM public.user_v1 WHERE id=$1", [userId])
+    }
+  })
+
+  test("SQL and client label keys agree regardless of database locale", async () => {
+    const samples = ["NYC", "ÉCOLE", "İstanbul", "STRAẞE", "ΣΑΣ", "Ｑ３ Plan", "Ǆ", "ﬁle"]
+    const { rows } = await getDb().query<{ key: string }>(
+      "SELECT public.app_label_key_v1(value) AS key FROM unnest($1::text[]) WITH ORDINALITY u(value,n) ORDER BY n",
+      [samples],
+    )
+    assert.deepEqual(
+      rows.map((row) => row.key),
+      samples.map(labelKey),
+    )
+  })
+
+  test("reusing a label by key keeps the existing label's embedding", async () => {
+    const userId = await createUser(true)
+    const savedKey = process.env.JINA_API_KEY
+    const savedFetch = globalThis.fetch
+    process.env.JINA_API_KEY = "test-key"
+    // Each spelling gets a distinguishable vector.
+    globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
+      const { input } = JSON.parse(init?.body ?? "{}") as { input: string[] }
+      const fill = input[0] === "NYC" ? 0.25 : 0.75
+      return new Response(
+        JSON.stringify({ data: [{ index: 0, embedding: Array(1024).fill(fill) }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      )
+    }) as typeof fetch
+    try {
+      const workspace = await createWorkspaceForUser(userId, "Personal")
+      const first = await createTagForItemsApp({ userId, workspaceId: workspace.id, label: "NYC" })
+      const reused = await createTagForItemsApp({ userId, workspaceId: workspace.id, label: "nyc" })
+      assert.equal(reused.tag.id, first.tag.id)
+      assert.equal(reused.tag.label, "NYC")
+      const { rows } = await getDb().query<{ value: number }>(
+        "SELECT (tag_embedding::real[])[1] AS value FROM public.workspace_tag_v1 WHERE id=$1",
+        [first.tag.id],
+      )
+      assert.equal(rows[0]!.value, 0.25)
+    } finally {
+      globalThis.fetch = savedFetch
+      if (savedKey === undefined) delete process.env.JINA_API_KEY
+      else process.env.JINA_API_KEY = savedKey
       await getDb().query("DELETE FROM public.user_v1 WHERE id=$1", [userId])
     }
   })

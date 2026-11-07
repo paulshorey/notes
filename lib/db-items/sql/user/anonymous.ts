@@ -266,7 +266,7 @@ export const mergeAnonymousUserIntoWithClient = async (
   )
   for (const source of anonWorkspaces.rows) {
     const collision = await client.query<{ id: number }>(
-      `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 AND label_key=lower(normalize($2,NFKC))`,
+      `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 AND label_key=public.app_label_key_v1($2)`,
       [realUserId, source.label],
     )
     if (!collision.rows[0] && !deduplicateItems) {

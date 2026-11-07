@@ -157,18 +157,18 @@ const insertItems = async (client: PoolClient, workspaceId: number, values: Back
      ), inserted AS (
        INSERT INTO public.workspace_item_v1(id,workspace_id,status_id,description,time_due,time_remind,time_created,time_modified)
        SELECT n.id,$1,s.id,n.description,n."timeDue",n."timeRemind",n."timeCreated",n."timeModified"
-       FROM items n LEFT JOIN public.workspace_status_v1 s ON s.workspace_id=$1 AND s.label_key=lower(normalize(n.status,NFKC))
+       FROM items n LEFT JOIN public.workspace_status_v1 s ON s.workspace_id=$1 AND s.label_key=public.app_label_key_v1(n.status)
        RETURNING id
      ), category_links AS (
        INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id)
        SELECT n.id,c.id,$1 FROM items n JOIN inserted i ON i.id=n.id
        CROSS JOIN LATERAL unnest(n.categories) labels(label)
-       JOIN public.workspace_category_v1 c ON c.workspace_id=$1 AND c.label_key=lower(normalize(labels.label,NFKC))
+       JOIN public.workspace_category_v1 c ON c.workspace_id=$1 AND c.label_key=public.app_label_key_v1(labels.label)
      ), tag_links AS (
        INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
        SELECT n.id,t.id,$1 FROM items n JOIN inserted i ON i.id=n.id
        CROSS JOIN LATERAL unnest(n.tags) labels(label)
-       JOIN public.workspace_tag_v1 t ON t.workspace_id=$1 AND t.label_key=lower(normalize(labels.label,NFKC))
+       JOIN public.workspace_tag_v1 t ON t.workspace_id=$1 AND t.label_key=public.app_label_key_v1(labels.label)
      ) SELECT COUNT(*) FROM inserted`,
     [workspaceId, JSON.stringify(values)],
   )
@@ -220,7 +220,7 @@ export const restoreUserBackup = async (
       await client.query(
         `UPDATE public.user_v1 SET preferences=jsonb_set(preferences,'{notesApp}',
           COALESCE(preferences->'notesApp','{}'::jsonb) || jsonb_build_object('currentWorkspaceId',w.id))
-         FROM public.user_workspace_v1 w WHERE user_v1.id=$1 AND w.user_id=$1 AND w.label_key=lower(normalize($2,NFKC))`,
+         FROM public.user_workspace_v1 w WHERE user_v1.id=$1 AND w.user_id=$1 AND w.label_key=public.app_label_key_v1($2)`,
         [userId, backup.activeWorkspaceLabel],
       )
     }

@@ -13,7 +13,8 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - Every item has one `workspace_id`, zero or more category links, one nullable `status_id`, and zero or more tag links.
 - Categories, statuses, and tags are independent flat vocabularies. They are not a hierarchy.
 - Workspace and vocabulary labels are stored as typed, without surrounding whitespace.
-  The generated `label_key` column (`lower(normalize(label, NFKC))`) is their identity:
+  The generated `label_key` column (`app_label_key_v1(label)`: NFKC, then ICU-root
+  lowercasing, independent of the database locale) is their identity:
   uniqueness, lookups, merges, and restores match by key, so "NYC" and "nyc" are one
   label. `contracts/label.ts` mirrors the key for clients. Reusing an existing label
   never rewrites its casing; only an explicit rename does.

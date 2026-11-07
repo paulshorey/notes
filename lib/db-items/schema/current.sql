@@ -29,6 +29,15 @@ SET row_security = off;
 
 
 --
+-- Name: app_label_key_v1(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_label_key_v1(label text) RETURNS text
+    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+    RETURN lower((NORMALIZE(label, NFKC) COLLATE "und-x-icu"));
+
+
+--
 -- Name: app_label_whitespace_v1(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -232,7 +241,7 @@ CREATE TABLE public.user_workspace_v1 (
     label text NOT NULL,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    label_key text GENERATED ALWAYS AS (lower(NORMALIZE(label, NFKC))) STORED,
+    label_key text GENERATED ALWAYS AS (public.app_label_key_v1(label)) STORED,
     CONSTRAINT user_workspace_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 
@@ -270,8 +279,8 @@ CREATE TABLE public.workspace_category_v1 (
     embedding_updated_at timestamp with time zone,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    label_key text GENERATED ALWAYS AS (lower(NORMALIZE(label, NFKC))) STORED,
-    CONSTRAINT workspace_category_v1_label_not_reserved_check CHECK ((lower(NORMALIZE(btrim(label, public.app_label_whitespace_v1()), NFKC)) <> 'uncategorized'::text)),
+    label_key text GENERATED ALWAYS AS (public.app_label_key_v1(label)) STORED,
+    CONSTRAINT workspace_category_v1_label_not_reserved_check CHECK ((public.app_label_key_v1(btrim(label, public.app_label_whitespace_v1())) <> 'uncategorized'::text)),
     CONSTRAINT workspace_category_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 
@@ -323,7 +332,7 @@ CREATE TABLE public.workspace_status_v1 (
     "position" integer DEFAULT 0 NOT NULL,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    label_key text GENERATED ALWAYS AS (lower(NORMALIZE(label, NFKC))) STORED,
+    label_key text GENERATED ALWAYS AS (public.app_label_key_v1(label)) STORED,
     CONSTRAINT workspace_status_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1())))),
     CONSTRAINT workspace_status_v1_position_check CHECK (("position" >= 0))
 );
@@ -356,7 +365,7 @@ CREATE TABLE public.workspace_tag_v1 (
     embedding_updated_at timestamp with time zone,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    label_key text GENERATED ALWAYS AS (lower(NORMALIZE(label, NFKC))) STORED,
+    label_key text GENERATED ALWAYS AS (public.app_label_key_v1(label)) STORED,
     CONSTRAINT workspace_tag_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 

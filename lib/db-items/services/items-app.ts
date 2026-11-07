@@ -455,14 +455,18 @@ const createLabelEntity = async (
     if (!id) throw new Error("Failed to resolve label.")
     const table = kind === "category" ? "workspace_category_v1" : "workspace_tag_v1"
     const column = kind === "category" ? "category_embedding" : "tag_embedding"
+    // The vector was computed from the submitted spelling. Reusing a label with
+    // the same key but different casing keeps that label's own vector.
     await client.query(
-      `UPDATE public.${table} SET ${column}=$1::vector,embedding_model=$2,embedding_updated_at=$3 WHERE id=$4 AND workspace_id=$5`,
+      `UPDATE public.${table} SET ${column}=$1::vector,embedding_model=$2,embedding_updated_at=$3
+       WHERE id=$4 AND workspace_id=$5 AND label=$6`,
       [
         e.vectorLiteral,
         e.embeddingModel,
         e.embeddingModel ? new Date().toISOString() : null,
         id,
         workspaceId,
+        trimLabel(value),
       ],
     )
     await client.query("COMMIT")

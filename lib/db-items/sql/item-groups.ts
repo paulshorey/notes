@@ -165,7 +165,7 @@ const actions: {
         `UPDATE public.workspace_category_v1 SET label=CASE WHEN $6::boolean THEN $3 ELSE label END,
          category_embedding=$4::vector,embedding_model=$5,
          embedding_updated_at=CASE WHEN $5::text IS NULL THEN NULL ELSE now() END
-         WHERE workspace_id=$1 AND id=$2`,
+         WHERE workspace_id=$1 AND id=$2 AND ($6::boolean OR label=$3)`,
         [
           selection.workspaceId,
           categoryId,
