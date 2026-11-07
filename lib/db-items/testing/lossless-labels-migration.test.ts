@@ -125,17 +125,14 @@ test(
         { code: "23505" },
       )
       // A previous-release server's insert of a compatibility form of an existing
-      // label with the exact-label conflict target reuses the stored spelling.
-      const legacyResolve = await client.query<{ id: number; label: string }>(
-        `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
-         ON CONFLICT (workspace_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id,label`,
-        [workspaceId],
-      )
-      assert.deepEqual(legacyResolve.rows[0], { id: nycId.id, label: "ｎｙｃ" })
-      await client.query(
-        `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
-         ON CONFLICT (workspace_id,label) DO NOTHING`,
-        [workspaceId],
+      // label fails on the key index instead of creating a second label.
+      await assert.rejects(
+        client.query(
+          `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
+           ON CONFLICT (workspace_id,label) DO NOTHING`,
+          [workspaceId],
+        ),
+        { code: "23505" },
       )
       // Servers still running the previous release keep their conflict target.
       await client.query(
@@ -168,48 +165,6 @@ test(
         [workspaceId],
       )
       await assert.rejects(applyMigration(client), /lossless_labels: 1 label/)
-    })
-  },
-)
-
-test(
-  "concurrent inserts of one label key from both releases do not fail",
-  { skip: !testDbUrl },
-  async () => {
-    await withPreMigrationDatabase(async (client, url) => {
-      await applyMigration(client)
-      const userId = (
-        await client.query<{ id: number }>(
-          "INSERT INTO public.user_v1(username) VALUES('owner') RETURNING id",
-        )
-      ).rows[0]!.id
-      const workspaceId = (
-        await client.query<{ id: number }>(
-          "INSERT INTO public.user_workspace_v1(user_id,label) VALUES($1,'personal') RETURNING id",
-          [userId],
-        )
-      ).rows[0]!.id
-      const other = new Client({ connectionString: url })
-      await other.connect()
-      try {
-        // A current-release insert holds the key while a previous-release insert of a
-        // compatibility form waits on the same key, then reuses the committed row.
-        await client.query("BEGIN")
-        const created = await client.query<{ id: number }>(
-          "INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'ｎｙｃ') RETURNING id",
-          [workspaceId],
-        )
-        const legacy = other.query<{ id: number }>(
-          `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
-           ON CONFLICT (workspace_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
-          [workspaceId],
-        )
-        await new Promise((resolve) => setTimeout(resolve, 200))
-        await client.query("COMMIT")
-        assert.equal((await legacy).rows[0]!.id, created.rows[0]!.id)
-      } finally {
-        await other.end()
-      }
     })
   },
 )

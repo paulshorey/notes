@@ -35,10 +35,8 @@ rewrites its stored spelling.
 Rollout compatibility: previous-release servers read, export, and validate labels as
 lowercase. The `app_label_lowercase_v1` triggers store every inserted or renamed label
 lowercased, and the exact-label unique constraints remain as those servers'
-`ON CONFLICT (…, label)` targets. A `BEFORE INSERT` trigger
-(`app_label_reuse_existing_v1`) replaces an inserted label with the stored spelling when
-its key already exists in the same scope (for example a full-width form), serialized per
-key by an advisory lock. Clients and APIs already send labels as typed; dropping the
+`ON CONFLICT (…, label)` targets. Such a server inserting a compatibility-form variant
+of an existing label (for example full-width) fails on the key index and rolls back. Clients and APIs already send labels as typed; dropping the
 lowercasing triggers in a later release makes labels keep their casing.
 
 Category and uncategorized navigation groups share transactional bulk actions.
