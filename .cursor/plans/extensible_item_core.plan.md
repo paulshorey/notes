@@ -157,7 +157,11 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    moved key must follow, and the merge sets them `DEFERRED` for its transaction, so a
    linked item can move atomically. While F2a rolls out, these previous-release servers
    therefore never discard an identity: an alias insert trigger installed by F2a fills
-   the retired row's `uid` (read before its delete) and the target's `uid`.
+   the retired row's `uid` (read before its delete) and the target's `uid`. The identity
+   guarantee starts once F2-pre has replaced every server: a merge served by a
+   previous-release server during F2-pre's own rollout copies under new integer IDs,
+   exactly as every merge does today, and the client reloads its items after sign-in as
+   it already does.
 1. **F2a — expand (release N).** Add `app_uuid_v7()` (SQL; replaced by native
    `uuidv7()` when the database runs PostgreSQL 18) and the `uid` / `*_uid` columns,
    backfilled and uniquely indexed, beside every integer key and reference (link tables
@@ -217,7 +221,10 @@ Code:
     authored facet of the item (it is computed from the F7 registry of `authored` +
     `follows-item` tables), so items that differ in times, files, or other facets are
     both kept; the skipped item's revision history is appended to the survivor's before
-    the source is retired.
+    the source is retired. The merge locks the source workspace's items
+    (`SELECT … FOR UPDATE`) before computing identities and holds the locks through
+    history transfer and retirement, so a save committed during sign-in is never
+    discarded on a stale comparison.
 - Portable backup versions are immutable, and each new kind of authored state gets its
   own: v3 (cased labels), v4 (UUIDs), v5 (revisions), v6 (trash), v7 (times). A version's
   exporter and importer ship in the release **before** the one that first writes the
@@ -279,8 +286,9 @@ Code:
   creator before F5, its members after); sync returns only the requester's rows. Single
   item and vocabulary deletes read that audience in their trigger while the workspace
   still exists. Whole-workspace deletes are covered by a `BEFORE DELETE`
-  row trigger on `user_workspace_v1` that writes tombstones for the workspace and every
-  row it contains before the cascade runs. It fires for every delete path, including a
+  row trigger on `user_workspace_v1` that writes tombstones and `retired_id_v1` markers
+  (with the workspace's owner) for the workspace and every row it contains before the
+  cascade runs. It fires for every delete path, including a
   previous-release server's direct `DELETE` during the F3 rollout, so the cascade never
   has to look up authorization state that it is removing; the row triggers skip
   entities already tombstoned in that transaction. Link removals are item changes (they bump the
@@ -347,12 +355,16 @@ Code:
 - Snapshot capture is a database trigger, so it also covers a previous-release server's
   writes during F3's rollout: a `BEFORE UPDATE` trigger on items (and the facet
   triggers) snapshots the old version unless the transaction marks
-  `app.snapshot_handled`, which F3's own code sets after coalescing its snapshot.
+  `app.snapshot_handled` for that item: F3's code sets it to the UID of the one item it
+  just snapshotted and clears it after that item's write, so other items written in the
+  same transaction (a vocabulary deletion or a merge) still get their own snapshots.
 
 ### F4. Soft delete and trash
 
-- `deleted_at timestamptz` on items and on workspaces (later on facets that can be
-  removed alone).
+- `deleted_at timestamptz` on items and on workspaces. Facets (time rows, file
+  attachments, links) have no Trash of their own: removing one is an edit to its item,
+  the item's revision snapshot keeps it so history can restore it, and a facet row with
+  its own ID is retired in `retired_id_v1` when removed.
 - Normal reads filter `deleted_at IS NULL` (partial indexes keep this cheap). The Trash
   view uses a separate, membership-authorized read, `GET /api/items/trash?workspaceId=`,
   that returns only deleted items in workspaces the requester can read; restore is
