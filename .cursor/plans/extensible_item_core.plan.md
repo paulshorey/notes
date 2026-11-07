@@ -15,7 +15,7 @@ todos:
     content: "F4. In four releases: F4a adds deleted_at plus deletion_id, read/write filters, and the v6 importer; F4b switches the exporter and sets hard-delete flags; F4c makes every delete a soft delete without exposing Trash; F4d exposes Trash, restore, and the scheduled 30-day purge, and adds a trigger that turns any non-purge DELETE into the same soft delete."
     status: pending
   - id: membership
-    content: "F5. workspace_member keyed by (workspace_id, user_id) with exactly one owner matching user_workspace_v1.user_id; authorization becomes one membership predicate; the owner FK becomes RESTRICT in a second release after account deletion disposes of owned workspaces."
+    content: "F5. workspace_member keyed by (workspace_uid, user_id) with exactly one owner matching user_workspace_v1.user_id; authorization becomes one membership predicate; the owner FK becomes RESTRICT in a second release after account deletion disposes of owned workspaces."
     status: pending
   - id: time_facet
     content: "F6. item_time (many per item: role, exactly one of instant or local date, IANA zone, RRULE) replaces time_due/time_remind in four releases: F6a adds the table, bidirectional sync, and server support for times[]; F6b lets clients author times[]; F6c stops using the old columns; F6d drops them. Backup v7 ships before F6a."
@@ -213,7 +213,9 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    contract-1 requests, and the storage upgrader still resolve it. Aliases are always one
    hop: retiring a row in favor of another also repoints every alias that targeted the
    retired row, in the same transaction, together with the `replaced_by` of any
-   outstanding `merged` tombstones (F3), and `db:verify` checks that no `target_id` is
+   outstanding `merged` tombstones (F3), under the same advisory lock on `(kind, uid)` that retirement takes. Creating an alias
+   also takes that lock on its target, so no alias can be added to a row while it is
+   being retired. `db:verify` checks that no `target_id` is
    itself an alias. Every lookup by ID resolves an alias once.
 
 Code:
@@ -247,11 +249,12 @@ Code:
     to content outside the workspace they were given;
   - content-identical items are still deduplicated, but the skipped source item's UUID
     becomes an alias of the surviving destination item. The identity covers every
-    authored facet of the item (it is computed from the F7 registry of `authored` +
-    `follows-item` tables, including the facet IDs), so items that differ in times, files,
-    or other facets are both kept; items whose facets carry different IDs for equal
-    content are deduplicated only after each source facet ID is aliased to its surviving
-    counterpart in `id_alias_v1`, so a queued edit carrying a source facet ID follows it; the skipped item's revision history is appended to the survivor's before
+    authored facet of the item's normalized content, without facet IDs (it is computed
+    from the F7 registry of `authored` + `follows-item` tables), so items that differ in
+    times, files, or other facets are both kept. When two items match, each source facet
+    is paired with its equal-content counterpart on the survivor and its ID is aliased to
+    that counterpart's in `id_alias_v1`, so a queued edit carrying a source facet ID
+    follows it; the skipped item's revision history is appended to the survivor's before
     the source is retired. The merge takes `FOR UPDATE` on the source workspace row,
     then takes `FOR UPDATE` on the destination workspace row before it decides whether
     the pair is owner-only, and locks the source items, every candidate destination
@@ -265,8 +268,11 @@ Code:
 - Portable backup versions are immutable, and each new kind of authored state gets its
   own: v3 (cased labels), v4 (UUIDs), v5 (revisions), v6 (trash), v7 (times). Each new kind of state takes
   three steps, one per release: the importer reads the new version but rejects non-empty
-  new state; then the exporter switches to emitting it; then state writes and non-empty
-  imports are enabled. A file is therefore never produced before every server can read
+  new state; then the exporter switches to emitting it and non-empty imports are accepted (every
+  server that can export the state can also import it); then state writes are enabled. The
+  one residual gap is a file imported from a different deployment during the exporter
+  release's own rollout, which a backup served by a not-yet-upgraded server can omit; a
+  new backup after the rollout includes it. A file is therefore never produced before every server can read
   it, and a backup served during a rollout never omits state. Section 10 lists the
   concrete releases for v3 through v7. Every version keeps an importer, and from F2 on every importer uses the
   UUID-first insert and remap path: identity comes from the stored `uid`, and the
@@ -513,8 +519,8 @@ Code:
 
 ### F5. Membership ownership
 
-- `workspace_member(workspace_id, user_id, role)` with primary key
-  `(workspace_id, user_id)`, so each membership has one authoritative role, and
+- `workspace_member(workspace_uid, user_id, role)` with primary key
+  `(workspace_uid, user_id)` (the permanent workspace UUID, per the F2 naming rule), so each membership has one authoritative role, and
   `role IN ('owner','editor','viewer')`. A partial unique index allows at most one
   `owner` per workspace, and a deferred constraint trigger checks at commit that every
   workspace has exactly one owner membership and that its user equals
@@ -807,24 +813,23 @@ applied as listed.
    The client still sends contract 1.
 3. **F2b.** The UUID (contract 2) client and storage upgrader; key swap; the v5 importer
    and the empty `item_revision` table. Exporter stays v4.
-4. **F3a.** The PUT endpoint, sync, tombstones; the exporter emits v5. No snapshot
-   writes yet; the client still saves with POST/PATCH.
+4. **F3a.** The PUT endpoint, sync, tombstones; the exporter emits v5 and non-empty v5
+   imports are accepted. No snapshot writes yet; the client still saves with POST/PATCH.
 5. **F3b.** The client save engine switches to PUT; snapshot writes and revision triggers
-   turn on; non-empty v5 imports are accepted.
+   turn on.
 6. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
    (rejects non-empty trash state). Exporter stays v5.
-7. **F4b.** The exporter emits v6; hard-delete flags in account deletion, cleanup, and
+7. **F4b.** The exporter emits v6 and non-empty v6 imports are accepted; hard-delete flags in account deletion, cleanup, and
    merge retirement. Deletes are still hard.
-8. **F4c.** Soft-delete routes (workspace batch included); non-empty v6 imports accepted.
-   Trash is not yet exposed.
+8. **F4c.** Soft-delete routes (workspace batch included). Trash is not yet exposed.
 9. **F4d.** Trash, restore, the scheduled purge, and the delete-conversion trigger.
 10. **F5a → F5b.** Membership, owner invariants, account-deletion code, then the owner FK
     switch.
 11. **F8.** Capability modules; the empty `item_time_v1` table, the v7 importer (rejects
     non-empty times), and the bidirectional synchronization triggers. Exporter stays v6.
-12. **F6a.** The exporter emits v7; backfill; servers accept and return `times[]`; the
-    client still writes scalars. Non-empty v7 imports stay rejected.
-13. **F6b.** Non-empty v7 imports accepted; the client authors `times[]`.
+12. **F6a.** The exporter emits v7 and non-empty v7 imports are accepted; backfill; servers accept and return `times[]`; the
+    client still writes scalars.
+13. **F6b.** The client authors `times[]`.
 14. **F6c → F6d.** Stop using the scalar columns, then drop them.
 15. **F9.** Retire the note-era compatibility layer.
 
