@@ -6,13 +6,13 @@ todos:
     content: "F1. Store authored text exactly as typed and labels as typed with a normalized key for uniqueness. Stops ongoing data loss; small and independent. PR #119."
     status: in_progress
   - id: permanent_ids
-    content: "F2. Convert item, workspace, vocabulary, and link keys to UUIDs in place, keeping the old integer as a unique legacy_id for old URLs, drafts, and backups. Merge and restore move rows instead of copying them."
+    content: "F2. Convert item, workspace, vocabulary, link, and status keys to UUIDs in place, keeping the old integer as a unique legacy_id; retired IDs become aliases. Merge moves rows; restore clones when IDs belong to another account."
     status: pending
   - id: revisioned_writes
-    content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} idempotent upsert with baseRevision (409 on conflict), a coalesced item_revision history, and a change_seq sync cursor. Replaces the client's create-versus-update split."
+    content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} idempotent upsert with baseRevision (non-mutating 409, explicit overwrite resolution), facet changes bump item revision, coalesced item_revision history, and an xid8 snapshot-watermark sync cursor covering items, workspaces, and vocabulary."
     status: pending
   - id: soft_delete
-    content: "F4. deleted_at on items with trash/restore and a purge path; every read filters deleted rows; deletions are visible to sync as tombstones."
+    content: "F4. deleted_at on items and workspaces, an authorized Trash read with restore, workspace deletion through trash, and a scheduled 30-day purge that writes tombstones."
     status: pending
   - id: membership
     content: "F5. workspace_member(workspace_id, user_id, role); every authorization check becomes one membership predicate. Owner rows are backfilled."
@@ -27,7 +27,7 @@ todos:
     content: "F8. Split ItemsApp.tsx along capability boundaries; derive an item's perceived type from the facets it has, and render each facet with its own module."
     status: pending
   - id: retire_compat
-    content: "F9. Retire the note-era compatibility layer once its clients are confirmed drained: legacy views, user_note_v1_id_seq name, /api/notes facades, X-Items-Contract dual payloads, DB_NOTES_URL, and @lib/db-notes."
+    content: "F9. Retire the note-era compatibility layer once its clients are drained: legacy views, user_note_v1_id_seq name, /api/notes facades, X-Items-Contract dual payloads, and @lib/db-notes; move Railway to DB_ITEMS_URL before removing DB_NOTES_URL. Draft upgraders and backup importers stay."
     status: pending
 isProject: true
 ---
@@ -104,11 +104,16 @@ with migrations applied by Railway pre-deploy. Each keeps the web client working
 
 - Items: store `description` exactly as received. Blank-or-whitespace text is still "no
   text" for `isTextItem`, search, and embeddings; the stored value is not modified.
-- Workspaces, categories, statuses, tags: add `label_key` (`lower(normalize(btrim(label),
-  NFKC))`), move uniqueness and the reserved-name check to `label_key`, and drop the
-  lowercase check. Existing labels keep their current (lowercase) text; new and renamed
-  labels keep the casing typed.
-- Merge, restore, backup, and `resolve*` helpers match by `label_key`.
+- Workspaces, categories, statuses, tags: a generated `label_key`
+  (`lower(normalize(label, NFKC))`) carries uniqueness; labels keep the casing typed and
+  are stored without surrounding (ECMAScript `trim()`) whitespace. Existing labels keep
+  their current text.
+- The migration audits existing rows first: legacy padding is trimmed, and any labels
+  that would be blank or share a key after trimming and NFKC normalization (for example
+  precomposed and decomposed `é`) stop the pre-deploy with a count. There is no automatic
+  merge; an operator resolves the listed rows and redeploys.
+- Merge, restore, backup, and `resolve*` helpers match by `label_key`; reusing a label
+  never rewrites its casing.
 
 ### F2. Permanent IDs, in place
 
@@ -116,45 +121,94 @@ Migration (single transaction, forward-only, no reset):
 
 1. Add `app_uuid_v7()` (SQL; replaced by native `uuidv7()` when the database runs
    PostgreSQL 18) and a `uuid` column to each authored table, backfilled.
-2. Add uuid FK columns to link tables, backfill by join, swap primary/foreign keys and
-   composite workspace FKs to the uuid columns, rename integer `id` → `legacy_id`
-   (unique, kept for lookups). Drop `serial` defaults on `legacy_id` for new rows.
-3. Existing compatibility views that expose integer `id`/`note_id` are dropped in F9 or
-   rewritten to read `legacy_id`; per D2 they are dropped.
+2. Add uuid FK columns to link tables **and to the direct `status_id` reference**,
+   backfill by join, swap primary/foreign keys and composite workspace FKs to the uuid
+   columns, and rename integer `id` → `legacy_id` (unique, kept for lookups).
+3. `legacy_id` keeps its sequence default until F9: a previous-release server still
+   inserts through the compatibility views without an ID during the rolling deploy. The
+   views are rewritten to expose `legacy_id` as their integer `id`/`note_id` and stay
+   writable; a view trigger fills the uuid key for those inserts.
+4. `id_alias_v1(kind, alias_id uuid PRIMARY KEY, target_id uuid)` records retired IDs
+   (`kind` in `item`, `workspace`, `category`, `status`, `tag`). Every lookup by ID
+   resolves aliases once, so a merged-away ID keeps opening its surviving row.
 
 Code:
 
 - Contracts change `id: number` → `id: string` for items, workspaces, and vocabulary.
-- `GET /api/items/{id}` and open-item URLs accept either a UUID or a legacy integer and
-  redirect to the UUID form.
+- `GET /api/items/{id}` and open-item URLs accept a UUID, an alias, or a legacy integer
+  and redirect to the canonical UUID form.
 - Browser storage v4 upgrader maps integer IDs in cached items and dirty drafts to UUIDs
   through a lookup endpoint; dirty drafts are never discarded on failure.
-- Anonymous merge **moves** items (`UPDATE … SET workspace_id`) into the destination
-  workspace and remaps vocabulary links by `label_key`, instead of copying under new
-  IDs. Deduplication by content signature remains for identical items.
-- Backup v3 carries UUIDs; restore preserves them (conflicting UUIDs in another account
-  are rejected, never reassigned). Importers for v1/v2 remain.
+- Anonymous merge **moves** rows instead of copying under new IDs:
+  - no same-named destination workspace → the workspace itself moves (F5: membership and,
+    until F9, `user_workspace_v1.user_id`), keeping its UUID;
+  - same-named destination workspace → items move with one `UPDATE … SET workspace_id`
+    that also remaps `status_id`, and category/tag links are remapped, all by
+    `label_key` (missing destination terms are created first); the source workspace and
+    its vocabulary rows become aliases of their destination counterparts;
+  - content-identical items are still deduplicated, but the skipped source item's UUID
+    becomes an alias of the surviving destination item.
+- Backup v3 carries UUIDs. Restore into the account that owns them merges and
+  deduplicates as above. When a UUID already belongs to a different account (restoring
+  into a second account while the original still exists), the restore clones: it assigns
+  new UUIDs, remaps every reference inside the backup, and never transfers or reassigns
+  the other account's rows. Importers for v1/v2 remain.
 
 ### F3. Revisioned, idempotent writes and a sync cursor
 
-- `workspace_item_v1.revision bigint NOT NULL DEFAULT 1`, bumped by trigger.
-- Global `change_seq` sequence; items, workspaces, vocabulary rows, and link changes bump
-  the owning item's `change_seq` so the item is the sync unit.
-- `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`; a stale
-  revision returns `409` with the server copy; the client keeps its edit on screen, the
-  server stores the overwritten version in `item_revision`, and the user is notified (D4).
+- `workspace_item_v1.revision bigint NOT NULL DEFAULT 1`. Every **authored** mutation of
+  an item or of anything it owns (category/tag links, `status_id`, and every later facet
+  such as `item_time_v1`, `item_file_v1`) bumps the owning item's `revision` in the same
+  transaction, through per-table triggers. Derived-only updates (embeddings, thumbnails)
+  do not. F7's guard requires the trigger on every table classified `authored` +
+  `follows-item`.
+- Sync cursor: each changed row of `workspace_item_v1`, `user_workspace_v1`, and the
+  vocabulary tables records `change_xid xid8 DEFAULT pg_current_xact_id()` (updated by
+  trigger). A sync response returns rows with `change_xid >= cursor` and a new cursor of
+  `pg_snapshot_xmin(pg_current_snapshot())`. No in-flight transaction can commit below
+  that watermark, so commit reordering never hides a change; rows may repeat and clients
+  apply them idempotently by revision. A plain sequence is not used because a lower value
+  can commit after a higher one has been read.
+- `GET /api/sync?since=<cursor>` returns three lists — items (with tombstones),
+  workspaces, and vocabulary — so empty workspaces and unused labels sync too.
+- Tombstones: purging an item (F4) writes `item_tombstone_v1(item_id, workspace_id,
+  change_xid)`, retained for 180 days. The server tracks the oldest cursor it can still
+  serve; an older cursor gets `410 Gone` and the client performs a full resync.
+- `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`:
+  - matching `baseRevision` → applied, `200` with the new revision;
+  - content identical to the current server copy → `200`, no change (makes every retry
+    of an already-applied write a no-op);
+  - stale `baseRevision` → `409` with the server copy and its revision; **nothing is
+    written**.
+  - D4 resolution is a second, explicit request: the client resends its content with
+    `baseRevision` set to the server revision from the `409` and `resolution:
+    "overwrite"`. The server snapshots the version being overwritten into
+    `item_revision`, applies the write, and returns `200` with `overwrote: <revision>`;
+    the client then notifies the user with a link to that history entry. If the server
+    moved again in between, the overwrite request gets its own `409` and repeats.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
   conflicting overwrite, delete, or merge).
-- `GET /api/items?since=<change_seq>` returns changed items and tombstones.
 - The client save engine drops the create/update split and the POST no-retry hazard:
   every save is a retryable PUT.
 
 ### F4. Soft delete and trash
 
-- `deleted_at timestamptz` on items (and later on facets that can be removed alone).
-- All reads filter `deleted_at IS NULL`; partial indexes keep this cheap.
-- Delete moves to trash; restore clears it; purge after 30 days (D3).
-  Purge runs from a maintenance command until a background worker exists.
+- `deleted_at timestamptz` on items and on workspaces (later on facets that can be
+  removed alone).
+- Normal reads filter `deleted_at IS NULL` (partial indexes keep this cheap). The Trash
+  view uses a separate, membership-authorized read, `GET /api/items/trash?workspaceId=`,
+  that returns only deleted items in workspaces the requester can read; restore is
+  `POST /api/items/{id}/restore`.
+- Deleting a workspace soft-deletes the workspace and moves its items to trash with it;
+  restoring the workspace restores them. `DELETE /api/workspaces` no longer issues a SQL
+  `DELETE`, so items never cascade away outside the purge.
+- Hard deletes happen only in purge paths: items and workspaces whose `deleted_at` is
+  older than 30 days (D3), writing tombstones first, and the existing abandoned
+  anonymous-account cleanup.
+- Purge is scheduled, not manual: F4 adds a Railway cron service (declared in
+  `.railway/railway.ts`) that runs the purge command daily in each environment. It is
+  replaced by the background worker when that exists. The 30-day promise ships only with
+  the schedule.
 
 ### F5. Membership ownership
 
@@ -163,8 +217,10 @@ Code:
   kept as the creator until F9, then dropped.
 - One SQL predicate (`can_read_workspace` / `can_write_workspace`) replaces per-query
   ownership joins.
-- Anonymous link becomes a membership move when the destination has no same-named
-  workspace, and an item move (F2) when it does.
+- Anonymous link when the destination has no same-named workspace moves the membership
+  **and** updates `user_workspace_v1.user_id` to the permanent account in the same
+  transaction, so deleting the anonymous user cannot cascade through the creator FK.
+  When the destination has a same-named workspace, items move as in F2.
 - No sharing UI is built in this phase; roles other than `owner` stay unused until
   sharing is designed (D5).
 
@@ -182,26 +238,38 @@ CREATE TABLE item_time_v1 (
   rrule text,                       -- RFC 5545 recurrence
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CHECK (at IS NOT NULL OR on_date IS NOT NULL),
+  -- Exactly one start representation; an end, if present, uses the same one.
+  CHECK (num_nonnulls(at, on_date) = 1),
+  CHECK (end_at IS NULL OR at IS NOT NULL),
+  CHECK (end_date IS NULL OR on_date IS NOT NULL),
   FOREIGN KEY (item_id, workspace_id) REFERENCES workspace_item_v1(id, workspace_id)
     ON DELETE CASCADE ON UPDATE CASCADE
 );
+-- Roles the text client shows as single fields have at most one row per item.
+CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_id, role)
+  WHERE role IN ('due', 'remind');
 ```
 
 - Backfill `due` / `remind` rows from the existing columns (`time_zone` NULL: unknown).
-- API keeps `timeDue` / `timeRemind` on `ItemRecord` as derived fields for the text
-  client and adds `times[]`; the columns are dropped one release later.
+- API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
+  `remind` row (an upsert on `(item_id, role)` when written) and adds `times[]`; the
+  columns are dropped one release later. New multi-valued roles get new role names, never
+  a second `due`.
 - The client sends `Intl.DateTimeFormat().resolvedOptions().timeZone` with every time.
 - Reminder **delivery** is not in scope; it needs the worker (section 6).
 
 ### F7. Table classification guard
 
 `MERGE_TABLE_STRATEGIES` covers tables with an FK to `user_v1`. Extend it so `db:verify`
-fails unless every table with a `workspace_id` or `item_id` column declares:
+walks the foreign-key graph and fails unless every table that reaches `user_v1`,
+`user_workspace_v1`, or `workspace_item_v1` through any chain of foreign keys (for
+example a child of `file_v1` keyed only by `file_id`) declares:
 
 - backup class: `authored` (in portable backups) or `derived` (rebuildable, excluded);
 - move/merge strategy: `follows-item`, `follows-workspace`, `remap-by-key`, or `drop`.
 
+`drop` is allowed only for `derived` tables; an `authored` table must use a lossless
+strategy. `authored` + `follows-item` tables must also carry the F3 revision trigger.
 A new content-type table therefore cannot ship without a deliberate backup and merge
 decision.
 
@@ -221,12 +289,20 @@ content type:
 
 ### F9. Retire note-era compatibility
 
-Remove the legacy views, the exact-label unique constraints kept as previous-release
-conflict targets by F1, the `user_note_v1_id_seq` name, `/api/notes*` facades,
-`X-Items-Contract` dual payloads and legacy response aliases, `DB_NOTES_URL` /
-`DB_NOTES_TEST_URL`, `@lib/db-notes`, the `notesUserId` session field, and v1/v2
-open-item storage upgraders. Per D2 only the web app depends on them.
-Backup v1/v2 importers stay.
+Per D2 only the web app depends on these, so they go once the web client no longer uses
+them and one release has drained previous-release servers:
+
+- legacy SQL views and their insert triggers, the `legacy_id` sequence default, the
+  `user_note_v1_id_seq` name, and the exact-label unique constraints kept by F1;
+- `/api/notes*` facades, `X-Items-Contract` dual payloads, legacy response aliases,
+  `@lib/db-notes`, and the `notesUserId` session field;
+- `DB_NOTES_URL` / `DB_NOTES_TEST_URL`, in order: provision `DB_ITEMS_URL` in every
+  Railway environment (dev, production, previews), deploy and confirm health while both
+  names resolve, then remove the fallback in a later release.
+
+Stays indefinitely: backup v1/v2 importers, open-item storage v1/v2 draft upgraders (a
+browser that has not opened the app in months may still hold an unsaved draft), and
+`legacy_id` lookups/redirects.
 
 ## 6. Additive content types after the foundation
 
