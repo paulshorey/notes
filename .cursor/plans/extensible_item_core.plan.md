@@ -184,8 +184,11 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    and its survivor still exist, so nothing has to be recovered after the source row is
    deleted. Its key is `(kind, alias_id)`, since the same UUID may identify rows of
    different kinds; `(kind, alias_legacy_id)` is unique too. It
-   records retired IDs (`kind` in `item`, `workspace`, `category`, `status`, `tag`),
-   including the retired row's integer `id` (unique per `kind`), so old numeric URLs,
+   records retired IDs. `kind` is any entity kind registered in the F7 registry (`item`,
+   `workspace`, `category`, `status`, `tag`, and each facet such as `item_time` or
+   `item_file`), so new facets add kinds without a schema change; `alias_legacy_id` and
+   `target_legacy_id` are null for kinds that never had an integer ID. It includes the
+   retired row's integer `id` where there was one (unique per `kind`), so old numeric URLs,
    contract-1 requests, and the storage upgrader still resolve it. Aliases are always one
    hop: retiring a row in favor of another also repoints every alias that targeted the
    retired row, in the same transaction, together with the `replaced_by` of any
@@ -229,7 +232,9 @@ Code:
     content are deduplicated only after each source facet ID is aliased to its surviving
     counterpart in `id_alias_v1`, so a queued edit carrying a source facet ID follows it; the skipped item's revision history is appended to the survivor's before
     the source is retired. The merge takes `FOR UPDATE` on the source workspace row,
-    then locks the source items, every candidate destination item, and every
+    then takes `FOR UPDATE` on the destination workspace row before it decides whether
+    the pair is owner-only, and locks the source items, every candidate destination
+    item, and every
     vocabulary row (status, category, tag) either side uses
     (`SELECT … FOR UPDATE`) before computing identities, and holds all of these locks
     through history transfer, aliasing, and retirement. From F2-pre on, creating or
@@ -243,8 +248,11 @@ Code:
   previous release during a rollout never omits that state: v3 in F1a (casing starts in
   F1b), v4 in F2-pre (UUIDs start in F2a), v5 in F2b (revisions start in F3), v6 in F4a
   (soft deletion starts in F4b), and v7 in F8 (time facets start in F6a). Every version keeps an importer, and from F2 on every importer uses the
-  UUID-first insert and remap path (no integer sequence or default is called), so
-  removing integer allocation in F9 changes nothing for restores. Backup v4 carries
+  UUID-first insert and remap path: identity comes from the stored `uid`, and the
+  integer `id` is left to its column default, which keeps allocating legacy IDs for
+  inserted and cloned rows until F9 drops `NOT NULL` (so a clone never reuses an
+  occupied integer ID). F9 then removes that default and nothing else changes for
+  restores. Backup v4 carries
   UUIDs. Restore never overwrites an existing row:
   - UUID not present anywhere, and not in `retired_id_v1` or `id_alias_v1` (a retired or
     aliased UUID counts as occupied) → inserted with that UUID;
@@ -290,7 +298,10 @@ Code:
   with the database and replaced whenever the database is restored or replaced. A
   cursor from another generation, or with an `xid` ahead of the current one, gets
   `410 Gone` and a full resync, since XIDs are meaningful only within one database.
-- Tombstones are returned in `change_xid` order, and clients apply them in that order.
+- Tombstones are returned in `change_xid` order, and clients apply them in that order,
+  except that a row returned in the same response supersedes any tombstone for the same
+  entity and workspace (an item moved away and back is current, not removed), and a
+  `moved` tombstone carries the item's revision so a later row always wins.
 - `GET /api/sync?since=<cursor>` returns three lists — items, workspaces, and
   vocabulary — plus tombstones, so empty workspaces, unused labels, and deletions sync
   too. Sync is exempt from the live-row filter: from F4 on, a soft-deleted item or
@@ -511,6 +522,9 @@ Code:
   is promoted to `owner` and the anonymous owner's row is removed, in the same
   transaction.
   When the destination has a same-named workspace, items move as in F2.
+- Membership changes (grants, revocations, role changes) take `FOR SHARE` on the
+  workspace row, which conflicts with a merge's or a delete's `FOR UPDATE`, so a grant
+  cannot slip in between a merge's owner-only check and its item moves.
 - Membership changes reach sync: granting access writes a per-user event that makes
   the member's next sync fetch that workspace in full as an authoritative reset (the
   client replaces everything it cached for that workspace, so rows deleted while the
