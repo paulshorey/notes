@@ -15,10 +15,10 @@ todos:
     content: "F4. deleted_at plus deletion_id on items and workspaces, an authorized Trash read with restore, workspace deletion through trash that restores only its own batch, and a scheduled 30-day purge."
     status: pending
   - id: membership
-    content: "F5. workspace_member(workspace_id, user_id, role); every authorization check becomes one membership predicate. Owner rows are backfilled."
+    content: "F5. workspace_member(workspace_id, user_id, role) keyed by (workspace_id, user_id) with an insert trigger for rollout-era workspaces; authorization becomes one membership predicate; user_workspace_v1.user_id stays as the owner that scopes label uniqueness and merge targets."
     status: pending
   - id: time_facet
-    content: "F6. item_time (many per item: role, instant or local date, IANA zone, RRULE) replaces time_due/time_remind; the client records the user's time zone."
+    content: "F6. item_time (many per item: role, exactly one of instant or local date, IANA zone, RRULE) replaces time_due/time_remind in two releases with bidirectional sync during the overlap, a new backup version, and defined scalar projections."
     status: pending
   - id: registry_guard
     content: "F7. Generalize the merge registry guard: db:verify fails unless every table reaching an item or workspace is classified for backup (authored or derived) and for move/merge."
@@ -138,8 +138,10 @@ migration with no reset:
    (unique, kept for lookups). `legacy_id` keeps its sequence default until F9, and the
    compatibility views keep exposing it as their integer `id`/`note_id`. F9 drops its
    `NOT NULL` together with the default, so only pre-F9 rows carry a legacy ID.
-3. `id_alias_v1(kind, alias_id uuid PRIMARY KEY, target_id uuid)` records retired IDs
-   (`kind` in `item`, `workspace`, `category`, `status`, `tag`). Aliases are always one
+3. `id_alias_v1(kind, alias_id uuid PRIMARY KEY, alias_legacy_id integer, target_id uuid)`
+   records retired IDs (`kind` in `item`, `workspace`, `category`, `status`, `tag`),
+   including the retired row's `legacy_id` (unique per `kind`), so old numeric URLs,
+   contract-1 requests, and the storage upgrader still resolve it. Aliases are always one
    hop: retiring a row in favor of another also repoints every alias that targeted the
    retired row, in the same transaction, and `db:verify` checks that no `target_id` is
    itself an alias. Every lookup by ID resolves an alias once.
@@ -161,7 +163,7 @@ Code:
   through `legacy_id` (a previous-release server may write one during the rollout).
 - Anonymous merge **moves** rows instead of copying under new IDs:
   - no same-named destination workspace → the workspace itself moves (F5: membership and,
-    until F9, `user_workspace_v1.user_id`), keeping its UUID;
+    `user_workspace_v1.user_id`), keeping its UUID;
   - same-named destination workspace → items move with one `UPDATE … SET workspace_id`
     that also remaps `status_id`, and category/tag links are remapped, all by
     `label_key` (missing destination terms are created first); the source workspace and
@@ -218,7 +220,11 @@ Code:
 - Tombstones are retained for 180 days by `deleted_at` (indexed). The retention job
   records the highest `change_xid` it removed as the sync horizon; a cursor below the
   horizon gets `410 Gone` and a full resync.
-- `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`:
+- `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`. Creation
+  is refused with `410 Gone` when the ID has a tombstone or alias, or when its UUIDv7
+  timestamp is older than the tombstone retention, so a delayed retry can never
+  recreate deleted content; only backup restore may bring back a retired ID, and it
+  does so by cloning.
   - matching `baseRevision` → applied, `200` with the new revision;
   - content identical to the current server copy → `200`, no change (makes every retry
     of an already-applied write a no-op);
@@ -271,15 +277,20 @@ Code:
 
 - `workspace_member(workspace_id, user_id, role)` with primary key
   `(workspace_id, user_id)`, so each membership has one authoritative role, and
-  `role IN ('owner','editor','viewer')`; backfilled with one `owner` per existing workspace. `user_workspace_v1.user_id` is
-  kept as the creator until F9, then dropped.
+  `role IN ('owner','editor','viewer')`; backfilled with one `owner` per existing
+  workspace. An `AFTER INSERT` trigger on `user_workspace_v1` also creates the owner
+  membership, so workspaces created by a previous-release server during the rollout are
+  covered; it stays until F9.
+- `user_workspace_v1.user_id` remains as the workspace **owner**, with the existing
+  unique `(user_id, label_key)`. Labels are unique among the workspaces a user owns;
+  workspaces shared with them by others are never merge or restore targets. Anonymous
+  merge and backup restore pick their destination among owned workspaces only.
 - One SQL predicate (`can_read_workspace` / `can_write_workspace`) replaces per-query
-  ownership joins, including the raw SQL in `scripts/cleanup-anonymous-users.mjs` and
-  other maintenance scripts. F9 drops `user_workspace_v1.user_id` only after a
-  repository search finds no remaining reference.
+  ownership joins for authorization, including the raw SQL in
+  `scripts/cleanup-anonymous-users.mjs` and other maintenance scripts.
 - Anonymous link when the destination has no same-named workspace moves the membership
   **and** updates `user_workspace_v1.user_id` to the permanent account in the same
-  transaction, so deleting the anonymous user cannot cascade through the creator FK.
+  transaction, so deleting the anonymous user cannot cascade through the owner FK.
   When the destination has a same-named workspace, items move as in F2.
 - No sharing UI is built in this phase; roles other than `owner` stay unused until
   sharing is designed (D5).
@@ -310,15 +321,24 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_id, role)
   WHERE role IN ('due', 'remind');
 ```
 
-- Backfill `due` / `remind` rows from the existing columns (`time_zone` NULL: unknown).
+- Rollout is expand/contract like F2. **F6a:** create the table and backfill `due` /
+  `remind` rows from the existing columns (`time_zone` NULL: unknown), and keep both
+  representations synchronized in both directions by triggers: a write to
+  `time_due`/`time_remind` (from a previous-release server) updates the projectable
+  row, and a write to a projectable row updates the column. **F6b** (next release,
+  after old servers drain) drops the triggers and the columns.
+- Portable backups gain an immutable version with `times[]` per item before F6 ships,
+  with importers for every earlier version; restore round-trips dates, zones,
+  recurrence rules, and every role.
 - API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
-  `remind` row (an upsert on `(item_id, role)` when written) and adds `times[]`; the
-  columns are dropped one release later. New multi-valued roles get new role names, never
+  `remind` row (an upsert on `(item_id, role)` when written) and adds `times[]`. New multi-valued roles get new role names, never
   a second `due`.
 - An all-day `due`/`remind` row (`on_date`) has no lossless timestamp form, so its
-  projection is `null` and the record also reports it in `times[]`. On write, a scalar
-  `timeDue`/`timeRemind` changes only a projectable (`at`) row or creates one; `null`
-  clears only a projectable row and leaves an all-day row untouched. Clearing or editing
+  projection is `null` and the record also reports it in `times[]`. On write, a non-null
+  scalar `timeDue`/`timeRemind` replaces the single row for that role, whatever its
+  representation (the client explicitly set a time); `null` clears only a projectable
+  row and leaves an all-day row untouched, because an older client sends `null` for a
+  value it could not display. Clearing or editing
   an all-day time goes through `times[]`.
 - The client sends `Intl.DateTimeFormat().resolvedOptions().timeZone` with every time.
 - Reminder **delivery** is not in scope; it needs the worker (section 6).
@@ -368,14 +388,15 @@ them and one release has drained previous-release servers:
 - API contract 1 (integer IDs) for previously loaded browser builds;
 - legacy SQL views and their insert triggers, the `legacy_id` sequence default and
   `NOT NULL`, the
-  `user_note_v1_id_seq` name, and the exact-label unique constraints kept by F1;
+  `user_note_v1_id_seq` name, the exact-label unique constraints kept by F1, and F5's
+  owner-membership insert trigger;
 - `/api/notes*` facades, `X-Items-Contract` dual payloads, legacy response aliases,
   `@lib/db-notes`, and the `notesUserId` session field;
 - `DB_NOTES_URL` / `DB_NOTES_TEST_URL`, in order: provision `DB_ITEMS_URL` in every
   Railway environment (dev, production, previews), deploy and confirm health while both
   names resolve, then remove the fallback in a later release.
 
-Stays indefinitely: backup v1/v2 importers, open-item storage v1/v2 draft upgraders (a
+Stays indefinitely: importers for every portable backup version, `id_alias_v1`, open-item storage v1/v2 draft upgraders (a
 browser that has not opened the app in months may still hold an unsaved draft), and
 `legacy_id` lookups/redirects.
 
@@ -434,7 +455,7 @@ None of these requires changing an existing column.
 ## 10. Delivery order
 
 F1 → F7 (guard first, so every following table is classified) → F2a → F2b (next
-release) → F3 → F4 → F5 → F8 → F6 → F9.
+release) → F3 → F4 → F5 → F8 → F6a → F6b (next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
 added to `ItemsApp.tsx` and extracted again.
