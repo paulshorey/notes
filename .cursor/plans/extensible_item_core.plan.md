@@ -279,8 +279,12 @@ Code:
   `pg_snapshot_xmin(pg_current_snapshot())`. No in-flight transaction can commit below
   that watermark, so commit reordering never hides a change; rows may repeat and clients
   apply them idempotently: items by revision, and workspace, vocabulary, and membership
-  rows by `change_xid` (a client never replaces a cached row with one carrying a lower
-  `change_xid`). Clients also run one sync request at a time and apply cursors in order. A plain sequence is not used because a lower value
+  rows by `row_version` (a client never replaces a cached row with one carrying a lower
+  `row_version`). `row_version` is a per-row counter that a trigger increments on every
+  update while the row is locked, so it orders successive changes to one row; `change_xid`
+  only tells the server which rows to send, because a transaction ID is assigned when a
+  transaction first writes, not in the order of its changes. Clients also run one sync
+  request at a time and apply cursors in order. A plain sequence is not used because a lower value
   can commit after a higher one has been read.
 - A cursor is `(generation, xid)`. `generation` is a UUID in a one-row table, created
   with the database and replaced whenever the database is restored or replaced. A
@@ -378,7 +382,8 @@ Code:
   restores times, links, and later facets too. `item_revision` is classified `history`: portable and
   moved with its item, but excluded from revision triggers and from snapshot contents,
   so writing a snapshot never bumps the item and snapshots never nest. Backup v5 (shipped in
-  F2b, before F3) carries each item's revisions; restore brings them back with an inserted
+  F2b, before F3, together with the empty `item_revision` table it restores into; F3a
+  then turns on snapshot writes) carries each item's revisions; restore brings them back with an inserted
   or cloned item, and for a skipped identical item it appends the backed-up snapshots
   the destination does not already have (matched by each snapshot's own UUID, so two
   snapshots with the same content at different times are both kept), so no history is
@@ -579,8 +584,11 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   The scalar rules below apply only to writes without `times[]` (older clients).
 - An all-day `due`/`remind` row (`on_date`) has no lossless timestamp form, so its
   projection is `null` and the record also reports it in `times[]`. On write, a non-null
-  scalar `timeDue`/`timeRemind` replaces the single row for that role, whatever its
-  representation (the client explicitly set a time); `null` clears only a projectable
+  scalar `timeDue`/`timeRemind` that equals the row's current projection is unchanged
+  and ignored (older clients send the complete scalar on every save), so the row's zone,
+  recurrence, range, and other metadata survive; a scalar that differs replaces the
+  single row for that role, whatever its representation (the client explicitly set a
+  time); `null` clears only a projectable
   row and leaves an all-day row untouched, because an older client sends `null` for a
   value it could not display. Clearing or editing
   an all-day time goes through `times[]`.
