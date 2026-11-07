@@ -221,7 +221,8 @@ const legacyLabel = (value: string) => {
       labelKey(candidate) === key
     )
       return candidate
-  return value.trim().toLowerCase()
+  // Never write a spelling that would restore as a different label.
+  return fail("Backup contains a label that cannot be written in this format.")
 }
 
 export const lowercaseBackupLabels = (backup: UserBackup): UserBackup => ({

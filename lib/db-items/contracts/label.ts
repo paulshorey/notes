@@ -14,13 +14,16 @@ export const sameLabel = (left: string, right: string) => labelKey(left) === lab
 /**
  * The spelling the database stores during the label-casing rollout, mirroring the
  * `app_label_lowercase_v1` trigger: the lowercase spelling when that keeps the
- * label's key, otherwise the key itself when it is a valid label.
+ * label's key, otherwise the key itself when it is a valid label. A label with
+ * neither form is rejected, as the trigger does.
  */
+export const ROLLOUT_LABEL_ERROR =
+  "This label cannot be saved yet. Remove unusual symbols and try again."
 export const rolloutLabelSpelling = (value: string) => {
   const typed = value.trim()
   const key = labelKey(typed)
   const lowered = typed.toLowerCase()
   if (labelKey(lowered) === key) return lowered
   if (key !== "" && key === key.trim()) return key
-  return typed
+  throw new Error(ROLLOUT_LABEL_ERROR)
 }

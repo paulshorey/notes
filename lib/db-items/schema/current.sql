@@ -52,6 +52,12 @@ BEGIN
     NEW.label := lowered;
   ELSIF key <> '' AND key = btrim(key, public.app_label_whitespace_v1()) THEN
     NEW.label := key;
+  ELSE
+    -- No lowercase spelling keeps this label's identity (for example U+00A8 followed
+    -- by U+03F9), so previous-release servers could not read it. Reject it until
+    -- labels keep their casing.
+    RAISE EXCEPTION 'This label cannot be saved yet. Remove unusual symbols and try again.'
+      USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END $$;

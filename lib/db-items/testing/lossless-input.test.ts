@@ -44,6 +44,7 @@ test("the rollout spelling keeps each label's key", () => {
   }
   assert.equal(rolloutLabelSpelling(" NYC "), "nyc")
   assert.equal(rolloutLabelSpelling("Ϲ"), "σ")
+  assert.throws(() => rolloutLabelSpelling("¨Ϲ"), /cannot be saved yet/)
 })
 
 test("legacy backups drop every reserved category form before checking duplicates", () => {
@@ -194,6 +195,13 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
         )
         assert.equal(rows[0]!.label, rolloutLabelSpelling(value), value)
       }
+      await assert.rejects(
+        getDb().query("INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,$2)", [
+          workspace.id,
+          "¨Ϲ",
+        ]),
+        { code: "23514" },
+      )
     } finally {
       await getDb().query("DELETE FROM public.user_v1 WHERE id=$1", [userId])
     }

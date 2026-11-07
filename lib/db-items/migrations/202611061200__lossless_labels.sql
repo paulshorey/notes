@@ -95,7 +95,8 @@ ALTER TABLE public.workspace_category_v1
 -- migration drops the lowercasing triggers, after which labels keep their casing.
 -- Lowercasing must not change the label's key (lowercase and NFKC do not always
 -- commute, for example U+03F9), so the key itself is stored when it is a valid
--- label. `contracts/label.ts` mirrors this as rolloutLabelSpelling.
+-- label, and a label with neither form is rejected. `contracts/label.ts` mirrors
+-- this as rolloutLabelSpelling.
 CREATE FUNCTION public.app_label_lowercase_v1() RETURNS trigger
   LANGUAGE plpgsql AS $$
 DECLARE
@@ -106,6 +107,12 @@ BEGIN
     NEW.label := lowered;
   ELSIF key <> '' AND key = btrim(key, public.app_label_whitespace_v1()) THEN
     NEW.label := key;
+  ELSE
+    -- No lowercase spelling keeps this label's identity (for example U+00A8 followed
+    -- by U+03F9), so previous-release servers could not read it. Reject it until
+    -- labels keep their casing.
+    RAISE EXCEPTION 'This label cannot be saved yet. Remove unusual symbols and try again.'
+      USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
 END $$;
