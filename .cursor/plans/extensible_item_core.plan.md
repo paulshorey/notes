@@ -18,7 +18,7 @@ todos:
     content: "F5. workspace_member keyed by (workspace_id, user_id) with exactly one owner matching user_workspace_v1.user_id; authorization becomes one membership predicate; the owner FK becomes RESTRICT in a second release after account deletion disposes of owned workspaces."
     status: pending
   - id: time_facet
-    content: "F6. item_time (many per item: role, exactly one of instant or local date, IANA zone, RRULE) replaces time_due/time_remind in two releases with bidirectional sync during the overlap, a new backup version, and defined scalar projections."
+    content: "F6. item_time (many per item: role, exactly one of instant or local date, IANA zone, RRULE) replaces time_due/time_remind in three releases: F6a adds the table, bidirectional sync, and server support for times[]; F6b lets clients author times[]; F6c drops the old columns. Backup v7 ships before F6a."
     status: pending
   - id: registry_guard
     content: "F7. Generalize the merge registry guard: db:verify fails unless every table reaching an item or workspace is classified for backup (authored or derived) and for move/merge."
@@ -221,10 +221,13 @@ Code:
     authored facet of the item (it is computed from the F7 registry of `authored` +
     `follows-item` tables), so items that differ in times, files, or other facets are
     both kept; the skipped item's revision history is appended to the survivor's before
-    the source is retired. The merge locks the source workspace's items
-    (`SELECT … FOR UPDATE`) before computing identities and holds the locks through
-    history transfer and retirement, so a save committed during sign-in is never
-    discarded on a stale comparison.
+    the source is retired. The merge takes `FOR UPDATE` on the source workspace row,
+    then locks the source items and every candidate destination item
+    (`SELECT … FOR UPDATE`) before computing identities, and holds all of these locks
+    through history transfer, aliasing, and retirement. From F2-pre on, creating or
+    moving an item takes `FOR SHARE` on its workspace row, so no item can be created in
+    the source workspace mid-merge and no compared item changes before the decision is
+    applied.
 - Portable backup versions are immutable, and each new kind of authored state gets its
   own: v3 (cased labels), v4 (UUIDs), v5 (revisions), v6 (trash), v7 (times). A version's
   exporter and importer ship in the release **before** the one that first writes the
@@ -262,7 +265,9 @@ Code:
   trigger). A sync response returns rows with `change_xid >= cursor` and a new cursor of
   `pg_snapshot_xmin(pg_current_snapshot())`. No in-flight transaction can commit below
   that watermark, so commit reordering never hides a change; rows may repeat and clients
-  apply them idempotently by revision. A plain sequence is not used because a lower value
+  apply them idempotently: items by revision, and workspace, vocabulary, and membership
+  rows by `change_xid` (a client never replaces a cached row with one carrying a lower
+  `change_xid`). Clients also run one sync request at a time and apply cursors in order. A plain sequence is not used because a lower value
   can commit after a higher one has been read.
 - A cursor is `(generation, xid)`. `generation` is a UUID in a one-row table, created
   with the database and replaced whenever the database is restored or replaced. A
@@ -517,7 +522,7 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   WHERE role IN ('due', 'remind');
 ```
 
-- Rollout is expand/contract like F2. **F6a:** create the table and backfill `due` /
+- Rollout is three releases. **F6a:** create the table and backfill `due` /
   `remind` rows from the existing columns (`time_zone` NULL: unknown), and keep both
   representations synchronized in both directions by triggers: a write to
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
@@ -528,8 +533,11 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   statement, and restores it immediately after; the F3 revision trigger skips only
   writes made inside that nested statement, so one logical edit bumps the item's revision exactly once, from the
   write that originated it, and an old server's `UPDATE … RETURNING` sees the final
-  revision. **F6b** (next release,
-  after old servers drain) drops the triggers and the columns.
+  revision. F6a servers also accept and return `times[]`, but the client keeps writing
+  the scalar fields. **F6b** (next release, when every server is time-aware) lets the
+  client author `times[]`, so no time edit reaches a server that cannot store it.
+  **F6c** (next release, after F6b has replaced every server) drops the triggers and the
+  columns.
 - Backup v7 carries `times[]` per item and ships in F8, before F6a writes any time row; restore round-trips dates, zones,
   recurrence rules, and every role.
 - API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
@@ -703,7 +711,7 @@ columns from F2.
 ## 10. Delivery order
 
 F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2-pre → F2a → F2b (next
-release) → F3 → F4a → F4b → F4c (each the next release) → F5a → F5b (next release) → F8 → F6a → F6b (next release) → F9.
+release) → F3 → F4a → F4b → F4c (each the next release) → F5a → F5b (next release) → F8 → F6a → F6b → F6c (each the next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
 added to `ItemsApp.tsx` and extracted again.
