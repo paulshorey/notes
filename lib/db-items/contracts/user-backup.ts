@@ -7,7 +7,7 @@ import type {
   UserPreferences,
 } from "./items-app"
 import { UNCATEGORIZED_LABEL } from "./category-name"
-import { labelKey } from "./label"
+import { labelKey, rolloutLabelSpelling, ROLLOUT_LABEL_ERROR } from "./label"
 
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
 /** Version 3 stores labels as typed. Versions 1 and 2 store lowercased labels. */
@@ -34,13 +34,22 @@ const array = (value: unknown): unknown[] =>
 const validText = (value: string) =>
   !value.includes("\0") &&
   !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value)
-const label = (value: unknown, cased: boolean): string =>
-  typeof value === "string" &&
-  value.length > 0 &&
-  value === (cased ? value.trim() : value.trim().toLowerCase()) &&
-  validText(value)
-    ? value
-    : fail("Backup labels must be nonempty, normalized text.")
+const label = (value: unknown, cased: boolean): string => {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value !== (cased ? value.trim() : value.trim().toLowerCase()) ||
+    !validText(value)
+  )
+    return fail("Backup labels must be nonempty, normalized text.")
+  // A label the database cannot store yet would fail restore after validation.
+  try {
+    rolloutLabelSpelling(value)
+  } catch {
+    return fail(ROLLOUT_LABEL_ERROR)
+  }
+  return value
+}
 const timestamp = (value: unknown): string => {
   if (
     typeof value !== "string" ||

@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
 import { getCategoryNameError } from "../contracts/category-name"
 import { labelKey, rolloutLabelSpelling, sameLabel } from "../contracts/label"
-import { lowercaseBackupLabels, parseUserBackup } from "../contracts/user-backup"
+import {
+  BackupValidationError,
+  lowercaseBackupLabels,
+  parseUserBackup,
+} from "../contracts/user-backup"
 import { getDb } from "../lib/db/postgres"
 import { createTagForItemsApp, mergeAnonymousItemsAppSession } from "../services/items-app"
 import { createItemForUser, listItemsByUser, parseItemInput } from "../sql/item"
@@ -45,6 +49,13 @@ test("the rollout spelling keeps each label's key", () => {
   assert.equal(rolloutLabelSpelling(" NYC "), "nyc")
   assert.equal(rolloutLabelSpelling("Ϲ"), "σ")
   assert.throws(() => rolloutLabelSpelling("¨Ϲ"), /cannot be saved yet/)
+})
+
+test("backups with labels the database cannot store yet fail validation", () => {
+  const backup = backupFixture()
+  backup.workspaces[0]!.tags = [{ ...backup.workspaces[0]!.tags[0]!, label: "¨Ϲ" }]
+  backup.workspaces[0]!.items = backup.workspaces[0]!.items.map((item) => ({ ...item, tags: [] }))
+  assert.throws(() => parseUserBackup(backup), BackupValidationError)
 })
 
 test("legacy backups drop every reserved category form before checking duplicates", () => {
