@@ -127,10 +127,11 @@ as lowercase:
   lowercase label rule, and the version 1 download for older clients lowercases labels,
   so a file an older deployment can read never contains cased labels.
 - A version 1 or 2 file can hold two labels that were distinct under the old rules but
-  share a `label_key` (Unicode compatibility forms). F1 rejects such a file with a clear
-  error rather than merging them. A follow-up importer preflight makes it importable
-  losslessly: within a workspace, the later colliding label gets a suffix
-  (`ｑ3 (2)`) and every reference in the file is remapped to it before restore.
+  share a `label_key` (Unicode compatibility forms). F1's importer keeps both
+  losslessly: within a workspace (and across workspace labels), the later colliding
+  label gets a suffix (`ｑ3 (2)`) and every reference in the file is remapped to it
+  before restore. Version 3 files, which identify labels by key, still reject key
+  duplicates.
 
 ### F2. Permanent IDs, in place
 
@@ -360,7 +361,9 @@ Code:
   items that were already in Trash stay there. `DELETE /api/workspaces` no longer issues a SQL
   `DELETE`, so items never cascade away outside the purge.
 - F4 ships in three releases. **F4a** adds the columns and the `deleted_at` filters on
-  every read and write, while nothing is soft-deleted yet. **F4b** (next release, when
+  every read and write, while nothing is soft-deleted yet, and backup v6 export and
+  import (`deletedAt` and `deletionId`, still null everywhere), so every server that
+  can see Trash can also back it up. **F4b** (next release, when
   every server filters) adds the soft-delete routes, Trash, and restore; a
   previous-release server never sees a trashed row as live, and its direct deletes
   during the rollout still hard-delete, as before F4, with F3 tombstones. **F4c** (next
@@ -430,7 +433,8 @@ Code:
   first disposes of every workspace it owns, then deletes the user:
   - a workspace with other members is transferred to one of them (an editor if any);
     if the new owner already owns a workspace with the same `label_key`, the transferred
-    workspace is renamed in the same transaction with a suffix (`personal (2)`);
+    workspace is renamed in the same transaction with a suffix (`personal (2)`), and
+    the workspace's `retired_id_v1` markers move to the new owner;
   - a workspace with no other members is deleted through the workspace-delete function
     (tombstones first). Trash is not used here because no account remains to restore it.
     So an owner's deletion never destroys collaborators' content, and nothing still
@@ -541,6 +545,9 @@ A fourth backup class, `history`, covers `item_revision`: portable and `follows-
 but excluded from revision triggers and from snapshot generation. A fifth, `control`,
 covers short-lived protocol state such as `item_mutation_v1`: excluded from backups and
 snapshots, not rebuildable, moved with its item (`follows-item`) and dropped with it.
+When a merge retires an item into an alias, its receipts are rekeyed to the surviving
+item, so a retry sent to the retired UUID resolves through the alias and still replays
+its original result.
 
 An `authored` or `history` classification also names the backup format version that
 introduced the table and its export and import handlers. A registry-driven round-trip
