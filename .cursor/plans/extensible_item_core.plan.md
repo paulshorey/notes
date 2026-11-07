@@ -6,7 +6,7 @@ todos:
     content: "F1. F1a (PR #119): store item text exactly as typed and give labels a locale-independent NFKC key for uniqueness, while rollout triggers keep labels lowercased for previous-release servers. F1b (next release): drop those triggers so labels keep their casing."
     status: in_progress
   - id: permanent_ids
-    content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2a adds them beside the integer ones with bidirectional sync; F2b moves primary and foreign keys to them in the next release. Integer id stays as the legacy ID; retired IDs become one-hop aliases. Merge moves rows; restore never overwrites."
+    content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2-pre makes merges move rows and alias retired integer IDs; F2a adds the columns and UUID-aware servers while clients stay on integer IDs; F2b ships the UUID client and moves primary and foreign keys to the uid columns. Integer id stays as the legacy ID. Merge moves rows; restore never overwrites."
     status: pending
   - id: revisioned_writes
     content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark."
@@ -168,8 +168,12 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    and the direct `status_id` included). Triggers keep integer and UUID references in
    sync in both directions, so writes from either release populate both. Integer `id`
    stays the primary key with its sequence, so previous-release servers keep working.
-   Release N's code reads and writes by UUID and serves integer IDs only for contract 1.
-2. **F2b — key swap (release N+1).** Move primary keys and the composite workspace FKs
+   Release N's servers read and write by UUID and understand both contracts, but the
+   shipped client still sends contract 1 (integer IDs), so a request landing on an
+   F2-pre server during the rollout still works.
+2. **F2b — key swap and UUID client (release N+1).** The client switches to contract 2
+   (UUIDs) and the browser-storage upgrader below ships, now that every server
+   understands UUIDs. Move primary keys and the composite workspace FKs
    to the `uid` columns, keeping them `DEFERRABLE` as in F2-pre. This changes constraints only; no column is renamed or dropped,
    so release N keeps working during the overlap. Integer `id` stays unique with its
    sequence default until F9.
@@ -194,11 +198,12 @@ Code:
   selected by a new contract version: clients that send `X-Items-Contract: 2` get and
   send UUIDs. A browser tab still running the previous build sends
   `X-Items-Contract: 1` and keeps receiving and sending integer IDs (served from the
-  integer columns) until it reloads. Contract 1 is
-  retired in F9.
+  integer columns) until it reloads. Servers understand contract 2 from F2a, but
+  clients only send it from F2b, so a new tab never reaches a server that predates
+  it. Contract 1 is retired in F9.
 - `GET /api/items/{id}` and open-item URLs accept a UUID, an alias, or a legacy integer
   and redirect to the canonical UUID form.
-- Browser storage v4 upgrader maps integer IDs in cached items and dirty drafts to UUIDs
+- Browser storage v4 upgrader (ships with the contract-2 client in F2b) maps integer IDs in cached items and dirty drafts to UUIDs
   through a lookup endpoint; dirty drafts are never discarded on failure.
 - Server-side preferences: F2a's bootstrap accepts `currentWorkspaceId` as either the
   integer or the UUID and keeps writing what it read, so previous-release servers still
