@@ -151,7 +151,9 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    to the `uid` columns. This changes constraints only; no column is renamed or dropped,
    so release N keeps working during the overlap. Integer `id` stays unique with its
    sequence default until F9.
-3. `id_alias_v1(kind, alias_id uuid PRIMARY KEY, alias_legacy_id integer, target_id uuid)`
+3. `id_alias_v1(kind, alias_id uuid, alias_legacy_id integer, target_id uuid)` with
+   primary key `(kind, alias_id)`, since the same UUID may identify rows of different
+   kinds,
    records retired IDs (`kind` in `item`, `workspace`, `category`, `status`, `tag`),
    including the retired row's integer `id` (unique per `kind`), so old numeric URLs,
    contract-1 requests, and the storage upgrader still resolve it. Aliases are always one
@@ -229,11 +231,12 @@ Code:
   writes one tombstone row per user who could read the workspace at that moment (its
   creator before F5, its members after); sync returns only the requester's rows. Single
   item and vocabulary deletes read that audience in their trigger while the workspace
-  still exists. Whole-workspace deletes (the route before F4, the purge after) run
-  through one SQL function that writes tombstones for the workspace and every row it
-  contains before deleting anything, so the cascade never has to look up authorization
-  state that it is removing; the row triggers skip entities already tombstoned in that
-  transaction. Link removals are item changes (they bump the
+  still exists. Whole-workspace deletes are covered by a `BEFORE DELETE`
+  row trigger on `user_workspace_v1` that writes tombstones for the workspace and every
+  row it contains before the cascade runs. It fires for every delete path, including a
+  previous-release server's direct `DELETE` during the F3 rollout, so the cascade never
+  has to look up authorization state that it is removing; the row triggers skip
+  entities already tombstoned in that transaction. Link removals are item changes (they bump the
   item's revision).
 - Tombstones are retained for 180 days by `deleted_at` (indexed). The retention job
   records the highest `change_xid` it removed as the sync horizon; a cursor at or
@@ -308,7 +311,11 @@ Code:
 
 - `workspace_member(workspace_id, user_id, role)` with primary key
   `(workspace_id, user_id)`, so each membership has one authoritative role, and
-  `role IN ('owner','editor','viewer')`; backfilled with one `owner` per existing
+  `role IN ('owner','editor','viewer')`. A partial unique index allows at most one
+  `owner` per workspace, and a deferred constraint trigger checks at commit that every
+  workspace has exactly one owner membership and that its user equals
+  `user_workspace_v1.user_id`, so authorization, label uniqueness, merges, and account
+  deletion always agree on the owner. Memberships are backfilled with one `owner` per existing
   workspace. An `AFTER INSERT` trigger on `user_workspace_v1` also creates the owner
   membership, so workspaces created by a previous-release server during the rollout are
   covered; it stays until F9.
@@ -404,6 +411,12 @@ example a child of `file_v1` keyed only by `file_id`) declares:
   as `user_api_token_v1`, and `workspace_member`). Restore recreates only the restoring
   user's owner membership; sharing grants are not portable;
 - move/merge strategy: `follows-item`, `follows-workspace`, `remap-by-key`, or `drop`.
+
+An `authored` classification also names the backup format version that introduced the
+table and its export and import handlers. A registry-driven round-trip test fills every
+`authored` table, exports, restores into an empty account, and fails if any table's rows
+do not come back, so a classification cannot pass while the backup silently omits the
+table.
 
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`, `retired_id_v1`) are registered explicitly, and the guard fails on
