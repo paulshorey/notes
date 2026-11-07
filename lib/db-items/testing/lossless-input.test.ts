@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
 import { getCategoryNameError } from "../contracts/category-name"
 import { labelKey, sameLabel } from "../contracts/label"
-import { parseUserBackup } from "../contracts/user-backup"
+import { lowercaseBackupLabels, parseUserBackup } from "../contracts/user-backup"
 import { getDb } from "../lib/db/postgres"
 import { createTagForItemsApp, mergeAnonymousItemsAppSession } from "../services/items-app"
 import { createItemForUser, listItemsByUser, parseItemInput } from "../sql/item"
@@ -30,6 +30,19 @@ test("backups keep label casing and reject labels that collide by key", () => {
   assert.equal(parsed.workspaces[0]!.tags[0]!.label, "iOS")
   workspace.tags = [workspace.tags[0]!, { ...workspace.tags[0]!, label: "IOS" }]
   assert.throws(() => parseUserBackup(backup), /duplicate labels/)
+})
+
+test("version 2 backups keep their lowercase label rule; legacy exports lowercase labels", () => {
+  const backup = backupFixture()
+  const workspace = backup.workspaces[0]!
+  workspace.tags = [{ ...workspace.tags[0]!, label: "iOS" }]
+  workspace.items = workspace.items.map((item) => ({ ...item, tags: ["iOS"] }))
+  assert.equal(backup.version, 3)
+  assert.throws(() => parseUserBackup({ ...backup, version: 2 }), /normalized text/)
+  const legacy = lowercaseBackupLabels(parseUserBackup(backup))
+  const reparsed = parseUserBackup({ ...legacy, version: 2 })
+  assert.equal(reparsed.workspaces[0]!.tags[0]!.label, "ios")
+  assert.deepEqual(reparsed.workspaces[0]!.items[0]!.tags, ["ios"])
 })
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL

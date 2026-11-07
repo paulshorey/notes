@@ -10,7 +10,8 @@ import { UNCATEGORIZED_LABEL } from "./category-name"
 import { labelKey } from "./label"
 
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
-export const USER_BACKUP_VERSION = 2
+/** Version 3 stores labels as typed. Versions 1 and 2 store lowercased labels. */
+export const USER_BACKUP_VERSION = 3
 export const USER_BACKUP_MAX_BYTES = 50 * 1024 * 1024
 const MAX_RECORDS = 100_000
 
@@ -28,10 +29,13 @@ const array = (value: unknown): unknown[] =>
 const validText = (value: string) =>
   !value.includes("\0") &&
   !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value)
-const label = (value: unknown): string =>
-  typeof value === "string" && value.length > 0 && value === value.trim() && validText(value)
+const label = (value: unknown, cased: boolean): string =>
+  typeof value === "string" &&
+  value.length > 0 &&
+  value === (cased ? value.trim() : value.trim().toLowerCase()) &&
+  validText(value)
     ? value
-    : fail("Backup labels must be nonempty text without surrounding whitespace.")
+    : fail("Backup labels must be nonempty, normalized text.")
 const timestamp = (value: unknown): string => {
   if (
     typeof value !== "string" ||
@@ -55,10 +59,10 @@ const unique = <T>(values: T[], getLabel: (value: T) => string): T[] => {
     fail("Backup contains duplicate labels.")
   return values
 }
-const vocabulary = (value: unknown): BackupVocabulary => {
+const vocabulary = (value: unknown, cased: boolean): BackupVocabulary => {
   const v = object(value)
   return {
-    label: label(v.label),
+    label: label(v.label, cased),
     timeCreated: timestamp(v.timeCreated),
     timeModified: timestamp(v.timeModified),
   }
@@ -85,9 +89,11 @@ const preferences = (value: unknown, depth = 0): unknown => {
 /** Validate the entire file before opening a write transaction. Never trust ids from a file. */
 export const parseUserBackup = (value: unknown): UserBackup => {
   const b = object(value)
-  if (b.format !== USER_BACKUP_FORMAT || (b.version !== 1 && b.version !== USER_BACKUP_VERSION)) {
+  if (b.format !== USER_BACKUP_FORMAT || ![1, 2, USER_BACKUP_VERSION].includes(Number(b.version))) {
     fail("Unsupported backup format or version. Choose a jot.new backup file.")
   }
+  const cased = b.version === USER_BACKUP_VERSION
+  const vocab = (value: unknown) => vocabulary(value, cased)
   let records = 0
   const count = (value: unknown) => {
     const items = array(value)
@@ -98,8 +104,8 @@ export const parseUserBackup = (value: unknown): UserBackup => {
   const workspaces = unique(
     count(b.workspaces).map((value): BackupWorkspace => {
       const w = object(value)
-      const categories = unique(count(w.categories).map(vocabulary), (v) => v.label)
-      const tags = unique(count(w.tags).map(vocabulary), (v) => v.label)
+      const categories = unique(count(w.categories).map(vocab), (v) => v.label)
+      const tags = unique(count(w.tags).map(vocab), (v) => v.label)
       const statuses = unique(
         count(w.statuses).map((value): BackupStatus => {
           const s = object(value)
@@ -109,7 +115,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
             Number(s.position) > 2_147_483_647
           )
             fail("Invalid status position.")
-          return { ...vocabulary(s), position: Number(s.position) }
+          return { ...vocab(s), position: Number(s.position) }
         }),
         (v) => v.label,
       )
@@ -119,7 +125,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
       const refs = (value: unknown, available: Set<string>) =>
         unique(
           array(value).map((v) => {
-            const result = label(v)
+            const result = label(v, cased)
             if (!available.has(labelKey(result)))
               fail("An item refers to vocabulary outside its workspace.")
             return result
@@ -134,7 +140,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
           (typeof n.description !== "string" || !validText(n.description))
         )
           fail("Invalid item text.")
-        const status = n.status === null ? null : label(n.status)
+        const status = n.status === null ? null : label(n.status, cased)
         if (status !== null && !statusLabels.has(labelKey(status)))
           fail("An item refers to an unknown status.")
         return {
@@ -152,7 +158,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         }
       })
       return {
-        ...vocabulary(w),
+        ...vocab(w),
         categories: categories.filter(
           (category) => labelKey(category.label) !== UNCATEGORIZED_LABEL,
         ),
@@ -165,7 +171,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
   )
   if (workspaces.length === 0) fail("Backup must contain at least one workspace.")
   const activeWorkspaceLabel =
-    b.activeWorkspaceLabel === null ? null : label(b.activeWorkspaceLabel)
+    b.activeWorkspaceLabel === null ? null : label(b.activeWorkspaceLabel, cased)
   if (
     activeWorkspaceLabel !== null &&
     !workspaces.some((w) => labelKey(w.label) === labelKey(activeWorkspaceLabel))
@@ -186,3 +192,22 @@ export const parseUserBackup = (value: unknown): UserBackup => {
     workspaces,
   }
 }
+
+/** Versions 1 and 2 cannot represent label casing; lowercase labels for those formats. */
+export const lowercaseBackupLabels = (backup: UserBackup): UserBackup => ({
+  ...backup,
+  activeWorkspaceLabel: backup.activeWorkspaceLabel?.toLowerCase() ?? null,
+  workspaces: backup.workspaces.map((workspace) => ({
+    ...workspace,
+    label: workspace.label.toLowerCase(),
+    categories: workspace.categories.map((v) => ({ ...v, label: v.label.toLowerCase() })),
+    statuses: workspace.statuses.map((v) => ({ ...v, label: v.label.toLowerCase() })),
+    tags: workspace.tags.map((v) => ({ ...v, label: v.label.toLowerCase() })),
+    items: workspace.items.map((item) => ({
+      ...item,
+      status: item.status?.toLowerCase() ?? null,
+      categories: item.categories.map((name) => name.toLowerCase()),
+      tags: item.tags.map((name) => name.toLowerCase()),
+    })),
+  })),
+})
