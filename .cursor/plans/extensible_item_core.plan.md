@@ -12,7 +12,7 @@ todos:
     content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark."
     status: pending
   - id: soft_delete
-    content: "F4. In two releases: F4a adds deleted_at plus deletion_id on items and workspaces, soft-delete routes, read filters, an authorized Trash with restore, and a scheduled 30-day purge; F4b adds a trigger that turns any non-purge DELETE into the same soft delete."
+    content: "F4. In three releases: F4a adds deleted_at plus deletion_id and read/write filters; F4b adds soft-delete routes, an authorized Trash with restore, and a scheduled 30-day purge; F4c adds a trigger that turns any non-purge DELETE into the same soft delete."
     status: pending
   - id: membership
     content: "F5. workspace_member keyed by (workspace_id, user_id) with exactly one owner matching user_workspace_v1.user_id; authorization becomes one membership predicate; the owner FK becomes RESTRICT in a second release after account deletion disposes of owned workspaces."
@@ -179,7 +179,8 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    including the retired row's integer `id` (unique per `kind`), so old numeric URLs,
    contract-1 requests, and the storage upgrader still resolve it. Aliases are always one
    hop: retiring a row in favor of another also repoints every alias that targeted the
-   retired row, in the same transaction, and `db:verify` checks that no `target_id` is
+   retired row, in the same transaction, together with the `replaced_by` of any
+   outstanding `merged` tombstones (F3), and `db:verify` checks that no `target_id` is
    itself an alias. Every lookup by ID resolves an alias once.
 
 Code:
@@ -248,6 +249,11 @@ Code:
   that watermark, so commit reordering never hides a change; rows may repeat and clients
   apply them idempotently by revision. A plain sequence is not used because a lower value
   can commit after a higher one has been read.
+- A cursor is `(generation, xid)`. `generation` is a UUID in a one-row table, created
+  with the database and replaced whenever the database is restored or replaced. A
+  cursor from another generation, or with an `xid` ahead of the current one, gets
+  `410 Gone` and a full resync, since XIDs are meaningful only within one database.
+- Tombstones are returned in `change_xid` order, and clients apply them in that order.
 - `GET /api/sync?since=<cursor>` returns three lists — items, workspaces, and
   vocabulary — plus tombstones, so empty workspaces, unused labels, and deletions sync
   too. Sync is exempt from the live-row filter: from F4 on, a soft-deleted item or
@@ -324,7 +330,8 @@ Code:
   so writing a snapshot never bumps the item and snapshots never nest. Backup v5 ships
   with F3 and carries each item's revisions; restore brings them back with an inserted
   or cloned item, and for a skipped identical item it appends the backed-up snapshots
-  the destination does not already have (matched by content hash), so no history is
+  the destination does not already have (matched by each snapshot's own UUID, so two
+  snapshots with the same content at different times are both kept), so no history is
   lost.
 - The client save engine drops the create/update split and the POST no-retry hazard:
   every save is a retryable PUT.
@@ -352,17 +359,19 @@ Code:
   `deletion_id`; restoring the workspace restores only rows with that `deletion_id`, so
   items that were already in Trash stay there. `DELETE /api/workspaces` no longer issues a SQL
   `DELETE`, so items never cascade away outside the purge.
-- F4 ships in two releases. **F4a** adds the columns, the soft-delete routes, and the
-  `deleted_at` filters on every read; a previous-release server's direct deletes during
-  its rollout still hard-delete, as before F4, with F3 tombstones. **F4b** (next release,
-  when every server is soft-delete-aware) adds a safety net: a `BEFORE DELETE` trigger on
+- F4 ships in three releases. **F4a** adds the columns and the `deleted_at` filters on
+  every read and write, while nothing is soft-deleted yet. **F4b** (next release, when
+  every server filters) adds the soft-delete routes, Trash, and restore; a
+  previous-release server never sees a trashed row as live, and its direct deletes
+  during the rollout still hard-delete, as before F4, with F3 tombstones. **F4c** (next
+  release, when every server is soft-delete-aware) adds a safety net: a `BEFORE DELETE` trigger on
   items and workspaces turns any `DELETE` into the same soft delete the routes perform
   (for a workspace, the full batch: the workspace and its live items under one
   `deletion_id`), then cancels the row delete, unless the transaction sets
   `app.hard_delete = 'on'`, which only the purge, account deletion, and merge
-  retirement do (below). F4a already
-  sets that flag in the purge, account deletion, and the anonymous-cleanup command, so
-  their previous-release copies keep hard-deleting during F4b's rollout. F4b also
+  retirement do (below). F4b already sets that flag in the purge, account deletion, and
+  the anonymous-cleanup command, so their previous-release copies keep hard-deleting
+  during F4c's rollout. F4c also
   gates the F3 workspace tombstone trigger on `app.hard_delete = 'on'`, so a converted
   delete never emits hard-delete tombstones; the item tombstone triggers are
   `AFTER DELETE` and do not fire for a canceled delete.
@@ -378,7 +387,9 @@ Code:
 - Category, status, and tag deletion stays immediate: removing a label never removes
   item content, and the removed links are an authored change to each affected item, so
   its revision snapshot keeps the previous labels and history can restore them (under a
-  new term ID, since the deleted one is retired). D3's
+  new term ID, since the deleted one is retired). A `BEFORE DELETE` trigger on each
+  vocabulary table snapshots every affected item while the term's label still exists,
+  before the link rows cascade. D3's
   30-day Trash applies to items and workspaces.
 - Purge is scheduled, not manual: F4 adds a Railway cron service (declared in
   `.railway/railway.ts`) that runs the purge command daily in each environment. It is
@@ -437,7 +448,9 @@ Code:
   transaction.
   When the destination has a same-named workspace, items move as in F2.
 - Membership changes reach sync: granting access writes a per-user event that makes
-  the member's next sync fetch that workspace in full, and revoking access writes a
+  the member's next sync fetch that workspace in full as an authoritative reset (the
+  client replaces everything it cached for that workspace, so rows deleted while the
+  member had no access disappear), and revoking access writes a
   workspace tombstone for that user so their devices drop its content. A revocation's
   tombstones carry `reason = 'revoked'` and one `revocation_id`. A grant deletes only that
   user's `revoked` tombstones for the workspace in the same transaction, so a revoke
@@ -539,10 +552,11 @@ Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`, `retired_id_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
 `retired_id_v1` records retired `(kind, uid)` pairs with the `workspace_uid` they last
-belonged to. A portable backup carries the markers of the exported account's
-workspaces, and restore re-inserts them (skipping any UUID that is live elsewhere), so a
+belonged to and that workspace's owner at retirement (`owner_user_id`, which an
+anonymous merge moves to the permanent account). A portable backup carries every marker
+owned by the exported account, including those of workspaces since purged, and restore re-inserts them (skipping any UUID that is live elsewhere), so a
 restored account still refuses retries of IDs retired before the backup. Merges leave
-it unchanged. `id_alias_v1` is portable: a backup carries the aliases whose
+it unchanged apart from moving `owner_user_id`. `id_alias_v1` is portable: a backup carries the aliases whose
 targets belong to the exported account, and restore recreates them with the same rules
 merges use (an alias UUID already in use elsewhere is remapped with its cloned target,
 never taken over). Operational tables that hold no user data (the
@@ -657,7 +671,7 @@ columns from F2.
 ## 10. Delivery order
 
 F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2-pre → F2a → F2b (next
-release) → F3 → F4a → F4b (next release) → F5a → F5b (next release) → F8 → F6a → F6b (next release) → F9.
+release) → F3 → F4a → F4b → F4c (each the next release) → F5a → F5b (next release) → F8 → F6a → F6b (next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
 added to `ItemsApp.tsx` and extracted again.
