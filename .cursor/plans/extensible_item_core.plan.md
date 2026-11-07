@@ -34,7 +34,7 @@ isProject: true
 
 # Extensible item core
 
-## Status: proposed — waiting on the product questions in section 9
+## Status: approved direction — product decisions recorded in section 9
 
 ## 1. Goal
 
@@ -120,7 +120,7 @@ Migration (single transaction, forward-only, no reset):
    composite workspace FKs to the uuid columns, rename integer `id` → `legacy_id`
    (unique, kept for lookups). Drop `serial` defaults on `legacy_id` for new rows.
 3. Existing compatibility views that expose integer `id`/`note_id` are dropped in F9 or
-   rewritten to read `legacy_id`; decide with question Q2.
+   rewritten to read `legacy_id`; per D2 they are dropped.
 
 Code:
 
@@ -141,7 +141,8 @@ Code:
 - Global `change_seq` sequence; items, workspaces, vocabulary rows, and link changes bump
   the owning item's `change_seq` so the item is the sync unit.
 - `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`; a stale
-  revision returns `409` with the server copy (resolution per Q4).
+  revision returns `409` with the server copy; the client keeps its edit on screen, the
+  server stores the overwritten version in `item_revision`, and the user is notified (D4).
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
   conflicting overwrite, delete, or merge).
 - `GET /api/items?since=<change_seq>` returns changed items and tombstones.
@@ -152,7 +153,7 @@ Code:
 
 - `deleted_at timestamptz` on items (and later on facets that can be removed alone).
 - All reads filter `deleted_at IS NULL`; partial indexes keep this cheap.
-- Delete moves to trash; restore clears it; purge after the retention period (Q3).
+- Delete moves to trash; restore clears it; purge after 30 days (D3).
   Purge runs from a maintenance command until a background worker exists.
 
 ### F5. Membership ownership
@@ -165,7 +166,7 @@ Code:
 - Anonymous link becomes a membership move when the destination has no same-named
   workspace, and an item move (F2) when it does.
 - No sharing UI is built in this phase; roles other than `owner` stay unused until
-  sharing is designed (Q5).
+  sharing is designed (D5).
 
 ### F6. Time facet
 
@@ -223,7 +224,7 @@ content type:
 Remove the legacy views, the `user_note_v1_id_seq` name, `/api/notes*` facades,
 `X-Items-Contract` dual payloads and legacy response aliases, `DB_NOTES_URL` /
 `DB_NOTES_TEST_URL`, `@lib/db-notes`, the `notesUserId` session field, and v1/v2
-open-item storage upgraders — after Q2 confirms no client still depends on them.
+open-item storage upgraders. Per D2 only the web app depends on them.
 Backup v1/v2 importers stay.
 
 ## 6. Additive content types after the foundation
@@ -261,22 +262,22 @@ None of these requires changing an existing column.
 - After promotion: pre-deploy migration success and app health per
   `docs/operations/notes-environments.md`.
 
-## 9. Product questions (block F2 onward)
+## 9. Product decisions
 
-- **Q1. Existing users.** Does production hold anyone's data besides the developer's?
-  The plan preserves everything either way; the answer sets how long legacy integer
-  URLs and drafts must keep resolving.
-- **Q2. Non-web clients.** Does anything other than the current web app call the API —
-  an Android/iOS app, shortcuts, scripts using API tokens, or old `/api/notes` routes?
-  Sets when F9 can run and whether integer IDs must stay accepted by the API.
-- **Q3. Delete behavior.** Trash with restore and automatic purge (default 30 days), or
-  immediate delete with a short undo?
-- **Q4. Edit conflicts.** When two devices edit the same note: keep both (the losing
-  edit saved as a revision and shown to the user), or last-write-wins with history?
-- **Q5. Sharing.** Will workspaces be shared with other people (partner, team, client)?
-  If never, F5 can be deferred.
-- **Q6. Label casing.** Display labels as typed with case-insensitive uniqueness ("NYC"
-  and "nyc" are the same category)? Recommended default.
+- **D1. Existing data.** Everything is preserved in place. Legacy integer item URLs keep
+  redirecting to UUID URLs; dirty browser drafts are upgraded, never discarded.
+- **D2. Clients.** Only the current web app calls the API. F9 runs as soon as the web
+  client no longer depends on the compatibility layer; the API does not need to accept
+  integer IDs beyond the `?id=` redirect and the browser-storage upgrader.
+- **D3. Delete.** Deleted items go to a Trash view with restore and are purged
+  automatically after 30 days.
+- **D4. Edit conflicts.** Keep both: the later save wins on screen, the overwritten version
+  is saved to the item's history, and the user is notified so they can restore or copy
+  from it. No blocking merge dialog.
+- **D5. Sharing.** Workspaces will be shared eventually, so F5 (membership) is part of
+  the foundation; no sharing UI yet.
+- **D6. Label casing.** Labels display as typed; uniqueness is case- and
+  Unicode-normalization-insensitive ("NYC" and "nyc" are the same category).
 
 ## 10. Delivery order
 
