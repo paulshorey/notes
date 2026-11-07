@@ -633,12 +633,13 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
 ```
 
 - Rollout is three releases. **F8** (before F6a) creates `item_time_v1`, empty, together
-  with the v7 importer (the exporter stays on v6 until F6a has backfilled the scalar
-  values), so a v7 file with all-day, recurring, or multi-valued times can be persisted
-  by any server from then on; F8 also installs the
-  bidirectional synchronization triggers below, so an imported all-day or recurring
-  `due`/`remind` row and a later scalar edit by a still-running server never diverge.
-  **F6a:** backfill `due` /
+  with the v7 importer, which reads v7 files but rejects any with non-empty `times[]`
+  (the exporter stays on v6, which cannot represent them, until F6a has backfilled the
+  scalar values); F8 also installs the bidirectional synchronization triggers below, so
+  a later scalar edit by a still-running server and an imported row can never diverge.
+  **F6a** switches the exporter to v7 and accepts non-empty v7 imports, so all-day,
+  recurring, and multi-valued times can be persisted only once every server that can
+  export them can also restore them. F6a also backfills `due` /
   `remind` rows from the existing columns (`time_zone` NULL: unknown); the two
   representations stay synchronized in both directions by the F8 triggers: a write to
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
