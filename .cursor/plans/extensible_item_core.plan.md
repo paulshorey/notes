@@ -252,11 +252,15 @@ Code:
   vocabulary — plus tombstones, so empty workspaces, unused labels, and deletions sync
   too. Sync is exempt from the live-row filter: from F4 on, a soft-deleted item or
   workspace is a changed row and is returned with its `deletedAt`, so other devices move
-  it to Trash immediately rather than at purge time. All lists and the new cursor are read in one `REPEATABLE READ` read-only
+  it to Trash immediately rather than at purge time. Each workspace row carries the
+  requester's current role, and a membership role change bumps that workspace's
+  `change_xid`, so a member's devices learn an upgrade or downgrade on their next sync.
+  All lists and the new cursor are read in one `REPEATABLE READ` read-only
   transaction, so they come from the same snapshot and a commit between two reads cannot
   be skipped.
 - Tombstones: `sync_tombstone_v1` rows (`user_id`, `kind`, `entity_id`, `workspace_id`,
-  `reason` (`deleted` or `revoked`), `revocation_id`,
+  `reason` (`deleted`, `revoked`, or `merged`), `revocation_id`, `replaced_by` (the
+  surviving ID for `merged`),
   `change_xid`, `deleted_at`) are written by `AFTER DELETE` triggers on items, workspaces, and
   vocabulary tables, so every existing hard-delete path (item and vocabulary deletion
   today, the F4 purge later) produces a deletion record from F3 onward. Each deletion
@@ -307,10 +311,15 @@ Code:
     lost replays its own recorded result (including `overwrote` and its history link)
     even after later mutations changed the item.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
-  conflicting overwrite, delete, or merge). A snapshot holds the whole authored item:
-  base columns plus every `authored` + `follows-item` facet, as one JSON document whose
-  shape is generated from the F7 registry, so restoring a history entry restores times,
-  links, and later facets too. `item_revision` is classified `history`: portable and
+  conflicting overwrite, delete, or merge). A snapshot holds the item's restorable
+  authored content: its authored base columns plus every `authored` + `follows-item`
+  facet, with vocabulary links recorded by label and `label_key` rather than only by
+  term ID. Restoring a history entry keeps the item's current identity, workspace,
+  revision, and lifecycle fields (a restore is a new revision), and resolves each link
+  by `label_key` in the current workspace, creating the term under a new ID if it was
+  deleted. as one JSON document whose
+  The document's shape is generated from the F7 registry, so restoring a history entry
+  restores times, links, and later facets too. `item_revision` is classified `history`: portable and
   moved with its item, but excluded from revision triggers and from snapshot contents,
   so writing a snapshot never bumps the item and snapshots never nest. Backup v5 ships
   with F3 and carries each item's revisions; restore brings them back with an inserted
@@ -362,11 +371,14 @@ Code:
   account deletion including the abandoned-anonymous cleanup, and identity retirement
   during a merge (a merged-away workspace or deduplicated item). Each sets
   `app.hard_delete = 'on'` only around its own delete statements and resets it after.
-  A retirement writes a tombstone with `reason = 'merged'` and the surviving ID, so
-  clients replace references instead of losing content.
+  A retirement writes a tombstone with `reason = 'merged'` and `replaced_by` for the
+  users of the surviving workspace (for an anonymous merge, the permanent account,
+  since the anonymous one is deleted), and the sign-in response also returns the alias
+  map, so clients replace references instead of losing content.
 - Category, status, and tag deletion stays immediate: removing a label never removes
   item content, and the removed links are an authored change to each affected item, so
-  its revision snapshot keeps the previous link set and history can restore it. D3's
+  its revision snapshot keeps the previous labels and history can restore them (under a
+  new term ID, since the deleted one is retired). D3's
   30-day Trash applies to items and workspaces.
 - Purge is scheduled, not manual: F4 adds a Railway cron service (declared in
   `.railway/railway.ts`) that runs the purge command daily in each environment. It is
@@ -483,6 +495,9 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   `ON CONFLICT (item_uid, role) WHERE role IN ('due', 'remind')`, which matches the
   partial unique index) and adds `times[]`. New multi-valued roles get new role names, never
   a second `due`.
+- The current write contract sends only `times[]`; when a request carries `times[]`, it
+  is authoritative and any scalar `timeDue`/`timeRemind` in the same request is ignored.
+  The scalar rules below apply only to writes without `times[]` (older clients).
 - An all-day `due`/`remind` row (`on_date`) has no lossless timestamp form, so its
   projection is `null` and the record also reports it in `times[]`. On write, a non-null
   scalar `timeDue`/`timeRemind` replaces the single row for that role, whatever its
@@ -523,8 +538,11 @@ table.
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`, `retired_id_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
-`retired_id_v1` holds only retired `(kind, uid)` pairs with no owner: it is excluded from backups and kept
-unchanged by merges. `id_alias_v1` is portable: a backup carries the aliases whose
+`retired_id_v1` records retired `(kind, uid)` pairs with the `workspace_uid` they last
+belonged to. A portable backup carries the markers of the exported account's
+workspaces, and restore re-inserts them (skipping any UUID that is live elsewhere), so a
+restored account still refuses retries of IDs retired before the backup. Merges leave
+it unchanged. `id_alias_v1` is portable: a backup carries the aliases whose
 targets belong to the exported account, and restore recreates them with the same rules
 merges use (an alias UUID already in use elsewhere is remapped with its cloned target,
 never taken over). Operational tables that hold no user data (the
