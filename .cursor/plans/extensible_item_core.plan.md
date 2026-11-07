@@ -3,7 +3,7 @@ name: Extensible item core — settle the hard-to-change foundation in place, th
 overview: Before any content type beyond text ships, settle the parts of the item model that become expensive or destructive to change once more tables, clients, URLs, and devices depend on them — permanent IDs, lossless input, revisioned idempotent writes, soft delete, membership ownership, and a time facet. Every step is a forward, in-place migration applied by the existing Railway pre-deploy, so no database reset and no data export/import is ever required. After the foundation, every planned content type (reminders, schedules, files, media, money, kanban, time tracking, publishing, sharing) is an additive table plus a client capability module.
 todos:
   - id: lossless_input
-    content: "F1. Store authored text exactly as typed and labels as typed with a normalized key for uniqueness. Stops ongoing data loss; small and independent. PR #119."
+    content: "F1. F1a (PR #119): store item text exactly as typed and give labels a locale-independent NFKC key for uniqueness, while rollout triggers keep labels lowercased for previous-release servers. F1b (next release): drop those triggers so labels keep their casing."
     status: in_progress
   - id: permanent_ids
     content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2a adds them beside the integer ones with bidirectional sync; F2b moves primary and foreign keys to them in the next release. Integer id stays as the legacy ID; retired IDs become one-hop aliases. Merge moves rows; restore never overwrites."
@@ -102,14 +102,21 @@ so it is **not** part of the foundation.
 Each phase is one PR, independently releasable through the normal `main` → `prod` flow,
 with migrations applied by Railway pre-deploy. Each keeps the web client working.
 
-### F1. Lossless input (small, first — it stops data loss today)
+### F1. Lossless input (first — it stops data loss today)
 
-- Items: store `description` exactly as received. Blank-or-whitespace text is still "no
-  text" for `isTextItem`, search, and embeddings; the stored value is not modified.
-- Workspaces, categories, statuses, tags: a generated `label_key`
-  (`lower(normalize(label, NFKC))`) carries uniqueness; labels keep the casing typed and
-  are stored without surrounding (ECMAScript `trim()`) whitespace. Existing labels keep
-  their current text.
+F1 is expand/contract because previous-release servers read, export, and validate labels
+as lowercase:
+
+- **F1a (PR #119).** Items store `description` exactly as received; blank-or-whitespace
+  text is still "no text" for `isTextItem`, search, and embeddings. Workspaces,
+  categories, statuses, and tags get a generated `label_key`
+  (`app_label_key_v1(label)`: NFKC, then ICU-root lowercasing, matching the client's
+  `labelKey`) that carries uniqueness, and labels are stored without surrounding
+  (ECMAScript `trim()`) whitespace. Rollout triggers still store labels lowercased, while
+  clients and APIs send them as typed.
+- **F1b (next release, after F1a has fully replaced the previous one).** A migration
+  drops the lowercasing triggers; labels then keep the casing typed. Existing labels
+  keep their current text.
 - The migration audits existing rows first: legacy padding is trimmed, and any labels
   that would be blank or share a key after trimming and NFKC normalization (for example
   precomposed and decomposed `é`) stop the pre-deploy with a count. There is no automatic
@@ -179,12 +186,20 @@ Code:
 - Anonymous merge **moves** rows instead of copying under new IDs:
   - no same-named destination workspace → the workspace itself moves (F5: membership and,
     `user_workspace_v1.user_id`), keeping its UUID;
-  - same-named destination workspace → items move with one `UPDATE … SET workspace_id`
+  - same-named destination workspace, and **both** have no member other than their
+    owner (F5) → items move with one `UPDATE … SET workspace_id`
     that also remaps `status_id`, and category/tag links are remapped, all by
     `label_key` (missing destination terms are created first); the source workspace and
     its vocabulary rows become aliases of their destination counterparts;
+  - a same-named pair where either workspace has other members is never merged: the
+    source workspace moves as a whole with a suffixed label, so no member gains access
+    to content outside the workspace they were given;
   - content-identical items are still deduplicated, but the skipped source item's UUID
-    becomes an alias of the surviving destination item.
+    becomes an alias of the surviving destination item. The identity covers every
+    authored facet of the item (it is computed from the F7 registry of `authored` +
+    `follows-item` tables), so items that differ in times, files, or other facets are
+    both kept; the skipped item's revision history is appended to the survivor's before
+    the source is retired.
 - Portable backup versions are immutable and each phase that adds authored state ships
   its own: v3 (cased labels, F1), v4 (UUIDs, F2), v5 (revisions, F3), v6 (trash, F4),
   v7 (times, F6). Every version keeps an importer, and from F2 on every importer uses the
@@ -265,7 +280,10 @@ Code:
     the client then notifies the user with a link to that history entry. If the server
     moved again in between, the overwrite request gets its own `409` and repeats.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
-  conflicting overwrite, delete, or merge). Backup v5 ships with F3 and carries each
+  conflicting overwrite, delete, or merge). A snapshot holds the whole authored item:
+  base columns plus every `authored` + `follows-item` facet, as one JSON document whose
+  shape is generated from the F7 registry, so restoring a history entry restores times,
+  links, and later facets too. Backup v5 ships with F3 and carries each
   item's revisions; restore brings them back with an inserted or cloned item, and a
   skipped identical item keeps the destination's history.
 - The client save engine drops the create/update split and the POST no-retry hazard:
@@ -302,7 +320,8 @@ Code:
   grouping and their original `deletedAt` (so the remaining retention carries over);
   v1–v5 files restore as live rows.
 - Restore merges a backed-up workspace into a destination workspace only when both are
-  live and share a `label_key`. A trashed backed-up workspace, or one whose label
+  live, share a `label_key`, and have no members other than their owner, and it records
+  the backed-up workspace UUID as an alias of the destination, as anonymous merge does. A trashed backed-up workspace, or one whose label
   collides with a trashed destination workspace, is restored as a separate workspace
   with a suffixed label (`personal (restored 2027-01-02)`), so restore never trashes,
   restores, or otherwise changes an existing workspace.
@@ -528,7 +547,7 @@ columns from F2.
 
 ## 10. Delivery order
 
-F1 → F7 (guard first, so every following table is classified) → F2a → F2b (next
+F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2a → F2b (next
 release) → F3 → F4 → F5 → F8 → F6a → F6b (next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
