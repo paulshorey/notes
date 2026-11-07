@@ -12,7 +12,7 @@ todos:
     content: "F3. In two releases: F3a adds Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark, while the client keeps POST/PATCH; F3b switches the client save engine to PUT."
     status: pending
   - id: soft_delete
-    content: "F4. In four releases: F4a adds deleted_at plus deletion_id, read/write filters, and the v6 importer; F4b switches the exporter and sets hard-delete flags; F4c makes every delete a soft delete without exposing Trash; F4d exposes Trash, restore, and the scheduled 30-day purge, and adds a trigger that turns any non-purge DELETE into the same soft delete."
+    content: "F4. In four releases: F4a adds deleted_at plus deletion_id, read/write filters, and the v6 importer; F4b switches the exporter and sets hard-delete flags; F4c makes every delete a soft delete and ships the Trash read and restore endpoints with the UI hidden; F4d shows the Trash UI, starts the scheduled 30-day purge, and adds a trigger that turns any non-purge DELETE into the same soft delete."
     status: pending
   - id: membership
     content: "F5. workspace_member keyed by (workspace_uid, user_id) with exactly one owner matching user_workspace_v1.user_id; authorization becomes one membership predicate; the owner FK becomes RESTRICT in a second release after account deletion disposes of owned workspaces."
@@ -117,7 +117,10 @@ as lowercase:
   (`app_label_key_v1(label)`: NFKC, then ICU-root lowercasing, matching the client's
   `labelKey`) that carries uniqueness, and labels are stored without surrounding
   (ECMAScript `trim()`) whitespace. Rollout triggers still store labels lowercased, while
-  clients and APIs send them as typed.
+  clients and APIs send them as typed. Exact text holds once the previous release has
+  drained: during F1a's own rollout a save that reaches a previous-release server is
+  still trimmed by that server, exactly as before F1, and nothing in this release can
+  change that.
 - **F1b (next release, after F1a has fully replaced the previous one).** The exporter
   switches to the cased format (v3), which every server now imports. F1b also adds a
   second generated column, `label_fold_key`, for full Unicode case folding (so
@@ -299,7 +302,9 @@ Code:
     UUID, as restores do today;
   - UUID owned by a different account (restoring into a second account while the
     original still exists) → cloned with a new UUID; the other account's rows are never
-    transferred or reassigned.
+    transferred or reassigned. Each clone records `cloned_from_uid` (the backup's UUID),
+    and a later restore of the same backup into that account recognizes the clone and
+    treats it as the existing copy, so repeated restores stay idempotent.
     Clones get new UUIDs for every cloned row and every reference inside the backup is
     remapped. Importers for v1/v2 remain.
 
@@ -476,8 +481,9 @@ Code:
   a soft delete — item and workspace routes, with the workspace batch — without exposing
   Trash; previous-release servers never see a trashed row as live, and their direct
   deletes during this rollout still hard-delete, as before F4, with F3 tombstones.
-  **F4d** (when every server soft-deletes) exposes Trash, restore, and the scheduled
-  purge, and adds a safety net: a `BEFORE DELETE` trigger on items and workspaces turns
+  **F4d** (when every server soft-deletes and serves the Trash read and restore
+  endpoints, which F4c ships with the UI hidden) shows the Trash UI, starts the
+  scheduled purge, and adds a safety net: a `BEFORE DELETE` trigger on items and workspaces turns
   any `DELETE` into the same soft delete the routes perform (for a workspace, the full
   batch: the workspace and its live items under one `deletion_id`), then cancels the row
   delete, unless the transaction sets `app.hard_delete = 'on'`, which only the purge,
@@ -827,8 +833,9 @@ applied as listed.
    (rejects non-empty trash state). Exporter stays v5.
 7. **F4b.** The exporter emits v6 and non-empty v6 imports are accepted; hard-delete flags in account deletion, cleanup, and
    merge retirement. Deletes are still hard.
-8. **F4c.** Soft-delete routes (workspace batch included). Trash is not yet exposed.
-9. **F4d.** Trash, restore, the scheduled purge, and the delete-conversion trigger.
+8. **F4c.** Soft-delete routes (workspace batch included), and the Trash read and
+   restore endpoints with the UI still hidden.
+9. **F4d.** The Trash UI, the scheduled purge, and the delete-conversion trigger.
 10. **F5a → F5b.** Membership, owner invariants, account-deletion code, then the owner FK
     switch.
 11. **F8.** Capability modules; the empty `item_time_v1` table, the v7 importer (rejects
