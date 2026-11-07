@@ -67,7 +67,30 @@ test(
         [itemId, tagId, workspaceId],
       )
 
+      // The previous checks accepted compatibility forms of the reserved name.
+      const reservedId = (
+        await client.query<{ id: number }>(
+          "INSERT INTO public.workspace_category_v1(workspace_id,label) VALUES($1,'ｕｎｃａｔｅｇｏｒｉｚｅｄ') RETURNING id",
+          [workspaceId],
+        )
+      ).rows[0]!.id
+      await client.query(
+        "INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id) VALUES($1,$2,$3)",
+        [itemId, reservedId, workspaceId],
+      )
+
       await applyMigration(client)
+
+      const reserved = await client.query(
+        "SELECT 1 FROM public.workspace_category_v1 WHERE id=$1",
+        [reservedId],
+      )
+      assert.equal(reserved.rowCount, 0)
+      const item = await client.query<{ description: string }>(
+        "SELECT description FROM public.workspace_item_v1 WHERE id=$1",
+        [itemId],
+      )
+      assert.equal(item.rows[0]!.description, "kept")
 
       const tag = await client.query<{ label: string; label_key: string }>(
         "SELECT label,label_key FROM public.workspace_tag_v1 WHERE id=$1",

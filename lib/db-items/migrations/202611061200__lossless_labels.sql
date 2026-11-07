@@ -13,6 +13,12 @@ CREATE FUNCTION public.app_label_key_v1(label text) RETURNS text
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
   RETURN lower(normalize(label, NFKC) COLLATE "und-x-icu");
 
+-- As in the earlier reserved-name cleanups, a category spelled as a compatibility
+-- form of the reserved name (for example full-width) is removed; its items keep
+-- their content and appear in the computed uncategorized group.
+DELETE FROM public.workspace_category_v1
+  WHERE public.app_label_key_v1(btrim(label, public.app_label_whitespace_v1())) = 'uncategorized';
+
 -- Existing labels were lowercased and trimmed of ASCII spaces only. Trim the
 -- remaining ECMAScript whitespace, then require that no two labels share a key.
 -- Fail the deploy rather than guess a merge.
