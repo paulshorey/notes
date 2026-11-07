@@ -6,13 +6,13 @@ todos:
     content: "F1. Store authored text exactly as typed and labels as typed with a normalized key for uniqueness. Stops ongoing data loss; small and independent. PR #119."
     status: in_progress
   - id: permanent_ids
-    content: "F2. Convert item, workspace, vocabulary, link, and status keys to UUIDs in place, keeping the old integer as a unique legacy_id; retired IDs become aliases. Merge moves rows; restore clones when IDs belong to another account."
+    content: "F2. UUID keys in two releases: F2a adds uuid columns and references beside the integer ones (old servers keep working); F2b swaps keys after they drain, keeping a unique legacy_id. Retired IDs become one-hop aliases. Merge moves rows; restore never overwrites and clones on any changed or foreign-owned collision."
     status: pending
   - id: revisioned_writes
-    content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} idempotent upsert with baseRevision (non-mutating 409, explicit overwrite resolution), facet changes bump item revision, coalesced item_revision history, and an xid8 snapshot-watermark sync cursor covering items, workspaces, and vocabulary."
+    content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark."
     status: pending
   - id: soft_delete
-    content: "F4. deleted_at on items and workspaces, an authorized Trash read with restore, workspace deletion through trash, and a scheduled 30-day purge that writes tombstones."
+    content: "F4. deleted_at plus deletion_id on items and workspaces, an authorized Trash read with restore, workspace deletion through trash that restores only its own batch, and a scheduled 30-day purge."
     status: pending
   - id: membership
     content: "F5. workspace_member(workspace_id, user_id, role); every authorization check becomes one membership predicate. Owner rows are backfilled."
@@ -24,7 +24,7 @@ todos:
     content: "F7. Generalize the merge registry guard: db:verify fails unless every table reaching an item or workspace is classified for backup (authored or derived) and for move/merge."
     status: pending
   - id: client_capabilities
-    content: "F8. Split ItemsApp.tsx along capability boundaries; derive an item's perceived type from the facets it has, and render each facet with its own module."
+    content: "F8. Before F6, split ItemsApp.tsx along capability boundaries; derive an item's perceived type from the facets it has, and render each facet with its own module."
     status: pending
   - id: retire_compat
     content: "F9. Retire the note-era compatibility layer once its clients are drained: legacy views, user_note_v1_id_seq name, /api/notes facades, X-Items-Contract dual payloads, and @lib/db-notes; move Railway to DB_ITEMS_URL before removing DB_NOTES_URL. Draft upgraders and backup importers stay."
@@ -90,7 +90,9 @@ so it is **not** part of the foundation.
 6. **Writes are idempotent and revisioned.** `PUT` by ID with `baseRevision`.
 7. **Derived data is disposable.** Embeddings, search vectors, thumbnails, transcripts are
    keyed by model/version and rebuildable; they are excluded from authored backups.
-8. **Authorization is one membership predicate.**
+8. **Authorization is one membership predicate.** Every table that links two
+   workspace-owned rows carries `workspace_id` and composite FKs to both sides, so a link
+   can never cross workspaces.
 9. **Every table is classified** for backup and move/merge, enforced by `db:verify`.
 10. **Workspace is the sharing boundary, not a project.** Projects, boards, invoices,
     and posts are items related through `item_link`.
@@ -117,20 +119,29 @@ with migrations applied by Railway pre-deploy. Each keeps the web client working
 
 ### F2. Permanent IDs, in place
 
-Migration (single transaction, forward-only, no reset):
+The previous-release server queries `workspace_item_v1` and the other base tables
+directly with integer IDs, and Railway applies migrations before it is replaced. The key
+change is therefore split into two releases (expand, then contract), each a forward-only
+migration with no reset:
 
-1. Add `app_uuid_v7()` (SQL; replaced by native `uuidv7()` when the database runs
-   PostgreSQL 18) and a `uuid` column to each authored table, backfilled.
-2. Add uuid FK columns to link tables **and to the direct `status_id` reference**,
-   backfill by join, swap primary/foreign keys and composite workspace FKs to the uuid
-   columns, and rename integer `id` → `legacy_id` (unique, kept for lookups).
-3. `legacy_id` keeps its sequence default until F9: a previous-release server still
-   inserts through the compatibility views without an ID during the rolling deploy. The
-   views are rewritten to expose `legacy_id` as their integer `id`/`note_id` and stay
-   writable; a view trigger fills the uuid key for those inserts.
-4. `id_alias_v1(kind, alias_id uuid PRIMARY KEY, target_id uuid)` records retired IDs
-   (`kind` in `item`, `workspace`, `category`, `status`, `tag`). Every lookup by ID
-   resolves aliases once, so a merged-away ID keeps opening its surviving row.
+1. **F2a — expand (release N).** Add `app_uuid_v7()` (SQL; replaced by native
+   `uuidv7()` when the database runs PostgreSQL 18) and a `uuid` column with that default
+   to each authored table, backfilled and uniquely indexed. Add uuid reference columns
+   beside every integer reference — link tables and the direct `status_id` — kept in
+   sync by triggers in both directions, so writes from either release populate both.
+   Integer `id` stays the primary key and keeps its sequence; the base tables keep their
+   integer shape, so previous-release servers keep working. Release N's code reads and
+   writes by UUID through the unique indexes and exposes only UUIDs in the API.
+2. **F2b — contract (release N+1, after every release-N-1 server has drained).** Swap
+   primary keys and the composite workspace FKs to the uuid columns, drop the integer
+   reference columns and their sync triggers, and rename integer `id` → `legacy_id`
+   (unique, kept for lookups). `legacy_id` keeps its sequence default until F9, and the
+   compatibility views keep exposing it as their integer `id`/`note_id`.
+3. `id_alias_v1(kind, alias_id uuid PRIMARY KEY, target_id uuid)` records retired IDs
+   (`kind` in `item`, `workspace`, `category`, `status`, `tag`). Aliases are always one
+   hop: retiring a row in favor of another also repoints every alias that targeted the
+   retired row, in the same transaction, and `db:verify` checks that no `target_id` is
+   itself an alias. Every lookup by ID resolves an alias once.
 
 Code:
 
@@ -148,11 +159,17 @@ Code:
     its vocabulary rows become aliases of their destination counterparts;
   - content-identical items are still deduplicated, but the skipped source item's UUID
     becomes an alias of the surviving destination item.
-- Backup v3 carries UUIDs. Restore into the account that owns them merges and
-  deduplicates as above. When a UUID already belongs to a different account (restoring
-  into a second account while the original still exists), the restore clones: it assigns
-  new UUIDs, remaps every reference inside the backup, and never transfers or reassigns
-  the other account's rows. Importers for v1/v2 remain.
+- Backup v3 carries UUIDs. Restore never overwrites an existing row:
+  - UUID not present anywhere → inserted with that UUID;
+  - UUID present in the restoring account with identical content → skipped;
+  - UUID present in the restoring account with different content (an older backup of an
+    item edited since) → the backed-up version is added alongside as a clone with a new
+    UUID, as restores do today;
+  - UUID owned by a different account (restoring into a second account while the
+    original still exists) → cloned with a new UUID; the other account's rows are never
+    transferred or reassigned.
+    Clones get new UUIDs for every cloned row and every reference inside the backup is
+    remapped. Importers for v1/v2 remain.
 
 ### F3. Revisioned, idempotent writes and a sync cursor
 
@@ -169,11 +186,18 @@ Code:
   that watermark, so commit reordering never hides a change; rows may repeat and clients
   apply them idempotently by revision. A plain sequence is not used because a lower value
   can commit after a higher one has been read.
-- `GET /api/sync?since=<cursor>` returns three lists — items (with tombstones),
-  workspaces, and vocabulary — so empty workspaces and unused labels sync too.
-- Tombstones: purging an item (F4) writes `item_tombstone_v1(item_id, workspace_id,
-change_xid)`, retained for 180 days. The server tracks the oldest cursor it can still
-  serve; an older cursor gets `410 Gone` and the client performs a full resync.
+- `GET /api/sync?since=<cursor>` returns three lists — items, workspaces, and
+  vocabulary — plus tombstones, so empty workspaces, unused labels, and deletions sync
+  too. All lists and the new cursor are read in one `REPEATABLE READ` read-only
+  transaction, so they come from the same snapshot and a commit between two reads cannot
+  be skipped.
+- Tombstones: `sync_tombstone_v1(kind, entity_id, workspace_id, change_xid)` is written
+  by `AFTER DELETE` triggers on items, workspaces, and vocabulary tables, so every
+  existing hard-delete path (item and vocabulary deletion today, the F4 purge later)
+  produces a deletion record from F3 onward. Link removals are item changes (they bump
+  the item's revision). Tombstones are retained for 180 days; the server tracks the
+  oldest cursor it can still serve, and an older cursor gets `410 Gone` and a full
+  resync.
 - `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`:
   - matching `baseRevision` → applied, `200` with the new revision;
   - content identical to the current server copy → `200`, no change (makes every retry
@@ -181,8 +205,8 @@ change_xid)`, retained for 180 days. The server tracks the oldest cursor it can 
   - stale `baseRevision` → `409` with the server copy and its revision; **nothing is
     written**.
   - D4 resolution is a second, explicit request: the client resends its content with
-    `baseRevision` set to the server revision from the `409` and `resolution:
-"overwrite"`. The server snapshots the version being overwritten into
+    `baseRevision` set to the server revision from the `409` and
+    `resolution: "overwrite"`. The server snapshots the version being overwritten into
     `item_revision`, applies the write, and returns `200` with `overwrote: <revision>`;
     the client then notifies the user with a link to that history entry. If the server
     moved again in between, the overwrite request gets its own `409` and repeats.
@@ -199,8 +223,10 @@ change_xid)`, retained for 180 days. The server tracks the oldest cursor it can 
   view uses a separate, membership-authorized read, `GET /api/items/trash?workspaceId=`,
   that returns only deleted items in workspaces the requester can read; restore is
   `POST /api/items/{id}/restore`.
-- Deleting a workspace soft-deletes the workspace and moves its items to trash with it;
-  restoring the workspace restores them. `DELETE /api/workspaces` no longer issues a SQL
+- Every trash operation records a `deletion_id uuid` with `deleted_at`. Deleting a
+  workspace soft-deletes the workspace and moves its live items to trash under the same
+  `deletion_id`; restoring the workspace restores only rows with that `deletion_id`, so
+  items that were already in Trash stay there. `DELETE /api/workspaces` no longer issues a SQL
   `DELETE`, so items never cascade away outside the purge.
 - Hard deletes happen only in purge paths: items and workspaces whose `deleted_at` is
   older than 30 days (D3), writing tombstones first, and the existing abandoned
@@ -308,18 +334,18 @@ browser that has not opened the app in months may still hold an unsaved draft), 
 
 None of these requires changing an existing column.
 
-| Capability        | Shape                                                                                                                                                                                                                                                                        | Enables                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Item links        | `item_link_v1(from_item_id, to_item_id, kind, position, properties)`; one-parent partial unique index for `kind='child'`.                                                                                                                                                    | Projects, subtasks, wiki links, invoice line items, blog sections, slideshows. |
-| Files/media       | `file_v1(id, workspace_id, storage_key='f/<uuid>', content_type, byte_size, sha256, original_name, width, height, duration_ms, status)` + `item_file_v1(item_id, file_id, role, position)`. Storage keys never contain user/workspace IDs, so merges never touch the bucket. | Images, video, receipts, attachments, covers.                                  |
-| Board position    | `position text` (fractional index) on the status link, or `item_link` to a board item.                                                                                                                                                                                       | Kanban columns per workspace or per project.                                   |
-| Money             | `item_amount_v1(item_id, role, amount_minor bigint, currency char(3), occurred_on date, description)`.                                                                                                                                                                       | Invoices, receipts, budgets.                                                   |
-| Time tracking     | `item_time_v1` rows with `role='session'` and start/end.                                                                                                                                                                                                                     | Timesheets, billable time.                                                     |
-| Publishing        | `site_v1(id, workspace_id, host)` + `publication_v1(site_id, item_id, path, published_revision, published_at, visibility)`.                                                                                                                                                  | Blog/CMS.                                                                      |
-| Reminder delivery | Postgres-backed worker (graphile-worker or pg-boss) + `notification_v1`.                                                                                                                                                                                                     | Reminders that fire; embeddings off the request path; trash purge.             |
-| Properties        | `properties jsonb` with namespaced keys (`task.priority`); promote to a typed table once a key needs constraints, indexes, or joins.                                                                                                                                         | Lightweight per-app fields.                                                    |
-| Title             | Nullable `title`; derived from the first line when null.                                                                                                                                                                                                                     | Posts, tasks with separate body.                                               |
-| Embeddings        | `item_embedding_v1(item_id, model, chunk, content_hash, embedding)`, backfilled from the inline column.                                                                                                                                                                      | Model upgrades, long-text chunking.                                            |
+| Capability        | Shape                                                                                                                                                                                                                                                                                                                                                                                                                                     | Enables                                                                        |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Item links        | `item_link_v1(workspace_id, from_item_id, to_item_id, kind, position, properties)` with composite FKs `(from_item_id, workspace_id)` and `(to_item_id, workspace_id)`; one-parent partial unique index for `kind='child'`.                                                                                                                                                                                                                | Projects, subtasks, wiki links, invoice line items, blog sections, slideshows. |
+| Files/media       | `file_v1(id, workspace_id, storage_key='f/<uuid>', content_type, byte_size, sha256, original_name, width, height, duration_ms, status)` + `item_file_v1(workspace_id, item_id, file_id, role, position)` with composite FKs `(item_id, workspace_id)` → item and `(file_id, workspace_id)` → file, so an item can never attach another workspace's file. Storage keys never contain user/workspace IDs, so merges never touch the bucket. | Images, video, receipts, attachments, covers.                                  |
+| Board position    | `position text` (fractional index) on the status link, or `item_link` to a board item.                                                                                                                                                                                                                                                                                                                                                    | Kanban columns per workspace or per project.                                   |
+| Money             | `item_amount_v1(item_id, role, amount_minor bigint, currency char(3), occurred_on date, description)`.                                                                                                                                                                                                                                                                                                                                    | Invoices, receipts, budgets.                                                   |
+| Time tracking     | `item_time_v1` rows with `role='session'` and start/end.                                                                                                                                                                                                                                                                                                                                                                                  | Timesheets, billable time.                                                     |
+| Publishing        | `site_v1(id, workspace_id, host)` + `publication_v1(site_id, item_id, path, published_revision, published_at, visibility)`.                                                                                                                                                                                                                                                                                                               | Blog/CMS.                                                                      |
+| Reminder delivery | Postgres-backed worker (graphile-worker or pg-boss) + `notification_v1`.                                                                                                                                                                                                                                                                                                                                                                  | Reminders that fire; embeddings off the request path; trash purge.             |
+| Properties        | `properties jsonb` with namespaced keys (`task.priority`); promote to a typed table once a key needs constraints, indexes, or joins.                                                                                                                                                                                                                                                                                                      | Lightweight per-app fields.                                                    |
+| Title             | Nullable `title`; derived from the first line when null.                                                                                                                                                                                                                                                                                                                                                                                  | Posts, tasks with separate body.                                               |
+| Embeddings        | `item_embedding_v1(item_id, model, chunk, content_hash, embedding)`, backfilled from the inline column.                                                                                                                                                                                                                                                                                                                                   | Model upgrades, long-text chunking.                                            |
 
 ## 7. Not in this plan
 
@@ -358,5 +384,8 @@ None of these requires changing an existing column.
 
 ## 10. Delivery order
 
-F1 → F7 (guard first, so every following table is classified) → F2 → F3 → F4 → F6 →
-F5 → F8 (can run in parallel with F3 onward) → F9.
+F1 → F7 (guard first, so every following table is classified) → F2a → F2b (next
+release) → F3 → F4 → F5 → F8 → F6 → F9.
+
+F8 lands before F6 so the time facet is built as the first capability module rather than
+added to `ItemsApp.tsx` and extracted again.
