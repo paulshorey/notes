@@ -116,6 +116,9 @@ with migrations applied by Railway pre-deploy. Each keeps the web client working
   merge; an operator resolves the listed rows and redeploys.
 - Merge, restore, backup, and `resolve*` helpers match by `label_key`; reusing a label
   never rewrites its casing.
+- Portable backup version 3 stores labels as typed. Version 1 and 2 files keep their
+  lowercase label rule, and the version 1 download for older clients lowercases labels,
+  so a file an older deployment can read never contains cased labels.
 
 ### F2. Permanent IDs, in place
 
@@ -176,8 +179,11 @@ Code:
   - content-identical items are still deduplicated, but the skipped source item's UUID
     becomes an alias of the surviving destination item.
 - Portable backup versions are immutable and each phase that adds authored state ships
-  its own: v3 (UUIDs, F2), v4 (revisions, F3), v5 (trash, F4), v6 (times, F6). Every
-  version keeps an importer. Backup v3 carries UUIDs. Restore never overwrites an existing row:
+  its own: v3 (cased labels, F1), v4 (UUIDs, F2), v5 (revisions, F3), v6 (trash, F4),
+  v7 (times, F6). Every version keeps an importer, and from F2 on every importer uses the
+  UUID-first insert and remap path (no integer sequence or default is called), so
+  removing integer allocation in F9 changes nothing for restores. Backup v4 carries
+  UUIDs. Restore never overwrites an existing row:
   - UUID not present anywhere → inserted with that UUID;
   - UUID present in the restoring account with identical content → skipped;
   - UUID present in the restoring account with different content (an older backup of an
@@ -249,11 +255,15 @@ Code:
     the client then notifies the user with a link to that history entry. If the server
     moved again in between, the overwrite request gets its own `409` and repeats.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
-  conflicting overwrite, delete, or merge). Backup v4 ships with F3 and carries each
+  conflicting overwrite, delete, or merge). Backup v5 ships with F3 and carries each
   item's revisions; restore brings them back with an inserted or cloned item, and a
   skipped identical item keeps the destination's history.
 - The client save engine drops the create/update split and the POST no-retry hazard:
   every save is a retryable PUT.
+- The existing `POST`/`PATCH` item routes stay through the loaded-browser overlap for
+  tabs opened before F3. A write on them carries no `baseRevision`, so the server first
+  snapshots the version being replaced into `item_revision` and then applies it (last
+  write wins, nothing lost). They are retired in F9.
 
 ### F4. Soft delete and trash
 
@@ -277,10 +287,10 @@ Code:
   `.railway/railway.ts`) that runs the purge command daily in each environment. It is
   replaced by the background worker when that exists. The 30-day promise ships only with
   the schedule.
-- Portable backups carry trash state: backup v5 adds `deletedAt` and `deletionId` to
+- Portable backups carry trash state: backup v6 adds `deletedAt` and `deletionId` to
   workspaces and items. Restore keeps trashed rows in Trash with the same batch
   grouping and their original `deletedAt` (so the remaining retention carries over);
-  v1–v4 files restore as live rows.
+  v1–v5 files restore as live rows.
 - Restore merges a backed-up workspace into a destination workspace only when both are
   live and share a `label_key`. A trashed backed-up workspace, or one whose label
   collides with a trashed destination workspace, is restored as a separate workspace
@@ -297,11 +307,17 @@ Code:
   covered; it stays until F9.
 - `user_workspace_v1.user_id` remains as the workspace **owner**, with the existing
   unique `(user_id, label_key)`. Its FK changes from `ON DELETE CASCADE` to
-  `ON DELETE RESTRICT`: deleting an account first transfers ownership of each workspace
-  that has other members to one of them (an editor if any) and moves workspaces with no
-  other members to Trash, so an owner's deletion never destroys collaborators' content. Labels are unique among the workspaces a user owns;
-  workspaces shared with them by others are never merge or restore targets. Anonymous
-  merge and backup restore pick their destination among owned workspaces only.
+  `ON DELETE RESTRICT`. Deleting an account (including the abandoned-anonymous cleanup)
+  first disposes of every workspace it owns, then deletes the user:
+  - a workspace with other members is transferred to one of them (an editor if any);
+    if the new owner already owns a workspace with the same `label_key`, the transferred
+    workspace is renamed in the same transaction with a suffix (`personal (2)`);
+  - a workspace with no other members is deleted through the workspace-delete function
+    (tombstones first). Trash is not used here because no account remains to restore it.
+    So an owner's deletion never destroys collaborators' content, and nothing still
+    references the user when it is deleted. Labels are unique among the workspaces a user owns;
+    workspaces shared with them by others are never merge or restore targets. Anonymous
+    merge and backup restore pick their destination among owned workspaces only.
 - One SQL predicate (`can_read_workspace` / `can_write_workspace`) replaces per-query
   ownership joins for authorization, including the raw SQL in
   `scripts/cleanup-anonymous-users.mjs` and other maintenance scripts.
@@ -348,12 +364,16 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   `remind` rows from the existing columns (`time_zone` NULL: unknown), and keep both
   representations synchronized in both directions by triggers: a write to
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
-  row, and a write to a projectable row updates the column. **F6b** (next release,
+  row, and a write to the role's row updates the column: its instant when the row is
+  projectable, `NULL` when the row becomes all-day or is removed. A `NULL` written to
+  the column by an old server still leaves an all-day row untouched. **F6b** (next release,
   after old servers drain) drops the triggers and the columns.
-- Backup v6 carries `times[]` per item and ships with F6a; restore round-trips dates, zones,
+- Backup v7 carries `times[]` per item and ships with F6a; restore round-trips dates, zones,
   recurrence rules, and every role.
 - API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
-  `remind` row (an upsert on `(item_uid, role)` when written) and adds `times[]`. New multi-valued roles get new role names, never
+  `remind` row (written with
+  `ON CONFLICT (item_uid, role) WHERE role IN ('due', 'remind')`, which matches the
+  partial unique index) and adds `times[]`. New multi-valued roles get new role names, never
   a second `due`.
 - An all-day `due`/`remind` row (`on_date`) has no lossless timestamp form, so its
   projection is `null` and the record also reports it in `times[]`. On write, a non-null
@@ -381,6 +401,9 @@ example a child of `file_v1` keyed only by `file_id`) declares:
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
+Operational tables that hold no user data (the `schema_migrations_cursor` ledger, and
+later the job queue if it lives in `public`) are registered as `operational`, which is
+excluded from backups and merges and exempt from the walk.
 
 `drop` is allowed only for `derived` and `account` tables; an `authored` table must use
 a lossless strategy. `account` tables that describe a workspace rather than a
@@ -410,7 +433,8 @@ content type:
 Per D2 only the web app depends on these, so they go once the web client no longer uses
 them and one release has drained previous-release servers:
 
-- API contract 1 (integer IDs) for previously loaded browser builds;
+- API contract 1 (integer IDs) and the pre-F3 `POST`/`PATCH` item routes for
+  previously loaded browser builds;
 - legacy SQL views and their insert triggers; the integer reference columns and their
   sync triggers (in the release after the last code using them); the integer `id`
   sequence defaults and `NOT NULL`, so only pre-F9 rows carry a legacy ID; the
