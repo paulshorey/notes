@@ -136,7 +136,8 @@ migration with no reset:
    primary keys and the composite workspace FKs to the uuid columns, drop the integer
    reference columns and their sync triggers, and rename integer `id` → `legacy_id`
    (unique, kept for lookups). `legacy_id` keeps its sequence default until F9, and the
-   compatibility views keep exposing it as their integer `id`/`note_id`.
+   compatibility views keep exposing it as their integer `id`/`note_id`. F9 drops its
+   `NOT NULL` together with the default, so only pre-F9 rows carry a legacy ID.
 3. `id_alias_v1(kind, alias_id uuid PRIMARY KEY, target_id uuid)` records retired IDs
    (`kind` in `item`, `workspace`, `category`, `status`, `tag`). Aliases are always one
    hop: retiring a row in favor of another also repoints every alias that targeted the
@@ -150,6 +151,9 @@ Code:
   and redirect to the canonical UUID form.
 - Browser storage v4 upgrader maps integer IDs in cached items and dirty drafts to UUIDs
   through a lookup endpoint; dirty drafts are never discarded on failure.
+- Server-side preferences: F2a's migration rewrites `preferences.notesApp.currentWorkspaceId`
+  from the integer to the workspace UUID, and bootstrap also resolves an integer value
+  through `legacy_id` (a previous-release server may write one during the rollout).
 - Anonymous merge **moves** rows instead of copying under new IDs:
   - no same-named destination workspace → the workspace itself moves (F5: membership and,
     until F9, `user_workspace_v1.user_id`), keeping its UUID;
@@ -222,7 +226,9 @@ Code:
 - Normal reads filter `deleted_at IS NULL` (partial indexes keep this cheap). The Trash
   view uses a separate, membership-authorized read, `GET /api/items/trash?workspaceId=`,
   that returns only deleted items in workspaces the requester can read; restore is
-  `POST /api/items/{id}/restore`.
+  `POST /api/items/{id}/restore`. While an item's workspace is deleted, item-only restore
+  returns `409` and Trash shows the workspace as one entry; restoring the workspace
+  restores it with its batch atomically.
 - Every trash operation records a `deletion_id uuid` with `deleted_at`. Deleting a
   workspace soft-deletes the workspace and moves its live items to trash under the same
   `deletion_id`; restoring the workspace restores only rows with that `deletion_id`, so
@@ -235,14 +241,21 @@ Code:
   `.railway/railway.ts`) that runs the purge command daily in each environment. It is
   replaced by the background worker when that exists. The 30-day promise ships only with
   the schedule.
+- Portable backups carry trash state: backup v4 adds `deletedAt` and `deletionId` to
+  workspaces and items. Restore keeps trashed rows in Trash with the same batch
+  grouping and their original `deletedAt` (so the remaining retention carries over);
+  v1–v3 files restore as live rows.
 
 ### F5. Membership ownership
 
-- `workspace_member(workspace_id, user_id, role CHECK (role IN ('owner','editor','viewer')))`,
-  backfilled with one `owner` per existing workspace. `user_workspace_v1.user_id` is
+- `workspace_member(workspace_id, user_id, role)` with primary key
+  `(workspace_id, user_id)`, so each membership has one authoritative role, and
+  `role IN ('owner','editor','viewer')`; backfilled with one `owner` per existing workspace. `user_workspace_v1.user_id` is
   kept as the creator until F9, then dropped.
 - One SQL predicate (`can_read_workspace` / `can_write_workspace`) replaces per-query
-  ownership joins.
+  ownership joins, including the raw SQL in `scripts/cleanup-anonymous-users.mjs` and
+  other maintenance scripts. F9 drops `user_workspace_v1.user_id` only after a
+  repository search finds no remaining reference.
 - Anonymous link when the destination has no same-named workspace moves the membership
   **and** updates `user_workspace_v1.user_id` to the permanent account in the same
   transaction, so deleting the anonymous user cannot cascade through the creator FK.
@@ -281,6 +294,11 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_id, role)
   `remind` row (an upsert on `(item_id, role)` when written) and adds `times[]`; the
   columns are dropped one release later. New multi-valued roles get new role names, never
   a second `due`.
+- An all-day `due`/`remind` row (`on_date`) has no lossless timestamp form, so its
+  projection is `null` and the record also reports it in `times[]`. On write, a scalar
+  `timeDue`/`timeRemind` changes only a projectable (`at`) row or creates one; `null`
+  clears only a projectable row and leaves an all-day row untouched. Clearing or editing
+  an all-day time goes through `times[]`.
 - The client sends `Intl.DateTimeFormat().resolvedOptions().timeZone` with every time.
 - Reminder **delivery** is not in scope; it needs the worker (section 6).
 
@@ -293,6 +311,10 @@ example a child of `file_v1` keyed only by `file_id`) declares:
 
 - backup class: `authored` (in portable backups) or `derived` (rebuildable, excluded);
 - move/merge strategy: `follows-item`, `follows-workspace`, `remap-by-key`, or `drop`.
+
+Polymorphic tables that cannot carry an ordinary foreign key to their targets
+(`id_alias_v1`, `sync_tombstone_v1`) are registered explicitly, and the guard fails on
+any table in the `public` schema that is neither reached by the walk nor registered.
 
 `drop` is allowed only for `derived` tables; an `authored` table must use a lossless
 strategy. `authored` + `follows-item` tables must also carry the F3 revision trigger.
@@ -318,7 +340,8 @@ content type:
 Per D2 only the web app depends on these, so they go once the web client no longer uses
 them and one release has drained previous-release servers:
 
-- legacy SQL views and their insert triggers, the `legacy_id` sequence default, the
+- legacy SQL views and their insert triggers, the `legacy_id` sequence default and
+  `NOT NULL`, the
   `user_note_v1_id_seq` name, and the exact-label unique constraints kept by F1;
 - `/api/notes*` facades, `X-Items-Contract` dual payloads, legacy response aliases,
   `@lib/db-notes`, and the `notesUserId` session field;
@@ -341,7 +364,7 @@ None of these requires changing an existing column.
 | Board position    | `position text` (fractional index) on the status link, or `item_link` to a board item.                                                                                                                                                                                                                                                                                                                                                    | Kanban columns per workspace or per project.                                   |
 | Money             | `item_amount_v1(item_id, role, amount_minor bigint, currency char(3), occurred_on date, description)`.                                                                                                                                                                                                                                                                                                                                    | Invoices, receipts, budgets.                                                   |
 | Time tracking     | `item_time_v1` rows with `role='session'` and start/end.                                                                                                                                                                                                                                                                                                                                                                                  | Timesheets, billable time.                                                     |
-| Publishing        | `site_v1(id, workspace_id, host)` + `publication_v1(site_id, item_id, path, published_revision, published_at, visibility)`.                                                                                                                                                                                                                                                                                                               | Blog/CMS.                                                                      |
+| Publishing        | `site_v1(id, workspace_id, host)` + `publication_v1(workspace_id, site_id, item_id, path, published_revision, published_at, visibility)` with composite FKs `(site_id, workspace_id)` → site and `(item_id, workspace_id)` → item.                                                                                                                                                                                                        | Blog/CMS.                                                                      |
 | Reminder delivery | Postgres-backed worker (graphile-worker or pg-boss) + `notification_v1`.                                                                                                                                                                                                                                                                                                                                                                  | Reminders that fire; embeddings off the request path; trash purge.             |
 | Properties        | `properties jsonb` with namespaced keys (`task.priority`); promote to a typed table once a key needs constraints, indexes, or joins.                                                                                                                                                                                                                                                                                                      | Lightweight per-app fields.                                                    |
 | Title             | Nullable `title`; derived from the first line when null.                                                                                                                                                                                                                                                                                                                                                                                  | Posts, tasks with separate body.                                               |
