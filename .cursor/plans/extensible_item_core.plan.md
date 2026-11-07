@@ -218,9 +218,13 @@ Code:
     `follows-item` tables), so items that differ in times, files, or other facets are
     both kept; the skipped item's revision history is appended to the survivor's before
     the source is retired.
-- Portable backup versions are immutable and each phase that adds authored state ships
-  its own: v3 (cased labels, F1), v4 (UUIDs, F2), v5 (revisions, F3), v6 (trash, F4),
-  v7 (times, F6). Every version keeps an importer, and from F2 on every importer uses the
+- Portable backup versions are immutable, and each new kind of authored state gets its
+  own: v3 (cased labels), v4 (UUIDs), v5 (revisions), v6 (trash), v7 (times). A version's
+  exporter and importer ship in the release **before** the one that first writes the
+  state it carries, with the new fields empty until then, so a backup served by the
+  previous release during a rollout never omits that state: v3 in F1a (casing starts in
+  F1b), v4 in F2-pre (UUIDs start in F2a), v5 in F2b (revisions start in F3), v6 in F4a
+  (Trash starts in F4b), and v7 in F8 (time facets start in F6a). Every version keeps an importer, and from F2 on every importer uses the
   UUID-first insert and remap path (no integer sequence or default is called), so
   removing integer allocation in F9 changes nothing for restores. Backup v4 carries
   UUIDs. Restore never overwrites an existing row:
@@ -312,9 +316,9 @@ Code:
     `item_revision`, applies the write, and returns `200` with `overwrote: <revision>`;
     the client then notifies the user with a link to that history entry. If the server
     moved again in between, the overwrite request gets its own `409` and repeats.
-  - Every PUT carries a client-generated `mutationId`. The server records each applied
-    mutation's result in `item_mutation_v1(item_uid, mutation_id, response, created_at)`,
-    kept for 7 days, in the same transaction as the write. A retry whose response was
+  - Every PUT carries a client-generated `mutationId`. The server records the result of
+    every acknowledged request, including an identical-content no-op, in `item_mutation_v1(item_uid, mutation_id, response, created_at)`,
+    kept for 7 days, in the same transaction that decides the response. A retry whose response was
     lost replays its own recorded result (including `overwrote` and its history link)
     even after later mutations changed the item.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
@@ -328,8 +332,8 @@ Code:
   The document's shape is generated from the F7 registry, so restoring a history entry
   restores times, links, and later facets too. `item_revision` is classified `history`: portable and
   moved with its item, but excluded from revision triggers and from snapshot contents,
-  so writing a snapshot never bumps the item and snapshots never nest. Backup v5 ships
-  with F3 and carries each item's revisions; restore brings them back with an inserted
+  so writing a snapshot never bumps the item and snapshots never nest. Backup v5 (shipped in
+  F2b, before F3) carries each item's revisions; restore brings them back with an inserted
   or cloned item, and for a skipped identical item it appends the backed-up snapshots
   the destination does not already have (matched by each snapshot's own UUID, so two
   snapshots with the same content at different times are both kept), so no history is
@@ -505,7 +509,7 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   write that originated it, and an old server's `UPDATE … RETURNING` sees the final
   revision. **F6b** (next release,
   after old servers drain) drops the triggers and the columns.
-- Backup v7 carries `times[]` per item and ships with F6a; restore round-trips dates, zones,
+- Backup v7 carries `times[]` per item and ships in F8, before F6a writes any time row; restore round-trips dates, zones,
   recurrence rules, and every role.
 - API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
   `remind` row (written with
