@@ -44,7 +44,8 @@ Defaults are defined in `scripts/db/common.sh`:
 
 Schema backups include the selected tables' legacy SQL compatibility views and,
 when used by those tables, the pgvector extension declaration and the current
-`apply_row_timestamps_v1()` definition. A fresh destination needs the pgvector
+`apply_row_timestamps_v1()`, `app_label_whitespace_v1()`, and `app_label_key_v1()`
+definitions. A fresh destination needs the pgvector
 server extension files installed and a role allowed to create the extension.
 Existing migrated destinations are also supported. Historical sequence names
 such as `user_note_v1_id_seq` remain intentional rolling-server compatibility;

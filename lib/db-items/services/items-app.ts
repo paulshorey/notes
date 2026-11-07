@@ -55,6 +55,7 @@ export {
   parsePreviewItemGroupRequest,
 } from "./item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
+import { rolloutLabelSpelling, trimLabel } from "../contracts/label"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
@@ -70,7 +71,7 @@ import {
   updateItemEmbeddingsForUser,
   updateItemForUser,
 } from "../sql/item"
-import { resolveCategoryIdForWorkspace, resolveTagIdForWorkspace } from "../sql/item/shared"
+import { resolveLabelForWorkspace } from "../sql/item/shared"
 import {
   deleteCategoryForWorkspace,
   getCategoryByIdForWorkspace,
@@ -143,8 +144,7 @@ const object = (value: unknown) => {
     throw new Error("Request body must be a JSON object.")
   return value as Record<string, unknown>
 }
-const label = (value: unknown) =>
-  typeof value === "string" ? value.trim().toLocaleLowerCase() : ""
+const label = (value: unknown) => (typeof value === "string" ? trimLabel(value) : "")
 export const parsePositiveInteger = (
   value: unknown,
   field: string,
@@ -444,25 +444,29 @@ const createLabelEntity = async (
   // Embedding generation is an external request and may take tens of seconds.
   // Finish it before checking out a client so the small DB pool remains
   // available to ordinary item reads and writes while that request is pending.
-  const e = await createTagLabelEmbedding(value)
+  const e = await createTagLabelEmbedding(rolloutLabelSpelling(value))
   const client = await getDb().connect()
   try {
     await client.query("BEGIN")
-    const id =
-      kind === "category"
-        ? await resolveCategoryIdForWorkspace(client, workspaceId, value)
-        : await resolveTagIdForWorkspace(client, workspaceId, value)
-    if (!id) throw new Error("Failed to resolve label.")
+    const resolved = await resolveLabelForWorkspace(client, kind, workspaceId, value)
+    if (!resolved) throw new Error("Failed to resolve label.")
+    const { id, inserted } = resolved
     const table = kind === "category" ? "workspace_category_v1" : "workspace_tag_v1"
     const column = kind === "category" ? "category_embedding" : "tag_embedding"
+    // The vector was computed from the spelling this request stores. An existing
+    // label keeps its own vector; a missing one is filled only when the stored
+    // spelling is the one that was embedded, otherwise maintenance fills it.
     await client.query(
-      `UPDATE public.${table} SET ${column}=$1::vector,embedding_model=$2,embedding_updated_at=$3 WHERE id=$4 AND workspace_id=$5`,
+      `UPDATE public.${table} SET ${column}=$1::vector,embedding_model=$2,embedding_updated_at=$3
+       WHERE id=$4 AND workspace_id=$5 AND ($6::boolean OR (${column} IS NULL AND label=$7))`,
       [
         e.vectorLiteral,
         e.embeddingModel,
         e.embeddingModel ? new Date().toISOString() : null,
         id,
         workspaceId,
+        inserted,
+        rolloutLabelSpelling(value),
       ],
     )
     await client.query("COMMIT")
@@ -500,7 +504,7 @@ export const updateCategoryForItemsApp = async (
 ): Promise<UpdateCategoryResponse | null> => {
   assertCategoryNameAllowed(r.label)
   if (!r.label) throw new Error("label is required.")
-  const e = await createTagLabelEmbedding(r.label)
+  const e = await createTagLabelEmbedding(rolloutLabelSpelling(r.label))
   const category = await updateCategoryLabelForWorkspace(
     r.userId,
     r.workspaceId,
@@ -515,7 +519,7 @@ export const updateTagForItemsApp = async (
   r: UpdateTagRequest,
 ): Promise<UpdateTagResponse | null> => {
   if (!r.label) throw new Error("label is required.")
-  const e = await createTagLabelEmbedding(r.label)
+  const e = await createTagLabelEmbedding(rolloutLabelSpelling(r.label))
   const tag = await updateTagLabelForWorkspace(
     r.userId,
     r.workspaceId,

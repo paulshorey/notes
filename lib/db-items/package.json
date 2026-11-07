@@ -19,7 +19,8 @@
     "./sql/item": "./sql/item/index.ts",
     "./sql/user": "./sql/user/index.ts",
     "./sql/*": "./sql/*.ts",
-    "./contracts/item-content": "./contracts/item-content.ts"
+    "./contracts/item-content": "./contracts/item-content.ts",
+    "./contracts/label": "./contracts/label.ts"
   },
   "scripts": {
     "app:contract:check": "node scripts/generate-app-contract.mjs --check",

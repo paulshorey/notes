@@ -132,6 +132,11 @@
       "column": "time_modified",
       "nullable": false,
       "type": "Date"
+    },
+    {
+      "column": "label_key",
+      "nullable": true,
+      "type": "string"
     }
   ],
   "workspace_category_v1": [
@@ -174,6 +179,11 @@
       "column": "time_modified",
       "nullable": false,
       "type": "Date"
+    },
+    {
+      "column": "label_key",
+      "nullable": true,
+      "type": "string"
     }
   ],
   "workspace_item_v1": [
@@ -263,6 +273,11 @@
       "column": "time_modified",
       "nullable": false,
       "type": "Date"
+    },
+    {
+      "column": "label_key",
+      "nullable": true,
+      "type": "string"
     }
   ],
   "workspace_tag_v1": [
@@ -305,6 +320,11 @@
       "column": "time_modified",
       "nullable": false,
       "type": "Date"
+    },
+    {
+      "column": "label_key",
+      "nullable": true,
+      "type": "string"
     }
   ]
 }

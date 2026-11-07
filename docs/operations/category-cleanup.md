@@ -10,7 +10,7 @@ has matching notes, and has no category edit/delete menu. Real categories have n
 default identity, oldest-id semantics, protected row, or special sort order.
 
 `contracts/category-name.ts` in `@lib/db-items` reserves exactly the trimmed,
-case-insensitive category name `uncategorized`. UI validation, service validation,
+case-insensitive, NFKC-normalized category name `uncategorized`. UI validation, service validation,
 and the cleanup migration's database constraint enforce that rule. Other
 vocabularies and longer category names such as `uncategorized ideas` are unaffected.
 The database uses the explicit ECMAScript trim character set, including tabs,
