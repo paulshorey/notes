@@ -147,6 +147,16 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
 - Integer `id` columns stay as the legacy IDs. A column is dropped only in a release
   after the last code that references it has shipped and drained.
 
+0. **F2-pre (release before F2a).** Anonymous merge and backup restore stop copying
+   items under new IDs: they move rows (`UPDATE … SET workspace_id`, remapping
+   `status_id` and links by `label_key`) and record each retired source row — a
+   deduplicated item or a merged-away workspace or term — in `id_alias_v1` by its
+   integer `id`. This migration also recreates the item/link and vocabulary/link
+   composite FKs as `DEFERRABLE INITIALLY IMMEDIATE` with `ON UPDATE CASCADE` where a
+   moved key must follow, and the merge sets them `DEFERRED` for its transaction, so a
+   linked item can move atomically. While F2a rolls out, these previous-release servers
+   therefore never discard an identity: an alias insert trigger installed by F2a fills
+   the retired row's `uid` (read before its delete) and the target's `uid`.
 1. **F2a — expand (release N).** Add `app_uuid_v7()` (SQL; replaced by native
    `uuidv7()` when the database runs PostgreSQL 18) and the `uid` / `*_uid` columns,
    backfilled and uniquely indexed, beside every integer key and reference (link tables
@@ -155,7 +165,7 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    stays the primary key with its sequence, so previous-release servers keep working.
    Release N's code reads and writes by UUID and serves integer IDs only for contract 1.
 2. **F2b — key swap (release N+1).** Move primary keys and the composite workspace FKs
-   to the `uid` columns. This changes constraints only; no column is renamed or dropped,
+   to the `uid` columns, keeping them `DEFERRABLE` as in F2-pre. This changes constraints only; no column is renamed or dropped,
    so release N keeps working during the overlap. Integer `id` stays unique with its
    sequence default until F9.
 3. `id_alias_v1(kind, alias_id uuid, alias_legacy_id integer, target_id uuid)` with
@@ -326,7 +336,9 @@ Code:
   items and workspaces turns any `DELETE` into the same soft delete the routes perform
   (for a workspace, the full batch: the workspace and its live items under one
   `deletion_id`), then cancels the row delete, unless the transaction sets
-  `app.hard_delete = 'on'`, which only the purge and account deletion do. F4b also
+  `app.hard_delete = 'on'`, which only the purge and account deletion do. F4a already
+  sets that flag in the purge, account deletion, and the anonymous-cleanup command, so
+  their previous-release copies keep hard-deleting during F4b's rollout. F4b also
   gates the F3 workspace tombstone trigger on `app.hard_delete = 'on'`, so a converted
   delete never emits hard-delete tombstones; the item tombstone triggers are
   `AFTER DELETE` and do not fire for a canceled delete.
@@ -391,7 +403,10 @@ Code:
   When the destination has a same-named workspace, items move as in F2.
 - Membership changes reach sync: granting access writes a per-user event that makes
   the member's next sync fetch that workspace in full, and revoking access writes a
-  workspace tombstone for that user so their devices drop its content.
+  workspace tombstone for that user so their devices drop its content. A grant deletes
+  that user's earlier revocation tombstones for the workspace and its contents in the
+  same transaction, so a revoke followed by a re-grant never reaches a client as a
+  deletion.
 - No sharing UI is built in this phase; roles other than `owner` stay unused until
   sharing is designed (D5).
 
@@ -430,7 +445,11 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
   row, and a write to the role's row updates the column: its instant when the row is
   projectable, `NULL` when the row becomes all-day or is removed. A `NULL` written to
-  the column by an old server still leaves an all-day row untouched. **F6b** (next release,
+  the column by an old server still leaves an all-day row untouched. Mirror writes set
+  a transaction-local `app.mirror_write` flag, and the F3 revision trigger skips writes
+  made under it, so one logical edit bumps the item's revision exactly once, from the
+  write that originated it, and an old server's `UPDATE … RETURNING` sees the final
+  revision. **F6b** (next release,
   after old servers drain) drops the triggers and the columns.
 - Backup v7 carries `times[]` per item and ships with F6a; restore round-trips dates, zones,
   recurrence rules, and every role.
@@ -466,11 +485,13 @@ example a child of `file_v1` keyed only by `file_id`) declares:
 - move/merge strategy: `follows-item`, `follows-workspace`, `remap-by-key`, or `drop`.
 
 A fourth backup class, `history`, covers `item_revision`: portable and `follows-item`,
-but excluded from revision triggers and from snapshot generation.
+but excluded from revision triggers and from snapshot generation. A fifth, `control`,
+covers short-lived protocol state such as `item_mutation_v1`: excluded from backups and
+snapshots, not rebuildable, moved with its item (`follows-item`) and dropped with it.
 
-An `authored` classification also names the backup format version that introduced the
-table and its export and import handlers. A registry-driven round-trip test fills every
-`authored` table, exports, restores into an empty account, and fails if any table's rows
+An `authored` or `history` classification also names the backup format version that
+introduced the table and its export and import handlers. A registry-driven round-trip
+test fills every portable (`authored` and `history`) table, exports, restores into an empty account, and fails if any table's rows
 do not come back, so a classification cannot pass while the backup silently omits the
 table.
 
@@ -587,7 +608,7 @@ columns from F2.
 
 ## 10. Delivery order
 
-F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2a → F2b (next
+F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2-pre → F2a → F2b (next
 release) → F3 → F4a → F4b (next release) → F5a → F5b (next release) → F8 → F6a → F6b (next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
