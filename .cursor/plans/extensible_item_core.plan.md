@@ -116,7 +116,11 @@ as lowercase:
   clients and APIs send them as typed.
 - **F1b (next release, after F1a has fully replaced the previous one).** A migration
   drops the lowercasing triggers; labels then keep the casing typed. Existing labels
-  keep their current text.
+  keep their current text. F1b also moves `label_key` to full Unicode case folding
+  (so `ΟΣ`/`οσ`/`ος` and `Straße`/`STRASSE` are one label), implemented identically in
+  SQL and the client and checked by a parity test over every full-folding entry in
+  Unicode's `CaseFolding.txt`, with the same collision audit that stops the migration
+  rather than merging labels.
 - The migration audits existing rows first: legacy padding is trimmed, and any labels
   that would be blank or share a key after trimming and NFKC normalization (for example
   precomposed and decomposed `é`) stop the pre-deploy with a count. There is no automatic
@@ -243,9 +247,11 @@ Code:
     applied.
 - Portable backup versions are immutable, and each new kind of authored state gets its
   own: v3 (cased labels), v4 (UUIDs), v5 (revisions), v6 (trash), v7 (times). A version's
-  exporter and importer ship in the release **before** the one that first writes the
-  state it carries, with the new fields empty until then, so a backup served by the
-  previous release during a rollout never omits that state: v3 in F1a (casing starts in
+  importer ships in the release **before** the one that first writes the state it
+  carries, with the new fields empty until then, and its exporter switches to emitting
+  the new version only in the release that first writes that state, so a file is never
+  produced before every server can read it, and a backup served by the previous release
+  during a rollout never omits that state: v3 in F1a (casing starts in
   F1b), v4 in F2-pre (UUIDs start in F2a), v5 in F2b (revisions start in F3), v6 in F4a
   (soft deletion starts in F4b), and v7 in F8 (time facets start in F6a). Every version keeps an importer, and from F2 on every importer uses the
   UUID-first insert and remap path: identity comes from the stored `uid`, and the
@@ -463,7 +469,9 @@ Code:
   its revision snapshot keeps the previous labels and history can restore them (under a
   new term ID, since the deleted one is retired). A `BEFORE DELETE` trigger on each
   vocabulary table snapshots every affected item while the term's label still exists,
-  before the link rows cascade. D3's
+  before the link rows cascade. A rename is an authored change to every linked item
+  too: a `BEFORE UPDATE OF label` trigger on each vocabulary table snapshots and
+  revises every affected item before the new label is visible. D3's
   30-day Trash applies to items and workspaces.
 - Purge is scheduled, not manual: F4 adds a Railway cron service (declared in
   `.railway/railway.ts`) that runs the purge command daily in each environment. It is
@@ -568,9 +576,12 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
 
 - Rollout is three releases. **F8** (before F6a) creates `item_time_v1`, empty, together
   with the v7 exporter and importer, so a v7 file with all-day, recurring, or
-  multi-valued times can be persisted by any server from then on. **F6a:** backfill `due` /
-  `remind` rows from the existing columns (`time_zone` NULL: unknown), and keep both
-  representations synchronized in both directions by triggers: a write to
+  multi-valued times can be persisted by any server from then on; F8 also installs the
+  bidirectional synchronization triggers below, so an imported all-day or recurring
+  `due`/`remind` row and a later scalar edit by a still-running server never diverge.
+  **F6a:** backfill `due` /
+  `remind` rows from the existing columns (`time_zone` NULL: unknown); the two
+  representations stay synchronized in both directions by the F8 triggers: a write to
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
   row, and a write to the role's row updates the column: its instant when the row is
   projectable, `NULL` when the row becomes all-day or is removed. A `NULL` written to
