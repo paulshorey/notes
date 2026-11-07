@@ -146,7 +146,12 @@ migration with no reset:
 
 Code:
 
-- Contracts change `id: number` → `id: string` for items, workspaces, and vocabulary.
+- Contracts change `id: number` → `id: string` for items, workspaces, and vocabulary,
+  selected by a new contract version: clients that send `X-Items-Contract: 2` get and
+  send UUIDs. A browser tab still running the previous build sends
+  `X-Items-Contract: 1` and keeps receiving and sending integer IDs (served from the
+  integer keys in F2a and from `legacy_id` after F2b) until it reloads. Contract 1 is
+  retired in F9.
 - `GET /api/items/{id}` and open-item URLs accept a UUID, an alias, or a legacy integer
   and redirect to the canonical UUID form.
 - Browser storage v4 upgrader maps integer IDs in cached items and dirty drafts to UUIDs
@@ -192,16 +197,22 @@ Code:
   can commit after a higher one has been read.
 - `GET /api/sync?since=<cursor>` returns three lists — items, workspaces, and
   vocabulary — plus tombstones, so empty workspaces, unused labels, and deletions sync
-  too. All lists and the new cursor are read in one `REPEATABLE READ` read-only
+  too. Sync is exempt from the live-row filter: from F4 on, a soft-deleted item or
+  workspace is a changed row and is returned with its `deletedAt`, so other devices move
+  it to Trash immediately rather than at purge time. All lists and the new cursor are read in one `REPEATABLE READ` read-only
   transaction, so they come from the same snapshot and a commit between two reads cannot
   be skipped.
-- Tombstones: `sync_tombstone_v1(kind, entity_id, workspace_id, change_xid)` is written
-  by `AFTER DELETE` triggers on items, workspaces, and vocabulary tables, so every
-  existing hard-delete path (item and vocabulary deletion today, the F4 purge later)
-  produces a deletion record from F3 onward. Link removals are item changes (they bump
-  the item's revision). Tombstones are retained for 180 days; the server tracks the
-  oldest cursor it can still serve, and an older cursor gets `410 Gone` and a full
-  resync.
+- Tombstones: `sync_tombstone_v1` rows (`user_id`, `kind`, `entity_id`, `workspace_id`,
+  `change_xid`, `deleted_at`) are written by `AFTER DELETE` triggers on items, workspaces, and
+  vocabulary tables, so every existing hard-delete path (item and vocabulary deletion
+  today, the F4 purge later) produces a deletion record from F3 onward. The trigger
+  writes one row per user who could read the workspace at deletion time (its creator
+  before F5, its members after), captured before the cascade removes that state; sync
+  returns only the requester's rows. Link removals are item changes (they bump the
+  item's revision).
+- Tombstones are retained for 180 days by `deleted_at` (indexed). The retention job
+  records the highest `change_xid` it removed as the sync horizon; a cursor below the
+  horizon gets `410 Gone` and a full resync.
 - `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`:
   - matching `baseRevision` → applied, `200` with the new revision;
   - content identical to the current server copy → `200`, no change (makes every retry
@@ -245,6 +256,11 @@ Code:
   workspaces and items. Restore keeps trashed rows in Trash with the same batch
   grouping and their original `deletedAt` (so the remaining retention carries over);
   v1–v3 files restore as live rows.
+- Restore merges a backed-up workspace into a destination workspace only when both are
+  live and share a `label_key`. A trashed backed-up workspace, or one whose label
+  collides with a trashed destination workspace, is restored as a separate workspace
+  with a suffixed label (`personal (restored 2027-01-02)`), so restore never trashes,
+  restores, or otherwise changes an existing workspace.
 
 ### F5. Membership ownership
 
@@ -309,15 +325,19 @@ walks the foreign-key graph and fails unless every table that reaches `user_v1`,
 `user_workspace_v1`, or `workspace_item_v1` through any chain of foreign keys (for
 example a child of `file_v1` keyed only by `file_id`) declares:
 
-- backup class: `authored` (in portable backups) or `derived` (rebuildable, excluded);
+- backup class: `authored` (in portable backups), `derived` (rebuildable, excluded), or
+  `nonportable` (credentials and sessions such as `user_api_token_v1`: never exported,
+  never restored, never moved to another account);
 - move/merge strategy: `follows-item`, `follows-workspace`, `remap-by-key`, or `drop`.
 
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
 
-`drop` is allowed only for `derived` tables; an `authored` table must use a lossless
-strategy. `authored` + `follows-item` tables must also carry the F3 revision trigger.
+`drop` is allowed only for `derived` and `nonportable` tables; an `authored` table
+must use a lossless strategy. F3 extends the guard to require its revision trigger on
+every `authored` + `follows-item` table; F7 does not check that rule, so it ships
+independently.
 A new content-type table therefore cannot ship without a deliberate backup and merge
 decision.
 
@@ -340,6 +360,7 @@ content type:
 Per D2 only the web app depends on these, so they go once the web client no longer uses
 them and one release has drained previous-release servers:
 
+- API contract 1 (integer IDs) for previously loaded browser builds;
 - legacy SQL views and their insert triggers, the `legacy_id` sequence default and
   `NOT NULL`, the
   `user_note_v1_id_seq` name, and the exact-label unique constraints kept by F1;
@@ -364,7 +385,7 @@ None of these requires changing an existing column.
 | Board position    | `position text` (fractional index) on the status link, or `item_link` to a board item.                                                                                                                                                                                                                                                                                                                                                    | Kanban columns per workspace or per project.                                   |
 | Money             | `item_amount_v1(item_id, role, amount_minor bigint, currency char(3), occurred_on date, description)`.                                                                                                                                                                                                                                                                                                                                    | Invoices, receipts, budgets.                                                   |
 | Time tracking     | `item_time_v1` rows with `role='session'` and start/end.                                                                                                                                                                                                                                                                                                                                                                                  | Timesheets, billable time.                                                     |
-| Publishing        | `site_v1(id, workspace_id, host)` + `publication_v1(workspace_id, site_id, item_id, path, published_revision, published_at, visibility)` with composite FKs `(site_id, workspace_id)` → site and `(item_id, workspace_id)` → item.                                                                                                                                                                                                        | Blog/CMS.                                                                      |
+| Publishing        | `site_v1(id, workspace_id, host)` with a unique index on the normalized host + `publication_v1(workspace_id, site_id, item_id, path, published_revision, published_at, visibility)` with composite FKs `(site_id, workspace_id)` → site and `(item_id, workspace_id)` → item, and `UNIQUE (site_id, path)`.                                                                                                                               | Blog/CMS.                                                                      |
 | Reminder delivery | Postgres-backed worker (graphile-worker or pg-boss) + `notification_v1`.                                                                                                                                                                                                                                                                                                                                                                  | Reminders that fire; embeddings off the request path; trash purge.             |
 | Properties        | `properties jsonb` with namespaced keys (`task.priority`); promote to a typed table once a key needs constraints, indexes, or joins.                                                                                                                                                                                                                                                                                                      | Lightweight per-app fields.                                                    |
 | Title             | Nullable `title`; derived from the first line when null.                                                                                                                                                                                                                                                                                                                                                                                  | Posts, tasks with separate body.                                               |
