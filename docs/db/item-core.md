@@ -76,7 +76,8 @@ Compatibility never makes a client-supplied user ID authoritative.
   sequence with `pg_get_serial_sequence`; no competing allocator is created.
 - Backup import accepts version 3 (`workspaces[].items`, labels as typed), version 2
   (lowercased labels), and version 1's `workspaces[].notes`, with the existing
-  reserved-category conversion. While labels are stored lowercased for the rollout,
+  reserved-category conversion. Legacy labels that now share a key keep both entries:
+  the later one gets a numbered suffix (`ｑ (2)`) and its references follow it. While labels are stored lowercased for the rollout,
   exports are version 2 with each label's lowercase spelling, so previous-release
   servers can restore them; older web clients that omit the item-contract header
   download version 1.

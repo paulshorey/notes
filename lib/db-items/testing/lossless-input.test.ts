@@ -58,6 +58,25 @@ test("backups with labels the database cannot store yet fail validation", () => 
   assert.throws(() => parseUserBackup(backup), BackupValidationError)
 })
 
+test("legacy backups keep labels that now share a key, renaming the later one", () => {
+  const backup = backupFixture()
+  const workspace = backup.workspaces[0]!
+  const base = workspace.tags[0]!
+  workspace.tags = [
+    { ...base, label: "q" },
+    { ...base, label: "ｑ" },
+  ]
+  workspace.items = workspace.items.map((item) => ({ ...item, tags: ["ｑ", "q"] }))
+  const parsed = parseUserBackup({ ...backup, version: 2 })
+  assert.deepEqual(
+    parsed.workspaces[0]!.tags.map((tag) => tag.label),
+    ["q", "ｑ (2)"],
+  )
+  assert.deepEqual(parsed.workspaces[0]!.items[0]!.tags, ["ｑ (2)", "q"])
+  // Version 3 identifies labels by key, so the same pair is a duplicate there.
+  assert.throws(() => parseUserBackup({ ...backup, version: 3 }), /duplicate labels/)
+})
+
 test("legacy backups drop every reserved category form before checking duplicates", () => {
   const backup = backupFixture()
   const workspace = backup.workspaces[0]!

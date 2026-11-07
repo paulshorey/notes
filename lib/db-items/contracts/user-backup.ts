@@ -73,6 +73,27 @@ const unique = <T>(values: T[], getLabel: (value: T) => string): T[] => {
     fail("Backup contains duplicate labels.")
   return values
 }
+/**
+ * Version 1 and 2 files identify labels by their exact text, so two labels that now
+ * share a key (Unicode compatibility forms) were distinct. Keep both: the later one
+ * gets a numbered suffix, and `renamed` maps every original label to its final text
+ * so references can follow it. Exact duplicates are still invalid.
+ */
+const disambiguate = <T extends { label: string }>(values: T[]) => {
+  const exact = new Set<string>()
+  const keys = new Set<string>()
+  const renamed = new Map<string, string>()
+  const result = values.map((value) => {
+    if (exact.has(value.label)) fail("Backup contains duplicate labels.")
+    exact.add(value.label)
+    let final = value.label
+    for (let n = 2; keys.has(labelKey(final)); n += 1) final = `${value.label} (${n})`
+    keys.add(labelKey(final))
+    renamed.set(value.label, final)
+    return final === value.label ? value : { ...value, label: final }
+  })
+  return { values: result, renamed }
+}
 const vocabulary = (value: unknown, cased: boolean): BackupVocabulary => {
   const v = object(value)
   return {
@@ -118,82 +139,95 @@ export const parseUserBackup = (value: unknown): UserBackup => {
     if (records > MAX_RECORDS) fail("Backup contains too many records (maximum 100,000).")
     return items
   }
-  const workspaces = unique(
-    count(b.workspaces).map((value): BackupWorkspace => {
-      const w = object(value)
-      // Legacy files can hold the reserved category in several compatibility forms.
-      // Drop them before checking uniqueness; their references are validated below.
-      const reserved = (name: string) => labelKey(name) === UNCATEGORIZED_LABEL
-      const parsedCategories = count(w.categories).map(vocab)
-      const categories = unique(
-        parsedCategories.filter((v) => !reserved(v.label)),
-        (v) => v.label,
-      )
-      const tags = unique(count(w.tags).map(vocab), (v) => v.label)
-      const statuses = unique(
-        count(w.statuses).map((value): BackupStatus => {
-          const s = object(value)
-          if (
-            !Number.isInteger(s.position) ||
-            Number(s.position) < 0 ||
-            Number(s.position) > 2_147_483_647
-          )
-            fail("Invalid status position.")
-          return { ...vocab(s), position: Number(s.position) }
-        }),
-        (v) => v.label,
-      )
-      const categoryLabels = new Set(parsedCategories.map((v) => labelKey(v.label)))
-      const tagLabels = new Set(tags.map((v) => labelKey(v.label)))
-      const statusLabels = new Set(statuses.map((v) => labelKey(v.label)))
-      const refs = (value: unknown, available: Set<string>, dropReserved = false) =>
-        unique(
-          array(value)
-            .map((v) => {
-              const result = label(v, cased)
-              if (!available.has(labelKey(result)))
-                fail("An item refers to vocabulary outside its workspace.")
-              return result
-            })
-            .filter((name) => !dropReserved || !reserved(name)),
-          (v) => v,
-        )
-      // Version 1 used the text-client name. Normalize it once at the boundary.
-      const items = count(b.version === 1 ? w.notes : w.items).map((value): BackupItem => {
-        const n = object(value)
+  // Version 3 labels are unique by key; legacy labels are disambiguated (see above).
+  const distinct = <T extends { label: string }>(values: T[]) =>
+    cased ? { values: unique(values, (v) => v.label), renamed: null } : disambiguate(values)
+  const parsedWorkspaces = count(b.workspaces).map((value): BackupWorkspace => {
+    const w = object(value)
+    // Legacy files can hold the reserved category in several compatibility forms.
+    // Drop them before checking uniqueness; their references are validated below.
+    const reserved = (name: string) => labelKey(name) === UNCATEGORIZED_LABEL
+    const parsedCategories = count(w.categories).map(vocab)
+    const categories = distinct(parsedCategories.filter((v) => !reserved(v.label)))
+    const tags = distinct(count(w.tags).map(vocab))
+    const statuses = distinct(
+      count(w.statuses).map((value): BackupStatus => {
+        const s = object(value)
         if (
-          n.description !== null &&
-          (typeof n.description !== "string" || !validText(n.description))
+          !Number.isInteger(s.position) ||
+          Number(s.position) < 0 ||
+          Number(s.position) > 2_147_483_647
         )
-          fail("Invalid item text.")
-        const status = n.status === null ? null : label(n.status, cased)
-        if (status !== null && !statusLabels.has(labelKey(status)))
-          fail("An item refers to an unknown status.")
-        return {
-          description: n.description as string | null,
-          // Validate legacy references before converting the old fallback row.
-          categories: refs(n.categories, categoryLabels, true),
-          status,
-          tags: refs(n.tags, tagLabels),
-          timeDue: nullableTimestamp(n.timeDue),
-          timeRemind: nullableTimestamp(n.timeRemind),
-          timeCreated: timestamp(n.timeCreated),
-          timeModified: timestamp(n.timeModified),
-        }
-      })
+          fail("Invalid status position.")
+        return { ...vocab(s), position: Number(s.position) }
+      }),
+    )
+    const categoryLabels = new Set(parsedCategories.map((v) => labelKey(v.label)))
+    const tagLabels = new Set(tags.values.map((v) => labelKey(v.label)))
+    const statusLabels = new Set(statuses.values.map((v) => labelKey(v.label)))
+    // A legacy reference names its label exactly; follow any suffix it received.
+    const follow = (name: string, renamed: Map<string, string> | null) => {
+      if (!renamed) return name
+      const final = renamed.get(name)
+      return final ?? fail("An item refers to vocabulary outside its workspace.")
+    }
+    const refs = (
+      value: unknown,
+      available: Set<string>,
+      renamed: Map<string, string> | null,
+      dropReserved = false,
+    ) =>
+      unique(
+        array(value)
+          .map((v) => {
+            const result = label(v, cased)
+            if (!available.has(labelKey(result)))
+              fail("An item refers to vocabulary outside its workspace.")
+            return result
+          })
+          .filter((name) => !dropReserved || !reserved(name))
+          .map((name) => follow(name, renamed)),
+        (v) => v,
+      )
+    // Version 1 used the text-client name. Normalize it once at the boundary.
+    const items = count(b.version === 1 ? w.notes : w.items).map((value): BackupItem => {
+      const n = object(value)
+      if (
+        n.description !== null &&
+        (typeof n.description !== "string" || !validText(n.description))
+      )
+        fail("Invalid item text.")
+      const status = n.status === null ? null : label(n.status, cased)
+      if (status !== null && !statusLabels.has(labelKey(status)))
+        fail("An item refers to an unknown status.")
       return {
-        ...vocab(w),
-        categories,
-        statuses,
-        tags,
-        items,
+        description: n.description as string | null,
+        // Validate legacy references before converting the old fallback row.
+        categories: refs(n.categories, categoryLabels, categories.renamed, true),
+        status: status === null ? null : follow(status, statuses.renamed),
+        tags: refs(n.tags, tagLabels, tags.renamed),
+        timeDue: nullableTimestamp(n.timeDue),
+        timeRemind: nullableTimestamp(n.timeRemind),
+        timeCreated: timestamp(n.timeCreated),
+        timeModified: timestamp(n.timeModified),
       }
-    }),
-    (w) => w.label,
-  )
+    })
+    return {
+      ...vocab(w),
+      categories: categories.values,
+      statuses: statuses.values,
+      tags: tags.values,
+      items,
+    }
+  })
+  const distinctWorkspaces = distinct(parsedWorkspaces)
+  const workspaces = distinctWorkspaces.values
   if (workspaces.length === 0) fail("Backup must contain at least one workspace.")
   const activeWorkspaceLabel =
-    b.activeWorkspaceLabel === null ? null : label(b.activeWorkspaceLabel, cased)
+    b.activeWorkspaceLabel === null
+      ? null
+      : (distinctWorkspaces.renamed?.get(label(b.activeWorkspaceLabel, cased)) ??
+        label(b.activeWorkspaceLabel, cased))
   if (
     activeWorkspaceLabel !== null &&
     !workspaces.some((w) => labelKey(w.label) === labelKey(activeWorkspaceLabel))
