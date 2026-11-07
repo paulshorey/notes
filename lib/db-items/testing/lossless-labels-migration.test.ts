@@ -112,6 +112,25 @@ test(
         ]),
         { code: "23505" },
       )
+      // A previous-release server lowercases labels and uses the exact-label
+      // conflict target; it must reuse an existing differently cased label.
+      const nycId = (
+        await client.query<{ id: number }>(
+          "SELECT id FROM public.workspace_tag_v1 WHERE workspace_id=$1 AND label='NYC'",
+          [workspaceId],
+        )
+      ).rows[0]!.id
+      const legacyResolve = await client.query<{ id: number; label: string }>(
+        `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
+         ON CONFLICT (workspace_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id,label`,
+        [workspaceId],
+      )
+      assert.deepEqual(legacyResolve.rows[0], { id: nycId, label: "NYC" })
+      await client.query(
+        `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
+         ON CONFLICT (workspace_id,label) DO NOTHING`,
+        [workspaceId],
+      )
       // Servers still running the previous release keep their conflict target.
       await client.query(
         `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'idea')

@@ -32,6 +32,39 @@ test("backups keep label casing and reject labels that collide by key", () => {
   assert.throws(() => parseUserBackup(backup), /duplicate labels/)
 })
 
+test("legacy backups drop every reserved category form before checking duplicates", () => {
+  const backup = backupFixture()
+  const workspace = backup.workspaces[0]!
+  const base = workspace.categories[0]!
+  workspace.categories = [
+    { ...base, label: "uncategorized" },
+    { ...base, label: "ｕｎｃａｔｅｇｏｒｉｚｅｄ" },
+    { ...base, label: "trip" },
+  ]
+  workspace.items = workspace.items.map((item) => ({
+    ...item,
+    categories: ["uncategorized", "ｕｎｃａｔｅｇｏｒｉｚｅｄ", "trip"],
+  }))
+  const parsed = parseUserBackup({ ...backup, version: 2 })
+  assert.deepEqual(
+    parsed.workspaces[0]!.categories.map((category) => category.label),
+    ["trip"],
+  )
+  assert.deepEqual(parsed.workspaces[0]!.items[0]!.categories, ["trip"])
+})
+
+test("legacy exports write each label's identity key", () => {
+  const backup = backupFixture()
+  backup.workspaces[0]!.tags = [{ ...backup.workspaces[0]!.tags[0]!, label: "Ϲ" }]
+  backup.workspaces[0]!.items = backup.workspaces[0]!.items.map((item) => ({
+    ...item,
+    tags: ["Ϲ"],
+  }))
+  const legacy = lowercaseBackupLabels(parseUserBackup(backup))
+  assert.equal(legacy.workspaces[0]!.tags[0]!.label, labelKey("Ϲ"))
+  assert.equal(labelKey(legacy.workspaces[0]!.tags[0]!.label), labelKey("Ϲ"))
+})
+
 test("version 2 backups keep their lowercase label rule; legacy exports lowercase labels", () => {
   const backup = backupFixture()
   const workspace = backup.workspaces[0]!

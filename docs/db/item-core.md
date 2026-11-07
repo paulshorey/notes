@@ -31,7 +31,10 @@ Identity is the generated `label_key` column, `app_label_key_v1(label)` (NFKC, t
 lowercasing with the locale-independent ICU root collation), which
 carries the unique indexes. Merge, restore, and backup reference checks match by key.
 The exact-label unique constraints remain as conflict targets for previous-release
-servers and are implied by key uniqueness.
+servers and are implied by key uniqueness. A `BEFORE INSERT` trigger
+(`app_label_reuse_existing_v1`) replaces an inserted label with the stored spelling
+when its key already exists in the same scope, so those servers' lowercased
+`ON CONFLICT (…, label)` writes reuse the existing row.
 
 Category and uncategorized navigation groups share transactional bulk actions.
 See [item group actions](item-group-actions.md) for selection, rename/deletion,

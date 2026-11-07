@@ -104,7 +104,14 @@ export const parseUserBackup = (value: unknown): UserBackup => {
   const workspaces = unique(
     count(b.workspaces).map((value): BackupWorkspace => {
       const w = object(value)
-      const categories = unique(count(w.categories).map(vocab), (v) => v.label)
+      // Legacy files can hold the reserved category in several compatibility forms.
+      // Drop them before checking uniqueness; their references are validated below.
+      const reserved = (name: string) => labelKey(name) === UNCATEGORIZED_LABEL
+      const parsedCategories = count(w.categories).map(vocab)
+      const categories = unique(
+        parsedCategories.filter((v) => !reserved(v.label)),
+        (v) => v.label,
+      )
       const tags = unique(count(w.tags).map(vocab), (v) => v.label)
       const statuses = unique(
         count(w.statuses).map((value): BackupStatus => {
@@ -119,17 +126,19 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         }),
         (v) => v.label,
       )
-      const categoryLabels = new Set(categories.map((v) => labelKey(v.label)))
+      const categoryLabels = new Set(parsedCategories.map((v) => labelKey(v.label)))
       const tagLabels = new Set(tags.map((v) => labelKey(v.label)))
       const statusLabels = new Set(statuses.map((v) => labelKey(v.label)))
-      const refs = (value: unknown, available: Set<string>) =>
+      const refs = (value: unknown, available: Set<string>, dropReserved = false) =>
         unique(
-          array(value).map((v) => {
-            const result = label(v, cased)
-            if (!available.has(labelKey(result)))
-              fail("An item refers to vocabulary outside its workspace.")
-            return result
-          }),
+          array(value)
+            .map((v) => {
+              const result = label(v, cased)
+              if (!available.has(labelKey(result)))
+                fail("An item refers to vocabulary outside its workspace.")
+              return result
+            })
+            .filter((name) => !dropReserved || !reserved(name)),
           (v) => v,
         )
       // Version 1 used the text-client name. Normalize it once at the boundary.
@@ -146,9 +155,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         return {
           description: n.description as string | null,
           // Validate legacy references before converting the old fallback row.
-          categories: refs(n.categories, categoryLabels).filter(
-            (name) => labelKey(name) !== UNCATEGORIZED_LABEL,
-          ),
+          categories: refs(n.categories, categoryLabels, true),
           status,
           tags: refs(n.tags, tagLabels),
           timeDue: nullableTimestamp(n.timeDue),
@@ -159,9 +166,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
       })
       return {
         ...vocab(w),
-        categories: categories.filter(
-          (category) => labelKey(category.label) !== UNCATEGORIZED_LABEL,
-        ),
+        categories,
         statuses,
         tags,
         items,
@@ -193,21 +198,25 @@ export const parseUserBackup = (value: unknown): UserBackup => {
   }
 }
 
-/** Versions 1 and 2 cannot represent label casing; lowercase labels for those formats. */
+/**
+ * Versions 1 and 2 cannot represent label casing. Their labels are the identity key
+ * (NFKC, then lowercase), so a legacy export restores to the same rows.
+ */
 export const lowercaseBackupLabels = (backup: UserBackup): UserBackup => ({
   ...backup,
-  activeWorkspaceLabel: backup.activeWorkspaceLabel?.toLowerCase() ?? null,
+  activeWorkspaceLabel:
+    backup.activeWorkspaceLabel === null ? null : labelKey(backup.activeWorkspaceLabel),
   workspaces: backup.workspaces.map((workspace) => ({
     ...workspace,
-    label: workspace.label.toLowerCase(),
-    categories: workspace.categories.map((v) => ({ ...v, label: v.label.toLowerCase() })),
-    statuses: workspace.statuses.map((v) => ({ ...v, label: v.label.toLowerCase() })),
-    tags: workspace.tags.map((v) => ({ ...v, label: v.label.toLowerCase() })),
+    label: labelKey(workspace.label),
+    categories: workspace.categories.map((v) => ({ ...v, label: labelKey(v.label) })),
+    statuses: workspace.statuses.map((v) => ({ ...v, label: labelKey(v.label) })),
+    tags: workspace.tags.map((v) => ({ ...v, label: labelKey(v.label) })),
     items: workspace.items.map((item) => ({
       ...item,
-      status: item.status?.toLowerCase() ?? null,
-      categories: item.categories.map((name) => name.toLowerCase()),
-      tags: item.tags.map((name) => name.toLowerCase()),
+      status: item.status === null ? null : labelKey(item.status),
+      categories: item.categories.map(labelKey),
+      tags: item.tags.map(labelKey),
     })),
   })),
 })

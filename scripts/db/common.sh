@@ -85,7 +85,8 @@ WHERE EXISTS (
     AND NOT a.attisdropped AND a.atttypid=to_regtype('public.vector')
 );
 SELECT pg_get_functiondef(p.oid) || ';' FROM pg_proc p
-WHERE p.oid=to_regprocedure('public.apply_row_timestamps_v1()') AND EXISTS (
+WHERE p.oid IN (to_regprocedure('public.apply_row_timestamps_v1()'),
+                to_regprocedure('public.app_label_reuse_existing_v1()')) AND EXISTS (
   SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
   JOIN pg_namespace n ON n.oid=c.relnamespace
   WHERE t.tgfoid=p.oid AND n.nspname='public' AND c.relname IN (${table_list})

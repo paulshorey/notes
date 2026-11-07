@@ -40,6 +40,12 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
         // Recreate the pre-label_key state these historical migrations ran against.
         await client.query(`DROP INDEX public.workspace_category_v1_workspace_id_label_key_idx`)
         await client.query(
+          `DROP TRIGGER workspace_category_v1_reuse_label_v1 ON public.workspace_category_v1`,
+        )
+        await client.query(
+          `DROP TRIGGER workspace_tag_v1_reuse_label_v1 ON public.workspace_tag_v1`,
+        )
+        await client.query(
           `ALTER TABLE public.workspace_tag_v1 DROP CONSTRAINT workspace_tag_v1_label_trimmed_check`,
         )
         const originalMigration = await readFile(

@@ -89,4 +89,32 @@ ALTER TABLE public.workspace_category_v1
     CHECK (public.app_label_key_v1(btrim(label, public.app_label_whitespace_v1())) <> 'uncategorized');
 
 -- The exact-label unique constraints stay while servers that still use
--- ON CONFLICT (…, label) drain; label_key uniqueness implies them.
+-- ON CONFLICT (…, label) drain; label_key uniqueness implies them. Such a server
+-- lowercases labels, so its insert of "nyc" must find an existing "NYC": this
+-- trigger reuses the stored spelling for a label whose key already exists in the
+-- same scope. BEFORE INSERT row triggers run before ON CONFLICT arbitration, so
+-- the exact-label conflict target then matches the existing row.
+CREATE FUNCTION public.app_label_reuse_existing_v1() RETURNS trigger
+  LANGUAGE plpgsql AS $$
+DECLARE
+  existing text;
+BEGIN
+  EXECUTE format(
+    'SELECT label FROM %I.%I WHERE %I = $1 AND label_key = public.app_label_key_v1($2) LIMIT 1',
+    TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_ARGV[0])
+    INTO existing
+    USING (to_jsonb(NEW) ->> TG_ARGV[0])::integer, NEW.label;
+  IF existing IS NOT NULL THEN
+    NEW.label := existing;
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER user_workspace_v1_reuse_label_v1 BEFORE INSERT ON public.user_workspace_v1
+  FOR EACH ROW EXECUTE FUNCTION public.app_label_reuse_existing_v1('user_id');
+CREATE TRIGGER workspace_category_v1_reuse_label_v1 BEFORE INSERT ON public.workspace_category_v1
+  FOR EACH ROW EXECUTE FUNCTION public.app_label_reuse_existing_v1('workspace_id');
+CREATE TRIGGER workspace_status_v1_reuse_label_v1 BEFORE INSERT ON public.workspace_status_v1
+  FOR EACH ROW EXECUTE FUNCTION public.app_label_reuse_existing_v1('workspace_id');
+CREATE TRIGGER workspace_tag_v1_reuse_label_v1 BEFORE INSERT ON public.workspace_tag_v1
+  FOR EACH ROW EXECUTE FUNCTION public.app_label_reuse_existing_v1('workspace_id');
