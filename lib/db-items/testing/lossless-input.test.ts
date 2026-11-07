@@ -248,6 +248,25 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
         [first.tag.id],
       )
       assert.equal(rows[0]!.value, 0.25)
+      // A restored label without a vector is filled only from its own spelling.
+      const restoredId = (
+        await getDb().query<{ id: number }>(
+          "INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'trip') RETURNING id",
+          [workspace.id],
+        )
+      ).rows[0]!.id
+      await createTagForItemsApp({ userId, workspaceId: workspace.id, label: "ＴＲＩＰ" })
+      const missing = await getDb().query<{ filled: boolean }>(
+        "SELECT tag_embedding IS NOT NULL AS filled FROM public.workspace_tag_v1 WHERE id=$1",
+        [restoredId],
+      )
+      assert.equal(missing.rows[0]!.filled, false)
+      await createTagForItemsApp({ userId, workspaceId: workspace.id, label: "Trip" })
+      const filled = await getDb().query<{ filled: boolean }>(
+        "SELECT tag_embedding IS NOT NULL AS filled FROM public.workspace_tag_v1 WHERE id=$1",
+        [restoredId],
+      )
+      assert.equal(filled.rows[0]!.filled, true)
     } finally {
       globalThis.fetch = savedFetch
       if (savedKey === undefined) delete process.env.JINA_API_KEY

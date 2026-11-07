@@ -453,11 +453,12 @@ const createLabelEntity = async (
     const { id, inserted } = resolved
     const table = kind === "category" ? "workspace_category_v1" : "workspace_tag_v1"
     const column = kind === "category" ? "category_embedding" : "tag_embedding"
-    // The vector was computed from the submitted spelling. An existing label
-    // keeps its own vector unless it has none yet.
+    // The vector was computed from the spelling this request stores. An existing
+    // label keeps its own vector; a missing one is filled only when the stored
+    // spelling is the one that was embedded, otherwise maintenance fills it.
     await client.query(
       `UPDATE public.${table} SET ${column}=$1::vector,embedding_model=$2,embedding_updated_at=$3
-       WHERE id=$4 AND workspace_id=$5 AND ($6::boolean OR ${column} IS NULL)`,
+       WHERE id=$4 AND workspace_id=$5 AND ($6::boolean OR (${column} IS NULL AND label=$7))`,
       [
         e.vectorLiteral,
         e.embeddingModel,
@@ -465,6 +466,7 @@ const createLabelEntity = async (
         id,
         workspaceId,
         inserted,
+        rolloutLabelSpelling(value),
       ],
     )
     await client.query("COMMIT")
