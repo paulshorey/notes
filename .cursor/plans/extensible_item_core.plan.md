@@ -205,10 +205,15 @@ Code:
 - Tombstones: `sync_tombstone_v1` rows (`user_id`, `kind`, `entity_id`, `workspace_id`,
   `change_xid`, `deleted_at`) are written by `AFTER DELETE` triggers on items, workspaces, and
   vocabulary tables, so every existing hard-delete path (item and vocabulary deletion
-  today, the F4 purge later) produces a deletion record from F3 onward. The trigger
-  writes one row per user who could read the workspace at deletion time (its creator
-  before F5, its members after), captured before the cascade removes that state; sync
-  returns only the requester's rows. Link removals are item changes (they bump the
+  today, the F4 purge later) produces a deletion record from F3 onward. Each deletion
+  writes one tombstone row per user who could read the workspace at that moment (its
+  creator before F5, its members after); sync returns only the requester's rows. Single
+  item and vocabulary deletes read that audience in their trigger while the workspace
+  still exists. Whole-workspace deletes (the route before F4, the purge after) run
+  through one SQL function that writes tombstones for the workspace and every row it
+  contains before deleting anything, so the cascade never has to look up authorization
+  state that it is removing; the row triggers skip entities already tombstoned in that
+  transaction. Link removals are item changes (they bump the
   item's revision).
 - Tombstones are retained for 180 days by `deleted_at` (indexed). The retention job
   records the highest `change_xid` it removed as the sync horizon; a cursor below the
