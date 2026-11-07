@@ -12,7 +12,7 @@ todos:
     content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark."
     status: pending
   - id: soft_delete
-    content: "F4. In three releases: F4a adds deleted_at plus deletion_id and read/write filters; F4b adds soft-delete routes, an authorized Trash with restore, and a scheduled 30-day purge; F4c adds a trigger that turns any non-purge DELETE into the same soft delete."
+    content: "F4. In three releases: F4a adds deleted_at plus deletion_id, read/write filters, and backup v6; F4b makes every delete a soft delete without exposing Trash; F4c exposes Trash, restore, and the scheduled 30-day purge, and adds a trigger that turns any non-purge DELETE into the same soft delete."
     status: pending
   - id: membership
     content: "F5. workspace_member keyed by (workspace_id, user_id) with exactly one owner matching user_workspace_v1.user_id; authorization becomes one membership predicate; the owner FK becomes RESTRICT in a second release after account deletion disposes of owned workspaces."
@@ -231,12 +231,15 @@ Code:
   state it carries, with the new fields empty until then, so a backup served by the
   previous release during a rollout never omits that state: v3 in F1a (casing starts in
   F1b), v4 in F2-pre (UUIDs start in F2a), v5 in F2b (revisions start in F3), v6 in F4a
-  (Trash starts in F4b), and v7 in F8 (time facets start in F6a). Every version keeps an importer, and from F2 on every importer uses the
+  (soft deletion starts in F4b), and v7 in F8 (time facets start in F6a). Every version keeps an importer, and from F2 on every importer uses the
   UUID-first insert and remap path (no integer sequence or default is called), so
   removing integer allocation in F9 changes nothing for restores. Backup v4 carries
   UUIDs. Restore never overwrites an existing row:
   - UUID not present anywhere → inserted with that UUID;
-  - UUID present in the restoring account with identical content → skipped;
+  - UUID present in the restoring account with identical content, in the workspace the
+    backup's workspace maps to → skipped; if it has since moved to another workspace,
+    it is cloned instead, so the backup's internal links and attachments stay inside
+    the restored workspace;
   - UUID present in the restoring account with different content (an older backup of an
     item edited since) → the backed-up version is added alongside as a clone with a new
     UUID, as restores do today;
@@ -309,10 +312,10 @@ Code:
   advisory lock on `(kind, uid)` before checking or writing, so a create racing the
   delete of the same ID either commits first (and is then deleted and retired) or sees
   the retirement and is refused.
-- Every ordinary item mutation (create, update, links, facets, and the pre-F3
-  `POST`/`PATCH` routes) requires both the item and its workspace to be live
-  (`deleted_at IS NULL`); a write to a trashed item or into a trashed workspace returns
-  `409`. Deleted rows are reachable only through the Trash read and restore.
+  - every PUT, including one that changes only links or facets, first locks the item
+    row (`SELECT … FOR UPDATE`) and checks `baseRevision` while holding that lock
+    through all of its authored writes, so two concurrent writers from the same
+    revision cannot both pass;
   - matching `baseRevision` → applied, `200` with the new revision;
   - content identical to the current server copy → `200`, no change (makes every retry
     of an already-applied write a no-op);
@@ -329,6 +332,13 @@ Code:
     kept for 7 days, in the same transaction that decides the response. A retry whose response was
     lost replays its own recorded result (including `overwrote` and its history link)
     even after later mutations changed the item.
+- Every ordinary item mutation (create, update, links, facets, and the pre-F3
+  `POST`/`PATCH` routes) requires both the item and its workspace to be live
+  (`deleted_at IS NULL`); a write to a trashed item or into a trashed workspace returns
+  `409`. Deleted rows are reachable only through the Trash read and restore. Each
+  mutation takes `FOR SHARE` on its workspace row, and a workspace delete takes
+  `FOR UPDATE` on it for the whole batch, so a create cannot slip in beside a
+  workspace being trashed.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
   conflicting overwrite, delete, or merge). A snapshot holds the item's restorable
   authored content: its authored base columns plus every `authored` + `follows-item`
@@ -378,19 +388,18 @@ Code:
   `DELETE`, so items never cascade away outside the purge.
 - F4 ships in three releases. **F4a** adds the columns and the `deleted_at` filters on
   every read and write, while nothing is soft-deleted yet, and backup v6 export and
-  import (`deletedAt` and `deletionId`, still null everywhere), so every server that
-  can see Trash can also back it up. **F4b** (next release, when
-  every server filters) adds the soft-delete routes, Trash, and restore; a
-  previous-release server never sees a trashed row as live, and its direct deletes
-  during the rollout still hard-delete, as before F4, with F3 tombstones. **F4c** (next
-  release, when every server is soft-delete-aware) adds a safety net: a `BEFORE DELETE` trigger on
+  import (`deletedAt` and `deletionId`, still null everywhere). **F4b** (next release,
+  when every server filters) makes every delete path a soft delete — item and workspace
+  routes, with the workspace batch — but does not expose Trash yet; previous-release
+  servers never see a trashed row as live, and their direct deletes during this rollout
+  still hard-delete, as before F4, with F3 tombstones, which nothing yet promises
+  otherwise. **F4c** (next release, when every server soft-deletes) exposes Trash,
+  restore, and the scheduled purge, and adds a safety net: a `BEFORE DELETE` trigger on
   items and workspaces turns any `DELETE` into the same soft delete the routes perform
   (for a workspace, the full batch: the workspace and its live items under one
   `deletion_id`), then cancels the row delete, unless the transaction sets
   `app.hard_delete = 'on'`, which only the purge, account deletion, and merge
-  retirement do (below). F4b already sets that flag in the purge, account deletion, and
-  the anonymous-cleanup command, so their previous-release copies keep hard-deleting
-  during F4c's rollout. F4c also
+  retirement do (below). F4b already sets that flag in account deletion and the anonymous-cleanup command, so their previous-release copies keep hard-deleting during F4c's rollout; the purge sets it from its first release. F4c also
   gates the F3 workspace tombstone trigger on `app.hard_delete = 'on'`, so a converted
   delete never emits hard-delete tombstones; the item tombstone triggers are
   `AFTER DELETE` and do not fire for a canceled delete.
