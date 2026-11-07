@@ -168,9 +168,13 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    to the `uid` columns, keeping them `DEFERRABLE` as in F2-pre. This changes constraints only; no column is renamed or dropped,
    so release N keeps working during the overlap. Integer `id` stays unique with its
    sequence default until F9.
-3. `id_alias_v1(kind, alias_id uuid, alias_legacy_id integer, target_id uuid)` with
-   primary key `(kind, alias_id)`, since the same UUID may identify rows of different
-   kinds,
+3. `id_alias_v1` has columns `kind`, `alias_id uuid`, `alias_legacy_id integer`,
+   `target_id uuid`, and `target_legacy_id integer`. F2-pre creates it with only the
+   integer columns filled (UUID columns nullable), so retired integer IDs resolve to
+   their survivors before any UUID exists; F2a backfills the UUID columns from the
+   integer IDs and makes them required. Its key is `(kind, alias_id)` once filled, since
+   the same UUID may identify rows of different kinds; `(kind, alias_legacy_id)` is
+   unique throughout. It
    records retired IDs (`kind` in `item`, `workspace`, `category`, `status`, `tag`),
    including the retired row's integer `id` (unique per `kind`), so old numeric URLs,
    contract-1 requests, and the storage upgrader still resolve it. Aliases are always one
@@ -190,9 +194,11 @@ Code:
   and redirect to the canonical UUID form.
 - Browser storage v4 upgrader maps integer IDs in cached items and dirty drafts to UUIDs
   through a lookup endpoint; dirty drafts are never discarded on failure.
-- Server-side preferences: F2a's migration rewrites `preferences.notesApp.currentWorkspaceId`
-  from the integer to the workspace UUID, and bootstrap also resolves an integer value
-  through the integer `id` (a previous-release server may write one during the rollout).
+- Server-side preferences: F2a's bootstrap accepts `currentWorkspaceId` as either the
+  integer or the UUID and keeps writing what it read, so previous-release servers still
+  find the user's workspace during the rollout. F2b's migration, once they have drained,
+  rewrites stored integers to UUIDs; bootstrap keeps resolving an integer through the
+  integer `id`.
 - Anonymous merge **moves** rows instead of copying under new IDs:
   - no same-named destination workspace → the workspace itself moves (F5: membership and,
     `user_workspace_v1.user_id`), keeping its UUID;
@@ -250,6 +256,7 @@ Code:
   transaction, so they come from the same snapshot and a commit between two reads cannot
   be skipped.
 - Tombstones: `sync_tombstone_v1` rows (`user_id`, `kind`, `entity_id`, `workspace_id`,
+  `reason` (`deleted` or `revoked`), `revocation_id`,
   `change_xid`, `deleted_at`) are written by `AFTER DELETE` triggers on items, workspaces, and
   vocabulary tables, so every existing hard-delete path (item and vocabulary deletion
   today, the F4 purge later) produces a deletion record from F3 onward. Each deletion
@@ -310,9 +317,13 @@ Code:
 - The client save engine drops the create/update split and the POST no-retry hazard:
   every save is a retryable PUT.
 - The existing `POST`/`PATCH` item routes stay through the loaded-browser overlap for
-  tabs opened before F3. A write on them carries no `baseRevision`, so the server first
-  snapshots the version being replaced into `item_revision` and then applies it (last
-  write wins, nothing lost). They are retired in F9.
+  tabs opened before F3. A write on them carries no `baseRevision`, so the version being
+  replaced is snapshotted into `item_revision` before it is applied (last write wins,
+  nothing lost). They are retired in F9.
+- Snapshot capture is a database trigger, so it also covers a previous-release server's
+  writes during F3's rollout: a `BEFORE UPDATE` trigger on items (and the facet
+  triggers) snapshots the old version unless the transaction marks
+  `app.snapshot_handled`, which F3's own code sets after coalescing its snapshot.
 
 ### F4. Soft delete and trash
 
@@ -403,10 +414,11 @@ Code:
   When the destination has a same-named workspace, items move as in F2.
 - Membership changes reach sync: granting access writes a per-user event that makes
   the member's next sync fetch that workspace in full, and revoking access writes a
-  workspace tombstone for that user so their devices drop its content. A grant deletes
-  that user's earlier revocation tombstones for the workspace and its contents in the
-  same transaction, so a revoke followed by a re-grant never reaches a client as a
-  deletion.
+  workspace tombstone for that user so their devices drop its content. A revocation's
+  tombstones carry `reason = 'revoked'` and one `revocation_id`. A grant deletes only that
+  user's `revoked` tombstones for the workspace in the same transaction, so a revoke
+  followed by a re-grant never reaches a client as a deletion, while genuine `deleted`
+  tombstones the user has not yet synced are kept.
 - No sharing UI is built in this phase; roles other than `owner` stay unused until
   sharing is designed (D5).
 
