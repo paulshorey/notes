@@ -12,10 +12,10 @@ todos:
     content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark."
     status: pending
   - id: soft_delete
-    content: "F4. deleted_at plus deletion_id on items and workspaces, an authorized Trash read with restore, workspace deletion through trash that restores only its own batch, and a scheduled 30-day purge."
+    content: "F4. deleted_at plus deletion_id on items and workspaces, a delete trigger that turns any non-purge DELETE into a soft delete, an authorized Trash read with restore, workspace deletion through trash that restores only its own batch, and a scheduled 30-day purge."
     status: pending
   - id: membership
-    content: "F5. workspace_member(workspace_id, user_id, role) keyed by (workspace_id, user_id) with an insert trigger for rollout-era workspaces; authorization becomes one membership predicate; user_workspace_v1.user_id stays as the owner that scopes label uniqueness and merge targets."
+    content: "F5. workspace_member keyed by (workspace_id, user_id) with exactly one owner matching user_workspace_v1.user_id; authorization becomes one membership predicate; the owner FK becomes RESTRICT in a second release after account deletion disposes of owned workspaces."
     status: pending
   - id: time_facet
     content: "F6. item_time (many per item: role, exactly one of instant or local date, IANA zone, RRULE) replaces time_due/time_remind in two releases with bidirectional sync during the overlap, a new backup version, and defined scalar projections."
@@ -223,8 +223,8 @@ Code:
   an item or of anything it owns (category/tag links, `status_id`, and every later facet
   such as `item_time_v1`, `item_file_v1`) bumps the owning item's `revision` in the same
   transaction, through per-table triggers. Derived-only updates (embeddings, thumbnails)
-  do not. F7's guard requires the trigger on every table classified `authored` +
-  `follows-item`.
+  do not, and neither do `history` tables (below). F7's guard requires the trigger on
+  every table classified `authored` + `follows-item`.
 - Sync cursor: each changed row of `workspace_item_v1`, `user_workspace_v1`, and the
   vocabulary tables records `change_xid xid8 DEFAULT pg_current_xact_id()` (updated by
   trigger). A sync response returns rows with `change_xid >= cursor` and a new cursor of
@@ -283,9 +283,13 @@ Code:
   conflicting overwrite, delete, or merge). A snapshot holds the whole authored item:
   base columns plus every `authored` + `follows-item` facet, as one JSON document whose
   shape is generated from the F7 registry, so restoring a history entry restores times,
-  links, and later facets too. Backup v5 ships with F3 and carries each
-  item's revisions; restore brings them back with an inserted or cloned item, and a
-  skipped identical item keeps the destination's history.
+  links, and later facets too. `item_revision` is classified `history`: portable and
+  moved with its item, but excluded from revision triggers and from snapshot contents,
+  so writing a snapshot never bumps the item and snapshots never nest. Backup v5 ships
+  with F3 and carries each item's revisions; restore brings them back with an inserted
+  or cloned item, and for a skipped identical item it appends the backed-up snapshots
+  the destination does not already have (matched by content hash), so no history is
+  lost.
 - The client save engine drops the create/update split and the POST no-retry hazard:
   every save is a retryable PUT.
 - The existing `POST`/`PATCH` item routes stay through the loaded-browser overlap for
@@ -308,6 +312,11 @@ Code:
   `deletion_id`; restoring the workspace restores only rows with that `deletion_id`, so
   items that were already in Trash stay there. `DELETE /api/workspaces` no longer issues a SQL
   `DELETE`, so items never cascade away outside the purge.
+- A `BEFORE DELETE` trigger on items and workspaces turns any `DELETE` into a soft
+  delete (sets `deleted_at` and a `deletion_id`, then cancels the row delete) unless the
+  transaction sets `app.hard_delete = 'on'`, which only the purge and account deletion
+  do. This covers a previous-release server's direct deletes during the F4 rollout, so
+  nothing bypasses Trash.
 - Hard deletes happen only in purge paths: items and workspaces whose `deleted_at` is
   older than 30 days (D3), writing tombstones first, and the existing abandoned
   anonymous-account cleanup.
@@ -340,7 +349,9 @@ Code:
   covered; it stays until F9.
 - `user_workspace_v1.user_id` remains as the workspace **owner**, with the existing
   unique `(user_id, label_key)`. Its FK changes from `ON DELETE CASCADE` to
-  `ON DELETE RESTRICT`. Deleting an account (including the abandoned-anonymous cleanup)
+  `ON DELETE RESTRICT` in two releases: **F5a** ships the account-deletion and
+  anonymous-cleanup code below while the FK still cascades; **F5b** (next release, after
+  F5a replaced every server and cleanup job) switches the FK. Deleting an account (including the abandoned-anonymous cleanup)
   first disposes of every workspace it owns, then deletes the user:
   - a workspace with other members is transferred to one of them (an editor if any);
     if the new owner already owns a workspace with the same `label_key`, the transferred
@@ -431,6 +442,9 @@ example a child of `file_v1` keyed only by `file_id`) declares:
   user's owner membership; sharing grants are not portable;
 - move/merge strategy: `follows-item`, `follows-workspace`, `remap-by-key`, or `drop`.
 
+A fourth backup class, `history`, covers `item_revision`: portable and `follows-item`,
+but excluded from revision triggers and from snapshot generation.
+
 An `authored` classification also names the backup format version that introduced the
 table and its export and import handlers. A registry-driven round-trip test fills every
 `authored` table, exports, restores into an empty account, and fails if any table's rows
@@ -448,8 +462,11 @@ excluded from backups and merges and exempt from the walk.
 
 `drop` is allowed only for `derived` and `account` tables; an `authored` table must use
 a lossless strategy. `account` tables that describe a workspace rather than a
-credential (`workspace_member`) use `follows-workspace`, so memberships move with a
-merged workspace; credentials use `drop`. F3 extends the guard to require its revision trigger on
+credential (`workspace_member`) use `follows-workspace`: memberships move when the
+workspace itself moves, and a retiring workspace's memberships are dropped when its
+items merge into another workspace (only owner-only workspaces merge, so this drops just
+the source owner's row, whose user already owns the destination); credentials use
+`drop`. F3 extends the guard to require its revision trigger on
 every `authored` + `follows-item` table; F7 does not check that rule, so it ships
 independently.
 A new content-type table therefore cannot ship without a deliberate backup and merge
@@ -548,7 +565,7 @@ columns from F2.
 ## 10. Delivery order
 
 F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2a → F2b (next
-release) → F3 → F4 → F5 → F8 → F6a → F6b (next release) → F9.
+release) → F3 → F4 → F5a → F5b (next release) → F8 → F6a → F6b (next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
 added to `ItemsApp.tsx` and extracted again.
