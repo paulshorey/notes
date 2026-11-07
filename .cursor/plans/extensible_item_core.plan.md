@@ -18,7 +18,7 @@ todos:
     content: "F5. workspace_member keyed by (workspace_id, user_id) with exactly one owner matching user_workspace_v1.user_id; authorization becomes one membership predicate; the owner FK becomes RESTRICT in a second release after account deletion disposes of owned workspaces."
     status: pending
   - id: time_facet
-    content: "F6. item_time (many per item: role, exactly one of instant or local date, IANA zone, RRULE) replaces time_due/time_remind in three releases: F6a adds the table, bidirectional sync, and server support for times[]; F6b lets clients author times[]; F6c drops the old columns. Backup v7 ships before F6a."
+    content: "F6. item_time (many per item: role, exactly one of instant or local date, IANA zone, RRULE) replaces time_due/time_remind in four releases: F6a adds the table, bidirectional sync, and server support for times[]; F6b lets clients author times[]; F6c stops using the old columns; F6d drops them. Backup v7 ships before F6a."
     status: pending
   - id: registry_guard
     content: "F7. Generalize the merge registry guard: db:verify fails unless every table reaching an item or workspace is classified for backup (authored or derived) and for move/merge."
@@ -219,8 +219,10 @@ Code:
   - content-identical items are still deduplicated, but the skipped source item's UUID
     becomes an alias of the surviving destination item. The identity covers every
     authored facet of the item (it is computed from the F7 registry of `authored` +
-    `follows-item` tables), so items that differ in times, files, or other facets are
-    both kept; the skipped item's revision history is appended to the survivor's before
+    `follows-item` tables, including the facet IDs), so items that differ in times, files,
+    or other facets are both kept; items whose facets carry different IDs for equal
+    content are deduplicated only after each source facet ID is aliased to its surviving
+    counterpart in `id_alias_v1`, so a queued edit carrying a source facet ID follows it; the skipped item's revision history is appended to the survivor's before
     the source is retired. The merge takes `FOR UPDATE` on the source workspace row,
     then locks the source items and every candidate destination item
     (`SELECT … FOR UPDATE`) before computing identities, and holds all of these locks
@@ -240,8 +242,10 @@ Code:
   UUIDs. Restore never overwrites an existing row:
   - UUID not present anywhere → inserted with that UUID;
   - UUID present in the restoring account with identical content, in the workspace the
-    backup's workspace maps to → skipped; if it has since moved to another workspace,
-    it is cloned instead, so the backup's internal links and attachments stay inside
+    backup's workspace maps to, and with the same lifecycle state (`deletedAt` and
+    `deletionId`, v6 and later) → skipped; if it has since moved to another workspace
+    or its lifecycle state differs (live versus in Trash, or a different deletion
+    batch), it is cloned instead, keeping the backed-up state, so the backup's internal links and attachments stay inside
     the restored workspace;
   - UUID present in the restoring account with different content (an older backup of an
     item edited since) → the backed-up version is added alongside as a clone with a new
@@ -536,8 +540,10 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   revision. F6a servers also accept and return `times[]`, but the client keeps writing
   the scalar fields. **F6b** (next release, when every server is time-aware) lets the
   client author `times[]`, so no time edit reaches a server that cannot store it.
-  **F6c** (next release, after F6b has replaced every server) drops the triggers and the
-  columns.
+  **F6c** (next release, after F6b has replaced every server) ships code that no longer
+  reads or writes the scalar columns or relies on the sync triggers, leaving them in
+  place. **F6d** (next release, after F6c has replaced every server) drops the triggers
+  and the columns.
 - Backup v7 carries `times[]` per item and ships in F8, before F6a writes any time row; restore round-trips dates, zones,
   recurrence rules, and every role.
 - API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
@@ -711,7 +717,7 @@ columns from F2.
 ## 10. Delivery order
 
 F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2-pre → F2a → F2b (next
-release) → F3 → F4a → F4b → F4c (each the next release) → F5a → F5b (next release) → F8 → F6a → F6b → F6c (each the next release) → F9.
+release) → F3 → F4a → F4b → F4c (each the next release) → F5a → F5b (next release) → F8 → F6a → F6b → F6c → F6d (each the next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
 added to `ItemsApp.tsx` and extracted again.
