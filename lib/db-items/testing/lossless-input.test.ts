@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
 import { getCategoryNameError } from "../contracts/category-name"
-import { labelKey, sameLabel } from "../contracts/label"
+import { labelKey, rolloutLabelSpelling, sameLabel } from "../contracts/label"
 import { lowercaseBackupLabels, parseUserBackup } from "../contracts/user-backup"
 import { getDb } from "../lib/db/postgres"
 import { createTagForItemsApp, mergeAnonymousItemsAppSession } from "../services/items-app"
@@ -30,6 +30,20 @@ test("backups keep label casing and reject labels that collide by key", () => {
   assert.equal(parsed.workspaces[0]!.tags[0]!.label, "iOS")
   workspace.tags = [workspace.tags[0]!, { ...workspace.tags[0]!, label: "IOS" }]
   assert.throws(() => parseUserBackup(backup), /duplicate labels/)
+})
+
+test("backup versions are compared without coercion", () => {
+  const backup = backupFixture()
+  for (const version of ["3", true, "2", 3.0000001])
+    assert.throws(() => parseUserBackup({ ...backup, version }), /Unsupported backup/)
+})
+
+test("the rollout spelling keeps each label's key", () => {
+  for (const value of ["NYC", "Ϲ", "¨", "ＮＹＣ", "İstanbul"]) {
+    assert.equal(labelKey(rolloutLabelSpelling(value)), labelKey(value))
+  }
+  assert.equal(rolloutLabelSpelling(" NYC "), "nyc")
+  assert.equal(rolloutLabelSpelling("Ϲ"), "σ")
 })
 
 test("legacy backups drop every reserved category form before checking duplicates", () => {
@@ -169,6 +183,22 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
     }
   })
 
+  test("the rollout trigger stores the spelling the client predicts", async () => {
+    const userId = await createUser(true)
+    try {
+      const workspace = await createWorkspaceForUser(userId, "Personal")
+      for (const value of ["NYC", "Ϲ", "¨", "ＮＹＣ x", "İstanbul"]) {
+        const { rows } = await getDb().query<{ label: string }>(
+          "INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,$2) RETURNING label",
+          [workspace.id, value],
+        )
+        assert.equal(rows[0]!.label, rolloutLabelSpelling(value), value)
+      }
+    } finally {
+      await getDb().query("DELETE FROM public.user_v1 WHERE id=$1", [userId])
+    }
+  })
+
   test("SQL and client label keys agree regardless of database locale", async () => {
     const samples = ["NYC", "ÉCOLE", "İstanbul", "STRAẞE", "ΣΑΣ", "Ｑ３ Plan", "Ǆ", "ﬁle"]
     const { rows } = await getDb().query<{ key: string }>(
@@ -265,8 +295,10 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
       )
 
       const backup = await exportUserBackup(realUserId)
+      // Exports stay version 2 during the rollout, with each label's legacy spelling.
+      assert.equal(backup.version, 2)
       assert.equal(backup.workspaces[0]!.label, "personal")
-      assert.deepEqual(backup.workspaces[0]!.items[0]!.categories, ["ｎｙｃ"])
+      assert.deepEqual(backup.workspaces[0]!.items[0]!.categories, ["nyc"])
       const restored = await restoreUserBackup(realUserId, backup)
       assert.equal(restored.itemsImported, 0)
       assert.equal(restored.itemsSkipped, 1)

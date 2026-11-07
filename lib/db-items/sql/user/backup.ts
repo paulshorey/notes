@@ -12,7 +12,8 @@ import type {
 import {
   parseUserBackup,
   USER_BACKUP_FORMAT,
-  USER_BACKUP_VERSION,
+  USER_BACKUP_EXPORT_VERSION,
+  lowercaseBackupLabels,
 } from "../../contracts/user-backup"
 import { getDb } from "../../lib/db/postgres"
 import { mergeAnonymousUserIntoWithClient } from "./anonymous"
@@ -114,14 +115,15 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
     const preferences = structuredClone(user.preferences)
     if (preferences.notesApp) delete preferences.notesApp.currentWorkspaceId
     await client.query("COMMIT")
-    return {
+    // Version 2 labels are lowercase; the rollout already stores them that way.
+    return lowercaseBackupLabels({
       format: USER_BACKUP_FORMAT,
-      version: USER_BACKUP_VERSION,
+      version: USER_BACKUP_EXPORT_VERSION,
       exportedAt: new Date().toISOString(),
       preferences,
       activeWorkspaceLabel,
       workspaces,
-    }
+    })
   } catch (error) {
     await client.query("ROLLBACK")
     throw error

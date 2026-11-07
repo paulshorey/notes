@@ -12,6 +12,11 @@ import { labelKey } from "./label"
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
 /** Version 3 stores labels as typed. Versions 1 and 2 store lowercased labels. */
 export const USER_BACKUP_VERSION = 3
+/**
+ * Exports stay version 2 while labels are stored lowercased for the rollout, so a
+ * previous-release server can restore any file a current one produces.
+ */
+export const USER_BACKUP_EXPORT_VERSION = 2
 export const USER_BACKUP_MAX_BYTES = 50 * 1024 * 1024
 const MAX_RECORDS = 100_000
 
@@ -89,7 +94,10 @@ const preferences = (value: unknown, depth = 0): unknown => {
 /** Validate the entire file before opening a write transaction. Never trust ids from a file. */
 export const parseUserBackup = (value: unknown): UserBackup => {
   const b = object(value)
-  if (b.format !== USER_BACKUP_FORMAT || ![1, 2, USER_BACKUP_VERSION].includes(Number(b.version))) {
+  if (
+    b.format !== USER_BACKUP_FORMAT ||
+    (b.version !== 1 && b.version !== 2 && b.version !== USER_BACKUP_VERSION)
+  ) {
     fail("Unsupported backup format or version. Choose a jot.new backup file.")
   }
   const cased = b.version === USER_BACKUP_VERSION

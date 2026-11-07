@@ -55,7 +55,7 @@ export {
   parsePreviewItemGroupRequest,
 } from "./item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
-import { trimLabel } from "../contracts/label"
+import { rolloutLabelSpelling, trimLabel } from "../contracts/label"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
@@ -444,7 +444,7 @@ const createLabelEntity = async (
   // Embedding generation is an external request and may take tens of seconds.
   // Finish it before checking out a client so the small DB pool remains
   // available to ordinary item reads and writes while that request is pending.
-  const e = await createTagLabelEmbedding(value)
+  const e = await createTagLabelEmbedding(rolloutLabelSpelling(value))
   const client = await getDb().connect()
   try {
     await client.query("BEGIN")
@@ -502,7 +502,7 @@ export const updateCategoryForItemsApp = async (
 ): Promise<UpdateCategoryResponse | null> => {
   assertCategoryNameAllowed(r.label)
   if (!r.label) throw new Error("label is required.")
-  const e = await createTagLabelEmbedding(r.label)
+  const e = await createTagLabelEmbedding(rolloutLabelSpelling(r.label))
   const category = await updateCategoryLabelForWorkspace(
     r.userId,
     r.workspaceId,
@@ -517,7 +517,7 @@ export const updateTagForItemsApp = async (
   r: UpdateTagRequest,
 ): Promise<UpdateTagResponse | null> => {
   if (!r.label) throw new Error("label is required.")
-  const e = await createTagLabelEmbedding(r.label)
+  const e = await createTagLabelEmbedding(rolloutLabelSpelling(r.label))
   const tag = await updateTagLabelForWorkspace(
     r.userId,
     r.workspaceId,

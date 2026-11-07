@@ -93,10 +93,20 @@ ALTER TABLE public.workspace_category_v1
 -- every write stores labels lowercased, and the exact-label unique constraints
 -- stay as their conflict targets (label_key uniqueness implies them). A later
 -- migration drops the lowercasing triggers, after which labels keep their casing.
+-- Lowercasing must not change the label's key (lowercase and NFKC do not always
+-- commute, for example U+03F9), so the key itself is stored when it is a valid
+-- label. `contracts/label.ts` mirrors this as rolloutLabelSpelling.
 CREATE FUNCTION public.app_label_lowercase_v1() RETURNS trigger
   LANGUAGE plpgsql AS $$
+DECLARE
+  key text := public.app_label_key_v1(NEW.label);
+  lowered text := lower(NEW.label COLLATE "und-x-icu");
 BEGIN
-  NEW.label := lower(NEW.label COLLATE "und-x-icu");
+  IF public.app_label_key_v1(lowered) = key THEN
+    NEW.label := lowered;
+  ELSIF key <> '' AND key = btrim(key, public.app_label_whitespace_v1()) THEN
+    NEW.label := key;
+  END IF;
   RETURN NEW;
 END $$;
 

@@ -76,10 +76,12 @@ Compatibility never makes a client-supplied user ID authoritative.
 - The single existing `user_note_v1_id_seq` keeps its name temporarily because
   old account-merge SQL calls it literally. New code discovers the owning
   sequence with `pg_get_serial_sequence`; no competing allocator is created.
-- Backup version 3 uses `workspaces[].items` and stores labels as typed. Import still
-  accepts version 2 (lowercased labels) and version 1's `workspaces[].notes`, with the
-  existing reserved-category conversion. Older web clients download version 1, with
-  lowercased labels, when they omit the item-contract header.
+- Backup import accepts version 3 (`workspaces[].items`, labels as typed), version 2
+  (lowercased labels), and version 1's `workspaces[].notes`, with the existing
+  reserved-category conversion. While labels are stored lowercased for the rollout,
+  exports are version 2 with each label's lowercase spelling, so previous-release
+  servers can restore them; older web clients that omit the item-contract header
+  download version 1.
 - Browser cache and open-item storage use version 3. Readers upgrade existing
   note-named snapshots, including serialized IDs and clean/dirty signatures.
   Authored text and navigation keys are preserved. Legacy dirty snapshots are

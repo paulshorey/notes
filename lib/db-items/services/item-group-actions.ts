@@ -4,7 +4,7 @@ import type {
   PreviewItemGroupRequest,
 } from "../contracts/item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
-import { sameLabel, trimLabel } from "../contracts/label"
+import { rolloutLabelSpelling, sameLabel, trimLabel } from "../contracts/label"
 import { executeItemGroupAction, previewItemGroup } from "../sql/item-groups"
 import { ItemGroupConflictError } from "../sql/item-group-errors"
 import { listCategoriesByWorkspace } from "../sql/category"
@@ -83,7 +83,7 @@ export const executeItemGroupActionForItemsApp = async (input: ExecuteItemGroupA
     // Reusing a category must not depend on the embedding provider. For a new
     // label, do the external work before acquiring the transactional DB client.
     if (request.selection.target.kind === "category" || !existing)
-      embedding = await createTagLabelEmbedding(label)
+      embedding = await createTagLabelEmbedding(rolloutLabelSpelling(label))
   }
   return executeItemGroupAction(
     request.userId,
