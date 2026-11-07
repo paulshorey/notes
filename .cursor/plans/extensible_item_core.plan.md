@@ -249,8 +249,8 @@ Code:
 - Anonymous merge **moves** rows instead of copying under new IDs:
   - no same-named destination workspace → the workspace itself moves (F5: membership and,
     `user_workspace_v1.user_id`), keeping its UUID;
-  - same-named destination workspace, and **both** have no member other than their
-    owner (F5) → items move with one `UPDATE … SET workspace_id`
+  - same-named destination workspace, and **both** are live (not in Trash, F4) and have
+    no member other than their owner (F5) → items move with one `UPDATE … SET workspace_id`
     that also remaps `status_id`, and category/tag links are remapped, all by
     `label_key` (missing destination terms are created first); the source workspace and
     its vocabulary rows become aliases of their destination counterparts;
@@ -347,8 +347,11 @@ Code:
   `410 Gone` and a full resync, since XIDs are meaningful only within one database.
 - Tombstones are returned in `change_xid` order, and clients apply them in that order,
   except that a row returned in the same response supersedes any tombstone for the same
-  entity and workspace (an item moved away and back is current, not removed), and a
-  `moved` tombstone carries the item's revision so a later row always wins.
+  entity and workspace (an item moved away and back is current, not removed). A `moved`
+  tombstone carries the item's revision at the move, and a returned item row supersedes
+  a `moved` tombstone for the same item whenever its revision is at least that revision,
+  whatever workspace either names, so the order of rows and tombstones within one
+  transaction does not matter.
 - `GET /api/sync?since=<cursor>` returns three lists — items, workspaces, and
   vocabulary — plus tombstones, so empty workspaces, unused labels, and deletions sync
   too. Sync is exempt from the live-row filter: from F4 on, a soft-deleted item or
@@ -652,7 +655,9 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   reads or writes the scalar columns or relies on the sync triggers, leaving them in
   place. **F6d** (next release, after F6c has replaced every server) drops the triggers
   and the columns.
-- Backup v7 carries `times[]` per item and ships in F8, with the empty table it restores into, before F6a writes any time row; restore round-trips dates, zones,
+- Backup v7 carries `times[]` per item. Its importer ships in F8 with the empty table it
+  restores into; the exporter keeps emitting v6 until F6a has backfilled the scalar
+  due/remind rows into `times[]`, so no backup ever drops an existing time; restore round-trips dates, zones,
   recurrence rules, and every role.
 - API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
   `remind` row (written with
