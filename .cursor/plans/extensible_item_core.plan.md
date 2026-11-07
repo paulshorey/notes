@@ -132,7 +132,14 @@ as lowercase:
   adds the unique index, a `BEFORE INSERT/UPDATE` trigger takes a transaction-scoped
   advisory lock on `(scope, label_fold_key)` itself and rejects a fold-equal duplicate,
   so concurrent writers from any release cannot create `Straße` and `STRASSE` together.
-  Labels are still stored lowercased.
+  Labels are still stored lowercased, so F1b importers reject a v3 label that is not
+  already its lowercase spelling (a cased file produced during F1c's rollout) with a
+  clear error instead of lowercasing it silently; the restore succeeds once the rollout
+  completes. A previous-release (F1a) server that receives a spelling which is
+  fold-equal to an existing label but has a different old key is rejected by the trigger
+  and fails that one request until the rollout completes; this is deliberate, because
+  rewriting it to the existing spelling would make that server's exact-label merge joins
+  silently drop links.
 - **F1c (next release, after F1b has replaced every server).** The migration drops the
   lowercasing triggers, so labels keep the casing typed (existing labels keep their
   current text), and uniqueness, lookups, merges, restores, and the client switch to
@@ -289,8 +296,11 @@ Code:
   UUIDs. Restore never overwrites an existing row:
   - UUID not present anywhere, and not in `retired_id_v1` or `id_alias_v1` (a retired or
     aliased UUID counts as occupied) → inserted with that UUID;
-  - UUID that is retired or aliased → cloned under a new UUID, with the backup's
-    internal references remapped to it;
+  - UUID that is aliased to a row of the restoring account → treated as that row: the
+    identical-content, workspace, and lifecycle checks below apply to the alias target,
+    so repeating a restore after a merge-created alias stays idempotent;
+  - UUID that is retired, or aliased to a row the account cannot reuse → cloned under a
+    new UUID, with the backup's internal references remapped to it;
   - UUID present in the restoring account with identical content, in the workspace the
     backup's workspace maps to, and with the same lifecycle state (`deletedAt` and
     `deletionId`, v6 and later) → skipped; if it has since moved to another workspace
@@ -409,7 +419,8 @@ Code:
     moved again in between, the overwrite request gets its own `409` and repeats.
   - Every PUT carries a client-generated `mutationId`. The server records the result of
     every acknowledged request, including an identical-content no-op, in `item_mutation_v1(item_uid, mutation_id, response, created_at)`,
-    kept for 7 days, in the same transaction that decides the response. A retry whose response was
+    kept for 35 days, in the same transaction that decides the response. The client drops a
+    queued write after 30 days (the Trash retention), so no retry can outlive its receipt. A retry whose response was
     lost replays its own recorded result (including `overwrote` and its history link)
     even after later mutations changed the item.
 - Every ordinary item mutation (create, update, links, facets, and the pre-F3
