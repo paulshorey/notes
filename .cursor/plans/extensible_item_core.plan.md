@@ -3,7 +3,7 @@ name: Extensible item core — settle the hard-to-change foundation in place, th
 overview: Before any content type beyond text ships, settle the parts of the item model that become expensive or destructive to change once more tables, clients, URLs, and devices depend on them — permanent IDs, lossless input, revisioned idempotent writes, soft delete, membership ownership, and a time facet. Every step is a forward, in-place migration applied by the existing Railway pre-deploy, so no database reset and no data export/import is ever required. After the foundation, every planned content type (reminders, schedules, files, media, money, kanban, time tracking, publishing, sharing) is an additive table plus a client capability module.
 todos:
   - id: lossless_input
-    content: "F1. F1a (PR #119): store item text exactly as typed and give labels a locale-independent NFKC key for uniqueness, while rollout triggers keep labels lowercased for previous-release servers. F1b (next release): drop those triggers so labels keep their casing."
+    content: "F1. In three releases: F1a (PR #119) stores item text exactly as typed and gives labels a locale-independent NFKC key, with rollout triggers keeping labels lowercased for previous-release servers; F1b drops those triggers and adds a full-case-folding key beside the old one; F1c switches matching to the folded key."
     status: in_progress
   - id: permanent_ids
     content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2-pre makes merges move rows and alias retired integer IDs; F2a adds the columns and UUID-aware servers while clients stay on integer IDs; F2b ships the UUID client and moves primary and foreign keys to the uid columns. Integer id stays as the legacy ID. Merge moves rows; restore never overwrites."
@@ -116,11 +116,19 @@ as lowercase:
   clients and APIs send them as typed.
 - **F1b (next release, after F1a has fully replaced the previous one).** A migration
   drops the lowercasing triggers; labels then keep the casing typed. Existing labels
-  keep their current text. F1b also moves `label_key` to full Unicode case folding
-  (so `ΟΣ`/`οσ`/`ος` and `Straße`/`STRASSE` are one label), implemented identically in
-  SQL and the client and checked by a parity test over every full-folding entry in
-  Unicode's `CaseFolding.txt`, with the same collision audit that stops the migration
-  rather than merging labels.
+  keep their current text. F1b also adds a second generated column,
+  `label_fold_key`, for full Unicode case folding (so `ΟΣ`/`οσ`/`ος` and `Straße`/`STRASSE`
+  are one label), implemented identically in SQL and the client and checked by a parity
+  test over every full-folding entry in Unicode's `CaseFolding.txt`, with the same
+  collision audit that stops the migration rather than merging labels. `label_key` keeps
+  its F1a value, and F1b's code matches a label by either key, so F1a servers still
+  running during the rollout see no change.
+- **F1c (next release, after F1b has replaced every server).** Uniqueness, lookups,
+  merges, restores, and the client switch to `label_fold_key`, and the old unique index
+  is dropped. Importers disambiguate any key collision in any backup version (the later
+  label gets a numbered suffix and references follow it) rather than rejecting it, so a
+  file written under the older key stays restorable. Exports emit the cased format (v3)
+  only from F1c, so no v3 file ever exists with older-key semantics.
 - The migration audits existing rows first: legacy padding is trimmed, and any labels
   that would be blank or share a key after trimming and NFKC normalization (for example
   precomposed and decomposed `é`) stop the pre-deploy with a count. There is no automatic
@@ -135,7 +143,7 @@ as lowercase:
   losslessly: within a workspace (and across workspace labels), the later colliding
   label gets a suffix (`ｑ3 (2)`) and every reference in the file is remapped to it
   before restore. Version 3 files, which identify labels by key, still reject key
-  duplicates.
+  duplicates in F1a; F1c's importers disambiguate collisions in every version.
 
 ### F2. Permanent IDs, in place
 
@@ -251,8 +259,12 @@ Code:
   carries, with the new fields empty until then, and its exporter switches to emitting
   the new version only in the release that first writes that state, so a file is never
   produced before every server can read it, and a backup served by the previous release
-  during a rollout never omits that state: v3 in F1a (casing starts in
-  F1b), v4 in F2-pre (UUIDs start in F2a), v5 in F2b (revisions start in F3), v6 in F4a
+  during a rollout never omits that state. In general each new kind of state takes three
+  steps, one per release: the importer reads the new version but rejects non-empty new
+  state; the exporter switches to emitting it; then state writes and non-empty imports
+  are enabled. A phase's rollout list inserts the missing steps ahead of its enabling
+  release, and the phase PR settles the exact releases. Examples of the first step: v3
+  in F1a (casing starts in F1b), v4 in F2-pre (UUIDs start in F2a), v5 in F2b (revisions start in F3), v6 in F4a
   (soft deletion starts in F4b), and v7 in F8 (time facets start in F6a). Every version keeps an importer, and from F2 on every importer uses the
   UUID-first insert and remap path: identity comes from the stored `uid`, and the
   integer `id` is left to its column default, which keeps allocating legacy IDs for
@@ -339,7 +351,10 @@ Code:
   has points at something that moves with it or that the destination already holds;
   otherwise the move returns `409` listing the links, and the caller either removes them
   (an authored edit kept in the item's history) or moves the related items too. The
-  descendant retirement markers (below) move with the item.
+  descendant retirement markers (below) move with the item. The item's status, categories,
+  and tags are remapped by `label_key` into the destination workspace (creating missing
+  terms), as in an anonymous merge, so the move never leaves the item paired with
+  source-workspace vocabulary.
 - Moving an item to another workspace is an update, not a delete, so a trigger on the
   item's `workspace_uid` writes `moved` tombstones for the members of the source
   workspace who cannot read the destination, before the change is visible, and those
@@ -773,7 +788,7 @@ columns from F2.
 
 ## 10. Delivery order
 
-F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2-pre → F2a → F2b (next
+F1a → F1b → F1c (each the next release) → F7 (guard first, so every following table is classified) → F2-pre → F2a → F2b (next
 release) → F3a → F3b → F4a → F4b → F4c (each the next release) → F5a → F5b (next release) → F8 → F6a → F6b → F6c → F6d (each the next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
