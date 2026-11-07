@@ -9,7 +9,7 @@ todos:
     content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2-pre makes merges move rows and alias retired integer IDs; F2a adds the columns and UUID-aware servers while clients stay on integer IDs; F2b ships the UUID client and moves primary and foreign keys to the uid columns. Integer id stays as the legacy ID. Merge moves rows; restore never overwrites."
     status: pending
   - id: revisioned_writes
-    content: "F3. Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark."
+    content: "F3. In two releases: F3a adds Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark, while the client keeps POST/PATCH; F3b switches the client save engine to PUT."
     status: pending
   - id: soft_delete
     content: "F4. In three releases: F4a adds deleted_at plus deletion_id, read/write filters, and backup v6; F4b makes every delete a soft delete without exposing Trash; F4c exposes Trash, restore, and the scheduled 30-day purge, and adds a trigger that turns any non-purge DELETE into the same soft delete."
@@ -151,13 +151,11 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
 0. **F2-pre (release before F2a).** Anonymous merge and backup restore stop copying
    items under new IDs: they move rows (`UPDATE … SET workspace_id`, remapping
    `status_id` and links by `label_key`) and record each retired source row — a
-   deduplicated item or a merged-away workspace or term — in `id_alias_v1` by its
-   integer `id`. This migration also recreates the item/link and vocabulary/link
+   deduplicated item or a merged-away workspace or term — in `id_alias_v1` with its
+   integer `id` and its `uid` and the survivor's, read before the delete. This migration also recreates the item/link and vocabulary/link
    composite FKs as `DEFERRABLE INITIALLY IMMEDIATE` with `ON UPDATE CASCADE` where a
    moved key must follow, and the merge sets them `DEFERRED` for its transaction, so a
-   linked item can move atomically. While F2a rolls out, these previous-release servers
-   therefore never discard an identity: an alias insert trigger installed by F2a fills
-   the retired row's `uid` (read before its delete) and the target's `uid`. The identity
+   linked item can move atomically. The identity
    guarantee starts once F2-pre has replaced every server: a merge served by a
    previous-release server during F2-pre's own rollout copies under new integer IDs,
    exactly as every merge does today, and the client reloads its items after sign-in as
@@ -181,12 +179,11 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    so release N keeps working during the overlap. Integer `id` stays unique with its
    sequence default until F9.
 3. `id_alias_v1` has columns `kind`, `alias_id uuid`, `alias_legacy_id integer`,
-   `target_id uuid`, and `target_legacy_id integer`. F2-pre creates it with only the
-   integer columns filled (UUID columns nullable), so retired integer IDs resolve to
-   their survivors before any UUID exists; F2a backfills the UUID columns from the
-   integer IDs and makes them required. Its key is `(kind, alias_id)` once filled, since
-   the same UUID may identify rows of different kinds; `(kind, alias_legacy_id)` is
-   unique throughout. It
+   `target_id uuid`, and `target_legacy_id integer`. Since F2-pre already stores a `uid`
+   on every row, each alias is recorded with all four values while both the retired row
+   and its survivor still exist, so nothing has to be recovered after the source row is
+   deleted. Its key is `(kind, alias_id)`, since the same UUID may identify rows of
+   different kinds; `(kind, alias_legacy_id)` is unique too. It
    records retired IDs (`kind` in `item`, `workspace`, `category`, `status`, `tag`),
    including the retired row's integer `id` (unique per `kind`), so old numeric URLs,
    contract-1 requests, and the storage upgrader still resolve it. Aliases are always one
@@ -317,6 +314,11 @@ Code:
   has to look up authorization state that it is removing; the row triggers skip
   entities already tombstoned in that transaction. Link removals are item changes (they bump the
   item's revision).
+- Moving an item to another workspace is allowed only if every link or attachment it
+  has points at something that moves with it or that the destination already holds;
+  otherwise the move returns `409` listing the links, and the caller either removes them
+  (an authored edit kept in the item's history) or moves the related items too. The
+  descendant retirement markers (below) move with the item.
 - Moving an item to another workspace is an update, not a delete, so a trigger on the
   item's `workspace_uid` writes `moved` tombstones for the members of the source
   workspace who cannot read the destination, before the change is visible, and those
@@ -381,8 +383,11 @@ Code:
   the destination does not already have (matched by each snapshot's own UUID, so two
   snapshots with the same content at different times are both kept), so no history is
   lost.
-- The client save engine drops the create/update split and the POST no-retry hazard:
-  every save is a retryable PUT.
+- F3 ships in two releases. **F3a** adds the PUT endpoint, revisions, history, sync, and
+  tombstones on the servers while the client keeps saving through POST/PATCH; **F3b**
+  (next release, when every server implements PUT) switches the client save engine,
+  dropping the create/update split and the POST no-retry hazard: every save is a
+  retryable PUT. A new tab therefore never sends a PUT to a server that lacks it.
 - The existing `POST`/`PATCH` item routes stay through the loaded-browser overlap for
   tabs opened before F3. A write on them carries no `baseRevision`, so the version being
   replaced is snapshotted into `item_revision` before it is applied (last write wins,
@@ -542,7 +547,9 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   WHERE role IN ('due', 'remind');
 ```
 
-- Rollout is three releases. **F6a:** create the table and backfill `due` /
+- Rollout is three releases. **F8** (before F6a) creates `item_time_v1`, empty, together
+  with the v7 exporter and importer, so a v7 file with all-day, recurring, or
+  multi-valued times can be persisted by any server from then on. **F6a:** backfill `due` /
   `remind` rows from the existing columns (`time_zone` NULL: unknown), and keep both
   representations synchronized in both directions by triggers: a write to
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
@@ -560,7 +567,7 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   reads or writes the scalar columns or relies on the sync triggers, leaving them in
   place. **F6d** (next release, after F6c has replaced every server) drops the triggers
   and the columns.
-- Backup v7 carries `times[]` per item and ships in F8, before F6a writes any time row; restore round-trips dates, zones,
+- Backup v7 carries `times[]` per item and ships in F8, with the empty table it restores into, before F6a writes any time row; restore round-trips dates, zones,
   recurrence rules, and every role.
 - API keeps `timeDue` / `timeRemind` on `ItemRecord` as projections of the single `due` /
   `remind` row (written with
@@ -613,8 +620,9 @@ table.
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`, `retired_id_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
-`retired_id_v1` records retired `(kind, uid)` pairs with the `workspace_uid` they last
-belonged to and that workspace's owner at retirement (`owner_user_id`, which an
+`retired_id_v1` records retired `(kind, uid)` pairs with the `item_uid` they belonged to
+(for item facets) and the `workspace_uid` they last belonged to; moving an item updates
+both on its facets' markers, so they follow it to its new workspace and owner and that workspace's owner at retirement (`owner_user_id`, which an
 anonymous merge moves to the permanent account). A portable backup carries every marker
 owned by the exported account, including those of workspaces since purged, and restore re-inserts them (skipping any UUID that is live elsewhere), so a
 restored account still refuses retries of IDs retired before the backup. Merges leave
@@ -733,7 +741,7 @@ columns from F2.
 ## 10. Delivery order
 
 F1a → F1b (next release) → F7 (guard first, so every following table is classified) → F2-pre → F2a → F2b (next
-release) → F3 → F4a → F4b → F4c (each the next release) → F5a → F5b (next release) → F8 → F6a → F6b → F6c → F6d (each the next release) → F9.
+release) → F3a → F3b → F4a → F4b → F4c (each the next release) → F5a → F5b (next release) → F8 → F6a → F6b → F6c → F6d (each the next release) → F9.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
 added to `ItemsApp.tsx` and extracted again.
