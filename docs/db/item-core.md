@@ -25,16 +25,21 @@ Item text is stored exactly as received, including leading and trailing whitespa
 Whitespace-only text is stored as `NULL` (no text). Embeddings and the note selection
 rule trim when they read text; they never rewrite it.
 
-Workspace, category, status, and tag labels are stored as typed, without surrounding
-whitespace (the ECMAScript `trim()` set, enforced by `app_label_whitespace_v1()`).
-Identity is the generated `label_key` column, `app_label_key_v1(label)` (NFKC, then
-lowercasing with the locale-independent ICU root collation), which
-carries the unique indexes. Merge, restore, and backup reference checks match by key.
-The exact-label unique constraints remain as conflict targets for previous-release
-servers and are implied by key uniqueness. A `BEFORE INSERT` trigger
-(`app_label_reuse_existing_v1`) replaces an inserted label with the stored spelling
-when its key already exists in the same scope, so those servers' lowercased
-`ON CONFLICT (…, label)` writes reuse the existing row.
+Workspace, category, status, and tag labels are stored without surrounding whitespace
+(the ECMAScript `trim()` set, enforced by `app_label_whitespace_v1()`). Identity is the
+generated `label_key` column, `app_label_key_v1(label)` (NFKC, then lowercasing with the
+locale-independent ICU root collation), which carries the unique indexes. Lookups,
+merges, restores, and backup reference checks match by key, and reusing a label never
+rewrites its stored spelling.
+
+Rollout compatibility: previous-release servers read, export, and validate labels as
+lowercase. The `app_label_lowercase_v1` triggers store every inserted or renamed label
+lowercased, and the exact-label unique constraints remain as those servers'
+`ON CONFLICT (…, label)` targets. A `BEFORE INSERT` trigger
+(`app_label_reuse_existing_v1`) replaces an inserted label with the stored spelling when
+its key already exists in the same scope (for example a full-width form), serialized per
+key by an advisory lock. Clients and APIs already send labels as typed; dropping the
+lowercasing triggers in a later release makes labels keep their casing.
 
 Category and uncategorized navigation groups share transactional bulk actions.
 See [item group actions](item-group-actions.md) for selection, rename/deletion,

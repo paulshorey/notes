@@ -71,7 +71,7 @@ import {
   updateItemEmbeddingsForUser,
   updateItemForUser,
 } from "../sql/item"
-import { resolveCategoryIdForWorkspace, resolveTagIdForWorkspace } from "../sql/item/shared"
+import { resolveLabelForWorkspace } from "../sql/item/shared"
 import {
   deleteCategoryForWorkspace,
   getCategoryByIdForWorkspace,
@@ -448,25 +448,23 @@ const createLabelEntity = async (
   const client = await getDb().connect()
   try {
     await client.query("BEGIN")
-    const id =
-      kind === "category"
-        ? await resolveCategoryIdForWorkspace(client, workspaceId, value)
-        : await resolveTagIdForWorkspace(client, workspaceId, value)
-    if (!id) throw new Error("Failed to resolve label.")
+    const resolved = await resolveLabelForWorkspace(client, kind, workspaceId, value)
+    if (!resolved) throw new Error("Failed to resolve label.")
+    const { id, inserted } = resolved
     const table = kind === "category" ? "workspace_category_v1" : "workspace_tag_v1"
     const column = kind === "category" ? "category_embedding" : "tag_embedding"
-    // The vector was computed from the submitted spelling. Reusing a label with
-    // the same key but different casing keeps that label's own vector.
+    // The vector was computed from the submitted spelling. An existing label
+    // keeps its own vector unless it has none yet.
     await client.query(
       `UPDATE public.${table} SET ${column}=$1::vector,embedding_model=$2,embedding_updated_at=$3
-       WHERE id=$4 AND workspace_id=$5 AND label=$6`,
+       WHERE id=$4 AND workspace_id=$5 AND ($6::boolean OR ${column} IS NULL)`,
       [
         e.vectorLiteral,
         e.embeddingModel,
         e.embeddingModel ? new Date().toISOString() : null,
         id,
         workspaceId,
-        trimLabel(value),
+        inserted,
       ],
     )
     await client.query("COMMIT")

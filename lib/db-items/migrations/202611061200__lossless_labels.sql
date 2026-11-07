@@ -88,22 +88,51 @@ ALTER TABLE public.workspace_category_v1
   ADD CONSTRAINT workspace_category_v1_label_not_reserved_check
     CHECK (public.app_label_key_v1(btrim(label, public.app_label_whitespace_v1())) <> 'uncategorized');
 
--- The exact-label unique constraints stay while servers that still use
--- ON CONFLICT (…, label) drain; label_key uniqueness implies them. Such a server
--- lowercases labels, so its insert of "nyc" must find an existing "NYC": this
--- trigger reuses the stored spelling for a label whose key already exists in the
--- same scope. BEFORE INSERT row triggers run before ON CONFLICT arbitration, so
--- the exact-label conflict target then matches the existing row.
+-- Rollout compatibility. Previous-release servers read, export, and validate
+-- labels as lowercase, and use ON CONFLICT (…, label). Until they have drained,
+-- every write stores labels lowercased, and the exact-label unique constraints
+-- stay as their conflict targets (label_key uniqueness implies them). A later
+-- migration drops the lowercasing triggers, after which labels keep their casing.
+CREATE FUNCTION public.app_label_lowercase_v1() RETURNS trigger
+  LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.label := lower(NEW.label COLLATE "und-x-icu");
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER user_workspace_v1_label_lowercase_v1
+  BEFORE INSERT OR UPDATE OF label ON public.user_workspace_v1
+  FOR EACH ROW EXECUTE FUNCTION public.app_label_lowercase_v1();
+CREATE TRIGGER workspace_category_v1_label_lowercase_v1
+  BEFORE INSERT OR UPDATE OF label ON public.workspace_category_v1
+  FOR EACH ROW EXECUTE FUNCTION public.app_label_lowercase_v1();
+CREATE TRIGGER workspace_status_v1_label_lowercase_v1
+  BEFORE INSERT OR UPDATE OF label ON public.workspace_status_v1
+  FOR EACH ROW EXECUTE FUNCTION public.app_label_lowercase_v1();
+CREATE TRIGGER workspace_tag_v1_label_lowercase_v1
+  BEFORE INSERT OR UPDATE OF label ON public.workspace_tag_v1
+  FOR EACH ROW EXECUTE FUNCTION public.app_label_lowercase_v1();
+
+-- Labels that differ only by compatibility form (for example full-width) share a
+-- key. A previous-release server inserting one of them with ON CONFLICT (…, label)
+-- must reuse the stored spelling instead of failing on the key index. BEFORE
+-- INSERT row triggers run before ON CONFLICT arbitration, so the exact-label
+-- conflict target then matches the existing row. The transaction-scoped advisory
+-- lock serializes concurrent inserts of the same key, so the lookup sees a row
+-- committed by a competing insert. Trigger names order it after lowercasing.
 CREATE FUNCTION public.app_label_reuse_existing_v1() RETURNS trigger
   LANGUAGE plpgsql AS $$
 DECLARE
+  scope integer := (to_jsonb(NEW) ->> TG_ARGV[0])::integer;
   existing text;
 BEGIN
+  PERFORM pg_advisory_xact_lock(hashtextextended(
+    TG_TABLE_NAME || ':' || scope || ':' || public.app_label_key_v1(NEW.label), 0));
   EXECUTE format(
     'SELECT label FROM %I.%I WHERE %I = $1 AND label_key = public.app_label_key_v1($2) LIMIT 1',
     TG_TABLE_SCHEMA, TG_TABLE_NAME, TG_ARGV[0])
     INTO existing
-    USING (to_jsonb(NEW) ->> TG_ARGV[0])::integer, NEW.label;
+    USING scope, NEW.label;
   IF existing IS NOT NULL THEN
     NEW.label := existing;
   END IF;

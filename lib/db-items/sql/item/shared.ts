@@ -133,23 +133,32 @@ export const selectItemById = async (client: PoolClient, itemId: number, userId:
   return rows[0] ? mapItem(rows[0]) : null
 }
 
-const resolve = async (client: PoolClient, table: string, workspaceId: number, label: string) => {
-  const typed = trimLabel(label)
-  if (!typed) return null
-  const { rows } = await client.query<{ id: number }>(
-    `INSERT INTO public.${table} (workspace_id,label) VALUES ($1,$2)
-     ON CONFLICT (workspace_id,label_key) DO UPDATE SET label=${table}.label RETURNING id`,
-    [workspaceId, typed],
-  )
-  return rows[0]?.id ?? null
-}
-export const resolveCategoryIdForWorkspace = (
+/** Find or create a label by key. `inserted` is true only when this call created the row. */
+export const resolveLabelForWorkspace = async (
   client: PoolClient,
+  kind: "category" | "tag",
   workspaceId: number,
   label: string,
 ) => {
-  assertCategoryNameAllowed(label)
-  return resolve(client, "workspace_category_v1", workspaceId, label)
+  if (kind === "category") assertCategoryNameAllowed(label)
+  const table = kind === "category" ? "workspace_category_v1" : "workspace_tag_v1"
+  const typed = trimLabel(label)
+  if (!typed) return null
+  const { rows } = await client.query<{ id: number; inserted: boolean }>(
+    `INSERT INTO public.${table} (workspace_id,label) VALUES ($1,$2)
+     ON CONFLICT (workspace_id,label_key) DO UPDATE SET label=${table}.label
+     RETURNING id,(xmax = 0) AS inserted`,
+    [workspaceId, typed],
+  )
+  return rows[0] ?? null
 }
-export const resolveTagIdForWorkspace = (client: PoolClient, workspaceId: number, label: string) =>
-  resolve(client, "workspace_tag_v1", workspaceId, label)
+export const resolveCategoryIdForWorkspace = async (
+  client: PoolClient,
+  workspaceId: number,
+  label: string,
+) => (await resolveLabelForWorkspace(client, "category", workspaceId, label))?.id ?? null
+export const resolveTagIdForWorkspace = async (
+  client: PoolClient,
+  workspaceId: number,
+  label: string,
+) => (await resolveLabelForWorkspace(client, "tag", workspaceId, label))?.id ?? null

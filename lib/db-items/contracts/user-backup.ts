@@ -199,24 +199,38 @@ export const parseUserBackup = (value: unknown): UserBackup => {
 }
 
 /**
- * Versions 1 and 2 cannot represent label casing. Their labels are the identity key
- * (NFKC, then lowercase), so a legacy export restores to the same rows.
+ * Versions 1 and 2 hold labels that equal their own trimmed lowercase form. Write
+ * each label's identity key when that is such a form, otherwise its lowercase
+ * spelling with the same identity (NFKC can add spacing, for example to U+00A8),
+ * so a legacy export validates and restores to the same rows.
  */
+const legacyLabel = (value: string) => {
+  const key = labelKey(value)
+  for (const candidate of [key, value.trim().toLowerCase()])
+    if (
+      candidate !== "" &&
+      candidate === candidate.trim().toLowerCase() &&
+      labelKey(candidate) === key
+    )
+      return candidate
+  return value.trim().toLowerCase()
+}
+
 export const lowercaseBackupLabels = (backup: UserBackup): UserBackup => ({
   ...backup,
   activeWorkspaceLabel:
-    backup.activeWorkspaceLabel === null ? null : labelKey(backup.activeWorkspaceLabel),
+    backup.activeWorkspaceLabel === null ? null : legacyLabel(backup.activeWorkspaceLabel),
   workspaces: backup.workspaces.map((workspace) => ({
     ...workspace,
-    label: labelKey(workspace.label),
-    categories: workspace.categories.map((v) => ({ ...v, label: labelKey(v.label) })),
-    statuses: workspace.statuses.map((v) => ({ ...v, label: labelKey(v.label) })),
-    tags: workspace.tags.map((v) => ({ ...v, label: labelKey(v.label) })),
+    label: legacyLabel(workspace.label),
+    categories: workspace.categories.map((v) => ({ ...v, label: legacyLabel(v.label) })),
+    statuses: workspace.statuses.map((v) => ({ ...v, label: legacyLabel(v.label) })),
+    tags: workspace.tags.map((v) => ({ ...v, label: legacyLabel(v.label) })),
     items: workspace.items.map((item) => ({
       ...item,
-      status: item.status === null ? null : labelKey(item.status),
-      categories: item.categories.map(labelKey),
-      tags: item.tags.map(labelKey),
+      status: item.status === null ? null : legacyLabel(item.status),
+      categories: item.categories.map(legacyLabel),
+      tags: item.tags.map(legacyLabel),
     })),
   })),
 })

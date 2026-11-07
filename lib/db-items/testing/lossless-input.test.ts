@@ -53,6 +53,18 @@ test("legacy backups drop every reserved category form before checking duplicate
   assert.deepEqual(parsed.workspaces[0]!.items[0]!.categories, ["trip"])
 })
 
+test("legacy exports stay valid for labels whose key gains spacing", () => {
+  const backup = backupFixture()
+  backup.workspaces[0]!.tags = [{ ...backup.workspaces[0]!.tags[0]!, label: "¨" }]
+  backup.workspaces[0]!.items = backup.workspaces[0]!.items.map((item) => ({
+    ...item,
+    tags: ["¨"],
+  }))
+  const legacy = lowercaseBackupLabels(parseUserBackup(backup))
+  assert.equal(legacy.workspaces[0]!.tags[0]!.label, "¨")
+  assert.doesNotThrow(() => parseUserBackup({ ...legacy, version: 2 }))
+})
+
 test("legacy exports write each label's identity key", () => {
   const backup = backupFixture()
   backup.workspaces[0]!.tags = [{ ...backup.workspaces[0]!.tags[0]!, label: "Ϲ" }]
@@ -119,22 +131,22 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
     }
   })
 
-  test("labels keep their casing and are unique by key", async () => {
+  test("labels are stored lowercased during the rollout and are unique by key", async () => {
     const userId = await createUser(true)
     try {
       const workspace = await createWorkspaceForUser(userId, "Q3 Plan")
-      assert.equal(workspace.label, "Q3 Plan")
-      await assert.rejects(createWorkspaceForUser(userId, "q3 plan"), { code: "23505" })
+      assert.equal(workspace.label, "q3 plan")
+      await assert.rejects(createWorkspaceForUser(userId, "Ｑ3 PLAN"), { code: "23505" })
       const client = await getDb().connect()
       try {
-        const first = await resolveTagIdForWorkspace(client, workspace.id, " NYC ")
-        const second = await resolveTagIdForWorkspace(client, workspace.id, "nyc")
+        const first = await resolveTagIdForWorkspace(client, workspace.id, " ｎｙｃ ")
+        const second = await resolveTagIdForWorkspace(client, workspace.id, "NYC")
         assert.equal(second, first)
         const { rows } = await client.query<{ label: string }>(
           "SELECT label FROM public.workspace_tag_v1 WHERE id=$1",
           [first],
         )
-        assert.equal(rows[0]!.label, "NYC", "reusing a label must not rewrite its casing")
+        assert.equal(rows[0]!.label, "ｎｙｃ", "reusing a label must not rewrite its spelling")
         await assert.rejects(
           client.query(
             "INSERT INTO public.workspace_category_v1(workspace_id,label) VALUES($1,'UNCATEGORIZED')",
@@ -177,7 +189,7 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
     // Each spelling gets a distinguishable vector.
     globalThis.fetch = (async (_url: unknown, init?: { body?: string }) => {
       const { input } = JSON.parse(init?.body ?? "{}") as { input: string[] }
-      const fill = input[0] === "NYC" ? 0.25 : 0.75
+      const fill = input[0] === "ｎｙｃ" ? 0.25 : 0.75
       return new Response(
         JSON.stringify({ data: [{ index: 0, embedding: Array(1024).fill(fill) }] }),
         { status: 200, headers: { "Content-Type": "application/json" } },
@@ -185,10 +197,14 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
     }) as typeof fetch
     try {
       const workspace = await createWorkspaceForUser(userId, "Personal")
-      const first = await createTagForItemsApp({ userId, workspaceId: workspace.id, label: "NYC" })
-      const reused = await createTagForItemsApp({ userId, workspaceId: workspace.id, label: "nyc" })
+      const first = await createTagForItemsApp({
+        userId,
+        workspaceId: workspace.id,
+        label: "ｎｙｃ",
+      })
+      const reused = await createTagForItemsApp({ userId, workspaceId: workspace.id, label: "NYC" })
       assert.equal(reused.tag.id, first.tag.id)
-      assert.equal(reused.tag.label, "NYC")
+      assert.equal(reused.tag.label, "ｎｙｃ")
       const { rows } = await getDb().query<{ value: number }>(
         "SELECT (tag_embedding::real[])[1] AS value FROM public.workspace_tag_v1 WHERE id=$1",
         [first.tag.id],
@@ -208,7 +224,7 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
     try {
       const realWorkspace = await createWorkspaceForUser(realUserId, "Personal")
       await getDb().query(
-        "INSERT INTO public.workspace_category_v1(workspace_id,label) VALUES($1,'NYC')",
+        "INSERT INTO public.workspace_category_v1(workspace_id,label) VALUES($1,'ｎｙｃ')",
         [realWorkspace.id],
       )
       const anonWorkspaceId = (
@@ -240,17 +256,17 @@ describe("lossless text and labels (DB)", { skip: !testDbUrl }, () => {
       )
       assert.deepEqual(
         workspaces.rows.map((row) => row.label),
-        ["Personal"],
+        ["personal"],
       )
       const [item] = await listItemsByUser(realUserId, realWorkspace.id)
       assert.deepEqual(
         item!.categories.map((category) => category.label),
-        ["NYC"],
+        ["ｎｙｃ"],
       )
 
       const backup = await exportUserBackup(realUserId)
-      assert.equal(backup.workspaces[0]!.label, "Personal")
-      assert.deepEqual(backup.workspaces[0]!.items[0]!.categories, ["NYC"])
+      assert.equal(backup.workspaces[0]!.label, "personal")
+      assert.deepEqual(backup.workspaces[0]!.items[0]!.categories, ["ｎｙｃ"])
       const restored = await restoreUserBackup(realUserId, backup)
       assert.equal(restored.itemsImported, 0)
       assert.equal(restored.itemsSkipped, 1)

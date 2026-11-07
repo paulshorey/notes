@@ -8,7 +8,7 @@ const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
 const migration = "202611061200__lossless_labels.sql"
 
 /** Create a scratch database migrated to just before the label-key migration. */
-const withPreMigrationDatabase = async (work: (client: Client) => Promise<void>) => {
+const withPreMigrationDatabase = async (work: (client: Client, url: string) => Promise<void>) => {
   const name = `lossless_labels_${randomUUID().replaceAll("-", "")}`
   const admin = new Client({ connectionString: testDbUrl })
   await admin.connect()
@@ -22,7 +22,7 @@ const withPreMigrationDatabase = async (work: (client: Client) => Promise<void>)
     const files = (await readdir(directory)).filter((file) => file.endsWith(".sql")).sort()
     for (const file of files.filter((file) => file < migration))
       await client.query(await readFile(new URL(file, directory), "utf8"))
-    await work(client)
+    await work(client, target.toString())
   } finally {
     await client.end().catch(() => {})
     await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`)
@@ -102,30 +102,36 @@ test(
         [itemId, tagId],
       )
       assert.equal(links.rowCount, 1)
-      await client.query(
-        "INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'NYC')",
-        [workspaceId],
+      // During the rollout every write is stored lowercased for previous-release servers.
+      const nycId = (
+        await client.query<{ id: number; label: string }>(
+          "INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'ＮＹＣ') RETURNING id,label",
+          [workspaceId],
+        )
+      ).rows[0]!
+      assert.equal(nycId.label, "ｎｙｃ")
+      await client.query("UPDATE public.workspace_tag_v1 SET label='ＮＹＣ' WHERE id=$1", [
+        nycId.id,
+      ])
+      const renamed = await client.query<{ label: string }>(
+        "SELECT label FROM public.workspace_tag_v1 WHERE id=$1",
+        [nycId.id],
       )
+      assert.equal(renamed.rows[0]!.label, "ｎｙｃ")
       await assert.rejects(
         client.query("INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')", [
           workspaceId,
         ]),
         { code: "23505" },
       )
-      // A previous-release server lowercases labels and uses the exact-label
-      // conflict target; it must reuse an existing differently cased label.
-      const nycId = (
-        await client.query<{ id: number }>(
-          "SELECT id FROM public.workspace_tag_v1 WHERE workspace_id=$1 AND label='NYC'",
-          [workspaceId],
-        )
-      ).rows[0]!.id
+      // A previous-release server's insert of a compatibility form of an existing
+      // label with the exact-label conflict target reuses the stored spelling.
       const legacyResolve = await client.query<{ id: number; label: string }>(
         `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
          ON CONFLICT (workspace_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id,label`,
         [workspaceId],
       )
-      assert.deepEqual(legacyResolve.rows[0], { id: nycId, label: "NYC" })
+      assert.deepEqual(legacyResolve.rows[0], { id: nycId.id, label: "ｎｙｃ" })
       await client.query(
         `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
          ON CONFLICT (workspace_id,label) DO NOTHING`,
@@ -162,6 +168,48 @@ test(
         [workspaceId],
       )
       await assert.rejects(applyMigration(client), /lossless_labels: 1 label/)
+    })
+  },
+)
+
+test(
+  "concurrent inserts of one label key from both releases do not fail",
+  { skip: !testDbUrl },
+  async () => {
+    await withPreMigrationDatabase(async (client, url) => {
+      await applyMigration(client)
+      const userId = (
+        await client.query<{ id: number }>(
+          "INSERT INTO public.user_v1(username) VALUES('owner') RETURNING id",
+        )
+      ).rows[0]!.id
+      const workspaceId = (
+        await client.query<{ id: number }>(
+          "INSERT INTO public.user_workspace_v1(user_id,label) VALUES($1,'personal') RETURNING id",
+          [userId],
+        )
+      ).rows[0]!.id
+      const other = new Client({ connectionString: url })
+      await other.connect()
+      try {
+        // A current-release insert holds the key while a previous-release insert of a
+        // compatibility form waits on the same key, then reuses the committed row.
+        await client.query("BEGIN")
+        const created = await client.query<{ id: number }>(
+          "INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'ｎｙｃ') RETURNING id",
+          [workspaceId],
+        )
+        const legacy = other.query<{ id: number }>(
+          `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,'nyc')
+           ON CONFLICT (workspace_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
+          [workspaceId],
+        )
+        await new Promise((resolve) => setTimeout(resolve, 200))
+        await client.query("COMMIT")
+        assert.equal((await legacy).rows[0]!.id, created.rows[0]!.id)
+      } finally {
+        await other.end()
+      }
     })
   },
 )
