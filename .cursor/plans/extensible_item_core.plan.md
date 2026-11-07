@@ -282,7 +282,10 @@ Code:
   tombstone retention; creation of any kind checks it, so a
   delayed retry can never recreate deleted content while an item created offline long
   ago still syncs. Only backup restore may bring back a retired ID, and it does so by
-  cloning.
+  cloning. Creation, aliasing, and retirement of an ID all take a transaction-scoped
+  advisory lock on `(kind, uid)` before checking or writing, so a create racing the
+  delete of the same ID either commits first (and is then deleted and retired) or sees
+  the retirement and is refused.
 - Every ordinary item mutation (create, update, links, facets, and the pre-F3
   `POST`/`PATCH` routes) requires both the item and its workspace to be live
   (`deleted_at IS NULL`); a write to a trashed item or into a trashed workspace returns
@@ -347,15 +350,24 @@ Code:
   items and workspaces turns any `DELETE` into the same soft delete the routes perform
   (for a workspace, the full batch: the workspace and its live items under one
   `deletion_id`), then cancels the row delete, unless the transaction sets
-  `app.hard_delete = 'on'`, which only the purge and account deletion do. F4a already
+  `app.hard_delete = 'on'`, which only the purge, account deletion, and merge
+  retirement do (below). F4a already
   sets that flag in the purge, account deletion, and the anonymous-cleanup command, so
   their previous-release copies keep hard-deleting during F4b's rollout. F4b also
   gates the F3 workspace tombstone trigger on `app.hard_delete = 'on'`, so a converted
   delete never emits hard-delete tombstones; the item tombstone triggers are
   `AFTER DELETE` and do not fire for a canceled delete.
-- Hard deletes happen only in purge paths: items and workspaces whose `deleted_at` is
-  older than 30 days (D3), writing tombstones first, and the existing abandoned
-  anonymous-account cleanup.
+- Hard deletes of items and workspaces happen only in purge paths (items and
+  workspaces whose `deleted_at` is older than 30 days (D3), writing tombstones first),
+  account deletion including the abandoned-anonymous cleanup, and identity retirement
+  during a merge (a merged-away workspace or deduplicated item). Each sets
+  `app.hard_delete = 'on'` only around its own delete statements and resets it after.
+  A retirement writes a tombstone with `reason = 'merged'` and the surviving ID, so
+  clients replace references instead of losing content.
+- Category, status, and tag deletion stays immediate: removing a label never removes
+  item content, and the removed links are an authored change to each affected item, so
+  its revision snapshot keeps the previous link set and history can restore it. D3's
+  30-day Trash applies to items and workspaces.
 - Purge is scheduled, not manual: F4 adds a Railway cron service (declared in
   `.railway/railway.ts`) that runs the purge command daily in each environment. It is
   replaced by the background worker when that exists. The 30-day promise ships only with
@@ -457,9 +469,10 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
   row, and a write to the role's row updates the column: its instant when the row is
   projectable, `NULL` when the row becomes all-day or is removed. A `NULL` written to
-  the column by an old server still leaves an all-day row untouched. Mirror writes set
-  a transaction-local `app.mirror_write` flag, and the F3 revision trigger skips writes
-  made under it, so one logical edit bumps the item's revision exactly once, from the
+  the column by an old server still leaves an all-day row untouched. A mirror trigger
+  saves the current `app.mirror_write` value, sets it only around its own nested
+  statement, and restores it immediately after; the F3 revision trigger skips only
+  writes made inside that nested statement, so one logical edit bumps the item's revision exactly once, from the
   write that originated it, and an old server's `UPDATE … RETURNING` sees the final
   revision. **F6b** (next release,
   after old servers drain) drops the triggers and the columns.
@@ -511,7 +524,10 @@ Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`, `retired_id_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
 `retired_id_v1` holds only retired `(kind, uid)` pairs with no owner: it is excluded from backups and kept
-unchanged by merges. Operational tables that hold no user data (the
+unchanged by merges. `id_alias_v1` is portable: a backup carries the aliases whose
+targets belong to the exported account, and restore recreates them with the same rules
+merges use (an alias UUID already in use elsewhere is remapped with its cloned target,
+never taken over). Operational tables that hold no user data (the
 `schema_migrations_cursor` ledger, and
 later the job queue if it lives in `public`) are registered as `operational`, which is
 excluded from backups and merges and exempt from the walk.
@@ -547,8 +563,10 @@ content type:
 Per D2 only the web app depends on these, so they go once the web client no longer uses
 them and one release has drained previous-release servers:
 
-- API contract 1 (integer IDs) and the pre-F3 `POST`/`PATCH` item routes for
-  previously loaded browser builds;
+- API contract 1 (integer IDs) and the pre-F3 `POST`/`PATCH` item routes, once request
+  logs show no contract-1 or pre-F3 traffic for 90 days. A tab that wakes up after
+  that keeps its dirty draft: the current client never discards an unsaved draft when a
+  save fails, and on its next load the storage upgrader converts and saves it;
 - legacy SQL views and their insert triggers; the integer reference columns and their
   sync triggers (in the release after the last code using them); the integer `id`
   sequence defaults and `NOT NULL`, so only pre-F9 rows carry a legacy ID; the
