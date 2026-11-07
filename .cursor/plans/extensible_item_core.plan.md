@@ -258,9 +258,11 @@ Code:
   below the horizon gets `410 Gone` and a full resync (sync reads `change_xid >= cursor`,
   so a cursor equal to a purged tombstone's XID can no longer be served).
 - `PUT /api/items/{id}` upserts by client-generated UUIDv7 with `baseRevision`. Creation
-  is refused with `410 Gone` when the ID is in `retired_id_v1(uid uuid PRIMARY KEY)` or
-  `id_alias_v1`. Every hard-deleted item's UUID is added to `retired_id_v1` and kept
-  permanently (16 bytes per deleted item), independent of tombstone retention, so a
+  is refused with `410 Gone` when the ID is in `retired_id_v1(kind, uid)` (primary key
+  `(kind, uid)`) or `id_alias_v1`. The UUID of every hard-deleted authored entity (item,
+  workspace, category, status, tag, and later facets with their own identity) is added
+  to `retired_id_v1` and kept permanently (about 16 bytes per row), independent of
+  tombstone retention; creation of any kind checks it, so a
   delayed retry can never recreate deleted content while an item created offline long
   ago still syncs. Only backup restore may bring back a retired ID, and it does so by
   cloning.
@@ -279,10 +281,11 @@ Code:
     `item_revision`, applies the write, and returns `200` with `overwrote: <revision>`;
     the client then notifies the user with a link to that history entry. If the server
     moved again in between, the overwrite request gets its own `409` and repeats.
-  - Every PUT carries a client-generated `mutationId`. The server stores it with the
-    write (on the item and on the snapshot an overwrite creates), so a retry whose
-    response was lost replays the original result, including `overwrote` and its
-    history link, instead of the generic no-op.
+  - Every PUT carries a client-generated `mutationId`. The server records each applied
+    mutation's result in `item_mutation_v1(item_uid, mutation_id, response, created_at)`,
+    kept for 7 days, in the same transaction as the write. A retry whose response was
+    lost replays its own recorded result (including `overwrote` and its history link)
+    even after later mutations changed the item.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
   conflicting overwrite, delete, or merge). A snapshot holds the whole authored item:
   base columns plus every `authored` + `follows-item` facet, as one JSON document whose
@@ -339,8 +342,10 @@ Code:
   grouping and their original `deletedAt` (so the remaining retention carries over);
   v1–v5 files restore as live rows.
 - Restore merges a backed-up workspace into a destination workspace only when both are
-  live, share a `label_key`, and have no members other than their owner, and it records
-  the backed-up workspace UUID as an alias of the destination, as anonymous merge does. A trashed backed-up workspace, or one whose label
+  live, share a `label_key`, and have no members other than their owner. When the
+  backed-up workspace UUID is otherwise unused, it records that UUID as an alias of the
+  destination, as anonymous merge does; a UUID owned by another account is never
+  aliased (the restore clones under a new UUID instead). A trashed backed-up workspace, or one whose label
   collides with a trashed destination workspace, is restored as a separate workspace
   with a suffixed label (`personal (restored 2027-01-02)`), so restore never trashes,
   restores, or otherwise changes an existing workspace.
@@ -355,8 +360,10 @@ Code:
   `user_workspace_v1.user_id`, so authorization, label uniqueness, merges, and account
   deletion always agree on the owner. Memberships are backfilled with one `owner` per existing
   workspace. An `AFTER INSERT` trigger on `user_workspace_v1` also creates the owner
-  membership, so workspaces created by a previous-release server during the rollout are
-  covered; it stays until F9.
+  membership, and an `AFTER UPDATE OF user_id` trigger moves the owner membership with
+  the owner column (promoting the new owner's existing membership when there is one),
+  so workspaces created or merged by a previous-release server during the rollout keep
+  the owner invariant; both stay until F9.
 - `user_workspace_v1.user_id` remains as the workspace **owner**, with the existing
   unique `(user_id, label_key)`. Its FK changes from `ON DELETE CASCADE` to
   `ON DELETE RESTRICT` in two releases: **F5a** ships the account-deletion and
@@ -470,7 +477,7 @@ table.
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`, `retired_id_v1`) are registered explicitly, and the guard fails on
 any table in the `public` schema that is neither reached by the walk nor registered.
-`retired_id_v1` holds only UUIDs with no owner: it is excluded from backups and kept
+`retired_id_v1` holds only retired `(kind, uid)` pairs with no owner: it is excluded from backups and kept
 unchanged by merges. Operational tables that hold no user data (the
 `schema_migrations_cursor` ledger, and
 later the job queue if it lives in `public`) are registered as `operational`, which is
@@ -513,7 +520,7 @@ them and one release has drained previous-release servers:
   sync triggers (in the release after the last code using them); the integer `id`
   sequence defaults and `NOT NULL`, so only pre-F9 rows carry a legacy ID; the
   `user_note_v1_id_seq` name, the exact-label unique constraints kept by F1, and F5's
-  owner-membership insert trigger;
+  owner-membership insert and update triggers;
 - `/api/notes*` facades, `X-Items-Contract` dual payloads, legacy response aliases,
   `@lib/db-notes`, and the `notesUserId` session field;
 - `DB_NOTES_URL` / `DB_NOTES_TEST_URL`, in order: provision `DB_ITEMS_URL` in every
