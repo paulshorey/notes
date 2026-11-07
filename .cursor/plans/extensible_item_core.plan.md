@@ -3,8 +3,8 @@ name: Extensible item core — settle the hard-to-change foundation in place, th
 overview: Before any content type beyond text ships, settle the parts of the item model that become expensive or destructive to change once more tables, clients, URLs, and devices depend on them — permanent IDs, lossless input, revisioned idempotent writes, soft delete, membership ownership, and a time facet. Every step is a forward, in-place migration applied by the existing Railway pre-deploy, so no database reset and no data export/import is ever required. After the foundation, every planned content type (reminders, schedules, files, media, money, kanban, time tracking, publishing, sharing) is an additive table plus a client capability module.
 todos:
   - id: lossless_input
-    content: "F1. Store authored text exactly as typed and labels as typed with a normalized key for uniqueness. Stops ongoing data loss; small and independent."
-    status: pending
+    content: "F1. Store authored text exactly as typed and labels as typed with a normalized key for uniqueness. Stops ongoing data loss; small and independent. PR #119."
+    status: in_progress
   - id: permanent_ids
     content: "F2. Convert item, workspace, vocabulary, and link keys to UUIDs in place, keeping the old integer as a unique legacy_id for old URLs, drafts, and backups. Merge and restore move rows instead of copying them."
     status: pending
@@ -221,7 +221,8 @@ content type:
 
 ### F9. Retire note-era compatibility
 
-Remove the legacy views, the `user_note_v1_id_seq` name, `/api/notes*` facades,
+Remove the legacy views, the exact-label unique constraints kept as previous-release
+conflict targets by F1, the `user_note_v1_id_seq` name, `/api/notes*` facades,
 `X-Items-Contract` dual payloads and legacy response aliases, `DB_NOTES_URL` /
 `DB_NOTES_TEST_URL`, `@lib/db-notes`, the `notesUserId` session field, and v1/v2
 open-item storage upgraders. Per D2 only the web app depends on them.
