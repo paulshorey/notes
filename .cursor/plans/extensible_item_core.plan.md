@@ -185,9 +185,9 @@ column is ever renamed** (a rename breaks whichever release still uses the old n
    composite FKs as `DEFERRABLE INITIALLY IMMEDIATE` with `ON UPDATE CASCADE` where a
    moved key must follow, and the merge sets them `DEFERRED` for its transaction, so a
    linked item can move atomically. The identity
-   guarantee starts once F2-pre has replaced every server: a merge served by a
-   previous-release server during F2-pre's own rollout copies under new integer IDs,
-   exactly as every merge does today, and the client reloads its items after sign-in as
+   guarantee starts when F2a switches merges to move rows, after every server can export
+   v4 (and so the aliases): until then merges copy under new integer IDs exactly as
+   every merge does today, and the client reloads its items after sign-in as
    it already does. F2-pre also adds `app_uuid_v7()` (SQL; replaced by native
    `uuidv7()` when the database runs PostgreSQL 18) and the `uid` column on every
    authored table, with that default, backfilled and uniquely indexed, so the backup v4
@@ -426,8 +426,11 @@ Code:
     moved again in between, the overwrite request gets its own `409` and repeats.
   - Every PUT carries a client-generated `mutationId`. The server records the result of
     every acknowledged request, including an identical-content no-op, in `item_mutation_v1(item_uid, mutation_id, response, created_at)`,
-    kept for 35 days, in the same transaction that decides the response. The client drops a
-    queued write after 30 days (the Trash retention), so no retry can outlive its receipt. A retry whose response was
+    kept for 35 days, in the same transaction that decides the response. A queued write is never
+    dropped: after 30 days the client stops retrying it under its old `mutationId` and
+    turns it into a visible dirty draft (the receipt outlives the retry window), so a
+    later save is a new request that the conflict flow reconciles, and no user-authored
+    content is lost. A retry whose response was
     lost replays its own recorded result (including `overwrote` and its history link)
     even after later mutations changed the item.
 - Every ordinary item mutation (create, update, links, facets, and the pre-F3
@@ -843,16 +846,20 @@ after the one before it. Where a phase's own text differs from this sequence, th
 sequence wins; the three-step backup rule (importer, then exporter, then state) is
 applied as listed.
 
-1. **F2-pre.** `uid` columns and `app_uuid_v7()`, move-based merges and restore, aliases,
-   deferrable FKs, `FOR SHARE` workspace locks; the v4 importer (reads UUIDs, stores
-   them). Exporter stays v3.
-2. **F2a.** `*_uid` references, sync triggers, UUID-aware servers; the exporter emits v4.
-   The client still sends contract 1.
+1. **F2-pre.** `uid` columns and `app_uuid_v7()`, the move-based merge and restore code
+   and the alias table (dormant: a database setting keeps merges copying as today),
+   deferrable FKs, `FOR SHARE` workspace locks; the v4 importer (reads UUIDs and
+   aliases, stores them). Exporter stays v3.
+2. **F2a.** `*_uid` references, sync triggers, UUID-aware servers; the exporter emits v4,
+   and only then the setting is switched so merges move rows and write aliases. The
+   client still sends contract 1.
 3. **F2b.** The UUID (contract 2) client and storage upgrader; key swap; the v5 importer
    and the empty `item_revision` and `retired_id_v1` tables (with the marker section of
    v5). Exporter stays v4, and no marker is recorded yet.
-4. **F3a.** The PUT endpoint, sync, tombstones; the exporter emits v5 (revisions and
-   markers) and non-empty v5 imports are accepted. No snapshot writes yet; the client still saves with POST/PATCH.
+4. **F3a.** The `revision` column and its bump triggers (so stale-write detection holds
+   for every writer), the PUT endpoint, sync, tombstones; the exporter emits v5
+   (revisions and markers) and non-empty v5 imports are accepted. No snapshot writes
+   yet; the client still saves with POST/PATCH and does not call PUT.
 5. **F3b.** The client save engine switches to PUT; snapshot writes, revision triggers,
    and the marker-producing delete triggers turn on.
 6. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
