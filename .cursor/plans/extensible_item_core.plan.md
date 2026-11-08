@@ -288,7 +288,10 @@ Code:
   server that can export the state can also import it); then state writes are enabled. The
   one residual gap is a file imported from a different deployment during the exporter
   release's own rollout, which a backup served by a not-yet-upgraded server can omit; a
-  new backup after the rollout includes it. A file is therefore never produced before every server can read
+  new backup after the rollout includes it. Waiting until the exporter has drained
+  would instead let a restore of a file written after state writes begin reach a server
+  that still rejects it, so a rolling deploy always has one of the two windows. This
+  plan chooses the first because it needs a file from another deployment, which is rare. A file is therefore never produced before every server can read
   it, and a backup served during a rollout never omits state. Section 10 lists the
   concrete releases for v3 through v7. Every version keeps an importer, and from F2 on every importer uses the
   UUID-first insert and remap path: identity comes from the stored `uid`, and the
@@ -309,7 +312,9 @@ Code:
     `deletionId`, v6 and later) → skipped; if it has since moved to another workspace
     or its lifecycle state differs (live versus in Trash, or a different deletion
     batch), it is cloned instead, keeping the backed-up state, so the backup's internal links and attachments stay inside
-    the restored workspace;
+    the restored workspace. When an identical item is skipped, its history is merged as
+    described below and its revision is advanced to at least the highest revision in the
+    backup, as in a merge;
   - UUID present in the restoring account with different content (an older backup of an
     item edited since) → the backed-up version is added alongside as a clone with a new
     UUID, as restores do today;
@@ -593,8 +598,9 @@ Code:
   **and** updates `user_workspace_v1.user_id` to the permanent account in the same
   transaction, so deleting the anonymous user cannot cascade through the owner FK. If
   the permanent account is already a member of that workspace, its existing membership
-  is promoted to `owner` and the anonymous owner's row is removed, in the same
-  transaction.
+  is promoted to `owner` in the same transaction, after the anonymous owner's row is
+  removed (the order matters: the one-owner index is checked immediately), and
+  `user_workspace_v1.user_id` is updated last.
   When the destination has a same-named workspace, items move as in F2.
 - Membership changes (grants, revocations, role changes) take `FOR SHARE` on the
   workspace row, which conflicts with a merge's or a delete's `FOR UPDATE`, so a grant
