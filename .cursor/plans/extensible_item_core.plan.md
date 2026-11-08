@@ -9,7 +9,7 @@ todos:
     content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2-pre makes merges move rows and alias retired integer IDs; F2a adds the columns and UUID-aware servers while clients stay on integer IDs; F2b ships the UUID client and moves primary and foreign keys to the uid columns. Integer id stays as the legacy ID. Merge moves rows; restore never overwrites."
     status: pending
   - id: revisioned_writes
-    content: "F3. In two releases: F3a adds Client-generated UUIDv7 IDs, PUT /api/items/{id} with baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, item_revision history, and a sync endpoint reading items, workspaces, vocabulary, and trigger-written tombstones under one snapshot with an xid8 watermark, while the client keeps POST/PATCH; F3b switches the client save engine to PUT."
+    content: "F3. In three releases: F3a adds the revision column, sync, tombstones, and the v5 exporter; F3b installs revision bump triggers and exposes the PUT endpoint (client unchanged); F3c switches the client save engine to PUT and turns on snapshot writes. PUT carries baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, and history is captured as item_revision snapshots."
     status: pending
   - id: soft_delete
     content: "F4. In four releases: F4a adds deleted_at plus deletion_id, read/write filters, and the v6 importer; F4b switches the exporter and sets hard-delete flags; F4c makes every delete a soft delete and ships the Trash read and restore endpoints with the UI hidden; F4d shows the Trash UI, starts the scheduled 30-day purge, and adds a trigger that turns any non-purge DELETE into the same soft delete."
@@ -143,7 +143,8 @@ as lowercase:
 - **F1c (next release, after F1b has replaced every server).** The migration drops the
   lowercasing triggers, so labels keep the casing typed (existing labels keep their
   current text), and uniqueness, lookups, merges, restores, and the client switch to
-  `label_fold_key`; the old unique index is dropped. Importers disambiguate any key
+  `label_fold_key`; the old unique index stays (F1b servers still use it as a conflict
+  target) until the F9 cleanup. Importers disambiguate any key
   collision in any backup version (the later label gets a numbered suffix and references
   follow it) rather than rejecting it.
 - The migration audits existing rows first: legacy padding is trimmed, and any labels
@@ -457,17 +458,21 @@ Code:
   document carries a `schema_version`; the registry keeps an upgrader for each earlier
   shape (for example the scalar `timeDue`/`timeRemind` fields that F6d removes, which
   decode into `item_time_v1` rows), so history stays restorable across schema changes. Backup v5 (shipped in
-  F2b, before F3, together with the empty `item_revision` table it restores into; F3a
+  F2b, before F3, together with the empty `item_revision` table it restores into; F3c
   then turns on snapshot writes) carries each item's revisions; restore brings them back with an inserted
   or cloned item, and for a skipped identical item it appends the backed-up snapshots
   the destination does not already have (matched by each snapshot's own UUID, so two
   snapshots with the same content at different times are both kept), so no history is
   lost.
-- F3 ships in two releases. **F3a** adds the PUT endpoint, revisions, history, sync, and
-  tombstones on the servers while the client keeps saving through POST/PATCH; **F3b**
-  (next release, when every server implements PUT) switches the client save engine,
-  dropping the create/update split and the POST no-retry hazard: every save is a
-  retryable PUT. A new tab therefore never sends a PUT to a server that lacks it.
+- F3 ships in three releases (see section 10). **F3a** adds the `revision` column (no bump
+  triggers yet), sync, tombstones, the v5 exporter (carrying each item's revision number),
+  and non-empty v5 imports. **F3b**, once every exporter carries revision numbers, installs
+  the revision bump triggers and exposes the PUT endpoint on the servers while the client
+  keeps saving through POST/PATCH. **F3c** (when every server implements PUT) switches the
+  client save engine and turns on snapshot writes, dropping the create/update split and
+  the POST no-retry hazard: every save is a retryable PUT. A new tab therefore never sends
+  a PUT to a server that lacks it, and no revision number exists that a backup cannot
+  carry.
 - The existing `POST`/`PATCH` item routes stay through the loaded-browser overlap for
   tabs opened before F3. A write on them carries no `baseRevision`, so the version being
   replaced is snapshotted into `item_revision` before it is applied (last write wins,
@@ -848,36 +853,39 @@ applied as listed.
 
 1. **F2-pre.** `uid` columns and `app_uuid_v7()`, the move-based merge and restore code
    and the alias table (dormant: a database setting keeps merges copying as today),
-   deferrable FKs, `FOR SHARE` workspace locks; the v4 importer (reads UUIDs and
-   aliases, stores them). Exporter stays v3.
-2. **F2a.** `*_uid` references, sync triggers, UUID-aware servers; the exporter emits v4,
-   and only then the setting is switched so merges move rows and write aliases. The
+   deferrable FKs, `FOR SHARE` workspace locks; the `retired_id_v1` table with its
+   marker-producing delete triggers (recording starts as soon as UUIDs exist); the v4
+   importer, which validates UUID, alias, and marker content but does not persist it
+   (restored rows get fresh UUIDs) because every server still exports v3. Exporter
+   stays v3.
+2. **F2a.** `*_uid` references, sync triggers, UUID-aware servers; the exporter emits v4
+   (UUIDs, aliases, markers) and the importer starts persisting that content; only then
+   is the setting switched so merges move rows and write aliases. The
    client still sends contract 1.
 3. **F2b.** The UUID (contract 2) client and storage upgrader; key swap; the v5 importer
-   and the empty `item_revision` and `retired_id_v1` tables (with the marker section of
-   v5). Exporter stays v4, and no marker is recorded yet.
-4. **F3a.** The `revision` column and its bump triggers (so stale-write detection holds
-   for every writer), the PUT endpoint, sync, tombstones; the exporter emits v5
-   (revisions and markers) and non-empty v5 imports are accepted. No snapshot writes
-   yet; the client still saves with POST/PATCH and does not call PUT.
-5. **F3b.** The client save engine switches to PUT; snapshot writes, revision triggers,
-   and the marker-producing delete triggers turn on.
-6. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
+   and the empty `item_revision` table. Exporter stays v4.
+4. **F3a.** The `revision` column (no bump triggers yet), sync, tombstones; the exporter
+   emits v5 (revisions, markers, and each item's revision number) and non-empty v5
+   imports are accepted. PUT is not exposed; the client still saves with POST/PATCH.
+5. **F3b.** The revision bump triggers, the PUT endpoint, and revision-stable restores,
+   now that every exporter carries revision numbers; the client still does not call PUT.
+6. **F3c.** The client save engine switches to PUT; snapshot writes turn on.
+7. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
    (rejects non-empty trash state). Exporter stays v5.
-7. **F4b.** The exporter emits v6 and non-empty v6 imports are accepted; hard-delete flags in account deletion, cleanup, and
+8. **F4b.** The exporter emits v6 and non-empty v6 imports are accepted; hard-delete flags in account deletion, cleanup, and
    merge retirement. Deletes are still hard.
-8. **F4c.** Soft-delete routes (workspace batch included), and the Trash read and
+9. **F4c.** Soft-delete routes (workspace batch included), and the Trash read and
    restore endpoints with the UI still hidden.
-9. **F4d.** The Trash UI, the scheduled purge, and the delete-conversion trigger.
-10. **F5a → F5b.** Membership, owner invariants, account-deletion code, then the owner FK
+10. **F4d.** The Trash UI, the scheduled purge, and the delete-conversion trigger.
+11. **F5a → F5b.** Membership, owner invariants, account-deletion code, then the owner FK
     switch.
-11. **F8.** Capability modules; the empty `item_time_v1` table, the v7 importer (rejects
+12. **F8.** Capability modules; the empty `item_time_v1` table, the v7 importer (rejects
     non-empty times), and the bidirectional synchronization triggers. Exporter stays v6.
-12. **F6a.** The exporter emits v7 and non-empty v7 imports are accepted; backfill; servers accept and return `times[]`; the
+13. **F6a.** The exporter emits v7 and non-empty v7 imports are accepted; backfill; servers accept and return `times[]`; the
     client still writes scalars.
-13. **F6b.** The client authors `times[]`.
-14. **F6c → F6d.** Stop using the scalar columns, then drop them.
-15. **F9.** Retire the note-era compatibility layer.
+14. **F6b.** The client authors `times[]`.
+15. **F6c → F6d.** Stop using the scalar columns, then drop them.
+16. **F9.** Retire the note-era compatibility layer.
 
 F8 lands before F6 so the time facet is built as the first capability module rather than
 added to `ItemsApp.tsx` and extracted again.
