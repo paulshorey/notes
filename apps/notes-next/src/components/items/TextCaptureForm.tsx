@@ -80,7 +80,7 @@ export function TextCaptureForm({
   const selectedCategory = categories.find(
     (category) => category.id === form.selectedCategoryIds[0],
   )
-  const selectedCategoryLabel = selectedCategory?.label ?? ""
+  const selectedCategoryLabel = selectedCategory?.label ?? "__"
   const addItemLabel = selectedCategory
     ? `Add new note in current category ${selectedCategory.label}`
     : "Add new note"
@@ -127,10 +127,6 @@ export function TextCaptureForm({
 
   const updateMorePicker = (picker: "status" | "tag", open: boolean) => {
     setActiveMorePicker((current) => (open ? picker : current === picker ? null : current))
-  }
-
-  const selectCategory = (categoryId: number) => {
-    onSelectCategoryId(String(categoryId))
   }
 
   const addTagLabel = (label: string) => {
@@ -251,11 +247,12 @@ export function TextCaptureForm({
             title="Add new uncategorized note"
           >
             <Plus size={16} weight="bold" aria-hidden />
+            <span aria-hidden>__</span>
           </button>
           <div className={styles.categoryControls}>
             <button
               type="button"
-              className={styles.addItemButton}
+              className={`${styles.addItemButton} ${styles.categoryAddButton}`}
               onClick={onAddItemInCategory}
               aria-label={addItemLabel}
               title={addItemLabel}
@@ -265,21 +262,24 @@ export function TextCaptureForm({
             <FilterablePicker
               variant="inline"
               value={selectedCategoryLabel}
+              triggerClassName={styles.categoryPickerTrigger}
               triggerAriaLabel="Categories"
               listboxAriaLabel="Category options"
               triggerIcon={
                 <FolderOpen size={17} weight="regular" className={styles.propertyPickerIcon} />
               }
-              options={categories}
-              selectedIds={form.selectedCategoryIds}
+              options={[{ id: "", label: "uncategorized" }, ...categories]}
+              selectedIds={form.selectedCategoryIds.length ? form.selectedCategoryIds : [""]}
               disabled={!userPresent}
               pending={createCategoryPending}
               onOpenChange={(open) => {
                 if (open) closeMoreDropdown()
               }}
-              onSelectOption={(category) => selectCategory(Number(category.id))}
+              onSelectOption={(category) => onSelectCategoryId(String(category.id))}
               onCreateOption={onCreateCategory}
-              validateInput={getCategoryNameError}
+              validateInput={(label) =>
+                normalizeLabel(label) === "uncategorized" ? null : getCategoryNameError(label)
+              }
               emptyWithoutQueryMessage="No categories yet"
               inputPlaceholder="Enter new category..."
             />
