@@ -539,7 +539,8 @@ Code:
   item content, and the removed links are an authored change to each affected item, so
   its revision snapshot keeps the previous labels and history can restore them (under a
   new term ID, since the deleted one is retired). A `BEFORE DELETE` trigger on each
-  vocabulary table snapshots every affected item while the term's label still exists,
+  vocabulary table (installed in F3c with the snapshot writes it depends on) snapshots
+  every affected item while the term's label still exists,
   before the link rows cascade. A rename is an authored change to every linked item
   too: a `BEFORE UPDATE OF label` trigger on each vocabulary table snapshots and
   revises every affected item before the new label is visible. D3's
@@ -654,7 +655,11 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   **F6a** switches the exporter to v7 and accepts non-empty v7 imports, so all-day,
   recurring, and multi-valued times can be persisted only once every server that can
   export them can also restore them. F6a also backfills `due` /
-  `remind` rows from the existing columns (`time_zone` NULL: unknown); the two
+  `remind` rows from the existing columns (`time_zone` NULL: unknown), as a
+  representation-only change: the backfill runs with the revision, snapshot, mirror, and
+  row-timestamp side effects suppressed (so no item looks edited and no history entry is
+  created) while taking each item row's lock so a concurrent scalar write cannot slip
+  between; the two
   representations stay synchronized in both directions by the F8 triggers: a write to
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
   row, and a write to the role's row updates the column: its instant when the row is
@@ -870,12 +875,14 @@ applied as listed.
    client still sends contract 1.
 3. **F2b.** The UUID (contract 2) client and storage upgrader; key swap; the v5 importer
    and the empty `item_revision` table. Exporter stays v4.
-4. **F3a.** The `revision` column (no bump triggers yet), sync, tombstones; the exporter
+4. **F3a.** The `revision` column (no bump triggers yet), the sync endpoint (dormant:
+   clients do not consume it until F3b), tombstones; the exporter
    emits v5 (revisions, markers, and each item's revision number) and non-empty v5
    imports are accepted. PUT is not exposed; the client still saves with POST/PATCH.
 5. **F3b.** The revision bump triggers, the PUT endpoint, and revision-stable restores,
    now that every exporter carries revision numbers; the client still does not call PUT.
-6. **F3c.** The client save engine switches to PUT; snapshot writes turn on.
+6. **F3c.** The client save engine switches to PUT; snapshot writes turn on, together
+   with the vocabulary delete and rename snapshot triggers they depend on.
 7. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
    (rejects non-empty trash state). Exporter stays v5.
 8. **F4b.** The exporter emits v6 and non-empty v6 imports are accepted; hard-delete flags in account deletion, cleanup, and
