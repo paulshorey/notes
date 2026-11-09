@@ -868,9 +868,10 @@ applied as listed.
    and the alias table (dormant: a database setting keeps merges copying as today),
    deferrable FKs, `FOR SHARE` workspace locks; the `retired_id_v1` table with its
    marker-producing delete triggers (recording starts as soon as UUIDs exist); the v4
-   importer, which validates UUID, alias, and marker content but does not persist it
-   (restored rows get fresh UUIDs) because every server still exports v3. Exporter
-   stays v3.
+   importer, which validates a v4 file and then refuses it with a compatibility error
+   (retry once the rollout finishes) rather than restoring it under fresh UUIDs and
+   losing its identities, aliases, and markers, because every server still exports v3.
+   Exporter stays v3.
 2. **F2a.** `*_uid` references, sync triggers, UUID-aware servers; the exporter emits v4
    (UUIDs, aliases, markers) and the importer starts persisting that content; only then
    is the setting switched so merges move rows and write aliases. The
