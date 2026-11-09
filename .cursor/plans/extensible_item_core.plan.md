@@ -264,8 +264,10 @@ Code:
     `deletion_id`), but the skipped source item's UUID
     becomes an alias of the surviving destination item. The identity covers every
     authored facet of the item's normalized content, without facet IDs (it is computed
-    from the F7 registry of `authored` + `follows-item` tables), so items that differ in
-    times, files, or other facets are both kept. When two items match, each source facet
+    from every F7-registered `authored` table that affects the item, independently of
+    move/merge strategy; category/tag links use their remapped vocabulary keys, never
+    row IDs), so items that differ in category/tag assignments, times, files, or other
+    facets are both kept. When two items match, each source facet
     is paired with its equal-content counterpart on the survivor and its ID is aliased to
     that counterpart's in `id_alias_v1`, so a queued edit carrying a source facet ID
     follows it; the skipped item's revision history is appended to the survivor's before
@@ -337,6 +339,14 @@ Code:
   do not, and neither do `history` tables (below). F7's guard requires the trigger on
   every `authored` table whose mutations affect an item, regardless of move/merge
   strategy; this includes category/tag links registered as `remap-by-key`.
+  On tables mixing authored and derived columns, triggers compare the authored values:
+  an update changing only embeddings, thumbnails, or other derived values leaves
+  `revision`, `time_modified`, `change_xid`, and vocabulary/workspace `row_version`
+  unchanged and produces no history snapshot. `apply_row_timestamps_v1` follows that
+  same predicate, so background rebuilds never reorder authored content. Sync projections
+  exclude derived values; derived results needing client delivery use a separate versioned
+  channel. Tests cover derived-only updates and mixed authored/derived updates, including
+  vocabulary embeddings, so an authored change still advances all relevant metadata.
 - Sync cursor: each changed row of `workspace_item_v1`, `user_workspace_v1`, and the
   vocabulary tables records `change_xid xid8 DEFAULT pg_current_xact_id()` (updated by
   trigger). A sync response returns rows with `change_xid >= cursor` and a new cursor of
@@ -453,13 +463,14 @@ Code:
   workspace being trashed.
 - `item_revision` keeps coalesced snapshots (per editing burst, and always before a
   conflicting overwrite, delete, or merge). A snapshot holds the item's restorable
-  authored content: its authored base columns plus every `authored` + `follows-item`
-  facet, with vocabulary links recorded by label and `label_key` rather than only by
-  term ID. Restoring a history entry keeps the item's current identity, workspace,
+  authored content: its authored base columns plus every registered `authored` table
+  affecting the item, independently of move/merge strategy, including `remap-by-key`
+  category/tag links recorded by label and `label_key` rather than only by term ID.
+  Restoring a history entry keeps the item's current identity, workspace,
   revision, and lifecycle fields (a restore is a new revision), and resolves each link
   by `label_key` in the current workspace, creating the term under a new ID if it was
-  deleted. as one JSON document whose
-  The document's shape is generated from the F7 registry, so restoring a history entry
+  deleted. The snapshot is one JSON document whose shape is generated from the F7
+  registry, so restoring a history entry
   restores times, links, and later facets too. `item_revision` is classified `history`: portable and
   moved with its item, but excluded from revision triggers and from snapshot contents,
   so writing a snapshot never bumps the item and snapshots never nest. Every revision
@@ -598,10 +609,15 @@ Code:
     the workspace's `retired_id_v1` markers move to the new owner;
   - a workspace with no other members is deleted through the workspace-delete function
     (tombstones first). Trash is not used here because no account remains to restore it.
-    So an owner's deletion never destroys collaborators' content, and nothing still
-    references the user when it is deleted. Labels are unique among the workspaces a user owns;
-    workspaces shared with them by others are never merge or restore targets. Anonymous
-    merge and backup restore pick their destination among owned workspaces only.
+  After those workspace dispositions and before deleting the user, clear `owner_user_id`
+  on all remaining `retired_id_v1` markers belonging to that account, including markers
+  for already-purged workspaces. The global `(kind, uid)` retirement records remain
+  permanent and still reject delayed writes; unowned markers are excluded from account
+  backups and are never reassigned by a restore. So an owner's deletion never destroys
+  collaborators' content, and nothing still references the user when it is deleted.
+  Labels are unique among the workspaces a user owns; workspaces shared with them by
+  others are never merge or restore targets. Anonymous merge and backup restore pick
+  their destination among owned workspaces only.
 - One SQL predicate (`can_read_workspace` / `can_write_workspace`) replaces per-query
   ownership joins for authorization, including the raw SQL in
   `scripts/cleanup-anonymous-users.mjs` and other maintenance scripts.
@@ -756,7 +772,12 @@ any table in the `public` schema that is neither reached by the walk nor registe
 `retired_id_v1` records retired `(kind, uid)` pairs with the `item_uid` they belonged to
 (for item facets) and the `workspace_uid` they last belonged to; moving an item updates
 both on its facets' markers, so they follow it to its new workspace and owner and that workspace's owner at retirement (`owner_user_id`, which an
-anonymous merge moves to the permanent account). A portable backup carries every marker
+anonymous merge moves to the permanent account). From the table's first release,
+`owner_user_id` is nullable with `ON DELETE SET NULL`, never `CASCADE` or `RESTRICT`,
+so account deletion cannot erase a global retirement record or fail because it remains.
+F5's deletion flow explicitly detaches remaining account-owned markers before deleting
+that user; markers transferred with a surviving workspace retain its new owner.
+A portable backup carries every marker
 owned by the exported account, including those of workspaces since purged, and restore re-inserts them (skipping any UUID that is live elsewhere), so a
 restored account still refuses retries of IDs retired before the backup. A merge
 that deduplicates an item reparents the source item's descendant markers to the survivor
@@ -779,7 +800,11 @@ the source owner's row, whose user already owns the destination); credentials us
 every `authored` table whose mutations affect an item, independently of move/merge
 strategy (including `remap-by-key` category/tag links). The registry records the owning-item
 resolver for each such table, and the guard verifies its revision trigger; changing the
-merge strategy cannot exempt it. F7 does not check that rule before F3, so it ships
+merge strategy cannot exempt it. Dedup identity and snapshot generation use that same
+owning-item mapping for every authored table, with vocabulary references normalized by
+key, so remapped links cannot disappear from either representation. Verification keeps
+items with differing category/tag assignments distinct and round-trips those links
+through history. F7 does not check the revision-trigger rule before F3, so it ships
 independently.
 A new content-type table therefore cannot ship without a deliberate backup and merge
 decision.
