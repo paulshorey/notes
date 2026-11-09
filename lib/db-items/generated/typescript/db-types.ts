@@ -39,6 +39,7 @@ export interface UserWorkspaceV1Row {
   label: string
   time_created: Date
   time_modified: Date
+  label_key: string | null
 }
 
 export interface WorkspaceCategoryV1Row {
@@ -50,6 +51,7 @@ export interface WorkspaceCategoryV1Row {
   embedding_updated_at: Date | null
   time_created: Date
   time_modified: Date
+  label_key: string | null
 }
 
 export interface WorkspaceItemV1Row {
@@ -73,6 +75,7 @@ export interface WorkspaceStatusV1Row {
   position: number
   time_created: Date
   time_modified: Date
+  label_key: string | null
 }
 
 export interface WorkspaceTagV1Row {
@@ -84,6 +87,7 @@ export interface WorkspaceTagV1Row {
   embedding_updated_at: Date | null
   time_created: Date
   time_modified: Date
+  label_key: string | null
 }
 
 export interface PostgresDbSchema {

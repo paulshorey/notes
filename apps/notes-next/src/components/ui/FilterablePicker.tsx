@@ -4,6 +4,7 @@ import { CaretDown } from "@phosphor-icons/react"
 import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from "react"
 import { FilterablePickerPopup, type FilterablePickerOption } from "./FilterablePickerPopup"
 import styles from "./FilterablePicker.module.css"
+import { labelKey } from "@/lib/strings"
 
 export interface FilterablePickerProps {
   options: FilterablePickerOption[]
@@ -77,10 +78,10 @@ export function FilterablePicker({
     return new Set([ids[0]])
   }, [multiple, selectedIds])
   const filteredOptions = useMemo(() => {
-    const query = inputValue.trim().toLocaleLowerCase()
+    const query = labelKey(inputValue)
     return options.filter((option) => {
       if (excludeSelected && selectedIdSet.has(String(option.id))) return false
-      return query === "" || option.label.trim().toLocaleLowerCase().includes(query)
+      return query === "" || labelKey(option.label).includes(query)
     })
   }, [excludeSelected, inputValue, options, selectedIdSet])
 
@@ -116,10 +117,8 @@ export function FilterablePicker({
   const submitInput = () => {
     const label = inputValue.trim()
     if (label === "" || interactionDisabled || inputError) return
-    const normalized = label.toLocaleLowerCase()
-    const matchingOption = filteredOptions.find(
-      (option) => option.label.trim().toLocaleLowerCase() === normalized,
-    )
+    const normalized = labelKey(label)
+    const matchingOption = filteredOptions.find((option) => labelKey(option.label) === normalized)
     if (matchingOption) {
       selectOption(matchingOption)
       return
@@ -127,7 +126,7 @@ export function FilterablePicker({
     // An exact option excluded because it is already selected should not be
     // submitted as a duplicate. Otherwise Enter follows the list the user can
     // see, choosing its first match and creating only when there are no matches.
-    if (options.some((option) => option.label.trim().toLocaleLowerCase() === normalized)) {
+    if (options.some((option) => labelKey(option.label) === normalized)) {
       return
     }
     if (filteredOptions[0]) {
@@ -180,7 +179,7 @@ export function FilterablePicker({
         inputRef={inputRef}
         inputDisabled={interactionDisabled}
         inputError={inputError}
-        onInputChange={(nextValue) => setInputValue(nextValue.toLocaleLowerCase())}
+        onInputChange={setInputValue}
         onInputKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault()

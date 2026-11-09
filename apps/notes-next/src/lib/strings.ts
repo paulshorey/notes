@@ -1,6 +1,4 @@
-export const normalizeLabel = (value: string) => value.trim().toLocaleLowerCase()
-
-export const toLowercaseInput = (value: string) => value.toLocaleLowerCase()
+export { labelKey, sameLabel, trimLabel } from "@lib/db-items/contracts/label"
 
 /**
  * Display title for a note, derived from its first line. Shared by the results

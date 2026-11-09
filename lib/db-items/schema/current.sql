@@ -29,6 +29,50 @@ SET row_security = off;
 
 
 --
+-- Name: app_label_key_v1(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_label_key_v1(label text) RETURNS text
+    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+    RETURN lower((NORMALIZE(label, NFKC) COLLATE "und-x-icu"));
+
+
+--
+-- Name: app_label_lowercase_v1(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_label_lowercase_v1() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  key text := public.app_label_key_v1(NEW.label);
+  lowered text := lower(NEW.label COLLATE "und-x-icu");
+BEGIN
+  IF public.app_label_key_v1(lowered) = key THEN
+    NEW.label := lowered;
+  ELSIF key <> '' AND key = btrim(key, public.app_label_whitespace_v1()) THEN
+    NEW.label := key;
+  ELSE
+    -- No lowercase spelling keeps this label's identity (for example U+00A8 followed
+    -- by U+03F9), so previous-release servers could not read it. Reject it until
+    -- labels keep their casing.
+    RAISE EXCEPTION 'This label cannot be saved yet. Remove unusual symbols and try again.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END $$;
+
+
+--
+-- Name: app_label_whitespace_v1(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_label_whitespace_v1() RETURNS text
+    LANGUAGE sql IMMUTABLE PARALLEL SAFE
+    RETURN ((((((((((((((((((((((((chr(9) || chr(10)) || chr(11)) || chr(12)) || chr(13)) || chr(32)) || chr(160)) || chr(5760)) || chr(8192)) || chr(8193)) || chr(8194)) || chr(8195)) || chr(8196)) || chr(8197)) || chr(8198)) || chr(8199)) || chr(8200)) || chr(8201)) || chr(8202)) || chr(8232)) || chr(8233)) || chr(8239)) || chr(8287)) || chr(12288)) || chr(65279));
+
+
+--
 -- Name: apply_row_timestamps_v1(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -223,7 +267,8 @@ CREATE TABLE public.user_workspace_v1 (
     label text NOT NULL,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_workspace_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
+    label_key text GENERATED ALWAYS AS (public.app_label_key_v1(label)) STORED,
+    CONSTRAINT user_workspace_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 
 
@@ -260,8 +305,9 @@ CREATE TABLE public.workspace_category_v1 (
     embedding_updated_at timestamp with time zone,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workspace_category_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label))))),
-    CONSTRAINT workspace_category_v1_label_not_reserved_check CHECK ((lower(btrim(label, ((((((((((((((((((((((((chr(9) || chr(10)) || chr(11)) || chr(12)) || chr(13)) || chr(32)) || chr(160)) || chr(5760)) || chr(8192)) || chr(8193)) || chr(8194)) || chr(8195)) || chr(8196)) || chr(8197)) || chr(8198)) || chr(8199)) || chr(8200)) || chr(8201)) || chr(8202)) || chr(8232)) || chr(8233)) || chr(8239)) || chr(8287)) || chr(12288)) || chr(65279)))) <> 'uncategorized'::text))
+    label_key text GENERATED ALWAYS AS (public.app_label_key_v1(label)) STORED,
+    CONSTRAINT workspace_category_v1_label_not_reserved_check CHECK ((public.app_label_key_v1(btrim(label, public.app_label_whitespace_v1())) <> 'uncategorized'::text)),
+    CONSTRAINT workspace_category_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 
 
@@ -312,7 +358,8 @@ CREATE TABLE public.workspace_status_v1 (
     "position" integer DEFAULT 0 NOT NULL,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workspace_status_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label))))),
+    label_key text GENERATED ALWAYS AS (public.app_label_key_v1(label)) STORED,
+    CONSTRAINT workspace_status_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1())))),
     CONSTRAINT workspace_status_v1_position_check CHECK (("position" >= 0))
 );
 
@@ -344,7 +391,8 @@ CREATE TABLE public.workspace_tag_v1 (
     embedding_updated_at timestamp with time zone,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workspace_tag_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
+    label_key text GENERATED ALWAYS AS (public.app_label_key_v1(label)) STORED,
+    CONSTRAINT workspace_tag_v1_label_trimmed_check CHECK (((label <> ''::text) AND (label = btrim(label, public.app_label_whitespace_v1()))))
 );
 
 
@@ -635,6 +683,13 @@ CREATE INDEX user_workspace_v1_user_id_idx ON public.user_workspace_v1 USING btr
 
 
 --
+-- Name: user_workspace_v1_user_id_label_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX user_workspace_v1_user_id_label_key_idx ON public.user_workspace_v1 USING btree (user_id, label_key);
+
+
+--
 -- Name: workspace_category_v1_category_embedding_hnsw_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -646,6 +701,13 @@ CREATE INDEX workspace_category_v1_category_embedding_hnsw_idx ON public.workspa
 --
 
 CREATE INDEX workspace_category_v1_workspace_id_idx ON public.workspace_category_v1 USING btree (workspace_id);
+
+
+--
+-- Name: workspace_category_v1_workspace_id_label_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_category_v1_workspace_id_label_key_idx ON public.workspace_category_v1 USING btree (workspace_id, label_key);
 
 
 --
@@ -670,6 +732,13 @@ CREATE INDEX workspace_item_v1_workspace_id_idx ON public.workspace_item_v1 USIN
 
 
 --
+-- Name: workspace_status_v1_workspace_id_label_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_status_v1_workspace_id_label_key_idx ON public.workspace_status_v1 USING btree (workspace_id, label_key);
+
+
+--
 -- Name: workspace_status_v1_workspace_id_position_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -691,6 +760,13 @@ CREATE INDEX workspace_tag_v1_workspace_id_idx ON public.workspace_tag_v1 USING 
 
 
 --
+-- Name: workspace_tag_v1_workspace_id_label_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_tag_v1_workspace_id_label_key_idx ON public.workspace_tag_v1 USING btree (workspace_id, label_key);
+
+
+--
 -- Name: user_v1 user_v1_apply_row_timestamps_v1; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -705,10 +781,24 @@ CREATE TRIGGER user_workspace_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDATE
 
 
 --
+-- Name: user_workspace_v1 user_workspace_v1_label_lowercase_v1; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER user_workspace_v1_label_lowercase_v1 BEFORE INSERT OR UPDATE OF label ON public.user_workspace_v1 FOR EACH ROW EXECUTE FUNCTION public.app_label_lowercase_v1();
+
+
+--
 -- Name: workspace_category_v1 workspace_category_v1_apply_row_timestamps_v1; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER workspace_category_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDATE ON public.workspace_category_v1 FOR EACH ROW EXECUTE FUNCTION public.apply_row_timestamps_v1();
+
+
+--
+-- Name: workspace_category_v1 workspace_category_v1_label_lowercase_v1; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_category_v1_label_lowercase_v1 BEFORE INSERT OR UPDATE OF label ON public.workspace_category_v1 FOR EACH ROW EXECUTE FUNCTION public.app_label_lowercase_v1();
 
 
 --
@@ -726,10 +816,24 @@ CREATE TRIGGER workspace_status_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDA
 
 
 --
+-- Name: workspace_status_v1 workspace_status_v1_label_lowercase_v1; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_status_v1_label_lowercase_v1 BEFORE INSERT OR UPDATE OF label ON public.workspace_status_v1 FOR EACH ROW EXECUTE FUNCTION public.app_label_lowercase_v1();
+
+
+--
 -- Name: workspace_tag_v1 workspace_tag_v1_apply_row_timestamps_v1; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER workspace_tag_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDATE ON public.workspace_tag_v1 FOR EACH ROW EXECUTE FUNCTION public.apply_row_timestamps_v1();
+
+
+--
+-- Name: workspace_tag_v1 workspace_tag_v1_label_lowercase_v1; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_tag_v1_label_lowercase_v1 BEFORE INSERT OR UPDATE OF label ON public.workspace_tag_v1 FOR EACH ROW EXECUTE FUNCTION public.app_label_lowercase_v1();
 
 
 --

@@ -19,6 +19,26 @@ tag link tables now reference `item_id`. Composite foreign keys still reject
 cross-workspace relationships. `description` remains nullable in this first step.
 `isTextItem` is the explicit selection rule for the current note client.
 
+## Text and labels
+
+Item text is stored exactly as received, including leading and trailing whitespace.
+Whitespace-only text is stored as `NULL` (no text). Embeddings and the note selection
+rule trim when they read text; they never rewrite it.
+
+Workspace, category, status, and tag labels are stored without surrounding whitespace
+(the ECMAScript `trim()` set, enforced by `app_label_whitespace_v1()`). Identity is the
+generated `label_key` column, `app_label_key_v1(label)` (NFKC, then lowercasing with the
+locale-independent ICU root collation), which carries the unique indexes. Lookups,
+merges, restores, and backup reference checks match by key, and reusing a label never
+rewrites its stored spelling.
+
+Rollout compatibility: previous-release servers read, export, and validate labels as
+lowercase. The `app_label_lowercase_v1` triggers store every inserted or renamed label
+lowercased, and the exact-label unique constraints remain as those servers'
+`ON CONFLICT (…, label)` targets. Such a server inserting a compatibility-form variant
+of an existing label (for example full-width) fails on the key index and rolls back. Clients and APIs already send labels as typed; dropping the
+lowercasing triggers in a later release makes labels keep their casing.
+
 Category and uncategorized navigation groups share transactional bulk actions.
 See [item group actions](item-group-actions.md) for selection, rename/deletion,
 preview conflict handling, and client coordination.
@@ -54,9 +74,13 @@ Compatibility never makes a client-supplied user ID authoritative.
 - The single existing `user_note_v1_id_seq` keeps its name temporarily because
   old account-merge SQL calls it literally. New code discovers the owning
   sequence with `pg_get_serial_sequence`; no competing allocator is created.
-- Backup version 2 uses `workspaces[].items`. Import still accepts version 1's
-  `workspaces[].notes`, with the existing reserved-category conversion. Older
-  web clients download version 1 when they omit the item-contract header.
+- Backup import accepts version 3 (`workspaces[].items`, labels as typed), version 2
+  (lowercased labels), and version 1's `workspaces[].notes`, with the existing
+  reserved-category conversion. Legacy labels that now share a key keep both entries:
+  the later one gets a numbered suffix (`ｑ (2)`) and its references follow it. While labels are stored lowercased for the rollout,
+  exports are version 2 with each label's lowercase spelling, so previous-release
+  servers can restore them; older web clients that omit the item-contract header
+  download version 1.
 - Browser cache and open-item storage use version 3. Readers upgrade existing
   note-named snapshots, including serialized IDs and clean/dirty signatures.
   Authored text and navigation keys are preserved. Legacy dirty snapshots are

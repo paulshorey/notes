@@ -15,7 +15,7 @@ export interface CategoryEmbeddingBackfillRow {
 export const listCategoriesByWorkspace = async (userId: number, workspaceId: number) => {
   const { rows } = await getDb().query<Row>(
     `${select} JOIN public.user_workspace_v1 w ON w.id=c.workspace_id
-    WHERE w.user_id=$1 AND c.workspace_id=$2 ORDER BY last_used_at DESC NULLS LAST,lower(c.label),c.id`,
+    WHERE w.user_id=$1 AND c.workspace_id=$2 ORDER BY last_used_at DESC NULLS LAST,c.label_key,c.id`,
     [userId, workspaceId],
   )
   return rows.map(map)

@@ -25,7 +25,7 @@ export const ensureDefaultWorkspaceForUser = async (client: PoolClient, userId: 
   const { rows } = await client.query<{ id: number }>(
     `INSERT INTO public.user_workspace_v1(user_id,label) SELECT $1,$2
    WHERE NOT EXISTS(SELECT 1 FROM public.user_workspace_v1 WHERE user_id=$1)
-   ON CONFLICT(user_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
+   ON CONFLICT(user_id,label_key) DO UPDATE SET label=user_workspace_v1.label RETURNING id`,
     [userId, DEFAULT_WORKSPACE_LABEL],
   )
   let id = rows[0]?.id

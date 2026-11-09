@@ -44,7 +44,7 @@ import { signIn, signOut, useSession } from "next-auth/react"
 import { SIDEBAR_OVERLAY_MEDIA_QUERY, STORAGE_KEY } from "@/constants/items"
 import { fetchWithTimeout, getErrorMessage, itemsFetch, readJson, RequestError } from "@/lib/api"
 import { recoverExpiredSession } from "@/lib/sessionRecovery"
-import { normalizeLabel } from "@/lib/strings"
+import { labelKey, trimLabel } from "@/lib/strings"
 import {
   createDefaultTextCaptureForm,
   itemToFormState,
@@ -2067,8 +2067,8 @@ export default function ItemsApp() {
     const seen = new Set<string>()
 
     for (const rawValue of nextValues) {
-      const value = normalizeLabel(rawValue)
-      const normalized = normalizeLabel(value)
+      const value = trimLabel(rawValue)
+      const normalized = labelKey(value)
       if (normalized === "" || seen.has(normalized)) {
         continue
       }
@@ -2077,11 +2077,11 @@ export default function ItemsApp() {
     }
 
     const nextSelectedTagIds = cleanedValues.flatMap((value) => {
-      const matchingTag = tags.find((tag) => normalizeLabel(tag.label) === normalizeLabel(value))
+      const matchingTag = tags.find((tag) => labelKey(tag.label) === labelKey(value))
       return matchingTag ? [matchingTag.id] : []
     })
     const nextPendingLabels = cleanedValues.filter(
-      (value) => !tags.some((tag) => normalizeLabel(tag.label) === normalizeLabel(value)),
+      (value) => !tags.some((tag) => labelKey(tag.label) === labelKey(value)),
     )
 
     if (activeKey === null) return
@@ -2500,7 +2500,7 @@ export default function ItemsApp() {
 
   const handleCreateWorkspace = async (rawLabel: string) => {
     if (!user) return
-    const label = rawLabel.trim().toLocaleLowerCase()
+    const label = trimLabel(rawLabel)
     if (!label) return
     try {
       const response = await itemsFetch("/api/workspaces", {
@@ -2524,11 +2524,9 @@ export default function ItemsApp() {
     targetKey: OpenItemKey | null = activeKey,
   ) => {
     if (!user || activeWorkspaceId === null || targetKey === null) return
-    const label = rawLabel.trim().toLocaleLowerCase()
+    const label = trimLabel(rawLabel)
     if (!label) return
-    const existingStatus = statuses.find(
-      (status) => normalizeLabel(status.label) === normalizeLabel(label),
-    )
+    const existingStatus = statuses.find((status) => labelKey(status.label) === labelKey(label))
     if (existingStatus) {
       patchEntryForm(targetKey, (form) => ({ ...form, selectedStatusId: existingStatus.id }))
       return
@@ -2643,9 +2641,7 @@ export default function ItemsApp() {
 
     const dropPendingLabel = (normalized: string) =>
       patchEntry(targetKey, (entry) => ({
-        pendingTagLabels: entry.pendingTagLabels.filter(
-          (item) => normalizeLabel(item) !== normalized,
-        ),
+        pendingTagLabels: entry.pendingTagLabels.filter((item) => labelKey(item) !== normalized),
       }))
 
     const selectTag = (tagId: number) =>
@@ -2658,8 +2654,8 @@ export default function ItemsApp() {
         },
       }))
 
-    const normalizedLabel = normalizeLabel(label)
-    const existingTag = tags.find((tag) => normalizeLabel(tag.label) === normalizedLabel)
+    const normalizedLabel = labelKey(label)
+    const existingTag = tags.find((tag) => labelKey(tag.label) === normalizedLabel)
     if (existingTag) {
       dropPendingLabel(normalizedLabel)
       selectTag(existingTag.id)
@@ -2689,7 +2685,7 @@ export default function ItemsApp() {
       const shouldKeepSelected = useItemsAppStore
         .getState()
         .openItems.find((entry) => entry.key === targetKey)
-        ?.pendingTagLabels.some((item) => normalizeLabel(item) === normalizedLabel)
+        ?.pendingTagLabels.some((item) => labelKey(item) === normalizedLabel)
 
       dropPendingLabel(normalizedLabel)
       if (shouldKeepSelected) selectTag(data.tag.id)
@@ -2721,7 +2717,7 @@ export default function ItemsApp() {
       return
     }
     const existingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
+      (category) => labelKey(category.label) === labelKey(label),
     )
     if (existingCategory) {
       patchEntry(targetKey, (entry) => ({
@@ -2770,7 +2766,7 @@ export default function ItemsApp() {
       setErrorMessage("Sign in before moving notes.")
       return null
     }
-    const label = normalizeLabel(rawLabel)
+    const label = trimLabel(rawLabel)
     const nameError = getCategoryNameError(label)
     if (nameError) {
       setErrorMessage(nameError)
@@ -2780,7 +2776,7 @@ export default function ItemsApp() {
       return null
     }
     const existingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
+      (category) => labelKey(category.label) === labelKey(label),
     )
     if (existingCategory) {
       return existingCategory
@@ -2806,11 +2802,11 @@ export default function ItemsApp() {
       setErrorMessage("Sign in before moving notes.")
       return null
     }
-    const label = normalizeLabel(rawLabel)
+    const label = trimLabel(rawLabel)
     if (label === "") {
       return null
     }
-    const existingTag = tags.find((tag) => normalizeLabel(tag.label) === normalizeLabel(label))
+    const existingTag = tags.find((tag) => labelKey(tag.label) === labelKey(label))
     if (existingTag) {
       return existingTag
     }

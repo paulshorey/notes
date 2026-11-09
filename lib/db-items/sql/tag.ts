@@ -26,7 +26,7 @@ const select = `SELECT t.id,t.workspace_id,t.label,(SELECT COUNT(*)::int FROM pu
 export const ensureDefaultTagForWorkspace = async (client: PoolClient, workspaceId: number) => {
   await client.query(
     `INSERT INTO public.workspace_tag_v1(workspace_id,label) SELECT $1,$2
- WHERE NOT EXISTS(SELECT 1 FROM public.workspace_tag_v1 WHERE workspace_id=$1) ON CONFLICT(workspace_id,label) DO NOTHING`,
+ WHERE NOT EXISTS(SELECT 1 FROM public.workspace_tag_v1 WHERE workspace_id=$1) ON CONFLICT(workspace_id,label_key) DO NOTHING`,
     [workspaceId, DEFAULT_TAG_LABEL],
   )
 }
@@ -40,7 +40,7 @@ export const getFirstTagForWorkspace = async (client: PoolClient, workspaceId: n
 export const listTagsByWorkspace = async (userId: number, workspaceId: number) => {
   const { rows } = await getDb().query<Row>(
     `${select} JOIN public.user_workspace_v1 w ON w.id=t.workspace_id
- WHERE w.user_id=$1 AND t.workspace_id=$2 ORDER BY last_used_at DESC NULLS LAST,lower(t.label),t.id`,
+ WHERE w.user_id=$1 AND t.workspace_id=$2 ORDER BY last_used_at DESC NULLS LAST,t.label_key,t.id`,
     [userId, workspaceId],
   )
   return rows.map(map)

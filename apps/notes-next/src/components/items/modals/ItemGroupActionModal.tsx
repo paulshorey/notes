@@ -10,6 +10,7 @@ import type {
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import { itemsFetch, readJson, getErrorMessage, RequestError } from "@/lib/api"
 import { describeItemGroupContents } from "@/lib/itemGroupActions"
+import { sameLabel, trimLabel } from "@/lib/strings"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import styles from "./ItemGroupActionModal.module.css"
 
@@ -72,10 +73,15 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
   if (!dialog) return null
   const uncategorized = dialog.target.kind === "uncategorized"
   const renaming = dialog.intent === "rename"
-  const normalizedLabel = label.trim().toLocaleLowerCase()
+  const typedLabel = trimLabel(label)
   const nameError = getCategoryNameError(label)
-  const existing = categories.find((category) => category.label === normalizedLabel)
-  const sameName = !uncategorized && normalizedLabel === dialog.label
+  // A rename that only changes casing keeps the same category.
+  const existing = categories.find(
+    (category) =>
+      sameLabel(category.label, typedLabel) &&
+      (uncategorized || !sameLabel(category.label, dialog.label)),
+  )
+  const sameName = !uncategorized && typedLabel === dialog.label
   const close = () => {
     if (!pending) setDialog(null)
   }
@@ -181,12 +187,12 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
               loading={pending}
               disabled={
                 !preview ||
-                !normalizedLabel ||
+                !typedLabel ||
                 Boolean(nameError) ||
                 sameName ||
                 (uncategorized && preview.itemCount === 0)
               }
-              onClick={() => void execute({ kind: "rename", label: normalizedLabel })}
+              onClick={() => void execute({ kind: "rename", label: typedLabel })}
             >
               {uncategorized ? "Move items to category" : "Rename category"}
             </Button>

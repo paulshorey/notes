@@ -7,11 +7,12 @@ import type {
   ItemGroupSelection,
 } from "../contracts/item-group-actions"
 import { assertCategoryNameAllowed, UNCATEGORIZED_LABEL } from "../contracts/category-name"
+import { trimLabel } from "../contracts/label"
 import { isTextItem } from "../contracts/item-content"
 import { getDb } from "../lib/db/postgres"
 import { readCategory } from "./category-shared"
 import { ItemGroupConflictError, ItemGroupNotFoundError } from "./item-group-errors"
-import { itemSelect, mapItem, resolveCategoryIdForWorkspace, type ItemRow } from "./item/shared"
+import { itemSelect, mapItem, resolveLabelForWorkspace, type ItemRow } from "./item/shared"
 import { deleteItemsForUserWithClient } from "./item/delete"
 
 interface GroupState {
@@ -154,23 +155,26 @@ const actions: {
       throw new ItemGroupConflictError("This group is empty. There are no items to categorize.")
     assertCategoryNameAllowed(action.label)
     if (!action.label.trim()) throw new Error("label is required.")
-    const label = action.label.trim().toLocaleLowerCase()
-    const categoryId =
-      state.category?.id ??
-      (await resolveCategoryIdForWorkspace(client, selection.workspaceId, label))
-    if (!categoryId) throw new Error("Failed to resolve category.")
+    const label = trimLabel(action.label)
+    const resolved = state.category
+      ? { id: state.category.id, inserted: false }
+      : await resolveLabelForWorkspace(client, "category", selection.workspaceId, label)
+    if (!resolved) throw new Error("Failed to resolve category.")
+    const categoryId = resolved.id
     if (state.category || embedding) {
       await client.query(
-        `UPDATE public.workspace_category_v1 SET label=$3,
+        `UPDATE public.workspace_category_v1 SET label=CASE WHEN $6::boolean THEN $3 ELSE label END,
          category_embedding=$4::vector,embedding_model=$5,
          embedding_updated_at=CASE WHEN $5::text IS NULL THEN NULL ELSE now() END
-         WHERE workspace_id=$1 AND id=$2`,
+         WHERE workspace_id=$1 AND id=$2 AND ($6::boolean OR $7::boolean)`,
         [
           selection.workspaceId,
           categoryId,
           label,
           embedding?.vectorLiteral ?? null,
           embedding?.embeddingModel ?? null,
+          state.category !== null,
+          resolved.inserted,
         ],
       )
     }

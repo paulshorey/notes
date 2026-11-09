@@ -11,7 +11,14 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 
 - `user_v1` owns `user_workspace_v1`; items and all item vocabulary are owned through a workspace.
 - Every item has one `workspace_id`, zero or more category links, one nullable `status_id`, and zero or more tag links.
-- Categories, statuses, and tags are independent flat vocabularies, unique by normalized label within a workspace. They are not a hierarchy.
+- Categories, statuses, and tags are independent flat vocabularies. They are not a hierarchy.
+- Workspace and vocabulary labels are stored without surrounding whitespace. The
+  generated `label_key` column (`app_label_key_v1(label)`: NFKC, then ICU-root
+  lowercasing, independent of the database locale) is their identity: uniqueness,
+  lookups, merges, and restores match by key, so "NYC" and "nyc" are one label.
+  `contracts/label.ts` mirrors the key for clients. Reusing an existing label never
+  rewrites its spelling; only an explicit rename does. Rollout triggers currently
+  store labels lowercased for previous-release servers; see `docs/db/item-core.md`.
 - Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for zero category links. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
 - Composite foreign keys enforce that every item relation comes from the item's own workspace.
 - `contracts/item-group-actions.ts` defines group selection and tagged actions.

@@ -8,7 +8,7 @@ import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "r
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-items"
 import type { TextCaptureFormState } from "@/types/items"
-import { normalizeLabel } from "@/lib/strings"
+import { labelKey } from "@/lib/strings"
 import { createDefaultDueValue, createDefaultRemindValue } from "@/types/items"
 import type { AtomicEditorProps } from "@/components/editor/AtomicEditor"
 import styles from "./TextCaptureForm.module.css"
@@ -92,7 +92,7 @@ export function TextCaptureForm({
     ]
     const seen = new Set<string>()
     return next.filter((label) => {
-      const normalized = normalizeLabel(label)
+      const normalized = labelKey(label)
       if (normalized === "" || seen.has(normalized)) {
         return false
       }
@@ -102,7 +102,7 @@ export function TextCaptureForm({
   }, [form.selectedTagIds, pendingTagLabels, tags])
 
   const selectedTagLabelSet = useMemo(() => {
-    return new Set(selectedTagLabels.map((label) => normalizeLabel(label)))
+    return new Set(selectedTagLabels.map((label) => labelKey(label)))
   }, [selectedTagLabels])
 
   const selectedStatusLabel =
@@ -130,7 +130,7 @@ export function TextCaptureForm({
   }
 
   const addTagLabel = (label: string) => {
-    const normalized = normalizeLabel(label)
+    const normalized = labelKey(label)
     if (normalized === "" || selectedTagLabelSet.has(normalized)) {
       return
     }
@@ -138,13 +138,13 @@ export function TextCaptureForm({
   }
 
   const toggleTagLabel = (label: string) => {
-    const normalized = normalizeLabel(label)
+    const normalized = labelKey(label)
     if (normalized === "") {
       return
     }
     if (selectedTagLabelSet.has(normalized)) {
       onTagValuesChange(
-        selectedTagLabels.filter((selectedLabel) => normalizeLabel(selectedLabel) !== normalized),
+        selectedTagLabels.filter((selectedLabel) => labelKey(selectedLabel) !== normalized),
       )
       return
     }
@@ -278,7 +278,7 @@ export function TextCaptureForm({
               onSelectOption={(category) => onSelectCategoryId(String(category.id))}
               onCreateOption={onCreateCategory}
               validateInput={(label) =>
-                normalizeLabel(label) === "uncategorized" ? null : getCategoryNameError(label)
+                labelKey(label) === "uncategorized" ? null : getCategoryNameError(label)
               }
               emptyWithoutQueryMessage="No categories yet"
               inputPlaceholder="Enter new category..."

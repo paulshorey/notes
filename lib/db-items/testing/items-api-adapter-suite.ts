@@ -530,7 +530,7 @@ export const registerItemsApiAdapterSuite = (
     assert.deepEqual(requests, [{ userId: sampleUser.id, workspaceId: 3 }])
   })
 
-  test(`${adapterName} lowercases category labels before create and update`, async (t) => {
+  test(`${adapterName} trims category labels and keeps their casing on create and update`, async (t) => {
     const createRequests: Array<{ userId: number; workspaceId: number; label: string }> = []
     const updateRequests: Array<{
       userId: number
@@ -570,8 +570,8 @@ export const registerItemsApiAdapterSuite = (
 
     assert.equal(createResponse.status, 201)
     assert.equal(updateResponse.status, 200)
-    assert.deepEqual(createRequests, [{ userId: 7, workspaceId: 3, label: "work" }])
-    assert.deepEqual(updateRequests, [{ userId: 7, workspaceId: 3, categoryId: 5, label: "work" }])
+    assert.deepEqual(createRequests, [{ userId: 7, workspaceId: 3, label: "Work" }])
+    assert.deepEqual(updateRequests, [{ userId: 7, workspaceId: 3, categoryId: 5, label: "WORK" }])
   })
 
   test(`${adapterName} rejects the reserved category name on create and rename before service writes`, async (t) => {
@@ -632,7 +632,7 @@ export const registerItemsApiAdapterSuite = (
     assert.deepEqual(requests, [{ userId: 7, workspaceId: 3, categoryId: 5 }])
   })
 
-  test(`${adapterName} lowercases tag labels before create and update`, async (t) => {
+  test(`${adapterName} trims tag labels and keeps their casing on create and update`, async (t) => {
     const createRequests: Array<{ userId: number; workspaceId: number; label: string }> = []
     const updateRequests: Array<{
       userId: number
@@ -678,10 +678,10 @@ export const registerItemsApiAdapterSuite = (
     assert.equal(createResponse.status, 201)
     assert.equal(updateResponse.status, 200)
     assert.deepEqual(createRequests, [
-      { userId: 7, workspaceId: 3, label: "verify the http api contract" },
+      { userId: 7, workspaceId: 3, label: "Verify The HTTP API Contract" },
     ])
     assert.deepEqual(updateRequests, [
-      { userId: 7, workspaceId: 3, tagId: 12, label: "verify the http api contract" },
+      { userId: 7, workspaceId: 3, tagId: 12, label: "VERIFY THE HTTP API CONTRACT" },
     ])
   })
 
@@ -879,7 +879,7 @@ export const registerItemsApiAdapterSuite = (
     assert.equal(readError(response.body), "Embedding provider failed.")
   })
 
-  test(`${adapterName} lowercases search queries`, async (t) => {
+  test(`${adapterName} trims search queries`, async (t) => {
     const requests: Array<{
       userId: number
       workspaceId: number
@@ -913,7 +913,7 @@ export const registerItemsApiAdapterSuite = (
 
     assert.equal(response.status, 200)
     assert.deepEqual(response.body, { results: [sampleSearchResult] })
-    assert.deepEqual(requests, [{ userId: 7, workspaceId: 3, query: "adapter parity", limit: 12 }])
+    assert.deepEqual(requests, [{ userId: 7, workspaceId: 3, query: "Adapter Parity", limit: 12 }])
   })
 
   test(`${adapterName} runs embedding maintenance in missing mode`, async (t) => {

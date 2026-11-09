@@ -9,6 +9,7 @@ import {
   BackupValidationError,
   parseUserBackup,
   USER_BACKUP_MAX_BYTES,
+  lowercaseBackupLabels,
 } from "@lib/db-items/contracts/user-backup"
 import { resolveRequestUserId, type SessionUserResolver } from "./items-app-route-handlers"
 
@@ -78,7 +79,10 @@ export const createBackupRouteHandlers = (
       const backup =
         request.headers.get("x-items-contract") === "1"
           ? exported
-          : { ...(legacyNotePayload(exported) as Record<string, unknown>), version: 1 }
+          : {
+              ...(legacyNotePayload(lowercaseBackupLabels(exported)) as Record<string, unknown>),
+              version: 1,
+            }
       const body = JSON.stringify(backup)
       // Never download a file that this restore endpoint cannot accept.
       if (Buffer.byteLength(body) > USER_BACKUP_MAX_BYTES)
