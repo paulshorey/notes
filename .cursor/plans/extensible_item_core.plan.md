@@ -466,8 +466,9 @@ Code:
   F2b, before F3, together with the empty `item_revision` table it restores into; F3c
   then turns on snapshot writes) carries each item's revisions; restore brings them back with an inserted
   or cloned item, and for a skipped identical item it appends the backed-up snapshots
-  the destination does not already have (matched by each snapshot's own UUID, so two
-  snapshots with the same content at different times are both kept), so no history is
+  the destination does not already have (matched by each snapshot's own UUID or its recorded `cloned_from_uid`, so two
+  snapshots with the same content at different times are both kept and repeating a
+  restore into another account does not duplicate history), so no history is
   lost.
 - F3 ships in three releases (see section 10). **F3a** adds the `revision` column (no bump
   triggers yet), sync, tombstones, the v5 exporter (carrying each item's revision number),
@@ -659,7 +660,9 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   representation-only change: the backfill runs with the revision, snapshot, mirror, and
   row-timestamp side effects suppressed (so no item looks edited and no history entry is
   created) while taking each item row's lock so a concurrent scalar write cannot slip
-  between; the two
+  between. Backfilled row IDs are not yet identities anyone holds: clients keep using the
+  scalar fields until F6b, so a v6 backup served during this rollout loses nothing by
+  omitting them; the two
   representations stay synchronized in both directions by the F8 triggers: a write to
   `time_due`/`time_remind` (from a previous-release server) updates the projectable
   row, and a write to the role's row updates the column: its instant when the row is
