@@ -283,16 +283,18 @@ Code:
     applied.
 - Portable backup versions are immutable, and each new kind of authored state gets its
   own: v3 (cased labels), v4 (UUIDs), v5 (revisions), v6 (trash), v7 (times). Each new kind of state takes
-  three steps, one per release: the importer reads the new version but rejects non-empty
-  new state; then the exporter switches to emitting it and non-empty imports are accepted (every
-  server that can export the state can also import it); then state writes are enabled. The
-  one residual gap is a file imported from a different deployment during the exporter
-  release's own rollout, which a backup served by a not-yet-upgraded server can omit; a
-  new backup after the rollout includes it. Waiting until the exporter has drained
-  would instead let a restore of a file written after state writes begin reach a server
-  that still rejects it, so a rolling deploy always has one of the two windows. This
-  plan chooses the first because it needs a file from another deployment, which is rare. A file is therefore never produced before every server can read
-  it, and a backup served during a rollout never omits state. Section 10 lists the
+  three steps, one per release: the importer reads the new version but rejects new
+  state; then the exporter switches to emitting it, with new-state imports still
+  disabled; then state writes are enabled. Each version has a database-backed import
+  gate, closed by default and checked transactionally on every restore. Deployment
+  finalization opens it only after verifying that every serving exporter (including
+  workers or old replicas that can answer backup requests) carries that version and
+  every importer can persist it losslessly. The gate never opens in a startup migration
+  or merely because one upgraded replica is healthy. Until then, a restore carrying
+  new state fails with a clear retryable compatibility error and writes nothing; files
+  from another deployment follow the same rule. A temporary restore refusal is allowed;
+  a successful restore followed by an incomplete backup is not. Once opened, a rollback
+  cannot serve an older exporter against that database. Section 10 lists the
   concrete releases for v3 through v7. Every version keeps an importer, and from F2 on every importer uses the
   UUID-first insert and remap path: identity comes from the stored `uid`, and the
   integer `id` is left to its column default, which keeps allocating legacy IDs for
@@ -333,7 +335,8 @@ Code:
   such as `item_time_v1`, `item_file_v1`) bumps the owning item's `revision` in the same
   transaction, through per-table triggers. Derived-only updates (embeddings, thumbnails)
   do not, and neither do `history` tables (below). F7's guard requires the trigger on
-  every table classified `authored` + `follows-item`.
+  every `authored` table whose mutations affect an item, regardless of move/merge
+  strategy; this includes category/tag links registered as `remap-by-key`.
 - Sync cursor: each changed row of `workspace_item_v1`, `user_workspace_v1`, and the
   vocabulary tables records `change_xid xid8 DEFAULT pg_current_xact_id()` (updated by
   trigger). A sync response returns rows with `change_xid >= cursor` and a new cursor of
@@ -472,7 +475,8 @@ Code:
   lost.
 - F3 ships in three releases (see section 10). **F3a** adds the `revision` column (no bump
   triggers yet), sync, tombstones, the v5 exporter (carrying each item's revision number),
-  and non-empty v5 imports. **F3b**, once every exporter carries revision numbers, installs
+  and v5 imports behind the closed import gate. Finalization opens that gate only after
+  every exporter carries revision numbers. **F3b** then installs
   the revision bump triggers and exposes the PUT endpoint on the servers while the client
   keeps saving through POST/PATCH. **F3c** (when every server implements PUT) switches the
   client save engine and turns on snapshot writes, dropping the create/update split and
@@ -501,9 +505,14 @@ Code:
 - Normal reads filter `deleted_at IS NULL` (partial indexes keep this cheap). The Trash
   view uses a separate, membership-authorized read, `GET /api/items/trash?workspaceId=`,
   that returns only deleted items in workspaces the requester can read; restore is
-  `POST /api/items/{id}/restore`. While an item's workspace is deleted, item-only restore
-  returns `409` and Trash shows the workspace as one entry; restoring the workspace
-  restores it with its batch atomically.
+  `POST /api/items/{id}/restore`. `GET /api/workspaces/trash` enumerates deleted
+  workspaces the requester remains authorized to read, without requiring a cached
+  workspace ID or including them in normal bootstrap. `POST /api/workspaces/{id}/restore`
+  requires write permission and restores the workspace with its batch atomically;
+  unauthorized requests use the normal non-disclosing response. Both workspace routes
+  ship in F4c with the item Trash routes. While an item's workspace is deleted,
+  item-only restore returns `409` and Trash shows the workspace as one entry from the
+  workspace listing, so it remains discoverable on a fresh device.
 - Every trash operation records a `deletion_id uuid` with `deleted_at`. Deleting a
   workspace soft-deletes the workspace and moves its live items to trash under the same
   `deletion_id`; restoring the workspace restores only rows with that `deletion_id`, so
@@ -653,9 +662,10 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   (the exporter stays on v6, which cannot represent them, until F6a has backfilled the
   scalar values); F8 also installs the bidirectional synchronization triggers below, so
   a later scalar edit by a still-running server and an imported row can never diverge.
-  **F6a** switches the exporter to v7 and accepts non-empty v7 imports, so all-day,
-  recurring, and multi-valued times can be persisted only once every server that can
-  export them can also restore them. F6a also backfills `due` /
+  **F6a** switches the exporter to v7, keeping non-empty v7 imports gated until
+  deployment finalization verifies every exporter supports v7 and then opens the gate.
+  All-day, recurring, and multi-valued times cannot be persisted while a v6 exporter
+  still serves backup requests. F6a also backfills `due` /
   `remind` rows from the existing columns (`time_zone` NULL: unknown), as a
   representation-only change: the backfill runs with the revision, snapshot, mirror, and
   row-timestamp side effects suppressed (so no item looks edited and no history entry is
@@ -672,7 +682,8 @@ CREATE UNIQUE INDEX item_time_v1_single_role_idx ON item_time_v1 (item_uid, role
   statement, and restores it immediately after; the F3 revision trigger skips only
   writes made inside that nested statement, so one logical edit bumps the item's revision exactly once, from the
   write that originated it, and an old server's `UPDATE … RETURNING` sees the final
-  revision. F6a servers also accept and return `times[]`, but the client keeps writing
+  revision. F6a servers accept authored `times[]` writes only after the same v7 gate
+  opens (including API clients); they return `times[]`, but the client keeps writing
   the scalar fields. **F6b** (next release, when every server is time-aware) lets the
   client author `times[]`, so no time edit reaches a server that cannot store it.
   **F6c** (next release, after F6b has replaced every server) ships code that no longer
@@ -734,7 +745,10 @@ test (which fills a table only once the active exporter and non-empty importer c
 a table added by a compatibility release is marked `pending` until then, and the guard
 fails if a `pending` table is still pending after its enabling release) fills every portable (`authored` and `history`) table, exports, restores into an empty account, and fails if any table's rows
 do not come back, so a classification cannot pass while the backup silently omits the
-table.
+table. A mixed-version rollout test keeps a prior exporter serving while attempting a
+restore containing new state: restore must refuse atomically until the shared gate
+opens; after the prior exporter drains, restore succeeds and every serving exporter
+round-trips that state. Rollback validation refuses an exporter below the opened gate.
 
 Polymorphic tables that cannot carry an ordinary foreign key to their targets
 (`id_alias_v1`, `sync_tombstone_v1`, `retired_id_v1`) are registered explicitly, and the guard fails on
@@ -762,7 +776,10 @@ workspace itself moves, and a retiring workspace's memberships are dropped when 
 items merge into another workspace (only owner-only workspaces merge, so this drops just
 the source owner's row, whose user already owns the destination); credentials use
 `drop`. F3 extends the guard to require its revision trigger on
-every `authored` + `follows-item` table; F7 does not check that rule, so it ships
+every `authored` table whose mutations affect an item, independently of move/merge
+strategy (including `remap-by-key` category/tag links). The registry records the owning-item
+resolver for each such table, and the guard verifies its revision trigger; changing the
+merge strategy cannot exempt it. F7 does not check that rule before F3, so it ships
 independently.
 A new content-type table therefore cannot ship without a deliberate backup and merge
 decision.
@@ -876,15 +893,15 @@ applied as listed.
    losing its identities, aliases, and markers, because every server still exports v3.
    Exporter stays v3.
 2. **F2a.** `*_uid` references, sync triggers, UUID-aware servers; the exporter emits v4
-   (UUIDs, aliases, markers) and the importer starts persisting that content; only then
-   is the setting switched so merges move rows and write aliases. The
+   (UUIDs, aliases, markers). Once every serving exporter carries v4, finalization opens
+   the v4 import gate and switches the setting so merges move rows and write aliases. The
    client still sends contract 1.
 3. **F2b.** The UUID (contract 2) client and storage upgrader; key swap; the v5 importer
    and the empty `item_revision` table. Exporter stays v4.
 4. **F3a.** The `revision` column (no bump triggers yet), the sync endpoint (dormant:
    clients do not consume it until F3b), tombstones; the exporter
-   emits v5 (revisions, markers, and each item's revision number) and non-empty v5
-   imports are accepted. PUT is not exposed; the client still saves with POST/PATCH.
+   emits v5 (revisions, markers, and each item's revision number). Finalization opens
+   the v5 import gate only after every serving exporter carries v5. PUT is not exposed; the client still saves with POST/PATCH.
 5. **F3b.** The revision bump triggers, the PUT endpoint, and revision-stable restores,
    now that every exporter carries revision numbers; the client still does not call PUT.
    Until F3c turns on snapshot writes, PUT answers a stale write with `409` and does not
@@ -893,7 +910,8 @@ applied as listed.
    with the vocabulary delete and rename snapshot triggers they depend on.
 7. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
    (rejects non-empty trash state). Exporter stays v5.
-8. **F4b.** The exporter emits v6 and non-empty v6 imports are accepted; hard-delete flags in account deletion, cleanup, and
+8. **F4b.** The exporter emits v6; finalization opens the v6 import gate after every
+   serving exporter carries v6. Hard-delete flags in account deletion, cleanup, and
    merge retirement. Deletes are still hard.
 9. **F4c.** Soft-delete routes (workspace batch included), and the Trash read and
    restore endpoints with the UI still hidden.
@@ -902,8 +920,9 @@ applied as listed.
     switch.
 12. **F8.** Capability modules; the empty `item_time_v1` table, the v7 importer (rejects
     non-empty times), and the bidirectional synchronization triggers. Exporter stays v6.
-13. **F6a.** The exporter emits v7 and non-empty v7 imports are accepted; backfill; servers accept and return `times[]`; the
-    client still writes scalars.
+13. **F6a.** The exporter emits v7; backfill; servers return `times[]`. After every
+    serving exporter carries v7, finalization opens the v7 gate for non-empty imports
+    and authored `times[]` writes. The client still writes scalars.
 14. **F6b.** The client authors `times[]`.
 15. **F6c → F6d.** Stop using the scalar columns, then drop them.
 16. **F9.** Retire the note-era compatibility layer.
