@@ -278,7 +278,7 @@ export function TextCaptureForm({
               onSelectOption={(category) => onSelectCategoryId(String(category.id))}
               onCreateOption={onCreateCategory}
               validateInput={(label) =>
-                normalizeLabel(label) === "uncategorized" ? null : getCategoryNameError(label)
+                labelKey(label) === "uncategorized" ? null : getCategoryNameError(label)
               }
               emptyWithoutQueryMessage="No categories yet"
               inputPlaceholder="Enter new category..."
