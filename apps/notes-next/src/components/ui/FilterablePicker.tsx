@@ -14,6 +14,7 @@ export interface FilterablePickerProps {
   listboxAriaLabel: string
   onSelectOption: (option: FilterablePickerOption) => void | Promise<void>
   onCreateOption: (label: string) => void | Promise<void>
+  triggerClassName?: string
   triggerLabel?: string
   triggerRole?: "menuitem"
   /** Replaces the default caret. Parents can pass any styled icon markup. */
@@ -42,6 +43,7 @@ export function FilterablePicker({
   listboxAriaLabel,
   onSelectOption,
   onCreateOption,
+  triggerClassName,
   triggerLabel,
   triggerRole,
   triggerIcon,
@@ -150,7 +152,7 @@ export function FilterablePicker({
       <button
         ref={triggerRef}
         type="button"
-        className={styles.trigger}
+        className={[styles.trigger, triggerClassName].filter(Boolean).join(" ")}
         onClick={() => setOpen(!open)}
         disabled={disabled || pending}
         aria-label={triggerAriaLabel}

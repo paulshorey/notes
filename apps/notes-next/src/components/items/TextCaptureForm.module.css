@@ -94,7 +94,18 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 8px;
+  gap: 0;
+}
+
+.categoryControls .categoryAddButton {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.categoryControls button.categoryPickerTrigger {
+  border-inline-start: 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
 }
 
 .addItemButton {
@@ -121,6 +132,9 @@
 }
 
 .addUncategorizedItemButton {
+  width: auto;
+  gap: 3px;
+  padding: 0 6px;
   margin-inline-end: auto;
 }
 
@@ -316,10 +330,6 @@
 
   .formToolbar {
     padding: 0 8px 6px;
-    gap: 6px;
-  }
-
-  .categoryControls {
     gap: 6px;
   }
 
