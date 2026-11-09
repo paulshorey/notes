@@ -727,7 +727,9 @@ its original result.
 
 An `authored` or `history` classification also names the backup format version that
 introduced the table and its export and import handlers. A registry-driven round-trip
-test fills every portable (`authored` and `history`) table, exports, restores into an empty account, and fails if any table's rows
+test (which fills a table only once the active exporter and non-empty importer carry it;
+a table added by a compatibility release is marked `pending` until then, and the guard
+fails if a `pending` table is still pending after its enabling release) fills every portable (`authored` and `history`) table, exports, restores into an empty account, and fails if any table's rows
 do not come back, so a classification cannot pass while the backup silently omits the
 table.
 
@@ -881,6 +883,8 @@ applied as listed.
    imports are accepted. PUT is not exposed; the client still saves with POST/PATCH.
 5. **F3b.** The revision bump triggers, the PUT endpoint, and revision-stable restores,
    now that every exporter carries revision numbers; the client still does not call PUT.
+   Until F3c turns on snapshot writes, PUT answers a stale write with `409` and does not
+   offer `resolution: "overwrite"`, so no replaced content can be discarded.
 6. **F3c.** The client save engine switches to PUT; snapshot writes turn on, together
    with the vocabulary delete and rename snapshot triggers they depend on.
 7. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
