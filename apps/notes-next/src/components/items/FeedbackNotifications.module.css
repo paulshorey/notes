@@ -4,11 +4,15 @@
   gap: 8px;
   position: fixed;
   right: 12px;
-  bottom: 12px;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   z-index: 1000;
   width: min(500px, calc(100vw - 24px));
+  pointer-events: none;
 }
 
-.feedbackNotification {
+.feedback .feedbackNotification {
   width: 100%;
+  padding: 8px 10px 8px 16px;
+  background: color-mix(in srgb, var(--mantine-color-default) 92%, transparent);
+  pointer-events: auto;
 }

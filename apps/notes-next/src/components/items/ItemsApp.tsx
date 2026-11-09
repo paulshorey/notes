@@ -2589,6 +2589,11 @@ export default function ItemsApp() {
 
   const handleSelectCategory = (rawId: string) => {
     if (rawId === "") {
+      if (activeKey === null) return
+      patchEntry(activeKey, (entry) => ({
+        form: { ...entry.form, selectedCategoryIds: [] },
+        categoryInputValue: "",
+      }))
       return
     }
     const id = Number.parseInt(rawId, 10)
