@@ -9,7 +9,7 @@ todos:
     content: "F2. UUID keys as new, never-renamed uid / *_uid columns: F2-pre makes merges move rows and alias retired integer IDs; F2a adds the columns and UUID-aware servers while clients stay on integer IDs; F2b ships the UUID client and moves primary and foreign keys to the uid columns. Integer id stays as the legacy ID. Merge moves rows; restore never overwrites."
     status: pending
   - id: revisioned_writes
-    content: "F3. In three releases: F3a adds the revision column, sync, tombstones, and the v5 exporter; F3b installs revision bump triggers and exposes the PUT endpoint (client unchanged); F3c switches the client save engine to PUT and turns on snapshot writes. PUT carries baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, and history is captured as item_revision snapshots."
+    content: "F3. In three releases: F3a adds the revision column, sync, tombstones, and the v5 exporter; F3b installs revision and snapshot triggers and exposes the PUT endpoint (client unchanged); F3c switches the client save engine to PUT. PUT carries baseRevision (non-mutating 409, explicit overwrite), facet changes bump item revision, and history is captured as item_revision snapshots."
     status: pending
   - id: soft_delete
     content: "F4. In four releases: F4a adds deleted_at plus deletion_id, read/write filters, and the v6 importer; F4b switches the exporter and sets hard-delete flags; F4c makes every delete a soft delete and ships the Trash read and restore endpoints with the UI hidden; F4d shows the Trash UI, starts the scheduled 30-day purge, and adds a trigger that turns any non-purge DELETE into the same soft delete."
@@ -298,7 +298,20 @@ Code:
   a successful restore followed by an incomplete backup is not. Once opened, a rollback
   cannot serve an older exporter against that database. Section 10 lists the
   concrete releases for v3 through v7. Every version keeps an importer, and from F2 on every importer uses the
-  UUID-first insert and remap path: identity comes from the stored `uid`, and the
+  UUID-first insert and remap path. Before classifying an incoming identity as absent,
+  owned, aliased, retired, or cloned, restore takes the same transaction-scoped advisory
+  lock on `(kind, uid)` as creation, aliasing, and retirement; it then re-reads current
+  committed state, not a snapshot from before waiting. Resolve and lock any alias target
+  as well. Multi-ID operations acquire these locks in one common sorted order, restarting
+  classification if resolving an alias adds an earlier lock. The lock remains held through
+  clone lookup, insertion, reference remapping, and commit. Clone-origin metadata is
+  immutable and written only by this serialized restore path: within the destination
+  account and workspace it reuses an existing clone matching origin, authored content,
+  and lifecycle state, never creating a second equivalent copy under a concurrent retry.
+  A blanket unique origin constraint is not used because different backed-up versions
+  of one origin must remain separate clones. Tests restore the same file concurrently
+  into one account and into two accounts, checking idempotency and reference remapping.
+  Identity comes from the stored `uid`, and the
   integer `id` is left to its column default, which keeps allocating legacy IDs for
   inserted and cloned rows until F9 drops `NOT NULL` (so a clone never reuses an
   occupied integer ID). F9 then removes that default and nothing else changes for
@@ -477,7 +490,7 @@ Code:
   document carries a `schema_version`; the registry keeps an upgrader for each earlier
   shape (for example the scalar `timeDue`/`timeRemind` fields that F6d removes, which
   decode into `item_time_v1` rows), so history stays restorable across schema changes. Backup v5 (shipped in
-  F2b, before F3, together with the empty `item_revision` table it restores into; F3c
+  F2b, before F3, together with the empty `item_revision` table it restores into; F3b
   then turns on snapshot writes) carries each item's revisions; restore brings them back with an inserted
   or cloned item, and for a skipped identical item it appends the backed-up snapshots
   the destination does not already have (matched by each snapshot's own UUID or its recorded `cloned_from_uid`, so two
@@ -488,9 +501,12 @@ Code:
   triggers yet), sync, tombstones, the v5 exporter (carrying each item's revision number),
   and v5 imports behind the closed import gate. Finalization opens that gate only after
   every exporter carries revision numbers. **F3b** then installs
-  the revision bump triggers and exposes the PUT endpoint on the servers while the client
-  keeps saving through POST/PATCH. **F3c** (when every server implements PUT) switches the
-  client save engine and turns on snapshot writes, dropping the create/update split and
+  the revision bump triggers, item/facet snapshot capture, and vocabulary delete/rename
+  snapshot triggers, and exposes PUT while the client keeps saving through POST/PATCH.
+  Legacy-route replacements are captured from F3b's migration onward, including writes
+  from still-serving F3a servers. PUT's explicit overwrite path snapshots before replacing
+  content. **F3c** (when every server implements PUT) switches the client save engine,
+  dropping the create/update split and
   the POST no-retry hazard: every save is a retryable PUT. A new tab therefore never sends
   a PUT to a server that lacks it, and no revision number exists that a backup cannot
   carry.
@@ -560,7 +576,7 @@ Code:
   item content, and the removed links are an authored change to each affected item, so
   its revision snapshot keeps the previous labels and history can restore them (under a
   new term ID, since the deleted one is retired). A `BEFORE DELETE` trigger on each
-  vocabulary table (installed in F3c with the snapshot writes it depends on) snapshots
+  vocabulary table (installed in F3b with the snapshot writes it depends on) snapshots
   every affected item while the term's label still exists,
   before the link rows cascade. A rename is an authored change to every linked item
   too: a `BEFORE UPDATE OF label` trigger on each vocabulary table snapshots and
@@ -785,7 +801,17 @@ that deduplicates an item reparents the source item's descendant markers to the 
 `owner_user_id`. `id_alias_v1` is portable: a backup carries the aliases whose
 targets belong to the exported account, and restore recreates them with the same rules
 merges use (an alias UUID already in use elsewhere is remapped with its cloned target,
-never taken over). Operational tables that hold no user data (the
+never taken over). Portable restore does not import numeric alias identities:
+`alias_legacy_id` is NULL on each newly imported alias, while an already-existing matching
+local alias retains its numeric ID. `target_legacy_id` is rewritten to the restored or
+cloned target's actual locally allocated integer ID (or NULL for UUID-only kinds).
+The UUID alias remains usable when an imported integer is occupied; integer lookup is
+never redirected away from a live local row or another local alias. This also avoids
+reserving foreign numeric IDs against future sequence allocations. Legacy numeric URLs
+remain a compatibility guarantee within their existing database; UUIDs are the portable
+identity. Tests restore aliases into a populated database with colliding live and alias
+integers and verify both local numeric lookups and restored UUID lookups.
+Operational tables that hold no user data (the
 `schema_migrations_cursor` ledger, and
 later the job queue if it lives in `public`) are registered as `operational`, which is
 excluded from backups and merges and exempt from the walk.
@@ -927,12 +953,13 @@ applied as listed.
    clients do not consume it until F3b), tombstones; the exporter
    emits v5 (revisions, markers, and each item's revision number). Finalization opens
    the v5 import gate only after every serving exporter carries v5. PUT is not exposed; the client still saves with POST/PATCH.
-5. **F3b.** The revision bump triggers, the PUT endpoint, and revision-stable restores,
-   now that every exporter carries revision numbers; the client still does not call PUT.
-   Until F3c turns on snapshot writes, PUT answers a stale write with `409` and does not
-   offer `resolution: "overwrite"`, so no replaced content can be discarded.
-6. **F3c.** The client save engine switches to PUT; snapshot writes turn on, together
-   with the vocabulary delete and rename snapshot triggers they depend on.
+5. **F3b.** Revision bump triggers, item/facet snapshot capture, vocabulary delete/rename
+   snapshot triggers, PUT including explicit overwrite, and revision-stable restores,
+   now that every exporter carries v5 history and revision numbers. Snapshot capture
+   protects legacy POST/PATCH replacements throughout this rollout and release;
+   the client still does not call PUT.
+6. **F3c.** The client save engine switches to PUT, now that every server supports it.
+   Snapshot capture is already active.
 7. **F4a.** `deleted_at`/`deletion_id` columns, read and write filters, the v6 importer
    (rejects non-empty trash state). Exporter stays v5.
 8. **F4b.** The exporter emits v6; finalization opens the v6 import gate after every
