@@ -7,7 +7,7 @@ todos:
     status: in_progress
   - id: capability_registry
     content: "S2. Capability registry in @lib/db-items/contracts: text, schedule, and status declared once; the service refuses an item with no content capability; the client uses the same rule."
-    status: in_progress
+    status: completed
   - id: capability_safe_lifecycle
     content: "S3. Account merge and restore move item rows instead of copying them; backup and duplicate detection read the registry; db:verify fails on an item table no capability declares."
     status: pending
@@ -224,14 +224,31 @@ two, the previous release serves requests against the new schema. So:
   message. A restore that reaches the previous release during a deploy fails cleanly and
   succeeds on retry.
 
-## 7. Decisions for the developer
+## 7. Decisions
 
-- **A. Sequence.** Trash, edit history, and sharing follow the first new content type
-  instead of preceding it. The earlier product decisions about what they do are
-  unchanged.
-- **B. First capability.** Files (S6). The alternative is richer scheduling.
-- **C. Content rule on the server.** The API now refuses an item with no content. It
-  previously stored one, and the web client could not show it.
+Settled by the developer:
+
+- **A. Sequence.** The first new content type comes before Trash, edit history,
+  sharing, and device sync. Those features do not block adding content, and building
+  them first delays every content type behind machinery that has no users yet.
+- **B. First capability.** Files (S6). They cover the most planned content (photos,
+  video, voice memos, receipts, invoices), and the `media` bucket already exists. Richer
+  scheduling waits for calendar views and reminder delivery.
+- **C. Content rule on the server.** The API refuses an item with no content capability.
+  It used to store one, and the web client then hid it, so the user saw nothing and the
+  row stayed in the database.
+
+Product rules that the later features in section 5 must follow:
+
+- Existing data is preserved in place: no database reset, no export and import.
+- Only the web app calls the API, so compatibility code is retired once the web client
+  no longer needs it.
+- Deleted items go to Trash and are purged automatically after 30 days.
+- Edit conflicts keep both versions: the later save wins on screen, the overwritten
+  version goes to the item's history, and the user is told so they can restore it.
+- Workspaces will be shared. No sharing UI is planned yet.
+- Labels display as typed. Uniqueness ignores case and Unicode normalization ("NYC" and
+  "nyc" are one category).
 
 ## 8. Verification for each step
 
