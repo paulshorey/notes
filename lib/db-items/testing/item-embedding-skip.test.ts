@@ -2,7 +2,8 @@ import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
 import { getDb } from "../lib/db/postgres"
-import { CURRENT_ITEM_EMBEDDING_MODEL } from "../services/item-embeddings"
+import { ITEM_CONTENT_REQUIRED_ERROR } from "../contracts/item-capabilities"
+import { createItemEmbeddingInput, CURRENT_ITEM_EMBEDDING_MODEL } from "../services/item-embeddings"
 import { updateItemForItemsApp } from "../services/items-app"
 import { updateItemForUser } from "../sql/item"
 import { createWorkspaceForUser } from "../sql/workspace"
@@ -112,17 +113,43 @@ describe("workspace note embedding reuse (DB)", { skip: !testDbUrl }, () => {
     })
   }
 
-  test("clearing text clears embedding metadata without Jina", async () => {
+  test("clearing text is refused and leaves the item and its embedding untouched", async () => {
     const row = await seed(CURRENT_ITEM_EMBEDDING_MODEL, true, "clear me")
     const savedKey = process.env.JINA_API_KEY
     delete process.env.JINA_API_KEY
     try {
-      await updateItemForItemsApp({
-        userId: row.userId,
-        itemId: row.itemId,
-        item: input(row.workspaceId, [row.categoryId], ""),
-      })
+      await assert.rejects(
+        updateItemForItemsApp({
+          userId: row.userId,
+          itemId: row.itemId,
+          item: input(row.workspaceId, [row.categoryId], ""),
+        }),
+        { message: ITEM_CONTENT_REQUIRED_ERROR },
+      )
       const after = await state(row.itemId)
+      assert.equal(after.description, "clear me")
+      assert.equal(after.has_embedding, true)
+      assert.equal(after.embedding_model, CURRENT_ITEM_EMBEDDING_MODEL)
+    } finally {
+      if (savedKey !== undefined) process.env.JINA_API_KEY = savedKey
+      await getDb().query(`DELETE FROM public.user_v1 WHERE id=$1`, [row.userId])
+    }
+  })
+
+  test("text removed in storage clears embedding metadata without Jina", async () => {
+    const row = await seed(CURRENT_ITEM_EMBEDDING_MODEL, true, "clear me")
+    const savedKey = process.env.JINA_API_KEY
+    delete process.env.JINA_API_KEY
+    try {
+      const item = input(row.workspaceId, [row.categoryId], "")
+      await updateItemForUser(
+        row.itemId,
+        row.userId,
+        item,
+        await createItemEmbeddingInput({ description: item.description }),
+      )
+      const after = await state(row.itemId)
+      assert.equal(after.description, null)
       assert.equal(after.has_embedding, false)
       assert.equal(after.embedding_model, null)
       assert.equal(after.embedding_updated_at, null)
