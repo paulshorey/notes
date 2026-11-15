@@ -6,6 +6,12 @@ This database structure and logic should support multiple content types: text no
 
 Deployed to `jot.new` - premise is to let the user jot down any idea very quickly without wasting context on deciding how to organize, categorize, what type of content they are recording, or even logging in. For this minimal user experience, we'll first focus on simple text notes, and continue in the future to use simple text notes as the default content type. But in the future, user should be able to add any other content type: alert, reminder, schedule, time, money, receipt, invoice, file, image, video, slideshow, etc. When user adds more content, the perceived "type" of the item will change. But the underlying database record and logic will not change, it will only be extended to convey and render more meaning.
 
+## Workspace
+
+Prefer the primary local checkout when free; use a worktree when another task is
+using it. After merging a PR, return the primary checkout to `main` and run
+`git pull --ff-only` when free, leaving it clean.
+
 ## Layout and contracts
 
 - `apps/notes-next`: web UI and REST API, deployed to Railway.
