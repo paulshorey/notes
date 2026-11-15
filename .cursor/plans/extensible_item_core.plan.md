@@ -235,8 +235,8 @@ Settled by the developer:
   video, voice memos, receipts, invoices), and the `media` bucket already exists. Richer
   scheduling waits for calendar views and reminder delivery.
 - **C. Content rule on the server.** The API refuses an item with no content capability.
-  It used to store one, and the web client then hid it, so the user saw nothing and the
-  row stayed in the database.
+  The web client shows only items with content, so an item without any would be stored
+  where the user cannot see or delete it.
 
 Product rules that the later features in section 5 must follow:
 
