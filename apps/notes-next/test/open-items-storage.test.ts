@@ -47,6 +47,7 @@ const makeItem = (
   timeModified = "2026-03-01T00:00:00.000Z",
 ): ItemRecord => ({
   id,
+  uid: `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
   workspaceId: 1,
   category: { id: 7, label: "inbox" },
   subcategory: { id: 70, label: "today" },

@@ -57,8 +57,8 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
     ).rows[0]
     if (!user) throw new BackupAccountError("User not found.", 401)
     const workspaceRows = (
-      await client.query<DatedRow>(
-        `SELECT id,label,time_created,time_modified FROM public.user_workspace_v1 WHERE user_id=$1 ORDER BY id`,
+      await client.query<DatedRow & { uid: string }>(
+        `SELECT id,uid,label,time_created,time_modified FROM public.user_workspace_v1 WHERE user_id=$1 ORDER BY id`,
         [userId],
       )
     ).rows
@@ -95,6 +95,7 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
         await client.query<{ id: number } & Record<string, unknown>>(PORTABLE_ITEMS_SQL, [w.id])
       ).rows
       workspaces.push({
+        uid: w.uid,
         ...dated(w),
         categories: categories.map((category) => ({
           ...dated(category),
@@ -194,12 +195,19 @@ export const restoreUserBackup = async (
       )
     ).rows[0]!.id
     for (const w of backup.workspaces) {
-      const workspaceId = (
-        await client.query<{ id: number }>(
-          `INSERT INTO public.user_workspace_v1(user_id,label,time_created,time_modified) VALUES($1,$2,$3,$4) RETURNING id`,
-          [sourceId, w.label, w.timeCreated, w.timeModified],
-        )
-      ).rows[0]!.id
+      const workspaceId =
+        // A restored workspace keeps its uid when no workspace has it; otherwise this
+        // is a second copy and gets its own.
+        (
+          await client.query<{ id: number }>(
+            `INSERT INTO public.user_workspace_v1(user_id,label,time_created,time_modified,uid)
+           VALUES($1,$2,$3,$4,COALESCE((SELECT $5::uuid WHERE NOT EXISTS (
+             SELECT 1 FROM public.user_workspace_v1 taken WHERE taken.uid=$5::uuid)),
+             gen_random_uuid()))
+           RETURNING id`,
+            [sourceId, w.label, w.timeCreated, w.timeModified, w.uid ?? null],
+          )
+        ).rows[0]!.id
       await insertVocabulary(client, workspaceId, "workspace_category_v1", w.categories)
       await insertSubcategories(client, workspaceId, w.categories)
       await insertVocabulary(client, workspaceId, "workspace_status_v1", w.statuses)

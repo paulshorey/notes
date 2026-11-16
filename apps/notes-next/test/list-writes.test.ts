@@ -6,6 +6,7 @@ import { changesNothing, draftAfterListWrite } from "../src/lib/listWrites"
 
 const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   id: 1,
+  uid: `00000000-0000-4000-8000-${String(1).padStart(12, "0")}`,
   workspaceId: 1,
   category: { id: 7, label: "work" },
   subcategory: { id: 9, label: "plans" },

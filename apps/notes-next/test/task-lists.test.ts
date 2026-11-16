@@ -16,6 +16,7 @@ const status = (id: number, label: string, position: number): StatusRecord => ({
 
 const task = (id: number, overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   id,
+  uid: `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
   workspaceId: 1,
   category: null,
   subcategory: null,

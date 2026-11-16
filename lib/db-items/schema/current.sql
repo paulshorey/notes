@@ -123,6 +123,7 @@ CREATE TABLE public.workspace_item_v1 (
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
     category_id integer,
     subcategory_id integer,
+    uid uuid DEFAULT gen_random_uuid() NOT NULL,
     CONSTRAINT workspace_item_v1_subcategory_requires_category_check CHECK (((subcategory_id IS NULL) OR (category_id IS NOT NULL)))
 );
 
@@ -208,6 +209,7 @@ CREATE TABLE public.user_workspace_v1 (
     label text NOT NULL,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
     time_modified timestamp with time zone DEFAULT now() NOT NULL,
+    uid uuid DEFAULT gen_random_uuid() NOT NULL,
     CONSTRAINT user_workspace_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
 );
 
@@ -522,6 +524,14 @@ ALTER TABLE ONLY public.user_workspace_v1
 
 
 --
+-- Name: user_workspace_v1 user_workspace_v1_uid_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_workspace_v1
+    ADD CONSTRAINT user_workspace_v1_uid_key UNIQUE (uid);
+
+
+--
 -- Name: user_workspace_v1 user_workspace_v1_user_id_label_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -567,6 +577,14 @@ ALTER TABLE ONLY public.workspace_item_v1
 
 ALTER TABLE ONLY public.workspace_item_v1
     ADD CONSTRAINT workspace_item_v1_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: workspace_item_v1 workspace_item_v1_uid_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_item_v1
+    ADD CONSTRAINT workspace_item_v1_uid_key UNIQUE (uid);
 
 
 --

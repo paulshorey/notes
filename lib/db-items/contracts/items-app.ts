@@ -53,6 +53,8 @@ export interface TagRecord {
 
 export interface WorkspaceRecord {
   id: number
+  /** Permanent public identity; see contracts/public-uid.ts. */
+  uid: string
   userId: number
   label: string
   itemCount: number
@@ -80,6 +82,8 @@ export interface TagRef {
 /** An item is filed in at most one category and one subcategory of that category. */
 export interface ItemRecord {
   id: number
+  /** Permanent public identity; see contracts/public-uid.ts. */
+  uid: string
   workspaceId: number
   category: CategoryRef | null
   subcategory: CategoryRef | null
@@ -98,6 +102,11 @@ export interface SemanticSearchResult {
 }
 
 export interface ItemInput {
+  /**
+   * On create, the uid the new item takes. A create repeated with the same uid returns
+   * the item the first one stored. Ignored on update.
+   */
+  uid?: string | null
   workspaceId: number
   categoryId: number | null
   subcategoryId: number | null
@@ -372,6 +381,8 @@ export interface BackupCategory {
 }
 
 export interface BackupWorkspace {
+  /** Absent in files written before workspaces had a uid. */
+  uid?: string | null
   label: string
   timeCreated: string
   timeModified: string
@@ -382,6 +393,8 @@ export interface BackupWorkspace {
 }
 
 export interface BackupItem {
+  /** Absent in files written before items had a uid. */
+  uid?: string | null
   description: string | null
   category: string | null
   subcategory: string | null

@@ -79,3 +79,16 @@ export const upgradedFlatCategoryBackup = (): UserBackup => {
   }
   return current
 }
+
+/**
+ * A backup record without its uid, for comparing content. The fixtures are files from
+ * before records had a uid, and a restore into a database where a uid is taken assigns
+ * a new one, so content is compared apart from identity.
+ */
+export const withoutUid = <T extends { uid?: string | null }>({ uid: _uid, ...rest }: T) => rest
+
+/** A workspace of a backup with the uids of the workspace and its items left out. */
+export const contentOf = (workspace: UserBackup["workspaces"][number]) => ({
+  ...withoutUid(workspace),
+  items: workspace.items.map(withoutUid),
+})

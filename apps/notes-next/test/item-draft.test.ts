@@ -14,6 +14,7 @@ import { ITEM_VIEWS, viewForPath } from "../src/views/registry"
 
 const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   id: 12,
+  uid: `00000000-0000-4000-8000-${String(12).padStart(12, "0")}`,
   workspaceId: 3,
   category: { id: 7, label: "work" },
   subcategory: { id: 9, label: "plans" },

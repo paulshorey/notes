@@ -1,3 +1,4 @@
+import { parseOptionalPublicUid } from "../../contracts/public-uid"
 import type { ItemInput } from "./types"
 const positiveInt = (value: unknown, field: string): number => {
   const parsed =
@@ -43,6 +44,7 @@ export const parseItemInput = (value: unknown): ItemInput => {
   if (typeof value !== "object" || value === null) throw new Error("Item payload is required.")
   const record = value as Record<string, unknown>
   return {
+    uid: parseOptionalPublicUid(record.uid),
     workspaceId: positiveInt(record.workspaceId, "workspaceId"),
     categoryId: categoryId(record),
     subcategoryId: nullableId(record.subcategoryId, "subcategoryId"),

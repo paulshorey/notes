@@ -118,6 +118,7 @@ import {
   updateUserPreferencesById,
   verifyUserCredentials,
 } from "../sql/user"
+import { PUBLIC_UID_TAKEN_ERROR } from "../contracts/public-uid"
 import {
   createBackfillEmbeddingInputs,
   createBackfillTagEmbeddings,
@@ -205,7 +206,9 @@ export const getItemsAppErrorStatus = (error: unknown) =>
             ? error.status >= 400 && error.status < 500
               ? 502
               : error.status
-            : error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR
+            : error instanceof Error &&
+                (error.message === CLAIM_IDENTIFIER_TAKEN_ERROR ||
+                  error.message === PUBLIC_UID_TAKEN_ERROR)
               ? 409
               : 400
 export const parseSessionRequest = (userId: unknown): SessionRequest => ({

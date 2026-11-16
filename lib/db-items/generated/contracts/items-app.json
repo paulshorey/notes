@@ -244,6 +244,13 @@
           "nullable": false
         },
         {
+          "name": "uid",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
           "name": "userId",
           "optional": false,
           "kind": "scalar",
@@ -358,6 +365,13 @@
           "nullable": false
         },
         {
+          "name": "uid",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
           "name": "workspaceId",
           "optional": false,
           "kind": "scalar",
@@ -452,6 +466,13 @@
     },
     "ItemInput": {
       "fields": [
+        {
+          "name": "uid",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
         {
           "name": "workspaceId",
           "optional": false,
@@ -1588,6 +1609,13 @@
     "BackupWorkspace": {
       "fields": [
         {
+          "name": "uid",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
           "name": "label",
           "optional": false,
           "kind": "scalar",
@@ -1652,6 +1680,13 @@
     },
     "BackupItem": {
       "fields": [
+        {
+          "name": "uid",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
         {
           "name": "description",
           "optional": false,

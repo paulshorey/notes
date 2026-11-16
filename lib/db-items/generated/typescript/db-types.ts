@@ -33,6 +33,7 @@ export interface UserWorkspaceV1Row {
   label: string
   time_created: Date
   time_modified: Date
+  uid: string
 }
 
 export interface WorkspaceCategoryV1Row {
@@ -60,6 +61,7 @@ export interface WorkspaceItemV1Row {
   time_modified: Date
   category_id: number | null
   subcategory_id: number | null
+  uid: string
 }
 
 export interface WorkspaceStatusV1Row {
