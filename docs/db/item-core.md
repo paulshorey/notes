@@ -5,6 +5,24 @@ nonblank authored text, presented by the current text-focused web client. Adding
 future dates, files, contacts, financial information, or task properties will
 extend an item without converting it into another exclusive type.
 
+## Identity
+
+Every item and every workspace has two ids. The integer `id` is the primary key and
+the target of every foreign key; it stays inside the database and the API calls that
+act on a loaded record. The `uid` is a UUID that never changes and is the identity
+everything else uses: addresses, backups, and whatever a device keeps
+(`contracts/public-uid.ts`).
+
+A create may name the uid of its item. The server stores one item per uid, so a create
+that is sent twice stores one item: the second finds the first one's row, writes
+nothing, and answers `200` with that item instead of `201`. The caller then sends its
+content as an update. A uid held by an item in another workspace or account is refused
+with `409` and reveals nothing about that item.
+
+An item keeps its uid when it moves between accounts. A backup carries uids, and a
+restore keeps a uid that is free and assigns a new one when an item or workspace
+already has it, because that restore is making a second copy.
+
 ## Capabilities
 
 `contracts/item-capabilities.ts` in `@lib/db-items` is the registry of what an item can

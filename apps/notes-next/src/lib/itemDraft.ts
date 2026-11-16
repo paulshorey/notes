@@ -21,3 +21,16 @@ export const itemRequestBody = (form: TextCaptureFormState, workspaceId: number)
   workspaceId,
   ...itemDraftRequest(form),
 })
+
+/**
+ * The body of a create. It names the uid the new item takes, which makes the request
+ * safe to send again: the server stores one item for one uid.
+ */
+export const newItemRequestBody = (
+  form: TextCaptureFormState,
+  workspaceId: number,
+  uid: string,
+) => ({
+  uid,
+  ...itemRequestBody(form, workspaceId),
+})

@@ -14,6 +14,17 @@ export const createItemForUser = async (
   userId: number,
   item: ItemInput,
   embeddings: ItemEmbeddingWriteInput,
+) => (await createOrFindItemForUser(userId, item, embeddings)).item
+
+/**
+ * Create the item, or find the one an earlier create with the same uid stored.
+ * `created` says which happened, so a caller can tell that what it sent was not
+ * written and send it again as an update.
+ */
+export const createOrFindItemForUser = async (
+  userId: number,
+  item: ItemInput,
+  embeddings: ItemEmbeddingWriteInput,
 ) => {
   const client = await getDb().connect()
   try {
@@ -67,14 +78,14 @@ export const createItemForUser = async (
       const stored = await selectItemById(client, existingId, userId)
       if (!stored) throw new Error(PUBLIC_UID_TAKEN_ERROR)
       await client.query("COMMIT")
-      return stored
+      return { item: stored, created: false }
     }
     const itemId = inserted
     await replaceItemTagsForItem(client, itemId, item.workspaceId, item.tagIds)
     const created = await selectItemById(client, itemId, userId)
     if (!created) throw new Error("Failed to load created item.")
     await client.query("COMMIT")
-    return created
+    return { item: created, created: true }
   } catch (error) {
     await client.query("ROLLBACK")
     return rethrowFilingRace(error)

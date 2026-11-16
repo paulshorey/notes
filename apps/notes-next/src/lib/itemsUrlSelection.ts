@@ -1,3 +1,8 @@
+import { isPublicUid } from "@lib/db-items/contracts/public-uid"
+
+/** The open item, by its public uid. */
+const ITEM_URL_UID_PARAM = "item"
+/** The open item by its integer id, as addresses written before items had a uid do. */
 const ITEM_URL_ID_PARAM = "id"
 const ITEM_URL_CATEGORY_PARAM = "category"
 const ITEM_URL_SUBCATEGORY_PARAM = "subcategory"
@@ -5,6 +10,8 @@ const ITEM_URL_TAGS_PARAM = "tags"
 
 export interface ItemsUrlSelection {
   hasState: boolean
+  itemUid: string | null
+  /** Read from an older address only; never written. */
   itemId: number | null
   categoryId: number | null
   subcategoryId: number | null
@@ -18,9 +25,21 @@ const parsePositiveInteger = (value: string | null) => {
   return Number.isInteger(parsed) && parsed > 0 && String(parsed) === value.trim() ? parsed : null
 }
 
+const parseUid = (value: string | null) => {
+  const uid = value?.trim().toLowerCase() ?? null
+  return isPublicUid(uid) ? uid : null
+}
+
 export const readItemsUrlSelection = (): ItemsUrlSelection => {
   if (typeof window === "undefined") {
-    return { hasState: false, itemId: null, categoryId: null, subcategoryId: null, tagIds: [] }
+    return {
+      hasState: false,
+      itemUid: null,
+      itemId: null,
+      categoryId: null,
+      subcategoryId: null,
+      tagIds: [],
+    }
   }
 
   const params = new URLSearchParams(window.location.search)
@@ -39,9 +58,11 @@ export const readItemsUrlSelection = (): ItemsUrlSelection => {
 
   return {
     hasState:
+      params.has(ITEM_URL_UID_PARAM) ||
       params.has(ITEM_URL_ID_PARAM) ||
       params.has(ITEM_URL_CATEGORY_PARAM) ||
       params.has(ITEM_URL_TAGS_PARAM),
+    itemUid: parseUid(params.get(ITEM_URL_UID_PARAM)),
     itemId: parsePositiveInteger(params.get(ITEM_URL_ID_PARAM)),
     categoryId: parsePositiveInteger(params.get(ITEM_URL_CATEGORY_PARAM)),
     subcategoryId: parsePositiveInteger(params.get(ITEM_URL_SUBCATEGORY_PARAM)),
@@ -50,20 +71,24 @@ export const readItemsUrlSelection = (): ItemsUrlSelection => {
 }
 
 export const writeItemsUrlSelection = ({
-  itemId,
+  itemUid,
   categoryId,
   subcategoryId,
   tagIds,
-}: Omit<ItemsUrlSelection, "hasState">) => {
+}: Omit<ItemsUrlSelection, "hasState" | "itemId">) => {
   if (typeof window === "undefined") {
     return
   }
 
   const url = new URL(window.location.href)
-  if (itemId === null) {
-    url.searchParams.delete(ITEM_URL_ID_PARAM)
+  // An address names an item by its uid, which is the same on every device.
+  // A record painted from a cache written before items had a uid has none until the
+  // server copy arrives; it gets no address rather than a wrong one.
+  url.searchParams.delete(ITEM_URL_ID_PARAM)
+  if (!isPublicUid(itemUid)) {
+    url.searchParams.delete(ITEM_URL_UID_PARAM)
   } else {
-    url.searchParams.set(ITEM_URL_ID_PARAM, String(itemId))
+    url.searchParams.set(ITEM_URL_UID_PARAM, itemUid)
   }
 
   if (categoryId === null) {

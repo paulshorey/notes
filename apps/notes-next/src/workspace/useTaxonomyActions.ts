@@ -26,7 +26,8 @@ import { type OpenItemKey, itemEntryKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { useWorkspaceStore } from "@/stores/workspaceStore"
 import { createEmptyItemDraft } from "@/capabilities/draftParts"
-import { itemRequestBody, serializeItemDraft } from "@/lib/itemDraft"
+import { newItemRequestBody, serializeItemDraft } from "@/lib/itemDraft"
+import { newPublicUid } from "@/lib/publicUid"
 import { itemToFormState } from "@/types/items"
 import { itemFilingLabel } from "@/lib/itemFiling"
 import {
@@ -763,7 +764,10 @@ export function useTaxonomyActions(
           const response = await itemsFetch("/api/items", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: user.id, item: itemRequestBody(draft, workspaceId) }),
+            body: JSON.stringify({
+              userId: user.id,
+              item: newItemRequestBody(draft, workspaceId, newPublicUid()),
+            }),
             keepalive: true,
           })
           const data = await readJson<{ item: ItemRecord }>(response)

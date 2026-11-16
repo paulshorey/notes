@@ -826,6 +826,27 @@ export const registerItemsApiAdapterSuite = (
     ])
   })
 
+  test(`${adapterName} answers 200 when a create names an item that already exists`, async (t) => {
+    const adapter = await createAdapter(
+      createFakeItemsAppService({
+        createItemForItemsApp: async () => ({ item: sampleItem, created: false }),
+      }),
+    )
+    t.after(async () => adapter.close?.())
+
+    const response = await adapter.request({
+      method: "POST",
+      path: "/api/items",
+      headers: authHeaders,
+      body: {
+        userId: 7,
+        item: { uid: sampleItem.uid, workspaceId: 3, tagIds: [], description: "Sent again." },
+      },
+    })
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { item: sampleItem })
+  })
+
   test(`${adapterName} refuses a create whose uid is not a UUID`, async (t) => {
     let writes = 0
     const adapter = await createAdapter(

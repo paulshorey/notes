@@ -4,7 +4,12 @@ import { type ItemRecord } from "@lib/db-items"
 import { useCallback, useEffect, useRef } from "react"
 import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
 import { useOpenItemsAutosave } from "@/hooks/useOpenItemsAutosave"
-import { itemRequestBody, serializeItemDraft, snapshotTextCaptureForm } from "@/lib/itemDraft"
+import {
+  itemRequestBody,
+  newItemRequestBody,
+  serializeItemDraft,
+  snapshotTextCaptureForm,
+} from "@/lib/itemDraft"
 import {
   collectExitFlushItems,
   collectSessionFlushEntries,
@@ -63,6 +68,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
           form: snapshotTextCaptureForm(entry.form),
           savedSignature: entry.savedSignature,
           view: entry.view,
+          uid: entry.uid,
         })
         void saveEntryRef.current(entry.key, "detached")
       }
@@ -142,17 +148,29 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       if (!detached) patchEntry(key, { saveStatus: "saving" })
 
       const savePromise = (async () => {
-        const requestBody =
-          itemId === null
-            ? { userId: currentUser.id, item: itemRequestBody(formSnapshot, workspaceId) }
-            : { userId: currentUser.id, itemId, item: itemRequestBody(formSnapshot, workspaceId) }
+        const send = (method: "POST" | "PATCH", body: object) =>
+          itemsFetch("/api/items", {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: currentUser.id, ...body }),
+          })
+        const update = (id: number) =>
+          send("PATCH", { itemId: id, item: itemRequestBody(formSnapshot, workspaceId) })
 
-        const response = await itemsFetch("/api/items", {
-          method: itemId === null ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-        })
-        const data = await readJson<{ item: ItemRecord }>(response)
+        let response =
+          itemId === null
+            ? await send("POST", {
+                item: newItemRequestBody(formSnapshot, workspaceId, source.uid),
+              })
+            : await update(itemId)
+        let data = await readJson<{ item: ItemRecord }>(response)
+
+        // A create answered with 200 found the item an earlier attempt had stored, so
+        // this version was not written. It goes to that item as an update.
+        if (itemId === null && response.status === 200) {
+          response = await update(data.item.id)
+          data = await readJson<{ item: ItemRecord }>(response)
+        }
 
         if (userRef.current?.id !== currentUser.id) return
 
@@ -360,18 +378,17 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       )
       const keepalive = selectKeepaliveExitItems(pending, exitKeepaliveKeysRef.current)
 
-      for (const { key, itemId, form } of keepalive) {
+      for (const { key, itemId, uid, form } of keepalive) {
         exitKeepaliveKeysRef.current.add(key)
 
-        const requestBody = {
-          userId: currentUser.id,
-          itemId,
-          item: itemRequestBody(form, workspaceId),
-        }
+        const requestBody =
+          itemId === null
+            ? { userId: currentUser.id, item: newItemRequestBody(form, workspaceId, uid) }
+            : { userId: currentUser.id, itemId, item: itemRequestBody(form, workspaceId) }
 
         try {
           void itemsFetch("/api/items", {
-            method: "PATCH",
+            method: itemId === null ? "POST" : "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(requestBody),
             keepalive: true,

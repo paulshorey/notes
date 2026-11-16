@@ -20,6 +20,7 @@ import type {
   EmbeddingMaintenanceResponse,
   ItemsRequest,
   ItemsResponse,
+  CreateItemResponse,
   ItemResponse,
   SearchRequest,
   SearchResponse,
@@ -60,7 +61,7 @@ import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
 import {
-  createItemForUser,
+  createOrFindItemForUser,
   deleteItemForUser,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
@@ -574,15 +575,13 @@ export const deleteStatusForItemsApp = async (
   (await deleteStatusForWorkspace(r.userId, r.workspaceId, r.statusId)) ? { ok: true } : null
 // Storage accepts a bare item. The service refuses only an item that holds no capability
 // at all; it never requires text, which is a rule of the Notes screen alone.
-export const createItemForItemsApp = async (r: CreateItemRequest): Promise<ItemResponse> => {
+export const createItemForItemsApp = async (r: CreateItemRequest): Promise<CreateItemResponse> => {
   assertItemHasContent(r.item)
-  return {
-    item: await createItemForUser(
-      r.userId,
-      r.item,
-      await createItemEmbeddingInput({ description: r.item.description }),
-    ),
-  }
+  return createOrFindItemForUser(
+    r.userId,
+    r.item,
+    await createItemEmbeddingInput({ description: r.item.description }),
+  )
 }
 const normalized = (v: string | null | undefined) => (v ?? "").trim()
 const canReuse = (

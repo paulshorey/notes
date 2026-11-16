@@ -31,6 +31,7 @@ const entry = (
   return {
     key,
     itemId,
+    uid: `00000000-0000-4000-8000-${key.replace(/\D/g, "").padStart(12, "0")}`,
     view: "note",
     baseTimeModified: null,
     form,
@@ -123,6 +124,7 @@ test("stateWithDetachedSaves appends evicted drafts the ring no longer holds", (
         form: formWith("evicted unsaved text"),
         savedSignature: JSON.stringify({ d: "older" }),
         view: "note",
+        uid: "00000000-0000-4000-8000-000000000099",
       },
     ],
   ])
@@ -152,6 +154,7 @@ test("stateWithDetachedSaves does not duplicate a key still in the ring", () => 
         form: formWith("stale detached copy"),
         savedSignature: live.savedSignature,
         view: "note",
+        uid: "00000000-0000-4000-8000-000000000099",
       },
     ],
   ])
@@ -162,7 +165,7 @@ test("stateWithDetachedSaves does not duplicate a key still in the ring", () => 
   assert.equal(merged.openItems[0]?.form.description, "live draft")
 })
 
-test("selectKeepaliveExitItems skips never-saved drafts and already-sent keys", () => {
+test("the exit keepalive sends every pending entry once, never-saved drafts included", () => {
   const items = collectExitFlushItems(
     [
       entry("note:1", 1, "edited", "original"),
@@ -177,6 +180,7 @@ test("selectKeepaliveExitItems skips never-saved drafts and already-sent keys", 
           form: formWith("evicted"),
           savedSignature: JSON.stringify({ d: "older" }),
           view: "note",
+          uid: "00000000-0000-4000-8000-000000000099",
         },
       ],
     ]),
@@ -192,10 +196,14 @@ test("selectKeepaliveExitItems skips never-saved drafts and already-sent keys", 
   const firstHide = selectKeepaliveExitItems(items, new Set())
   assert.deepEqual(
     firstHide.map((item) => item.key),
-    ["note:1", "note:2"],
-    "a null noteId must not be keepalive-POSTed — reload would POST again",
+    ["note:1", "draft:1", "note:2"],
   )
+  // A draft's create carries its uid, so a reload that sends the draft again from its
+  // snapshot finds the item this request stored instead of making a second one.
+  const draft = firstHide.find((item) => item.key === "draft:1")!
+  assert.equal(draft.itemId, null)
+  assert.match(draft.uid, /^[0-9a-f-]{36}$/)
 
-  const secondHide = selectKeepaliveExitItems(items, new Set(["note:1", "note:2"]))
+  const secondHide = selectKeepaliveExitItems(items, new Set(["note:1", "draft:1", "note:2"]))
   assert.deepEqual(secondHide, [], "visibilitychange then pagehide must not fire twice")
 })

@@ -13,6 +13,7 @@ import {
  */
 export interface DetachedSaveSnapshot {
   itemId: number | null
+  uid: string
   form: TextCaptureFormState
   savedSignature: string | null
   /** The view the entry belonged to when it left the ring. */
@@ -25,6 +26,7 @@ type SaveCandidate = Pick<OpenItemEntry, "view" | "form" | "itemId">
 export interface ExitFlushItem {
   key: OpenItemKey
   itemId: number | null
+  uid: string
   form: TextCaptureFormState
 }
 
@@ -69,6 +71,7 @@ export const stateWithDetachedSaves = (
     extras.push({
       key,
       itemId: save.itemId,
+      uid: save.uid,
       baseTimeModified: null,
       form: save.form,
       view: save.view,
@@ -100,24 +103,23 @@ export const collectExitFlushItems = (
   for (const entry of openItems) {
     if (!isSaveable(entry) || !isDirty(entry)) continue
     seen.add(entry.key)
-    items.push({ key: entry.key, itemId: entry.itemId, form: entry.form })
+    items.push({ key: entry.key, itemId: entry.itemId, uid: entry.uid, form: entry.form })
   }
 
   for (const [key, save] of detached) {
     if (seen.has(key) || !isSaveable(save)) continue
-    items.push({ key, itemId: save.itemId, form: save.form })
+    items.push({ key, itemId: save.itemId, uid: save.uid, form: save.form })
   }
 
   return items
 }
 
 /**
- * Keepalive requests the dying page can fire. Never-saved drafts (`itemId`
- * null) are excluded: a POST that the page cannot wait for races a reload,
- * which would POST again from the dirty snapshot and create a duplicate note.
- * Those drafts recover from localStorage on the next visit.
+ * Keepalive requests the dying page can fire, each key once. Never-saved drafts are
+ * included: their create carries the entry's uid, so if the page reloads and sends the
+ * draft again from its snapshot, the server answers with the item this request stored.
  */
 export const selectKeepaliveExitItems = (
   items: ExitFlushItem[],
   alreadySent: ReadonlySet<OpenItemKey>,
-): ExitFlushItem[] => items.filter((item) => item.itemId !== null && !alreadySent.has(item.key))
+): ExitFlushItem[] => items.filter((item) => !alreadySent.has(item.key))

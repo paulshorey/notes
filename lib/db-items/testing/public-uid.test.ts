@@ -8,7 +8,7 @@ import {
 } from "../contracts/public-uid"
 import { getDb } from "../lib/db/postgres"
 import { getItemsAppErrorStatus, mergeAnonymousItemsAppSession } from "../services/items-app"
-import { createItemForUser, listItemsByUser } from "../sql/item"
+import { createItemForUser, createOrFindItemForUser, listItemsByUser } from "../sql/item"
 import { createAnonymousUser } from "../sql/user/anonymous"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 import { createWorkspaceForUser, listWorkspacesByUser } from "../sql/workspace"
@@ -145,6 +145,12 @@ describe("public uid (DB)", { skip: !testDbUrl }, () => {
       noEmbedding,
     )
     assert.equal(retry.id, first.id)
+    assert.equal(
+      (await createOrFindItemForUser(userId, input(workspaceId, "again", uid), noEmbedding))
+        .created,
+      false,
+      "the caller is told nothing was written",
+    )
     assert.equal(retry.description, "typed once", "the stored item is the answer, as stored")
     assert.equal(await count(workspaceId), 1)
 

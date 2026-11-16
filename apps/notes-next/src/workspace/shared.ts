@@ -52,6 +52,8 @@ export type ItemSaveMode = "autosave" | "flush" | "detached"
  */
 export interface DetachedSave {
   itemId: number | null
+  /** The uid the entry's create carries, so a late create still finds its item. */
+  uid: string
   form: TextCaptureFormState
   savedSignature: string | null
   /** The view the entry belonged to when it left the ring; its rule still applies. */

@@ -21,7 +21,8 @@
     "./sql/*": "./sql/*.ts",
     "./contracts/item-content": "./contracts/item-content.ts",
     "./contracts/item-capabilities": "./contracts/item-capabilities.ts",
-    "./contracts/item-kinds": "./contracts/item-kinds.ts"
+    "./contracts/item-kinds": "./contracts/item-kinds.ts",
+    "./contracts/public-uid": "./contracts/public-uid.ts"
   },
   "scripts": {
     "app:contract:check": "node scripts/generate-app-contract.mjs --check",

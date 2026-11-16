@@ -329,6 +329,16 @@ export interface ItemResponse {
   item: ItemRecord
 }
 
+export interface CreateItemResponse {
+  item: ItemRecord
+  /**
+   * False when the create named the uid of an item that already existed, so nothing
+   * was written and `item` is that item as stored. The route answers 200 then, and 201
+   * for a new item.
+   */
+  created?: boolean
+}
+
 export interface SearchResponse {
   results: SemanticSearchResult[]
 }

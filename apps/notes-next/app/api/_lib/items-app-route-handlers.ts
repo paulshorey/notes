@@ -241,7 +241,13 @@ export const createItemsRouteHandlers = (
       const result = await service.createItemForItemsApp(
         parseCreateItemRequest(await readAuthorizedJsonObject(request, userId)),
       )
-      return itemJson(request, result, { status: 201 })
+      // A create that named the uid of an existing item wrote nothing and answers 200
+      // with that item, so the caller can tell its content was not stored.
+      return itemJson(
+        request,
+        { item: result.item },
+        { status: result.created === false ? 200 : 201 },
+      )
     } catch (error) {
       return toErrorResponse(error, service.getItemsAppErrorStatus(error))
     }

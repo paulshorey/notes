@@ -1383,6 +1383,24 @@
         }
       ]
     },
+    "CreateItemResponse": {
+      "fields": [
+        {
+          "name": "item",
+          "optional": false,
+          "kind": "model",
+          "type": "ItemRecord",
+          "nullable": false
+        },
+        {
+          "name": "created",
+          "optional": true,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
+        }
+      ]
+    },
     "SearchResponse": {
       "fields": [
         {
