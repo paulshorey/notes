@@ -216,6 +216,27 @@ const imported = allFields.flatMap(([, field]) => Object.entries(field.import ??
 
 const ownedTables = STORED_PARTS.flatMap((part) => Object.entries(part.tables))
 
+/** Every table a part owns, with whether it declares how its rows follow a moved item. */
+export const ITEM_OWNED_TABLES: Record<string, { rehomed: boolean }> = Object.fromEntries(
+  ownedTables.map(([name, table]) => [name, { rehomed: Boolean(table.rehome) }]),
+)
+
+/**
+ * Backup fields that restore writes nowhere: no `import` column assignment, and no owned
+ * table whose `field` names them. Exporting such a field would lose its value on restore.
+ */
+export const findUnrestoredFields = (parts: readonly StoredItemPart[] = STORED_PARTS) => {
+  const tableFields = new Set(
+    parts.flatMap((part) => Object.values(part.tables)).map((t) => t.field),
+  )
+  return parts
+    .flatMap((part) => Object.entries(part.fields))
+    .filter(
+      ([name, field]) => Object.keys(field.import ?? {}).length === 0 && !tableFields.has(name),
+    )
+    .map(([name]) => name)
+}
+
 /**
  * Restore the backup items in `$2` (a JSON array) as items of workspace `$1`: one
  * statement stages every item with a new id, writes the item rows, then writes each

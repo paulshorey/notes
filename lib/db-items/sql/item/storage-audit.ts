@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg"
-import { ITEM_STORAGE_OWNERS } from "./stored-capabilities"
+import { ITEM_OWNED_TABLES, ITEM_STORAGE_OWNERS } from "./stored-capabilities"
 
 /**
  * Item storage that no part of the registry accounts for: a column of
@@ -24,4 +24,35 @@ export const findUndeclaredItemStorage = async (client: Pick<PoolClient, "query"
     columns: undeclared(columns.rows, ITEM_STORAGE_OWNERS.columns),
     tables: undeclared(tables.rows, ITEM_STORAGE_OWNERS.tables),
   }
+}
+
+/**
+ * Owned tables whose rows point into the item's workspace but declare no `rehome`. A
+ * table does when it has a `workspace_id` column or a foreign key to a table that has
+ * one. Such rows cannot simply follow their item to another workspace: left alone they
+ * block the move through a composite foreign key or keep a reference across workspaces.
+ * `owned` is the declaration to check; it defaults to the registry's.
+ */
+export const findUnrehomedTables = async (
+  client: Pick<PoolClient, "query">,
+  owned: Record<string, { rehomed: boolean }> = ITEM_OWNED_TABLES,
+) => {
+  const names = Object.entries(owned)
+    .filter(([, table]) => !table.rehomed)
+    .map(([name]) => name)
+  if (names.length === 0) return []
+  const { rows } = await client.query<{ name: string }>(
+    `SELECT t.name FROM unnest($1::text[]) t(name)
+     WHERE EXISTS (
+         SELECT 1 FROM information_schema.columns c
+         WHERE c.table_schema='public' AND c.table_name=t.name AND c.column_name='workspace_id')
+       OR EXISTS (
+         SELECT 1 FROM pg_constraint k
+         JOIN pg_attribute a ON a.attrelid=k.confrelid AND a.attname='workspace_id' AND NOT a.attisdropped
+         WHERE k.contype='f' AND k.conrelid=('public.'||quote_ident(t.name))::regclass
+           AND k.confrelid<>'public.workspace_item_v1'::regclass)
+     ORDER BY t.name`,
+    [names],
+  )
+  return rows.map((row) => row.name)
 }

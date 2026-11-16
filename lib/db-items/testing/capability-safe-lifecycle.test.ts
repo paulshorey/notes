@@ -5,15 +5,18 @@ import { ITEM_CAPABILITIES } from "../contracts/item-capabilities"
 import { getDb } from "../lib/db/postgres"
 import { mergeAnonymousItemsAppSession } from "../services/items-app"
 import { listItemsByUser } from "../sql/item"
-import { findUndeclaredItemStorage } from "../sql/item/storage-audit"
+import { findUndeclaredItemStorage, findUnrehomedTables } from "../sql/item/storage-audit"
 import {
   IMPORT_ITEMS_SQL,
   ITEM_CORE,
   ITEM_IDENTITY_FIELDS,
+  ITEM_OWNED_TABLES,
   ITEM_RETIRED_TABLES,
   ITEM_TAXONOMY,
   MOVE_ITEMS_SQL,
   STORED_ITEM_CAPABILITIES,
+  findUnrestoredFields,
+  type StoredItemPart,
 } from "../sql/item/stored-capabilities"
 import { createAnonymousUser } from "../sql/user/anonymous"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
@@ -55,6 +58,29 @@ test("every table a part owns is carried by one of that part's backup fields", (
   // Rows of a retired table are dropped when their item moves, not left behind.
   for (const name of ITEM_RETIRED_TABLES)
     assert.match(MOVE_ITEMS_SQL, new RegExp(`DELETE FROM public\\.${name}\\b`), name)
+})
+
+test("a backup field with no restore path is reported", () => {
+  assert.deepEqual(findUnrestoredFields(), [])
+  const part = (field: StoredItemPart["fields"][string]): StoredItemPart => ({
+    columns: [],
+    tables: {},
+    fields: { orphan: field },
+  })
+  // Exported and counted for duplicates, but written nowhere on restore.
+  assert.deepEqual(findUnrestoredFields([part({ type: "text", export: "n.description" })]), [
+    "orphan",
+  ])
+  assert.deepEqual(
+    findUnrestoredFields([part({ type: "text", export: "n.description", import: {} })]),
+    ["orphan"],
+  )
+  // Restored through an owned table instead of an item column.
+  const viaTable: StoredItemPart = {
+    ...part({ type: "text[]", export: "ARRAY[]::text[]" }),
+    tables: { some_link_v1: { field: "orphan", import: "SELECT 1" } },
+  }
+  assert.deepEqual(findUnrestoredFields([viaTable]), [])
 })
 
 describe("items keep their identity across accounts (DB)", { skip: !testDbUrl }, () => {
@@ -332,6 +358,39 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
         clean.tables.filter((name) => !name.startsWith("item_probe_")),
         [],
       )
+    } finally {
+      await client.query("ROLLBACK").catch(() => undefined)
+      client.release()
+    }
+  })
+
+  test("the storage audit reports an owned table that points into the workspace without rehome", async () => {
+    const linked = `item_probe_${randomUUID().replaceAll("-", "").slice(0, 12)}`
+    const client = await getDb().connect()
+    try {
+      await client.query("BEGIN")
+      await client.query(
+        `CREATE TABLE IF NOT EXISTS public.${probe} (
+           id serial PRIMARY KEY,
+           item_id integer NOT NULL REFERENCES public.workspace_item_v1(id) ON DELETE CASCADE,
+           payload text NOT NULL)`,
+      )
+      // Like the tag links: keyed by item and workspace, with a foreign key into a
+      // workspace's own tags.
+      await client.query(
+        `CREATE TABLE public.${linked} (
+           item_id integer NOT NULL REFERENCES public.workspace_item_v1(id) ON DELETE CASCADE,
+           tag_id integer NOT NULL REFERENCES public.workspace_tag_v1(id))`,
+      )
+      assert.deepEqual(await findUnrehomedTables(client, { [linked]: { rehomed: false } }), [
+        linked,
+      ])
+      assert.deepEqual(await findUnrehomedTables(client, { [linked]: { rehomed: true } }), [])
+      // A table keyed only by the item follows it without help.
+      assert.deepEqual(await findUnrehomedTables(client, { [probe]: { rehomed: false } }), [])
+      // The registry's own tables all say how their rows move.
+      assert.deepEqual(await findUnrehomedTables(client), [])
+      assert.ok(Object.keys(ITEM_OWNED_TABLES).length > 0)
     } finally {
       await client.query("ROLLBACK").catch(() => undefined)
       client.release()

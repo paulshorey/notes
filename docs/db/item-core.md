@@ -52,7 +52,9 @@ Four things are generated from those declarations and list no item column themse
   with no merge code.
 - **The storage audit** (`scripts/audit-item-storage.ts`, run by `db:verify`): it fails
   on a column of `workspace_item_v1`, or a table with a foreign key to it, that no
-  declaration accounts for.
+  declaration accounts for; on a backup field that restore writes nowhere (it needs an
+  `import`, or a table that restores it); and on an owned table whose rows point into
+  the item's workspace but that declares no `rehome`.
 
 Adding a capability means adding its entry there and in the browser-safe registry. A
 backup version increases whenever a field is added, and import reads every earlier

@@ -60,7 +60,8 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   exports its rows and the statement that imports them, plus `rehome` if its rows
   point into the workspace. `db:verify` runs
   `scripts/audit-item-storage.ts` and fails on an item column or item-referencing
-  table that nothing declares.
+  table that nothing declares, a backup field that restore never writes, and an owned
+  table that points into the workspace without `rehome`.
 
 ## Notes
 
