@@ -85,47 +85,50 @@ test("the engine is asked about pending edits before another view takes an entry
   reset()
 })
 
+const tick = async () => {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 test("an entry changes view only after its pending save succeeds", async () => {
   reset()
   store().openExistingItem(item(1))
   store().setActiveView("task", false)
 
   let settle: (saved: boolean) => void = () => undefined
-  store().setBeforeViewClaim(() => ({
-    wait: new Promise<boolean>((resolve) => (settle = resolve)),
-  }))
+  const waiting = () => ({ wait: new Promise<boolean>((resolve) => (settle = resolve)) })
+  store().setBeforeViewClaim(waiting)
   store().activateEntry("note:1")
   assert.equal(viewOf(1), "note", "the outgoing rule still applies while the save runs")
+  assert.deepEqual(store().pendingViewClaim, { key: "note:1", view: "task" })
   settle(false)
-  await Promise.resolve()
-  await Promise.resolve()
+  await tick()
   assert.equal(viewOf(1), "note", "a failed save keeps the entry under the rule it was made by")
+  assert.notEqual(store().pendingViewClaim, null, "and the hand-over keeps waiting")
 
-  store().activateEntry("note:1")
-  settle(true)
-  await Promise.resolve()
-  await Promise.resolve()
-  assert.equal(viewOf(1), "task", "once saved, the view takes the entry")
+  store().finishViewClaim("note:2")
+  assert.equal(viewOf(1), "note", "another entry's save completes nothing")
+  store().finishViewClaim("note:1")
+  assert.equal(viewOf(1), "task", "a later successful save completes the hand-over")
+  assert.equal(store().pendingViewClaim, null)
 
   // The user moved on before the save landed: the hand-over is no longer wanted.
   store().setBeforeViewClaim(() => ({}))
   store().setActiveView("note", true)
   assert.equal(viewOf(1), "note")
   store().setActiveView("task", false)
-  store().setBeforeViewClaim(() => ({
-    wait: new Promise<boolean>((resolve) => (settle = resolve)),
-  }))
+  store().setBeforeViewClaim(waiting)
   store().activateEntry("note:1")
   store().setBeforeViewClaim(() => ({}))
   store().setActiveView("note", true)
   settle(true)
-  await Promise.resolve()
-  await Promise.resolve()
+  await tick()
   assert.equal(
     viewOf(1),
     "note",
     "a late save does not hand the entry to a view no longer on screen",
   )
+  assert.equal(store().pendingViewClaim, null)
   reset()
 })
 

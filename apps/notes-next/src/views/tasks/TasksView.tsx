@@ -46,7 +46,10 @@ export function TasksView() {
     seenOpenRequests.current = openRequestCount
     setEditorKey(useItemsAppStore.getState().activeKey)
   }, [openRequestCount])
-  const editorOpen = editorKey !== null && editorKey === activeKey
+  // The editor waits for this view to take the entry over. Until edits made under
+  // another view are stored, that view's rule still applies to it, so it stays out
+  // of this editor and the board stays up.
+  const editorOpen = editorKey !== null && editorKey === activeKey && activeEntry?.view === "task"
 
   // Overdue is relative to now, so the clock moves while the view stays open.
   const [now, setNow] = useState(() => Date.now())

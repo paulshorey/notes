@@ -127,6 +127,7 @@ between views, so the session, the open-item ring, and pending saves carry acros
   directly without opening the item. A list action first saves the item's open,
   unsaved edits (`settleOpenEntryFor`), so it never overwrites what the user typed,
   and registers itself in `directWritesRef`, which `flushAllPendingSaves` waits for.
+  List writes to one item run in the order they were asked for.
   A card dropped on the no-status column keeps its status unless the task has a date.
 - **Capabilities.** Each thing an item can hold has a module in `src/capabilities/`:
   a draft part (`ItemDraftPart`: its form fields, how a stored item fills them, what a
@@ -145,12 +146,13 @@ between views, so the session, the open-item ring, and pending saves carry acros
 - **Changing view.** The store hands the active entry to the view on screen when the
   user opens or activates it there, or when that view always shows the editor. First
   it asks the engine (`beforeViewClaim`) to settle edits made under the outgoing view.
-  Edits that view would save are saved, and the entry changes view only once that
-  save succeeds, so a failed save is retried under the rule it was made by. Edits it
-  refused are dropped by restoring the stored item, so no other view's rule saves
+  Edits that view would save are saved, and the entry changes view only once a save
+  of it succeeds (`pendingViewClaim`, completed by `finishViewClaim` after any
+  successful save), so a failed save is retried under the rule it was made by. Edits
+  it refused are dropped by restoring the stored item, so no other view's rule saves
   them. `openRequestCount` counts opens and activations; Tasks shows its editor for
-  the entry of the latest one and returns to the board when a different entry becomes
-  active without one.
+  the entry of the latest one once it has taken that entry over, and returns to the
+  board when a different entry becomes active without one.
 
 - All database access and embedding logic is in `@lib/db-items`. API routes call `itemsAppService` from `@lib/db-items/services/items-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.

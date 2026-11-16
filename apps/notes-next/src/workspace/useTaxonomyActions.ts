@@ -17,7 +17,7 @@ import {
   applyItemGroupResultToCategories,
   refileAfterGroupResult,
 } from "@/lib/itemGroupActions"
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import { type TextCaptureFormState } from "@/types/items"
@@ -53,6 +53,9 @@ export function useTaxonomyActions(
     OpenItemEntriesOutput &
     ItemListsOutput,
 ) {
+  // The last list write for each item, so the next one for that item waits its turn.
+  const listWritesByItemRef = useRef(new Map<number, Promise<void>>())
+
   const {
     activeKey,
     activeView,
@@ -548,13 +551,38 @@ export function useTaxonomyActions(
     return useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? item
   }
 
-  /** Change fields of a stored item from a list, without opening it. */
-  const patchItemFromSidebar = async (
+  /**
+   * Change fields of a stored item from a list, without opening it. Writes to one
+   * item run in the order they were asked for: a list keeps showing the item where it
+   * was until its write lands, so a second change can start before the first is done.
+   */
+  const patchItemFromSidebar = (
+    listedItem: ItemRecord,
+    change: (current: ItemRecord) => StoredItemChange,
+  ): Promise<ItemRecord | null> => {
+    const queue = listWritesByItemRef.current
+    const previous = queue.get(listedItem.id) ?? Promise.resolve()
+    const write = previous.then(() => patchStoredItem(listedItem, change))
+    const settled = write.then(
+      () => undefined,
+      () => undefined,
+    )
+    queue.set(listedItem.id, settled)
+    void settled.then(() => {
+      if (queue.get(listedItem.id) === settled) queue.delete(listedItem.id)
+    })
+    return write
+  }
+
+  const patchStoredItem = async (
     listedItem: ItemRecord,
     change: (current: ItemRecord) => StoredItemChange,
   ) => {
     if (!user) return null
-    const item = await settleOpenEntryFor(listedItem)
+    // An earlier write in the queue may have changed the item since it was listed.
+    const latest =
+      useWorkspaceStore.getState().items.find((stored) => stored.id === listedItem.id) ?? listedItem
+    const item = await settleOpenEntryFor(latest)
     const fields = {
       categoryId: item.category?.id ?? null,
       subcategoryId: item.subcategory?.id ?? null,

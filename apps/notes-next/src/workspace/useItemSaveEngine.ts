@@ -189,6 +189,8 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       try {
         await savePromise
         persisted = true
+        // A view may be waiting to take this entry until its edits are stored.
+        useItemsAppStore.getState().finishViewClaim(key)
         if (userRef.current?.id === currentUser.id && !detached) {
           const live = useItemsAppStore.getState().openItems.find((item) => item.key === key)
           if (live) {
