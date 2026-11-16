@@ -27,14 +27,6 @@ export function useWorkspaceState() {
   // The view on screen decides which of the workspace's items the lists show.
   const activeView = viewForPath(usePathname())
 
-  // Which drafts are saved is the active view's rule. Effects read the function;
-  // callbacks that outlive a render read the ref.
-  const canSaveDraft = activeView.canSave
-
-  const canSaveDraftRef = useRef(canSaveDraft)
-
-  canSaveDraftRef.current = canSaveDraft
-
   const [identifier, setIdentifier] = useState("")
 
   const [password, setPassword] = useState("")
@@ -200,6 +192,11 @@ export function useWorkspaceState() {
   // second save of the *same* note still queues behind the first.
   const saveInFlightRef = useRef(new Map<OpenItemKey, Promise<void>>())
 
+  // Writes made from a list without an open entry: a quick-add, a board drag, a
+  // sidebar move. Each resolves to whether it landed, and the session flush waits
+  // for them, so a session change cannot outrun one.
+  const directWritesRef = useRef(new Set<Promise<boolean>>())
+
   const queuedAutosaveKeysRef = useRef(new Set<OpenItemKey>())
 
   const groupDeferredSaveKeysRef = useRef(new Set<OpenItemKey>())
@@ -293,8 +290,6 @@ export function useWorkspaceState() {
 
   return {
     activeView,
-    canSaveDraft,
-    canSaveDraftRef,
     authSession,
     authStatus,
     identifier,
@@ -401,6 +396,7 @@ export function useWorkspaceState() {
     tagsRef,
     activeWorkspaceIdRef,
     saveInFlightRef,
+    directWritesRef,
     queuedAutosaveKeysRef,
     groupDeferredSaveKeysRef,
     detachedSavesRef,

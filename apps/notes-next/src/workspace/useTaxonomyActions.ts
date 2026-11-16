@@ -17,21 +17,27 @@ import {
   applyItemGroupResultToCategories,
   refileAfterGroupResult,
 } from "@/lib/itemGroupActions"
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import { type TextCaptureFormState } from "@/types/items"
 import { updateItemsCacheList } from "@/lib/itemsCache"
 import { type OpenItemKey, itemEntryKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
-import { collectSessionFlushEntries } from "@/lib/openItemsExit"
+import { useWorkspaceStore } from "@/stores/workspaceStore"
+import { createEmptyItemDraft } from "@/capabilities/draftParts"
+import { itemRequestBody, serializeItemDraft } from "@/lib/itemDraft"
+import { itemToFormState } from "@/types/items"
+import { itemFilingLabel } from "@/lib/itemFiling"
 import {
-  type ItemFiling,
-  existingFiling,
-  filingLabel,
-  isSameFiling,
-  upsertCategory,
-} from "@/lib/itemFiling"
+  type StoredItemChange,
+  changesNothing,
+  draftAfterListWrite,
+  storedItemFields,
+} from "@/lib/listWrites"
+import { collectSessionFlushEntries } from "@/lib/openItemsExit"
+import { canSaveEntry } from "@/views/registry"
+import { existingFiling, filingLabel, isSameFiling, upsertCategory } from "@/lib/itemFiling"
 import { isResultsDrawerLayout } from "@/lib/resultsColumn"
 import { isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
@@ -47,11 +53,14 @@ export function useTaxonomyActions(
     OpenItemEntriesOutput &
     ItemListsOutput,
 ) {
+  // The last list write for each item, so the next one for that item waits its turn.
+  const listWritesByItemRef = useRef(new Map<number, Promise<void>>())
+
   const {
     activeKey,
+    activeView,
     activeWorkspaceId,
     activeWorkspaceIdRef,
-    canSaveDraftRef,
     applyServerItemToEntry,
     categories,
     categoriesRef,
@@ -61,11 +70,13 @@ export function useTaxonomyActions(
     creatingTagLabelsRef,
     deletingTag,
     detachedSavesRef,
+    directWritesRef,
     editTagLabel,
     editingTag,
     fallbackTagId,
     groupDeferredSaveKeysRef,
     itemsRef,
+    mergeSavedItem,
     loadItems,
     openDraftEntry,
     openItemEntry,
@@ -77,6 +88,7 @@ export function useTaxonomyActions(
     refreshResults,
     remapEntriesAfterCategoryChange,
     saveEntry,
+    scheduleTaxonomyRefresh,
     saveInFlightRef,
     searchMode,
     selectedTagId,
@@ -526,12 +538,56 @@ export function useTaxonomyActions(
     return data.tag
   }
 
-  const patchItemFromSidebar = async (
-    item: ItemRecord,
-    nextFiling: ItemFiling,
-    nextTagIds: number[],
+  /**
+   * The stored item a list action should start from. If the item is open with unsaved
+   * edits its view would save, those are saved first, so a change made from a list
+   * never overwrites what the user typed.
+   */
+  const settleOpenEntryFor = async (item: ItemRecord): Promise<ItemRecord> => {
+    const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
+    if (!entry || !isEntryDirty(entry) || !canSaveEntry(entry)) return item
+    if (!(await saveEntry(entry.key, "flush")))
+      throw new Error("Couldn't save your changes to this item first. Try again.")
+    return useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? item
+  }
+
+  /**
+   * Change fields of a stored item from a list, without opening it. Writes to one
+   * item run in the order they were asked for: a list keeps showing the item where it
+   * was until its write lands, so a second change can start before the first is done.
+   */
+  const patchItemFromSidebar = (
+    listedItem: ItemRecord,
+    change: (current: ItemRecord) => StoredItemChange,
+  ): Promise<ItemRecord | null> => {
+    const queue = listWritesByItemRef.current
+    const previous = queue.get(listedItem.id) ?? Promise.resolve()
+    const write = previous.then(() => patchStoredItem(listedItem, change))
+    const settled = write.then(
+      () => undefined,
+      () => undefined,
+    )
+    queue.set(listedItem.id, settled)
+    void settled.then(() => {
+      if (queue.get(listedItem.id) === settled) queue.delete(listedItem.id)
+    })
+    return write
+  }
+
+  const patchStoredItem = async (
+    listedItem: ItemRecord,
+    change: (current: ItemRecord) => StoredItemChange,
   ) => {
     if (!user) return null
+    // An earlier write in the queue may have changed the item since it was listed.
+    const latest =
+      useWorkspaceStore.getState().items.find((stored) => stored.id === listedItem.id) ?? listedItem
+    const item = await settleOpenEntryFor(latest)
+    // Decided against the item as it is now, not as the list showed it when the
+    // action started: an earlier write or a saved edit may have changed it since.
+    const changed = change(item)
+    if (changesNothing(item, changed)) return item
+    const fields = { ...storedItemFields(item), ...changed }
 
     const request = (async () => {
       const response = await itemsFetch("/api/items", {
@@ -542,9 +598,7 @@ export function useTaxonomyActions(
           itemId: item.id,
           item: {
             workspaceId: activeWorkspaceId,
-            ...nextFiling,
-            statusId: item.status?.id ?? null,
-            tagIds: nextTagIds,
+            ...fields,
             description: item.description ?? "",
             timeDue: item.timeDue,
             timeRemind: item.timeRemind,
@@ -557,9 +611,10 @@ export function useTaxonomyActions(
     // Register under the entry's key so an autosave for the same note queues
     // behind this write instead of racing it. Without this, moving an open,
     // dirty note from the sidebar could land in either order.
-    const openKey = useItemsAppStore
+    const openEntry = useItemsAppStore
       .getState()
-      .openItems.find((entry) => entry.itemId === item.id)?.key
+      .openItems.find((entry) => entry.itemId === item.id)
+    const openKey = openEntry?.key
     if (openKey) {
       saveInFlightRef.current.set(
         openKey,
@@ -578,8 +633,35 @@ export function useTaxonomyActions(
         saveInFlightRef.current.delete(openKey)
       }
     }
+    applyListWriteToEntry(data.item, changed, openEntry?.form)
     await refreshResults(user.id)
     return data.item
+  }
+
+  /**
+   * Bring an open entry in line with a list write to its item. If the user edited the
+   * entry while the write was in flight, those edits stay and only the fields the
+   * write changed are taken, with the stored state as the new baseline.
+   */
+  const applyListWriteToEntry = (
+    item: ItemRecord,
+    changed: StoredItemChange,
+    sentForm?: TextCaptureFormState,
+  ) => {
+    const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
+    if (!entry) return
+    if (!isEntryDirty(entry)) {
+      applyServerItemToEntry(item)
+      return
+    }
+    const stored = itemToFormState(item)
+    const refiled = "categoryId" in changed || "subcategoryId" in changed
+    patchEntry(entry.key, {
+      form: draftAfterListWrite(entry.form, stored, changed, sentForm),
+      baseTimeModified: item.timeModified,
+      savedSignature: serializeItemDraft(item.id, stored),
+      ...(refiled ? { categoryInputValue: itemFilingLabel(item) } : {}),
+    })
   }
 
   const handleMoveItemCategory = async (item: ItemRecord, categoryLabel: string) => {
@@ -591,12 +673,7 @@ export function useTaxonomyActions(
       if (item.category?.id === category.id) return
 
       // A subcategory belongs to the category the note is leaving.
-      const updatedItem = await patchItemFromSidebar(
-        item,
-        { categoryId: category.id, subcategoryId: null },
-        item.tags.map((tag) => tag.id),
-      )
-      if (updatedItem) applyServerItemToEntry(updatedItem)
+      await patchItemFromSidebar(item, () => ({ categoryId: category.id, subcategoryId: null }))
       setStatusMessage(`Note moved to “${category.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -610,21 +687,95 @@ export function useTaxonomyActions(
       const tag = await resolveTagForSidebarMove(tagLabel)
       if (!tag) return
 
-      const nextTagIds = item.tags
-        .filter((itemTag) => itemTag.id !== fromTagId && itemTag.id !== tag.id)
-        .map((itemTag) => itemTag.id)
-      nextTagIds.push(tag.id)
-
-      const updatedItem = await patchItemFromSidebar(
-        item,
-        { categoryId: item.category?.id ?? null, subcategoryId: item.subcategory?.id ?? null },
-        nextTagIds,
-      )
-      if (updatedItem) applyServerItemToEntry(updatedItem)
+      await patchItemFromSidebar(item, (current) => ({
+        tagIds: [
+          ...current.tags
+            .filter((itemTag) => itemTag.id !== fromTagId && itemTag.id !== tag.id)
+            .map((itemTag) => itemTag.id),
+          tag.id,
+        ],
+      }))
       setStatusMessage(`Note tag changed to “${tag.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
+  }
+
+  /** Register a write made from a list, so a session change waits for it to land. */
+  const trackDirectWrite = (write: Promise<boolean>) => {
+    directWritesRef.current.add(write)
+    void write.finally(() => directWritesRef.current.delete(write))
+    return write
+  }
+
+  /**
+   * Set or clear an item's status from a list, as a board does when a card moves.
+   * `refuse` is the view's own rule for the move: it sees the item as stored when the
+   * write runs and returns a message to refuse it.
+   */
+  const handleSetItemStatus = (
+    item: ItemRecord,
+    statusId: number | null,
+    refuse?: (current: ItemRecord) => string | null,
+  ) => {
+    if (!user) return Promise.resolve(false)
+    clearMessages()
+    return trackDirectWrite(
+      (async () => {
+        try {
+          await patchItemFromSidebar(item, (current) => {
+            const reason = refuse?.(current) ?? null
+            if (reason !== null) throw new Error(reason)
+            return { statusId }
+          })
+          return true
+        } catch (error) {
+          setErrorMessage(getErrorMessage(error))
+          return false
+        }
+      })(),
+    )
+  }
+
+  /**
+   * Create an item from one line typed into a list, with the defaults of the view it
+   * was typed in. It is stored directly and does not open in the editor.
+   */
+  const handleQuickAddItem = (
+    description: string,
+    context: { statusId: number | null },
+  ): Promise<boolean> => {
+    const workspaceId = activeWorkspaceId
+    if (!user || workspaceId === null) return Promise.resolve(false)
+    const draft = {
+      ...createEmptyItemDraft(),
+      ...activeView.quickAddDefaults?.(context),
+      description,
+    }
+    if (!activeView.canSave(draft)) return Promise.resolve(false)
+    clearMessages()
+    return trackDirectWrite(
+      (async () => {
+        try {
+          // The text lives only in the list's input, so the request must outlive the
+          // page if the tab closes right after Enter. It is sent once and never
+          // replayed from a snapshot, so keepalive cannot create a second item.
+          const response = await itemsFetch("/api/items", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user.id, item: itemRequestBody(draft, workspaceId) }),
+            keepalive: true,
+          })
+          const data = await readJson<{ item: ItemRecord }>(response)
+          mergeSavedItem(user.id, data.item)
+          scheduleTaxonomyRefresh(user.id)
+          return true
+        } catch (error) {
+          setErrorMessage(getErrorMessage(error))
+          return false
+        }
+      })(),
+    )
   }
 
   const prepareItemGroupAction = useCallback(async () => {
@@ -647,7 +798,7 @@ export function useTaxonomyActions(
     const entries = collectSessionFlushEntries(
       useItemsAppStore.getState().openItems,
       isEntryDirty,
-      canSaveDraftRef.current,
+      canSaveEntry,
     ).filter((entry) => entry.itemId !== null)
     const detached = [...detachedSavesRef.current].filter(([, entry]) => entry.itemId !== null)
     const saved = await Promise.all([
@@ -659,7 +810,6 @@ export function useTaxonomyActions(
     persistOpenItemsRef.current()
   }, [
     activeWorkspaceIdRef,
-    canSaveDraftRef,
     detachedSavesRef,
     persistOpenItemsRef,
     saveEntry,
@@ -904,6 +1054,8 @@ export function useTaxonomyActions(
     resolveCategoryForSidebarMove,
     resolveTagForSidebarMove,
     patchItemFromSidebar,
+    handleSetItemStatus,
+    handleQuickAddItem,
     handleMoveItemCategory,
     handleMoveItemTag,
     prepareItemGroupAction,

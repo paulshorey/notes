@@ -1,3 +1,5 @@
+import { ITEM_KINDS, type ItemKindKey } from "@lib/db-items/contracts/item-kinds"
+import { DEFAULT_VIEW_KIND } from "@/views/registry"
 import type { ItemRecord } from "@lib/db-items"
 import { itemToFormState, type TextCaptureFormState } from "@/types/items"
 import { serializeItemDraft } from "@/lib/itemDraft"
@@ -33,6 +35,9 @@ const storageKey = (userId: number, workspaceId: number) =>
  * reopen from the server. Dirty entries never expire — unsaved text does not
  * go stale.
  */
+const isItemKindKey = (value: unknown): value is ItemKindKey =>
+  ITEM_KINDS.some((kind) => kind.key === value)
+
 const CLEAN_ENTRY_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000
 
 interface PersistedEntry {
@@ -40,6 +45,8 @@ interface PersistedEntry {
   itemId: number | null
   baseTimeModified: string | null
   form: TextCaptureFormState
+  /** Absent in snapshots written before entries recorded their view. */
+  view?: ItemKindKey
   savedSignature: string | null
   categoryInputValue: string
   pendingTagLabels: string[]
@@ -160,6 +167,7 @@ export const toSnapshot = (
     itemId: entry.itemId,
     baseTimeModified: entry.baseTimeModified,
     form: entry.form,
+    view: entry.view,
     savedSignature: entry.savedSignature,
     categoryInputValue: entry.categoryInputValue,
     pendingTagLabels: entry.pendingTagLabels,
@@ -420,6 +428,7 @@ export const reconcileOpenItems = (
       itemId: persisted.itemId,
       baseTimeModified: persisted.baseTimeModified ?? null,
       form: persisted.form,
+      view: isItemKindKey(persisted.view) ? persisted.view : DEFAULT_VIEW_KIND,
       savedSignature: persisted.savedSignature ?? null,
       saveStatus: "idle",
       editorSessionId: 0,

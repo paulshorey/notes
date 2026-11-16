@@ -1,9 +1,6 @@
 "use client"
 
-import {
-  AtomicCodeMirrorEditor,
-  type AtomicCodeMirrorEditorHandle,
-} from "@atomic-editor/editor"
+import { AtomicCodeMirrorEditor, type AtomicCodeMirrorEditorHandle } from "@atomic-editor/editor"
 import "@atomic-editor/editor/styles.css"
 import { Prec } from "@codemirror/state"
 import { keymap, placeholder } from "@codemirror/view"
@@ -81,11 +78,7 @@ export const AtomicEditor = React.forwardRef<AtomicEditorHandle, AtomicEditorPro
     const resolvedDocumentId =
       documentId === undefined || documentId === null ? value : String(documentId)
 
-    React.useImperativeHandle(
-      ref,
-      () => editorHandleRef.current as AtomicEditorHandle,
-      [],
-    )
+    React.useImperativeHandle(ref, () => editorHandleRef.current as AtomicEditorHandle, [])
 
     React.useEffect(() => {
       if (!autofocus) {
@@ -118,14 +111,17 @@ export const AtomicEditor = React.forwardRef<AtomicEditorHandle, AtomicEditorPro
       }
     }, [autofocus, resolvedDocumentId])
 
-    const handleLinkClick = React.useCallback((url: string) => {
-      if (onLinkClick) {
-        onLinkClick(url)
-        return
-      }
+    const handleLinkClick = React.useCallback(
+      (url: string) => {
+        if (onLinkClick) {
+          onLinkClick(url)
+          return
+        }
 
-      window.open(url, "_blank", "noopener,noreferrer")
-    }, [onLinkClick])
+        window.open(url, "_blank", "noopener,noreferrer")
+      },
+      [onLinkClick],
+    )
 
     const handleMarkdownChange = React.useCallback((markdown: string) => {
       onUpdateRef.current?.(markdown)

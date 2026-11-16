@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: tasks_view
     content: "S6. Tasks view: a board by status and a list by due date over the same items, with no new storage. An item with text and a status shows in Notes and in Tasks."
-    status: pending
+    status: completed
   - id: public_identity
     content: "S7. Add a permanent uid (UUID) to items and workspaces as the public identity, client-generated on create so a retried create is harmless. Integer ids stay as internal keys."
     status: pending
@@ -373,28 +373,34 @@ No behavior change for the user.
 
 ### S6. Tasks view
 
-The first second view. It adds no storage: `status` and `schedule` are already on every
-item.
+The second view. It adds no storage: `status` and `schedule` are already on every item.
 
-- `/tasks` shows items of kind `task` in the current workspace and taxonomy selection.
-  The shell gains its view switcher here, with the second view.
-- **Board.** One column per workspace status in `position` order, plus a column for
-  tasks with a date and no status. Dragging a card changes its status. Cards order by
-  due date, then last modified.
-- **List.** The same items sorted by due date, with overdue items first.
-- **Quick-add** in a column creates an item with the typed text and that column's
-  status, through the view's `quickAddDefaults`.
-- A card opens the shared item editor, so its text is the same text the Notes view
-  edits. An item with text and a status appears in both views.
-- In the Tasks view, clearing the text of an item that still holds a status or date
-  saves it: the item leaves Notes and stays in Tasks. In the Notes view that edit is
-  not saved, because Notes saves an entry only when it has text. An item is deleted
-  from the editor only by the delete action.
-- Switching views first saves the entries pending under the outgoing view's rule, so
-  an edit made in Notes is never judged by the Tasks rule.
+- `/tasks` shows items of kind `task` in the current workspace and tag selection. The
+  header's view switcher links to each registered view.
+- **Board.** One column per workspace status in `position` order, then a column for
+  tasks with a date and no status, shown only when there are some. Dragging a card
+  changes its status. Cards order by due date, then last modified.
+- **List.** The same items sorted by due date, so overdue items come first.
+- **Quick-add** in a status column creates an item with the typed text and that
+  column's status, through the view's `quickAddDefaults`.
+- A card opens the shared item editor in place of the board, so its text is the same
+  text the Notes view edits. An item with text and a status appears in both views.
+- **Each entry is judged by the view it was opened in.** An open entry records that
+  view, and its `canSave` decides whether the entry's unsaved edits are saved. Tasks
+  saves an entry that holds any content; Notes saves one that has text. So clearing
+  the text of an item that still holds a status or date saves it from Tasks (the item
+  leaves Notes and stays in Tasks) and is not saved from Notes. Before another view
+  takes an entry over, edits the outgoing view would save are saved, and edits it
+  refused are dropped by restoring the stored item. In every view a new draft becomes
+  an item only once the user has put something into it; a preset status alone creates
+  nothing. An item is deleted only by the delete action.
+- A change made from a list (a board drag, a quick-add, a sidebar move) first saves
+  the item's open, unsaved edits, so it never overwrites them, and a session change
+  waits for it to land.
 
-Done when this step changes no save engine code and no Notes view code beyond what the
-kind filter requires. If it has to, the S5 boundary is wrong and is fixed here.
+The save engine changed in this step: it asked the view on screen which drafts to save,
+and now asks each entry's own view. That was the S5 boundary to fix, found by adding a
+second view with a different rule.
 
 ### S7. Public identity
 

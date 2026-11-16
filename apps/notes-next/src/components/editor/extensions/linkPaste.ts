@@ -125,8 +125,7 @@ export function linkPasteHandler(isEnabled: () => boolean): Extension {
         const html = data.getData("text/html")
         const plain = data.getData("text/plain")
         const markdown =
-          (html ? markdownLinkFromHtml(html) : null) ??
-          (plain ? markdownLinkFromUrl(plain) : null)
+          (html ? markdownLinkFromHtml(html) : null) ?? (plain ? markdownLinkFromUrl(plain) : null)
 
         if (!markdown) {
           return false

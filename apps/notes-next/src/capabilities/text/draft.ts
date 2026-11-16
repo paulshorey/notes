@@ -9,6 +9,7 @@ export interface TextDraft {
 export const textPart: ItemDraftPart<TextDraft> = {
   empty: () => ({ description: "" }),
   isBlank: (draft) => !hasText(draft.description),
+  holds: (draft) => hasText(draft.description),
   fromItem: (item) => ({ description: item.description ?? "" }),
   toRequest: (draft) => ({ description: draft.description }),
   listLabel: (item) => (hasText(item.description) ? itemHeadline(item.description) : null),

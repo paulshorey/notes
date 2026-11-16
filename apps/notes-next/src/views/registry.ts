@@ -1,6 +1,6 @@
 import { hasText } from "@lib/db-items/contracts/item-capabilities"
 import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
-import type { ItemDraft } from "@/capabilities/draftParts"
+import { draftHoldsContent, isBlankItemDraft, type ItemDraft } from "@/capabilities/draftParts"
 
 /**
  * A view is a screen over the items of one kind. The same item appears in every view
@@ -22,7 +22,21 @@ export interface ItemView {
    * keeping; the save engine asks the active view and holds no rule of its own.
    */
   canSave: (draft: ItemDraft) => boolean
+  /**
+   * Whether the view always shows the editor for the active entry (Notes), or only
+   * once the user opens an item in it. A view that always shows the editor takes over
+   * whichever entry becomes active.
+   */
+  alwaysShowsEditor: boolean
+  /**
+   * What a quick-add in this view puts on the new item besides the typed text, given
+   * where in the view it was added.
+   */
+  quickAddDefaults?: (context: { statusId: number | null }) => Partial<ItemDraft>
 }
+
+/** The view an entry belongs to when nothing says otherwise. */
+export const DEFAULT_VIEW_KIND: ItemKindKey = "note"
 
 export const ITEM_VIEWS: readonly ItemView[] = [
   {
@@ -31,8 +45,39 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     label: "Notes",
     // Notes captures text, so a draft is worth saving once it has some.
     canSave: (draft) => hasText(draft.description),
+    alwaysShowsEditor: true,
+  },
+  {
+    kind: "task",
+    route: "/tasks",
+    label: "Tasks",
+    // A task may have no text: a status or a date alone is worth keeping.
+    canSave: draftHoldsContent,
+    alwaysShowsEditor: false,
+    // A card added to a board column starts with that column's status.
+    quickAddDefaults: ({ statusId }) => ({ selectedStatusId: statusId }),
   },
 ]
+
+export const viewForKind = (kind: ItemKindKey): ItemView =>
+  ITEM_VIEWS.find((view) => view.kind === kind) ?? ITEM_VIEWS[0]!
+
+/**
+ * Whether an entry's unsaved edits are saved. The entry carries the view it was last
+ * opened in, and that view's rule decides: an edit is judged by the view it was made
+ * in, whichever view is on screen when the save runs.
+ */
+export const canSaveEntry = (entry: {
+  view: ItemKindKey
+  form: ItemDraft
+  itemId: number | null
+}): boolean => {
+  // A never-saved draft becomes an item only once the user has put something into it.
+  // A preset alone, such as the status of the column it was opened from, creates
+  // nothing in any view.
+  if (entry.itemId === null && isBlankItemDraft(entry.form)) return false
+  return viewForKind(entry.view).canSave(entry.form)
+}
 
 /** The view a path belongs to: the longest route that is the path or a parent of it. */
 export const viewForPath = (pathname: string): ItemView => {

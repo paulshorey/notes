@@ -9,9 +9,7 @@ import {
 
 test("markdownLinkFromUrl converts a standalone plain URL", () => {
   assert.equal(
-    markdownLinkFromUrl(
-      "https://starcraftrv.com/rvs/travel-trailers/2025-super-lite/floorplans/",
-    ),
+    markdownLinkFromUrl("https://starcraftrv.com/rvs/travel-trailers/2025-super-lite/floorplans/"),
     "[starcraftrv.com/rvs/travel-trailers/2025-super-lite/floorplans](https://starcraftrv.com/rvs/travel-trailers/2025-super-lite/floorplans/)",
   )
 })

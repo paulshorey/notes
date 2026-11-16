@@ -14,6 +14,10 @@ import {
 import { writeOpenItemsSnapshot } from "@/lib/openItemsStorage"
 import { type OpenItemEntry, type OpenItemKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
+import { canSaveEntry } from "@/views/registry"
+import { useWorkspaceStore } from "@/stores/workspaceStore"
+import { itemFilingLabel } from "@/lib/itemFiling"
+import { itemToFormState } from "@/types/items"
 import { type ItemSaveMode, OPEN_ITEMS_PERSIST_DEBOUNCE_MS, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
 import type { WorkspaceDataOutput } from "./useWorkspaceData"
@@ -21,11 +25,11 @@ import type { WorkspaceDataOutput } from "./useWorkspaceData"
 export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutput) {
   const {
     activeKey,
+    activeView,
     activeWorkspaceIdRef,
-    canSaveDraft,
-    canSaveDraftRef,
     detachedSavesRef,
     didRehydrateOpenItemsRef,
+    directWritesRef,
     exitKeepaliveKeysRef,
     flushAllPendingSavesRef,
     groupDeferredSaveKeysRef,
@@ -52,12 +56,13 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         if (!isEntryDirty(entry)) continue
 
         // A draft its view does not save holds nothing to send.
-        if (!canSaveDraftRef.current(entry.form)) continue
+        if (!canSaveEntry(entry)) continue
 
         detachedSavesRef.current.set(entry.key, {
           itemId: entry.itemId,
           form: snapshotTextCaptureForm(entry.form),
           savedSignature: entry.savedSignature,
+          view: entry.view,
         })
         void saveEntryRef.current(entry.key, "detached")
       }
@@ -65,7 +70,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         persistOpenItemsRef.current()
       }
     },
-    [canSaveDraftRef, detachedSavesRef, persistOpenItemsRef, saveEntryRef],
+    [detachedSavesRef, persistOpenItemsRef, saveEntryRef],
   )
 
   const detachRemovedEntriesRef = useRef(detachRemovedEntries)
@@ -105,7 +110,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       let itemId = source.itemId
       let draftSignature = serializeItemDraft(itemId, formSnapshot)
 
-      if (!canSaveDraftRef.current(formSnapshot)) return false
+      if (!canSaveEntry({ view: source.view, form: formSnapshot, itemId })) return false
       if (entry && !detached && draftSignature === entry.savedSignature) return true
 
       const inFlight = saveInFlightRef.current.get(key)
@@ -184,6 +189,8 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       try {
         await savePromise
         persisted = true
+        // A view may be waiting to take this entry until its edits are stored.
+        useItemsAppStore.getState().finishViewClaim(key)
         if (userRef.current?.id === currentUser.id && !detached) {
           const live = useItemsAppStore.getState().openItems.find((item) => item.key === key)
           if (live) {
@@ -212,7 +219,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
       if (queuedAutosaveKeysRef.current.delete(key)) {
         const latest = useItemsAppStore.getState().openItems.find((item) => item.key === key)
-        if (latest && canSaveDraftRef.current(latest.form) && isEntryDirty(latest)) {
+        if (latest && canSaveEntry(latest) && isEntryDirty(latest)) {
           void saveEntry(key, "autosave")
         }
       }
@@ -221,7 +228,6 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     },
     [
       activeWorkspaceIdRef,
-      canSaveDraftRef,
       detachedSavesRef,
       groupDeferredSaveKeysRef,
       mergeSavedItem,
@@ -248,7 +254,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     const entries = collectSessionFlushEntries(
       useItemsAppStore.getState().openItems,
       isEntryDirty,
-      canSaveDraftRef.current,
+      canSaveEntry,
     )
     // Detached work counts too: text that left the ring is exactly the text
     // nobody is looking at, so it is the easiest to lose in a session change.
@@ -257,15 +263,46 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     const results = await Promise.allSettled([
       ...entries.map((entry) => saveEntry(entry.key, "flush")),
       ...detachedKeys.map((key) => saveEntry(key, "detached")),
+      ...directWritesRef.current,
     ])
 
     // Reports failure rather than swallowing it. Callers are about to tear down
     // or replace the session, so proceeding past a failed save destroys the
     // draft it was carrying.
     return results.every((result) => result.status === "fulfilled" && result.value)
-  }, [canSaveDraftRef, detachedSavesRef, saveEntry])
+  }, [detachedSavesRef, directWritesRef, saveEntry])
 
   flushAllPendingSavesRef.current = flushAllPendingSaves
+
+  // An entry is judged by the view it was opened in. Just before another view takes
+  // an entry over, settle the edits made under the outgoing view: save the ones it
+  // would save, and drop the ones it refused, so no other view's rule saves them.
+  useEffect(() => {
+    const store = useItemsAppStore.getState()
+    store.setBeforeViewClaim((entry) => {
+      if (!isEntryDirty(entry)) return {}
+      if (canSaveEntry(entry)) return { wait: saveEntry(entry.key, "flush") }
+      // A never-saved draft has no stored state to go back to; it stays as typed.
+      const stored = useWorkspaceStore.getState().items.find((item) => item.id === entry.itemId)
+      if (!stored) return {}
+      const form = itemToFormState(stored)
+      return {
+        restore: {
+          form,
+          baseTimeModified: stored.timeModified,
+          savedSignature: serializeItemDraft(stored.id, form),
+          categoryInputValue: itemFilingLabel(stored),
+          pendingTagLabels: [],
+          editorSessionId: entry.editorSessionId + 1,
+        },
+      }
+    })
+    return () => useItemsAppStore.getState().setBeforeViewClaim(null)
+  }, [saveEntry])
+
+  useEffect(() => {
+    useItemsAppStore.getState().setActiveView(activeView.kind, activeView.alwaysShowsEditor)
+  }, [activeView])
 
   useEffect(() => {
     if (itemGroupDialog !== null) return
@@ -277,7 +314,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
   useOpenItemsAutosave({
     entries: openItems,
     enabled: Boolean(user) && itemGroupDialog === null,
-    canSave: canSaveDraft,
+    canSave: canSaveEntry,
     saveEntry,
   })
 
@@ -290,7 +327,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       if (saveInFlightRef.current.has(entry.key)) continue
 
       const next =
-        entry.itemId === null && !canSaveDraft(entry.form)
+        entry.itemId === null && !canSaveEntry(entry)
           ? "idle"
           : isEntryDirty(entry)
             ? "unsaved"
@@ -298,7 +335,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
       if (entry.saveStatus !== next) patchEntry(entry.key, { saveStatus: next })
     }
-  }, [canSaveDraft, openItems, patchEntry, saveInFlightRef, user])
+  }, [openItems, patchEntry, saveInFlightRef, user])
 
   // Best-effort save when the tab is being hidden or torn down. Keepalive
   // bodies share a browser quota, so the durable guarantee is the local
@@ -319,7 +356,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         store.openItems,
         detachedSavesRef.current,
         isEntryDirty,
-        canSaveDraftRef.current,
+        canSaveEntry,
       )
       const keepalive = selectKeepaliveExitItems(pending, exitKeepaliveKeysRef.current)
 
@@ -361,7 +398,6 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     }
   }, [
     activeWorkspaceIdRef,
-    canSaveDraftRef,
     detachedSavesRef,
     exitKeepaliveKeysRef,
     persistOpenItemsRef,

@@ -1,3 +1,4 @@
+import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import type { TextCaptureFormState } from "@/types/items"
 import {
   isEmptyDraft,
@@ -14,7 +15,12 @@ export interface DetachedSaveSnapshot {
   itemId: number | null
   form: TextCaptureFormState
   savedSignature: string | null
+  /** The view the entry belonged to when it left the ring. */
+  view: ItemKindKey
 }
+
+/** What a view's save rule looks at: the entry's view and its draft. */
+type SaveCandidate = Pick<OpenItemEntry, "view" | "form" | "itemId">
 
 export interface ExitFlushItem {
   key: OpenItemKey
@@ -39,9 +45,9 @@ export interface ExitFlushItem {
 export const collectSessionFlushEntries = (
   openItems: OpenItemEntry[],
   isDirty: (entry: OpenItemEntry) => boolean,
-  canSave: (form: TextCaptureFormState) => boolean,
+  canSave: (entry: SaveCandidate) => boolean,
 ): OpenItemEntry[] =>
-  openItems.filter((entry) => isDirty(entry) && !isEmptyDraft(entry) && canSave(entry.form))
+  openItems.filter((entry) => isDirty(entry) && !isEmptyDraft(entry) && canSave(entry))
 
 /**
  * Fold detached dirty notes back into ring state for a localStorage write.
@@ -65,6 +71,7 @@ export const stateWithDetachedSaves = (
       itemId: save.itemId,
       baseTimeModified: null,
       form: save.form,
+      view: save.view,
       savedSignature: save.savedSignature,
       saveStatus: "idle",
       editorSessionId: 0,
@@ -85,19 +92,19 @@ export const collectExitFlushItems = (
   openItems: OpenItemEntry[],
   detached: Iterable<[OpenItemKey, DetachedSaveSnapshot]>,
   isDirty: (entry: OpenItemEntry) => boolean,
-  isSaveable: (form: TextCaptureFormState) => boolean,
+  isSaveable: (entry: SaveCandidate) => boolean,
 ): ExitFlushItem[] => {
   const seen = new Set<OpenItemKey>()
   const items: ExitFlushItem[] = []
 
   for (const entry of openItems) {
-    if (!isSaveable(entry.form) || !isDirty(entry)) continue
+    if (!isSaveable(entry) || !isDirty(entry)) continue
     seen.add(entry.key)
     items.push({ key: entry.key, itemId: entry.itemId, form: entry.form })
   }
 
   for (const [key, save] of detached) {
-    if (seen.has(key) || !isSaveable(save.form)) continue
+    if (seen.has(key) || !isSaveable(save)) continue
     items.push({ key, itemId: save.itemId, form: save.form })
   }
 

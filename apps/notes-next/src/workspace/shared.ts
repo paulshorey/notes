@@ -1,3 +1,4 @@
+import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { type CategoryRecord, type TagRecord } from "@lib/db-items"
 import { createDefaultTextCaptureForm, type TextCaptureFormState } from "@/types/items"
 import { serializeItemDraft } from "@/lib/itemDraft"
@@ -53,6 +54,8 @@ export interface DetachedSave {
   itemId: number | null
   form: TextCaptureFormState
   savedSignature: string | null
+  /** The view the entry belonged to when it left the ring; its rule still applies. */
+  view: ItemKindKey
 }
 
 export const entrySignature = (entry: OpenItemEntry) => serializeItemDraft(entry.itemId, entry.form)

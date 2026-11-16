@@ -3,6 +3,7 @@ import test from "node:test"
 import type { ItemRecord } from "@lib/db-items"
 import {
   activate,
+  claimActiveEntry,
   closeEntriesForItem,
   closeEntry,
   createEmptyOpenItemsState,
@@ -299,4 +300,24 @@ test("a blank new-note action clears an explicit status when reusing an untouche
     remindExpanded: false,
   })
   assert.equal(getActiveEntry(reused)?.categoryInputValue, "")
+})
+
+test("a view takes over only the active entry", () => {
+  const state = openItems([1, 2])
+  assert.deepEqual(
+    state.openItems.map((entry) => entry.view),
+    ["note", "note"],
+    "an entry starts in the default view",
+  )
+
+  const claimed = claimActiveEntry(state, "task")
+  assert.equal(getActiveEntry(claimed)?.itemId, 2)
+  assert.equal(getActiveEntry(claimed)?.view, "task")
+  assert.equal(findEntryByItemId(claimed, 1)?.view, "note", "other entries keep their view")
+  assert.equal(claimActiveEntry(claimed, "task"), claimed, "claiming again changes nothing")
+  assert.equal(
+    claimActiveEntry(createEmptyOpenItemsState(), "task").openItems.length,
+    0,
+    "an empty ring has nothing to claim",
+  )
 })

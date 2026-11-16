@@ -1,9 +1,12 @@
 import { create } from "zustand"
 import type { ItemRecord } from "@lib/db-items"
 import type { ItemGroupTarget } from "@lib/db-items/contracts/item-group-actions"
+import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import type { TextCaptureFormState, ItemSaveStatus } from "@/types/items"
+import { DEFAULT_VIEW_KIND } from "@/views/registry"
 import {
   activate as activateEntryIn,
+  claimActiveEntry,
   clampMaxOpenItems,
   closeEntriesForItem as closeEntriesForItemIn,
   closeEntry as closeEntryIn,
@@ -48,12 +51,56 @@ type State = OpenItemsState & {
    * through every call site.
    */
   maxOpenItems: number
+  /**
+   * The view on screen and whether it always shows the editor. An entry the user
+   * opens is handed to this view; see `claimActiveEntry`.
+   */
+  activeViewKind: ItemKindKey
+  activeViewAlwaysShowsEditor: boolean
+  /**
+   * Called with the active entry just before another view takes it over. The save
+   * engine answers with what to do about edits made under the outgoing view.
+   */
+  beforeViewClaim: ((entry: OpenItemEntry) => ViewClaimPlan) | null
+  /**
+   * Counts the times the user opened or activated an entry. A view that shows its
+   * editor on demand watches it, because opening the entry that is already active
+   * changes nothing else.
+   */
+  openRequestCount: number
+  /**
+   * A hand-over waiting for the entry's pending edits to be saved under its outgoing
+   * view. It completes after any successful save of that entry.
+   */
+  pendingViewClaim: { key: OpenItemKey; view: ItemKindKey } | null
+}
+
+/** How an entry's pending edits are settled before another view takes it over. */
+export interface ViewClaimPlan {
+  /**
+   * A save of the edits under the outgoing view's rule. The entry changes view only
+   * once it succeeds, so a failed save is still retried under the rule it was made by.
+   */
+  wait?: Promise<boolean>
+  /**
+   * Applied as the entry changes view: the stored state of an item whose pending edits
+   * the outgoing view refused to save, so no other view's rule saves them.
+   */
+  restore?: Partial<OpenItemEntry>
 }
 
 type Actions = {
   setItemGroupDialog: (dialog: State["itemGroupDialog"]) => void
   setBackupOperation: (operation: "download" | "restore" | null) => void
   resetDefaultState: () => void
+  setBeforeViewClaim: (handler: State["beforeViewClaim"]) => void
+  /**
+   * Complete the hand-over waiting on this entry, if the entry is still wanted in that
+   * view. Called after each successful save of the entry.
+   */
+  finishViewClaim: (key: OpenItemKey) => void
+  /** Set the view on screen. A view that always shows the editor takes the active entry. */
+  setActiveView: (kind: ItemKindKey, alwaysShowsEditor: boolean) => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
   setSelectedTagId: (tagId: number | null) => void
   setSearchQuery: (query: string) => void
@@ -92,7 +139,44 @@ const defaultState: State = {
   selectedTagId: null,
   searchQuery: "",
   maxOpenItems: MAX_OPEN_ITEMS_DEFAULT,
+  activeViewKind: DEFAULT_VIEW_KIND,
+  activeViewAlwaysShowsEditor: true,
+  beforeViewClaim: null,
+  openRequestCount: 0,
+  pendingViewClaim: null,
 }
+
+/**
+ * The ring with its active entry handed to the view on screen. `opened` says the user
+ * opened or activated the entry; otherwise only a view that always shows the editor
+ * takes it. Edits pending under the entry's previous view are sent first.
+ */
+const claimForActiveView = (
+  state: State,
+  opened = false,
+): OpenItemsState & Partial<Pick<State, "pendingViewClaim">> => {
+  const ring = openItemsSlice(state)
+  // Nothing is decided here, so a hand-over already waiting keeps waiting.
+  if (!opened && !state.activeViewAlwaysShowsEditor) return ring
+  const active = getActiveEntry(ring)
+  const view = state.activeViewKind
+  if (!active || active.view === view) return { ...ring, pendingViewClaim: null }
+  const plan = state.beforeViewClaim?.(active) ?? {}
+  if (plan.wait) {
+    const { key } = active
+    void plan.wait.then((saved) => {
+      if (saved) useItemsAppStore.getState().finishViewClaim(key)
+    })
+    return { ...ring, pendingViewClaim: { key, view } }
+  }
+  return { ...claimActiveEntry(ring, view, plan.restore), pendingViewClaim: null }
+}
+
+/** The ring after the user opened or activated an entry in the view on screen. */
+const openedForActiveView = (state: State) => ({
+  ...claimForActiveView(state, true),
+  openRequestCount: state.openRequestCount + 1,
+})
 
 const openItemsSlice = (state: State): OpenItemsState => ({
   openItems: state.openItems,
@@ -105,8 +189,32 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
   ...defaultState,
   setItemGroupDialog: (itemGroupDialog) => set({ itemGroupDialog }),
   setBackupOperation: (backupOperation) => set({ backupOperation }),
+  // The view on screen and the engine's hook outlive a session reset.
   resetDefaultState: () => {
-    set({ ...defaultState, ...createEmptyOpenItemsState() })
+    set((current) => ({
+      ...defaultState,
+      ...createEmptyOpenItemsState(),
+      activeViewKind: current.activeViewKind,
+      activeViewAlwaysShowsEditor: current.activeViewAlwaysShowsEditor,
+      beforeViewClaim: current.beforeViewClaim,
+      openRequestCount: current.openRequestCount,
+      pendingViewClaim: null,
+    }))
+  },
+  finishViewClaim: (key) => {
+    const current = get()
+    const pending = current.pendingViewClaim
+    if (pending?.key !== key) return
+    const wanted = current.activeKey === key && current.activeViewKind === pending.view
+    set({
+      ...(wanted ? claimActiveEntry(openItemsSlice(current), pending.view) : {}),
+      pendingViewClaim: null,
+    })
+  },
+  setBeforeViewClaim: (beforeViewClaim) => set({ beforeViewClaim }),
+  setActiveView: (kind, alwaysShowsEditor) => {
+    set({ activeViewKind: kind, activeViewAlwaysShowsEditor: alwaysShowsEditor })
+    if (alwaysShowsEditor) set(claimForActiveView(get()))
   },
   setResultsListVisible: (visible) => {
     set((current) => ({
@@ -126,22 +234,27 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
     set({ ...state, maxOpenItems })
     return removed
   },
+  // Opening or activating an entry is the user choosing to work on it here, so the
+  // view on screen takes it over. An entry that becomes active some other way (its
+  // neighbor closed, the ring was restored) is taken over only by a view that then
+  // shows it in its editor.
   openExistingItem: (item) => {
     const { state, removed } = openExistingItemIn(openItemsSlice(get()), item, get().maxOpenItems)
-    set(state)
+    set(openedForActiveView({ ...get(), ...state }))
     return removed
   },
   openNewDraft: (options = {}) => {
     const { state, removed } = openNewDraftIn(openItemsSlice(get()), options, get().maxOpenItems)
-    set(state)
+    set(openedForActiveView({ ...get(), ...state }))
     return removed
   },
   activateEntry: (key) => {
-    set(activateEntryIn(openItemsSlice(get()), key, get().maxOpenItems))
+    const state = activateEntryIn(openItemsSlice(get()), key, get().maxOpenItems)
+    set(openedForActiveView({ ...get(), ...state }))
   },
   closeEntry: (key) => {
     const { state, removed } = closeEntryIn(openItemsSlice(get()), key, get().maxOpenItems)
-    set(state)
+    set(claimForActiveView({ ...get(), ...state }))
     return removed
   },
   closeEntriesForItem: (itemId) => {
@@ -150,7 +263,7 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
       itemId,
       get().maxOpenItems,
     )
-    set(state)
+    set(claimForActiveView({ ...get(), ...state }))
     return removed
   },
   patchEntry: (key, patch) => {
@@ -165,7 +278,7 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
     }))
   },
   replaceOpenItems: (next) => {
-    set(next)
+    set(claimForActiveView({ ...get(), ...next }))
   },
 }))
 

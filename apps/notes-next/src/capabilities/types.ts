@@ -23,6 +23,11 @@ export interface ItemDraftPart<Slice extends object> {
    * a preset alone never makes a draft worth keeping.
    */
   isBlank?: (draft: Slice) => boolean
+  /**
+   * For a capability: whether a save of this draft would store it. Taxonomy parts
+   * leave it out, because filing and tags organize content and are not content.
+   */
+  holds?: (draft: Slice) => boolean
   /** A one-line label for lists, when the item holds this part. */
   listLabel?: (item: ItemRecord) => string | null
 }

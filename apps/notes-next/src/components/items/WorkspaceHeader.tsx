@@ -15,6 +15,7 @@ import {
 } from "@phosphor-icons/react"
 import type { UserSummary, WorkspaceRecord } from "@lib/db-items"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
+import { ViewSwitcher } from "@/components/shell/ViewSwitcher"
 import { itemHeadline } from "@/lib/strings"
 import {
   selectActiveSaveStatus,
@@ -344,6 +345,7 @@ export function WorkspaceHeader({
           inputPlaceholder="Enter new workspace..."
           placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
         />
+        <ViewSwitcher />
         <SaveStatusIndicator />
         <RecentItemsMenu
           filingLabelFor={filingLabelFor}
