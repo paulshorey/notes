@@ -144,23 +144,30 @@ between views, so the session, the open-item ring, and pending saves carry acros
   a new capability from its part. The order of `DRAFT_PARTS` is a stored format:
   browsers keep entry signatures serialized in that order, so add parts at the end.
   `test/item-draft.test.ts` pins it.
-- **Save rule.** The save engine and the open-item ring hold no rule about text. Each
-  entry records the view it was last opened in (`entry.view`), and `canSaveEntry` asks
-  that view's `canSave`: an edit is judged by the view it was made in, whichever view
-  is on screen when the save runs. Notes saves an entry once it has text; Tasks saves
-  one that holds any content (`draftHoldsContent`). In every view a never-saved draft
-  becomes an item only once the user has put something into it: a preset status or
-  filing alone creates nothing (`isBlankItemDraft`, which `isEmptyDraft` also uses).
-- **Changing view.** The store hands the active entry to the view on screen when the
-  user opens or activates it there, or when that view always shows the editor. First
-  it asks the engine (`beforeViewClaim`) to settle edits made under the outgoing view.
-  Edits that view would save are saved, and the entry changes view only once a save
-  of it succeeds (`pendingViewClaim`, completed by `finishViewClaim` after any
-  successful save), so a failed save is retried under the rule it was made by. Edits
-  it refused are dropped by restoring the stored item, so no other view's rule saves
-  them. `openRequestCount` counts opens and activations; Tasks shows its editor for
-  the entry of the latest one once it has taken that entry over, and returns to the
-  board when a different entry becomes active without one.
+- **What a save does.** `entrySaveAction` (`src/views/registry.ts`) answers for one
+  entry: `create`, `update`, `delete`, or nothing.
+  - A never-saved draft is created when the view it was opened in would start an item
+    from it (`canCreate`): Notes needs text, Tasks needs any content. A preset status
+    or filing alone starts nothing in any view (`isBlankItemDraft`, which
+    `isEmptyDraft` also uses).
+  - A stored item's edits are always saved, from every view. Removing a note's text
+    saves that removal: an item that still has a status or a date stays, as a task,
+    and leaves Notes.
+  - An item left with no content at all is deleted, because an item without content
+    is not kept. The entry stays open as an unsaved draft with the same uid, so typing
+    again creates the item anew under that uid. The exit keepalive sends the deletion
+    too, and a restored entry whose item was deleted this way is dropped.
+    The save engine and the open-item ring hold no rule about text; they ask this
+    function.
+- **Changing view.** Each entry records the view it was last opened in (`entry.view`),
+  which matters while it is a never-saved draft. The store hands the active entry to
+  the view on screen when the user opens or activates it there, or when that view
+  always shows the editor. First it asks the engine (`beforeViewClaim`): if the entry
+  has a pending save, the entry changes view only once a save of it succeeds
+  (`pendingViewClaim`, completed by `finishViewClaim`), so a draft is created by the
+  rule of the view it was written in. `openRequestCount` counts opens and activations;
+  Tasks shows its editor for the entry of the latest one once it has taken that entry
+  over, and returns to the board when a different entry becomes active without one.
 
 - All database access and embedding logic is in `@lib/db-items`. API routes call `itemsAppService` from `@lib/db-items/services/items-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
@@ -223,7 +230,7 @@ The editor has **no submit control** — notes only ever save in the background.
 Notes persist through `saveEntry(key, mode)` in `useItemSaveEngine.ts`, keyed by entry:
 
 - `autosave` — trailing debounce (`ITEM_AUTOSAVE_DEBOUNCE_MS`, 3s). Saves for different entries run concurrently; a second save of the _same_ entry queues behind the first.
-- `flush` — awaited save, used where the session, the workspace, or a group is about to change (`handleLogin`, `handleSignup`, `handleLogout`, workspace switch, backup, group actions) via `flushAllPendingSaves()` and `prepareItemGroupAction`. Ordinary note switching does not flush. Both collect entries with `collectSessionFlushEntries`, which waits only for entries the active view would save. An untouched slot, a draft holding only tags, a date, or a status, and a stored note whose text was cleared are never saved by Notes, so they never block the change. An entry the view would save still blocks when its save fails, so nothing the user wrote is lost.
+- `flush` — awaited save, used where the session, the workspace, or a group is about to change (`handleLogin`, `handleSignup`, `handleLogout`, workspace switch, backup, group actions) via `flushAllPendingSaves()` and `prepareItemGroupAction`. Ordinary note switching does not flush. Both collect entries with `collectSessionFlushEntries`, which waits only for entries that have a save to send. An untouched slot, or a draft its view would not start an item from (in Notes, one holding only tags, a date, or a status), sends nothing and never blocks the change. An entry with a save to send still blocks when that save fails, so nothing the user wrote is lost.
 - `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is not retried.
 
 `pagehide`/`visibilitychange` write the persistence snapshot **first**, while entries are still dirty and including anything in `detachedSaves`. That snapshot is the durable recovery if keepalive bodies are dropped (browsers share a bounded in-flight quota). Keepalive then sends every pending entry: a PATCH for a stored note and a POST for a never-saved draft. `visibilitychange` then `pagehide` share a sent-keys set so the same request is not fired twice.
@@ -268,10 +275,9 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
   Popup so outside-click handling cannot unmount the portaled modal.
 - **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
 - This package consumes item contracts; `@lib/db-items` owns migrations.
-  The Notes view lists items of the `note` kind and saves an entry
-  only when it has text (its `canSave` in `src/views/registry.ts`). That rule belongs
-  to this view: the item service accepts an item holding any capability, with or
-  without text.
+  The Notes view lists items of the `note` kind and starts a note only from text (its
+  `canCreate` in `src/views/registry.ts`). That rule belongs to this view: the item
+  service accepts an item holding any capability, with or without text.
   Canonical requests use `/api/items` and `X-Items-Contract: 2`; the legacy Notes
   HTTP facade and persisted identity/storage names are rollout compatibility boundaries.
   See `docs/db/item-core.md`.

@@ -753,7 +753,7 @@ export function useTaxonomyActions(
       ...activeView.quickAddDefaults?.(context),
       description,
     }
-    if (!activeView.canSave(draft)) return Promise.resolve(false)
+    if (!activeView.canCreate(draft)) return Promise.resolve(false)
     clearMessages()
     return trackDirectWrite(
       (async () => {

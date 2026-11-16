@@ -42,8 +42,13 @@ service applies the rule on create and update. The tables accept a bare item.
 
 No layer below the Notes screen requires text. Listing, group actions, backup, restore,
 and account merge carry an item without text; text search and embeddings skip it.
-Requiring text is a rule of the Notes view alone (its `canSave` in the `notes-next`
-view registry), because that view captures nothing else.
+Requiring text to start a note is a rule of the Notes view alone (its `canCreate` in the
+`notes-next` view registry), because that view captures nothing else.
+
+An item without content is not kept. The service refuses to store one, and the web
+client deletes a stored item when an edit removes the last of its content: emptying a
+note deletes it, unless it still has a status or a date, in which case it stays as a
+task.
 
 ### Stored capabilities
 

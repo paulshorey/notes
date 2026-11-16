@@ -464,8 +464,7 @@ export const reconcileOpenItems = (
       // as a fresh draft can resurrect a note the user deliberately removed,
       // but the alternative is destroying words they typed and never saw
       // saved, so the text wins and the caller surfaces a message.
-      orphanedDraftCount += 1
-      entries.push({
+      const orphan: OpenItemEntry = {
         ...base,
         key: `draft:${nextDraftSequence}`,
         itemId: null,
@@ -473,7 +472,12 @@ export const reconcileOpenItems = (
         uid: newPublicUid(),
         baseTimeModified: null,
         savedSignature: null,
-      })
+      }
+      // An entry whose unsaved edit was removing everything has nothing to keep: its
+      // item was deleted because it was emptied.
+      if (isEmptyDraft(orphan)) continue
+      orphanedDraftCount += 1
+      entries.push(orphan)
       nextDraftSequence += 1
       continue
     }

@@ -19,10 +19,8 @@ import {
 import { writeOpenItemsSnapshot } from "@/lib/openItemsStorage"
 import { type OpenItemEntry, type OpenItemKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
-import { canSaveEntry } from "@/views/registry"
-import { useWorkspaceStore } from "@/stores/workspaceStore"
-import { itemFilingLabel } from "@/lib/itemFiling"
-import { itemToFormState } from "@/types/items"
+import { canSaveEntry, entrySaveAction } from "@/views/registry"
+import { draftHoldsContent } from "@/capabilities/draftParts"
 import { type ItemSaveMode, OPEN_ITEMS_PERSIST_DEBOUNCE_MS, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
 import type { WorkspaceDataOutput } from "./useWorkspaceData"
@@ -39,6 +37,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     flushAllPendingSavesRef,
     groupDeferredSaveKeysRef,
     itemGroupDialog,
+    forgetDeletedItem,
     mergeSavedItem,
     openItems,
     openItemsPersistTimeoutRef,
@@ -51,6 +50,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     scheduleTaxonomyRefresh,
     setErrorMessage,
     setMaxOpenItemsInStore,
+    setStatusMessage,
     user,
     userRef,
   } = ctx
@@ -145,10 +145,15 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         if (draftSignature === settled.savedSignature) return true
       }
 
+      // Decided once the item's address is settled: the save that was in flight may
+      // have created the item, or deleted it.
+      const action = entrySaveAction({ view: source.view, form: formSnapshot, itemId })
+      if (action === null) return true
+
       if (!detached) patchEntry(key, { saveStatus: "saving" })
 
       const savePromise = (async () => {
-        const send = (method: "POST" | "PATCH", body: object) =>
+        const send = (method: "POST" | "PATCH" | "DELETE", body: object) =>
           itemsFetch("/api/items", {
             method,
             headers: { "Content-Type": "application/json" },
@@ -156,6 +161,27 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
           })
         const update = (id: number) =>
           send("PATCH", { itemId: id, item: itemRequestBody(formSnapshot, workspaceId) })
+
+        // The edit left the item holding nothing, and an item without content is not
+        // kept. The entry stays open as an unsaved draft: if the user types again, it
+        // is created anew under the same uid.
+        if (action === "delete" && itemId !== null) {
+          await readJson<{ ok: true }>(await send("DELETE", { itemId }))
+          if (userRef.current?.id !== currentUser.id) return
+          forgetDeletedItem(currentUser.id, workspaceId, itemId)
+          scheduleTaxonomyRefresh(currentUser.id)
+          patchEntry(key, { itemId: null, baseTimeModified: null, savedSignature: null })
+          const detachedRecord = detachedSavesRef.current.get(key)
+          if (detachedRecord) {
+            detachedSavesRef.current.set(key, {
+              ...detachedRecord,
+              itemId: null,
+              savedSignature: null,
+            })
+          }
+          setStatusMessage("The empty note was removed.")
+          return
+        }
 
         let response =
           itemId === null
@@ -212,7 +238,14 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         if (userRef.current?.id === currentUser.id && !detached) {
           const live = useItemsAppStore.getState().openItems.find((item) => item.key === key)
           if (live) {
-            patchEntry(key, { saveStatus: isEntryDirty(live) ? "unsaved" : "saved" })
+            patchEntry(key, {
+              saveStatus:
+                live.itemId === null && !canSaveEntry(live)
+                  ? "idle"
+                  : isEntryDirty(live)
+                    ? "unsaved"
+                    : "saved",
+            })
           }
         }
       } catch (error) {
@@ -248,6 +281,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       activeWorkspaceIdRef,
       detachedSavesRef,
       groupDeferredSaveKeysRef,
+      forgetDeletedItem,
       mergeSavedItem,
       patchEntry,
       persistOpenItemsRef,
@@ -255,6 +289,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       saveInFlightRef,
       scheduleTaxonomyRefresh,
       setErrorMessage,
+      setStatusMessage,
       userRef,
     ],
   )
@@ -292,28 +327,16 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
   flushAllPendingSavesRef.current = flushAllPendingSaves
 
-  // An entry is judged by the view it was opened in. Just before another view takes
-  // an entry over, settle the edits made under the outgoing view: save the ones it
-  // would save, and drop the ones it refused, so no other view's rule saves them.
+  // A draft is created by the rule of the view it was opened in. Just before another
+  // view takes an entry over, what is pending is saved under the outgoing view's rule.
   useEffect(() => {
     const store = useItemsAppStore.getState()
     store.setBeforeViewClaim((entry) => {
-      if (!isEntryDirty(entry)) return {}
-      if (canSaveEntry(entry)) return { wait: saveEntry(entry.key, "flush") }
-      // A never-saved draft has no stored state to go back to; it stays as typed.
-      const stored = useWorkspaceStore.getState().items.find((item) => item.id === entry.itemId)
-      if (!stored) return {}
-      const form = itemToFormState(stored)
-      return {
-        restore: {
-          form,
-          baseTimeModified: stored.timeModified,
-          savedSignature: serializeItemDraft(stored.id, form),
-          categoryInputValue: itemFilingLabel(stored),
-          pendingTagLabels: [],
-          editorSessionId: entry.editorSessionId + 1,
-        },
-      }
+      // Only a never-saved draft can be something its view does not save, and it has
+      // no stored state another view could overwrite; it changes view as typed.
+      return isEntryDirty(entry) && canSaveEntry(entry)
+        ? { wait: saveEntry(entry.key, "flush") }
+        : {}
     })
     return () => useItemsAppStore.getState().setBeforeViewClaim(null)
   }, [saveEntry])
@@ -381,14 +404,19 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       for (const { key, itemId, uid, form } of keepalive) {
         exitKeepaliveKeysRef.current.add(key)
 
+        // The same three outcomes as a save: a new item, an update, or the deletion of
+        // an item whose content was removed.
+        const removing = itemId !== null && !draftHoldsContent(form)
         const requestBody =
           itemId === null
             ? { userId: currentUser.id, item: newItemRequestBody(form, workspaceId, uid) }
-            : { userId: currentUser.id, itemId, item: itemRequestBody(form, workspaceId) }
+            : removing
+              ? { userId: currentUser.id, itemId }
+              : { userId: currentUser.id, itemId, item: itemRequestBody(form, workspaceId) }
 
         try {
           void itemsFetch("/api/items", {
-            method: itemId === null ? "POST" : "PATCH",
+            method: itemId === null ? "POST" : removing ? "DELETE" : "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(requestBody),
             keepalive: true,

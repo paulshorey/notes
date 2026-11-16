@@ -101,6 +101,13 @@ test("a restored entry takes the uid of its stored item, and an orphan gets a ne
   const found = reconcileOpenItems(snapshot, (id) => (id === 7 ? stored : undefined)).state
   assert.equal(found.openItems[0]!.uid, stored.uid, "the stored item's uid wins")
 
+  // An entry that was emptied, whose item is gone, leaves nothing behind.
+  const emptied = structuredClone(snapshot)
+  emptied.entries[0].form.description = ""
+  const dropped = reconcileOpenItems(emptied, () => undefined)
+  assert.equal(dropped.state.openItems.length, 0)
+  assert.equal(dropped.orphanedDraftCount, 0)
+
   // The item was deleted elsewhere: the text survives as a new draft, a new item.
   const orphaned = reconcileOpenItems(snapshot, () => undefined).state
   assert.equal(orphaned.openItems[0]!.itemId, null)

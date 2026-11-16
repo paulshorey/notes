@@ -82,11 +82,6 @@ export interface ViewClaimPlan {
    * once it succeeds, so a failed save is still retried under the rule it was made by.
    */
   wait?: Promise<boolean>
-  /**
-   * Applied as the entry changes view: the stored state of an item whose pending edits
-   * the outgoing view refused to save, so no other view's rule saves them.
-   */
-  restore?: Partial<OpenItemEntry>
 }
 
 type Actions = {
@@ -169,7 +164,7 @@ const claimForActiveView = (
     })
     return { ...ring, pendingViewClaim: { key, view } }
   }
-  return { ...claimActiveEntry(ring, view, plan.restore), pendingViewClaim: null }
+  return { ...claimActiveEntry(ring, view), pendingViewClaim: null }
 }
 
 /** The ring after the user opened or activated an entry in the view on screen. */

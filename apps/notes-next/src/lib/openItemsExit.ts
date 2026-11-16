@@ -34,13 +34,14 @@ export interface ExitFlushItem {
  * Dirty ring entries that must land before the session, the workspace, or a group
  * changes underneath them.
  *
- * Only an entry its view would save is worth waiting for. An untouched slot, a draft
- * holding only tags, a date, or a status, and a stored item whose content was cleared
- * are all dirty by signature, but the view never saves them, so a save attempt
- * returns false. Waiting on one would block sign-in, sign-up, sign-out, a workspace
- * switch, a backup, or a group action over nothing that can be lost.
+ * Only an entry with a save to send is worth waiting for. An untouched slot, or a
+ * draft its view would not start an item from, is dirty by signature but sends
+ * nothing, so a save attempt returns false. Waiting on one would block sign-in,
+ * sign-up, sign-out, a workspace switch, a backup, or a group action over nothing that
+ * can be lost. A stored item always has a save to send: an update, or its deletion
+ * when it was emptied.
  *
- * An entry the view would save stays included even when something else prevents the
+ * An entry with a save to send stays included even when something else prevents the
  * save, such as a missing workspace or a failed request, so the caller refuses to move
  * on rather than lose what the user wrote.
  */

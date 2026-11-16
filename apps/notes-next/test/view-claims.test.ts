@@ -133,22 +133,6 @@ test("an entry changes view only after its pending save succeeds", async () => {
   reset()
 })
 
-test("edits the outgoing view refused are dropped as the entry changes view", () => {
-  reset()
-  store().openExistingItem(item(1))
-  store().patchEntryForm("note:1", (form) => ({ ...form, description: "" }))
-  store().setActiveView("task", false)
-  store().setBeforeViewClaim((entry) => ({
-    restore: { form: { ...entry.form, description: "note 1" }, savedSignature: "stored" },
-  }))
-  store().activateEntry("note:1")
-  const entry = store().openItems.find((open) => open.itemId === 1)!
-  assert.equal(entry.view, "task")
-  assert.equal(entry.form.description, "note 1", "the stored text is back")
-  assert.equal(entry.savedSignature, "stored")
-  reset()
-})
-
 test("every open or activation is an open request, even for the active entry", () => {
   reset()
   const before = store().openRequestCount
@@ -162,17 +146,18 @@ test("every open or activation is an open request, even for the active entry", (
   reset()
 })
 
-test("an entry is saved by the rule of its own view", () => {
+test("a draft is created by the rule of the view it was opened in", () => {
   reset()
   store().openNewDraft()
   const draft = store().openItems[0]!
-  assert.equal(
-    canSaveEntry({ view: "note", itemId: null, form: { ...draft.form, description: "x" } }),
-    true,
-  )
-  assert.equal(
-    canSaveEntry({ view: "note", itemId: 3, form: { ...draft.form, selectedStatusId: 4 } }),
-    false,
-    "Notes does not save an entry without text",
-  )
+  const dated = { ...draft.form, dueExpanded: true, timeDue: "2026-03-04T10:30" }
+  assert.equal(draft.view, "note")
+  assert.equal(canSaveEntry({ ...draft, form: dated }), false, "Notes starts a note from text")
+
+  store().setActiveView("task", false)
+  store().activateEntry(draft.key)
+  const taken = store().openItems.find((entry) => entry.key === draft.key)!
+  assert.equal(taken.view, "task")
+  assert.equal(canSaveEntry({ ...taken, form: dated }), true, "Tasks starts a task from a date")
+  reset()
 })

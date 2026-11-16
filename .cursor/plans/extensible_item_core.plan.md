@@ -131,8 +131,8 @@ lines true.
 
 1. **Kind entry** in `contracts/item-kinds.ts`: key, label, and a predicate over the item.
 2. **View entry** in `apps/notes-next/src/views/registry.ts`: kind, route, label, and
-   `canSave`, the view's rule for which drafts it saves (Notes saves a draft once it has
-   text). Its page goes under `app/(workspace)/`, inside the shared shell. A view with a
+   `canCreate`, the view's rule for starting an item from a draft (Notes starts a note
+   once it has text). Its page goes under `app/(workspace)/`, inside the shared shell. A view with a
    quick-add also declares the defaults it applies (the Tasks board adds an item with
    that column's status).
 
@@ -144,7 +144,7 @@ Type-specific logic attaches to the registries instead of branching in the item 
 | ------------------------------ | -------------------------------------------- | ----------------------------------------------------- |
 | `validate`, `write`            | inside the save transaction, per capability  | S8 (file rows)                                        |
 | `afterCommit`                  | after a save commits, per changed capability | S8 (thumbnails); later transcripts, reminder delivery |
-| `canSave` (view)               | when the save engine considers a draft       | S5 (Notes requires text)                              |
+| `canCreate` (view)             | when the save engine considers a new draft   | S5 (Notes requires text)                              |
 | `export`, `import`, `identity` | backup, restore, duplicate detection         | S4                                                    |
 | `quickAddDefaults`             | when a view creates an item                  | S6                                                    |
 | `onEnter`, `onLeave` (kind)    | after a save changes an item's kinds         | added with the first feature that needs one           |
@@ -156,21 +156,26 @@ A hook is added in the step that has its first user, never ahead of one.
 - Logic specific to a kind (what is worth saving, quick-add defaults, checks beyond the
   storage rule) lives in that kind's client view. The server validates and stores
   capabilities and knows nothing about kinds or views.
-- The view the user is working in decides. An item that is also a task is edited in
-  Notes exactly like any other note: Notes changes its text and taxonomy and applies
-  only the Notes rule. Logic that belongs to Tasks, media, or spend never runs for an
-  edit made in Notes.
+- An item that is also a task is edited in Notes exactly like any other note: Notes
+  changes its text and taxonomy. Logic that belongs to Tasks, media, or spend never
+  runs for an edit made in Notes.
 - A view favors the parts of an item it is about. Its editor shows those parts up
   front and keeps the others reachable in a menu, so opening one item from two views
   gives two emphases over the same content: Notes favors filing and tags, Tasks
   favors status and dates.
 - Content is additive. A save from a simpler view carries the item's other content
   through unchanged, and a view never has to understand a capability it does not show.
-- An edit is judged by the view it was made in. Edits pending under one view are saved
-  under that view's rule before another view becomes active.
-- An entry a view does not save never blocks anything. Session changes, workspace
-  switches, backups, and group actions wait only for entries the active view would
-  save, and are refused only when one of those saves fails.
+- A view decides what it starts. Whether a new draft becomes an item is the rule of
+  the view it was written in: Notes starts a note from text, Tasks starts a task from
+  any content. A draft pending under one view is saved before another view takes it.
+- Once an item is stored, its edits are saved from every view, and the views agree on
+  what is stored. What you see is what is saved.
+- An item without content is not kept. It cannot be saved, and a stored item whose
+  last content is removed is deleted. Filing and tags organize content and are not
+  content, so an item holding only those is empty.
+- An entry with nothing to save never blocks anything. Session changes, workspace
+  switches, backups, and group actions wait only for entries that have a save to
+  send, and are refused only when one of those saves fails.
 
 ### Rules that keep this true
 
@@ -357,7 +362,7 @@ The client is a shell around views, so a second view is a registry entry and a p
   the hooks before it. Account, workspace, item, and vocabulary data live in
   `workspaceStore`; the ring and the taxonomy selection live in `itemsAppStore`.
 - **Save engine and open-item ring** hold no rule about text. The engine asks the
-  active view's `canSave` whether a draft is saved, and the ring's empty-draft test
+  view's `canCreate` whether a draft becomes an item, and the ring's empty-draft test
   asks each draft part whether it is blank.
 - **Capability modules.** Text, schedule, and status each provide a draft part and an
   editor control; filing and tags provide draft parts. Form state, entry signatures,
@@ -390,15 +395,16 @@ The second view. It adds no storage: `status` and `schedule` are already on ever
 - A card opens the shared item editor in a dialog over the board, so its text is the
   same text the Notes view edits. An item with text and a status appears in both
   views. The dialog's toolbar shows status and dates; filing and tags are in its menu.
-- **Each entry is judged by the view it was opened in.** An open entry records that
-  view, and its `canSave` decides whether the entry's unsaved edits are saved. Tasks
-  saves an entry that holds any content; Notes saves one that has text. So clearing
-  the text of an item that still holds a status or date saves it from Tasks (the item
-  leaves Notes and stays in Tasks) and is not saved from Notes. Before another view
-  takes an entry over, edits the outgoing view would save are saved, and edits it
-  refused are dropped by restoring the stored item. In every view a new draft becomes
-  an item only once the user has put something into it; a preset status alone creates
-  nothing. An item is deleted only by the delete action.
+- **A view decides what it creates.** An open entry records the view it was opened
+  in, and that view's `canCreate` decides whether its draft becomes an item: Tasks
+  starts one from any content, Notes from text. In every view a new draft becomes an
+  item only once the user has put something into it; a preset status alone creates
+  nothing. Before another view takes an entry over, a pending save is sent first.
+- **A stored item's edits are always saved, and an empty item is deleted.** Removing
+  the text of an item that still holds a status or a date saves that removal from any
+  view: the item leaves Notes and stays in Tasks. An edit that leaves an item with no
+  content deletes it, because an item without content is not kept. The open entry
+  stays as a draft with the same uid, so typing again creates the item anew.
 - A change made from a list (a board drag, a quick-add, a sidebar move) first saves
   the item's open, unsaved edits, so it never overwrites them, and a session change
   waits for it to land.

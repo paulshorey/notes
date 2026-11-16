@@ -43,8 +43,8 @@ export interface OpenItemEntry {
   /** Live in-memory draft. */
   form: TextCaptureFormState
   /**
-   * The view this entry was last opened in. That view's rules decide whether its
-   * unsaved edits are saved (`canSaveEntry`).
+   * The view this entry was last opened in. While the entry is a never-saved draft,
+   * that view decides whether an item is created from it (`entrySaveAction`).
    */
   view: ItemKindKey
   /** Signature of what was last successfully persisted, for the dirty check. */
@@ -150,22 +150,13 @@ const createEntry = (
   }
 }
 
-/**
- * Hand the active entry to a view, so that view's rules apply to its edits. `restore`
- * is applied with the hand-over, to drop edits the outgoing view refused to save.
- */
-export const claimActiveEntry = (
-  state: OpenItemsState,
-  view: ItemKindKey,
-  restore: Partial<OpenItemEntry> = {},
-): OpenItemsState => {
+/** Hand the active entry to a view, so that view decides whether its draft is created. */
+export const claimActiveEntry = (state: OpenItemsState, view: ItemKindKey): OpenItemsState => {
   const active = getActiveEntry(state)
   if (!active || active.view === view) return state
   return {
     ...state,
-    openItems: state.openItems.map((entry) =>
-      entry === active ? { ...entry, ...restore, view } : entry,
-    ),
+    openItems: state.openItems.map((entry) => (entry === active ? { ...entry, view } : entry)),
   }
 }
 
