@@ -41,7 +41,11 @@ BEGIN
     NEW.time_modified := COALESCE(NEW.time_modified, CURRENT_TIMESTAMP);
   ELSE
     NEW.time_created := OLD.time_created;
-    NEW.time_modified := CURRENT_TIMESTAMP;
+    IF current_setting('app.keep_time_modified', true) = 'on' THEN
+      NEW.time_modified := OLD.time_modified;
+    ELSE
+      NEW.time_modified := CURRENT_TIMESTAMP;
+    END IF;
   END IF;
   RETURN NEW;
 END;

@@ -27,6 +27,39 @@ and account merge carry an item without text; text search and embeddings skip it
 Requiring text is a rule of the Notes screen alone (`isSaveableForm` in `notes-next`),
 because that screen captures nothing else.
 
+### Stored capabilities
+
+`sql/item/stored-capabilities.ts` is the server half of the registry. For identity,
+taxonomy, and each capability it declares the item columns and tables it owns, its
+fields in a backup item, how each field is exported and imported, whether it counts
+toward duplicate detection, and how a column that points into the item's workspace is
+re-pointed when the item moves to another workspace.
+
+A table that belongs to items cannot be declared on its own. Its entry names the backup
+field that reads its rows and gives the statement that writes them on restore, so
+owning a table always includes backing it up. A table whose rows also point into the
+workspace, as tag links do, adds how those rows are detached and attached again when
+the item moves; a table keyed only by item id needs nothing, because the item keeps its
+id. Rows in a retired table are deleted when their item moves.
+
+Four things are generated from those declarations and list no item column themselves:
+
+- **Backup export and import** (`sql/user/backup.ts`).
+- **Duplicate detection** on restore (`sql/user/item-merge-identity.ts`): every
+  declared field except the modification time.
+- **Account merge** (`sql/user/anonymous.ts`): items are moved, not copied. An item
+  keeps its id, timestamps, and derived data, so a table keyed by item id follows it
+  with no merge code.
+- **The storage audit** (`scripts/audit-item-storage.ts`, run by `db:verify`): it fails
+  on a column of `workspace_item_v1`, or a table with a foreign key to it, that no
+  declaration accounts for; on a backup field that restore writes nowhere (it needs an
+  `import`, or a table that restores it); and on an owned table whose rows point into
+  the item's workspace but that declares no `rehome`.
+
+Adding a capability means adding its entry there and in the browser-safe registry. A
+backup version increases whenever a field is added, and import reads every earlier
+version.
+
 ## Kinds
 
 `contracts/item-kinds.ts` names what an item holds. A kind is computed from the item

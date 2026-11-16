@@ -1,37 +1,22 @@
 import { createHash } from "node:crypto"
 import type { PoolClient } from "pg"
+import { ITEM_IDENTITY_FIELDS, PORTABLE_ITEMS_SQL } from "../item/stored-capabilities"
 
 /** Content plus creation time identifies an exact copy without trusting exported ids.
- * Modified time is deliberately excluded: an edit that leaves the same content
- * should not duplicate an item. Counts, rather than a Set, preserve identical twins.
+ * The fields come from the capability registry, so new content joins the comparison by
+ * being declared there. Counts, rather than a Set, preserve identical twins.
  */
 export const itemMergeIdentities = async (client: PoolClient, workspaceId: number) => {
-  const { rows } = await client.query<{
-    id: number
-    description: string | null
-    time_created: Date
-    time_due: Date | null
-    time_remind: Date | null
-    status: string | null
-    category: string | null
-    subcategory: string | null
-    tags: string[]
-  }>(
-    `SELECT n.id,n.description,n.time_created,n.time_due,n.time_remind,s.label status,
-       (SELECT c.label FROM public.workspace_category_v1 c WHERE c.id=n.category_id) category,
-       (SELECT sc.label FROM public.workspace_subcategory_v1 sc
-         WHERE sc.id=n.subcategory_id) subcategory,
-       ARRAY(SELECT t.label FROM public.item_tag_link_v1 l
-         JOIN public.workspace_tag_v1 t ON t.id=l.tag_id
-         WHERE l.item_id=n.id ORDER BY t.label) tags
-     FROM public.workspace_item_v1 n LEFT JOIN public.workspace_status_v1 s ON s.id=n.status_id
-     WHERE n.workspace_id=$1`,
+  const { rows } = await client.query<{ id: number } & Record<string, unknown>>(
+    PORTABLE_ITEMS_SQL,
     [workspaceId],
   )
   return new Map(
-    rows.map(({ id, ...data }) => [
-      id,
-      createHash("sha256").update(JSON.stringify(data)).digest("hex"),
+    rows.map((row) => [
+      row.id,
+      createHash("sha256")
+        .update(JSON.stringify(ITEM_IDENTITY_FIELDS.map((field) => [field, row[field]])))
+        .digest("hex"),
     ]),
   )
 }

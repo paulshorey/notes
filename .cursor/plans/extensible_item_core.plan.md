@@ -16,7 +16,7 @@ todos:
     status: pending
   - id: capability_safe_lifecycle
     content: "S4. Account merge and restore move item rows instead of copying them; backup and duplicate detection read the registry; db:verify fails on an item table no capability declares."
-    status: pending
+    status: completed
   - id: shell_and_modules
     content: "S5. Split ItemsApp.tsx into an app shell (workspace, taxonomy, view switcher), a save engine, open-item state, and one module per capability. Notes becomes the first view."
     status: pending
@@ -285,28 +285,32 @@ previous-release server that reads the link table is still serving during the de
 
 ### S4. Capability-safe lifecycle
 
-Signing in to an existing account copies each anonymous item into a new row, and restore
-reuses that path. The copy lists every item column and link table by hand in
-`sql/user/anonymous.ts`, `sql/user/backup.ts`, and `sql/user/item-merge-identity.ts`. A
-capability table added without editing all three would be silently dropped when an
-anonymous user signs in. This is fixed before any capability with its own table exists.
+Account merge, backup export, backup import, and duplicate detection are generated from
+one declaration per part of an item (`sql/item/stored-capabilities.ts`), so none of them
+lists item columns by hand and a new capability cannot be left out of one of them.
 
-- **Merge moves rows.** For each item: record its tag labels, remove those links, update
-  `workspace_id`, `category_id`, `subcategory_id`, and `status_id` (remapped by label)
-  in one statement, and re-create the tag links against the destination vocabulary. The
-  item keeps its id, so every table keyed by `item_id` follows with no code. Restore
-  still stages a temporary account and merges it, and skips an item that already exists
-  identically.
-- **Registry-driven backup.** Each capability with stored data declares `export`,
-  `import`, and `identity`. The exporter, importer, and identity hash iterate the
-  registry. The backup version increases whenever the file gains a field, and the
-  importer reads every earlier version.
-- **Guard.** `db:verify` fails if a table has a foreign key to `workspace_item_v1` and is
-  neither declared by a capability nor listed as taxonomy or derived.
+- **Merge moves rows.** An item that merges into a workspace of the same name keeps its
+  id. One statement removes its tag links, updates `workspace_id`, re-points
+  `category_id`, `subcategory_id`, and `status_id` to the destination's rows of the same
+  label, and re-creates the tag links against the destination's tags. Every table keyed
+  by `item_id`, and the item's embedding, follow with no code. A workspace whose name is
+  new to the account changes owner as a whole. Restore stages a temporary account,
+  merges it, and skips an item that already exists identically.
+- **Moving is not editing.** The timestamp trigger keeps a row's modification time while
+  a transaction sets `app.keep_time_modified`, which the merge does around its moves.
+- **Registry-driven backup.** Each part declares its backup fields, how each is exported
+  and imported, and whether it counts toward duplicate detection. A table a part owns
+  must name the field that exports its rows and the statement that imports them, so a
+  table cannot be declared without being backed up. The backup version
+  increases whenever the file gains a field, and the importer reads every earlier
+  version.
+- **Guard.** `db:verify` fails on a column of `workspace_item_v1`, or a table with a
+  foreign key to it, that no part declares as its own, as taxonomy, or as derived data.
 
-Tests: a populated anonymous account with every capability merges into an account with a
-same-named workspace and keeps item ids, taxonomy, and capability rows; a backup of
-every capability restores into an empty account unchanged.
+Tests: an anonymous item with every capability merges into an account with a same-named
+workspace and keeps its id, timestamps, embedding, taxonomy, and rows in a table keyed
+by its id; a backup of every capability restores into an empty account unchanged; the
+audit reports an undeclared column and table.
 
 ### S5. App shell and capability modules
 
