@@ -27,7 +27,6 @@ export function TasksView() {
     handleQuickAddItem,
     handleSetItemStatus,
     matchesSelectedTag,
-    setErrorMessage,
     statuses,
     viewItems,
   } = useItemsWorkspace()
@@ -64,15 +63,15 @@ export function TasksView() {
 
   const openTask = (task: ItemRecord) => handleOpenItemFromResults(task)
 
-  const moveTask = (task: ItemRecord, status: StatusRecord | null) => {
-    // Without a status, only a date keeps an item a task. Clearing the status of an
-    // undated task would take it off the board, which a drag should never do.
-    if (status === null && task.timeDue === null && task.timeRemind === null) {
-      setErrorMessage("Give this task a date before removing its status.")
-      return
-    }
-    void handleSetItemStatus(task, status?.id ?? null)
-  }
+  // Without a status, only a date keeps an item a task. Clearing the status of an
+  // undated task would take it off the board, which a drag should never do. The rule
+  // is checked against the item as stored when the move runs.
+  const moveTask = (task: ItemRecord, status: StatusRecord | null) =>
+    void handleSetItemStatus(task, status?.id ?? null, (current) =>
+      status === null && current.timeDue === null && current.timeRemind === null
+        ? "Give this task a date before removing its status."
+        : null,
+    )
 
   if (editorOpen && activeEntry) {
     return (

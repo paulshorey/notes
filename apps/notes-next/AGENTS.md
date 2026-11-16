@@ -127,7 +127,12 @@ between views, so the session, the open-item ring, and pending saves carry acros
   directly without opening the item. A list action first saves the item's open,
   unsaved edits (`settleOpenEntryFor`), so it never overwrites what the user typed,
   and registers itself in `directWritesRef`, which `flushAllPendingSaves` waits for.
-  List writes to one item run in the order they were asked for.
+  List writes to one item run in the order they were asked for, and each is decided
+  against the item as stored when it runs (`src/lib/listWrites.ts`): a change that
+  would alter nothing is skipped, and a view's `refuse` rule sees the current item.
+  When a write lands on an item whose open entry was edited meanwhile, the entry keeps
+  those edits and takes only the fields the write changed (`draftAfterListWrite`).
+  A quick-add request uses `keepalive`, since its text exists nowhere else.
   A card dropped on the no-status column keeps its status unless the task has a date.
 - **Capabilities.** Each thing an item can hold has a module in `src/capabilities/`:
   a draft part (`ItemDraftPart`: its form fields, how a stored item fills them, what a

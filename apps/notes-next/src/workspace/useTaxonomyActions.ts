@@ -26,7 +26,15 @@ import { type OpenItemKey, itemEntryKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { useWorkspaceStore } from "@/stores/workspaceStore"
 import { createEmptyItemDraft } from "@/capabilities/draftParts"
-import { itemRequestBody } from "@/lib/itemDraft"
+import { itemRequestBody, serializeItemDraft } from "@/lib/itemDraft"
+import { itemToFormState } from "@/types/items"
+import { itemFilingLabel } from "@/lib/itemFiling"
+import {
+  type StoredItemChange,
+  changesNothing,
+  draftAfterListWrite,
+  storedItemFields,
+} from "@/lib/listWrites"
 import { collectSessionFlushEntries } from "@/lib/openItemsExit"
 import { canSaveEntry } from "@/views/registry"
 import { existingFiling, filingLabel, isSameFiling, upsertCategory } from "@/lib/itemFiling"
@@ -37,14 +45,6 @@ import type { WorkspaceDataOutput } from "./useWorkspaceData"
 import type { ItemSaveEngineOutput } from "./useItemSaveEngine"
 import type { OpenItemEntriesOutput } from "./useOpenItemEntries"
 import type { ItemListsOutput } from "./useItemLists"
-
-/** The fields a list action may change on a stored item; the rest are sent as stored. */
-type StoredItemChange = Partial<{
-  categoryId: number | null
-  subcategoryId: number | null
-  statusId: number | null
-  tagIds: number[]
-}>
 
 export function useTaxonomyActions(
   ctx: WorkspaceStateOutput &
@@ -583,13 +583,11 @@ export function useTaxonomyActions(
     const latest =
       useWorkspaceStore.getState().items.find((stored) => stored.id === listedItem.id) ?? listedItem
     const item = await settleOpenEntryFor(latest)
-    const fields = {
-      categoryId: item.category?.id ?? null,
-      subcategoryId: item.subcategory?.id ?? null,
-      statusId: item.status?.id ?? null,
-      tagIds: item.tags.map((tag) => tag.id),
-      ...change(item),
-    }
+    // Decided against the item as it is now, not as the list showed it when the
+    // action started: an earlier write or a saved edit may have changed it since.
+    const changed = change(item)
+    if (changesNothing(item, changed)) return item
+    const fields = { ...storedItemFields(item), ...changed }
 
     const request = (async () => {
       const response = await itemsFetch("/api/items", {
@@ -634,8 +632,31 @@ export function useTaxonomyActions(
         saveInFlightRef.current.delete(openKey)
       }
     }
+    applyListWriteToEntry(data.item, changed)
     await refreshResults(user.id)
     return data.item
+  }
+
+  /**
+   * Bring an open entry in line with a list write to its item. If the user edited the
+   * entry while the write was in flight, those edits stay and only the fields the
+   * write changed are taken, with the stored state as the new baseline.
+   */
+  const applyListWriteToEntry = (item: ItemRecord, changed: StoredItemChange) => {
+    const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
+    if (!entry) return
+    if (!isEntryDirty(entry)) {
+      applyServerItemToEntry(item)
+      return
+    }
+    const stored = itemToFormState(item)
+    const refiled = "categoryId" in changed || "subcategoryId" in changed
+    patchEntry(entry.key, {
+      form: draftAfterListWrite(entry.form, stored, changed),
+      baseTimeModified: item.timeModified,
+      savedSignature: serializeItemDraft(item.id, stored),
+      ...(refiled ? { categoryInputValue: itemFilingLabel(item) } : {}),
+    })
   }
 
   const handleMoveItemCategory = async (item: ItemRecord, categoryLabel: string) => {
@@ -647,11 +668,7 @@ export function useTaxonomyActions(
       if (item.category?.id === category.id) return
 
       // A subcategory belongs to the category the note is leaving.
-      const updatedItem = await patchItemFromSidebar(item, () => ({
-        categoryId: category.id,
-        subcategoryId: null,
-      }))
-      if (updatedItem) applyServerItemToEntry(updatedItem)
+      await patchItemFromSidebar(item, () => ({ categoryId: category.id, subcategoryId: null }))
       setStatusMessage(`Note moved to “${category.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -665,7 +682,7 @@ export function useTaxonomyActions(
       const tag = await resolveTagForSidebarMove(tagLabel)
       if (!tag) return
 
-      const updatedItem = await patchItemFromSidebar(item, (current) => ({
+      await patchItemFromSidebar(item, (current) => ({
         tagIds: [
           ...current.tags
             .filter((itemTag) => itemTag.id !== fromTagId && itemTag.id !== tag.id)
@@ -673,7 +690,6 @@ export function useTaxonomyActions(
           tag.id,
         ],
       }))
-      if (updatedItem) applyServerItemToEntry(updatedItem)
       setStatusMessage(`Note tag changed to “${tag.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -687,15 +703,26 @@ export function useTaxonomyActions(
     return write
   }
 
-  /** Set or clear an item's status from a list, as a board does when a card moves. */
-  const handleSetItemStatus = (item: ItemRecord, statusId: number | null) => {
-    if (!user || (item.status?.id ?? null) === statusId) return Promise.resolve(false)
+  /**
+   * Set or clear an item's status from a list, as a board does when a card moves.
+   * `refuse` is the view's own rule for the move: it sees the item as stored when the
+   * write runs and returns a message to refuse it.
+   */
+  const handleSetItemStatus = (
+    item: ItemRecord,
+    statusId: number | null,
+    refuse?: (current: ItemRecord) => string | null,
+  ) => {
+    if (!user) return Promise.resolve(false)
     clearMessages()
     return trackDirectWrite(
       (async () => {
         try {
-          const updatedItem = await patchItemFromSidebar(item, () => ({ statusId }))
-          if (updatedItem) applyServerItemToEntry(updatedItem)
+          await patchItemFromSidebar(item, (current) => {
+            const reason = refuse?.(current) ?? null
+            if (reason !== null) throw new Error(reason)
+            return { statusId }
+          })
           return true
         } catch (error) {
           setErrorMessage(getErrorMessage(error))
@@ -725,10 +752,14 @@ export function useTaxonomyActions(
     return trackDirectWrite(
       (async () => {
         try {
+          // The text lives only in the list's input, so the request must outlive the
+          // page if the tab closes right after Enter. It is sent once and never
+          // replayed from a snapshot, so keepalive cannot create a second item.
           const response = await itemsFetch("/api/items", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId: user.id, item: itemRequestBody(draft, workspaceId) }),
+            keepalive: true,
           })
           const data = await readJson<{ item: ItemRecord }>(response)
           mergeSavedItem(user.id, data.item)

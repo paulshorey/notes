@@ -1,0 +1,51 @@
+import type { ItemRecord } from "@lib/db-items"
+import type { ItemDraft } from "@/capabilities/draftParts"
+
+/** The fields a list action may change on a stored item; the rest are sent as stored. */
+export type StoredItemChange = Partial<{
+  categoryId: number | null
+  subcategoryId: number | null
+  statusId: number | null
+  tagIds: number[]
+}>
+
+export const storedItemFields = (item: ItemRecord): Required<StoredItemChange> => ({
+  categoryId: item.category?.id ?? null,
+  subcategoryId: item.subcategory?.id ?? null,
+  statusId: item.status?.id ?? null,
+  tagIds: item.tags.map((tag) => tag.id),
+})
+
+/** Whether a change would leave the stored item as it is, so nothing needs sending. */
+export const changesNothing = (item: ItemRecord, change: StoredItemChange): boolean => {
+  const stored = storedItemFields(item)
+  const next = { ...stored, ...change }
+  const tags = (ids: number[]) => [...ids].sort((left, right) => left - right).join()
+  return (
+    next.categoryId === stored.categoryId &&
+    next.subcategoryId === stored.subcategoryId &&
+    next.statusId === stored.statusId &&
+    tags(next.tagIds) === tags(stored.tagIds)
+  )
+}
+
+/**
+ * An open draft after a list write to its item landed while the draft held unsaved
+ * edits. The edits stay; only the fields the write changed are taken from `stored`,
+ * the form of the item as it is now stored.
+ */
+export const draftAfterListWrite = (
+  draft: ItemDraft,
+  stored: ItemDraft,
+  change: StoredItemChange,
+): ItemDraft => ({
+  ...draft,
+  ...("categoryId" in change || "subcategoryId" in change
+    ? {
+        selectedCategoryId: stored.selectedCategoryId,
+        selectedSubcategoryId: stored.selectedSubcategoryId,
+      }
+    : {}),
+  ...("statusId" in change ? { selectedStatusId: stored.selectedStatusId } : {}),
+  ...("tagIds" in change ? { selectedTagIds: stored.selectedTagIds } : {}),
+})
