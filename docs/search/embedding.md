@@ -298,7 +298,7 @@ excluded.
 
 ### notes-next (web)
 
-`ItemsApp.tsx` debounces search input (250 ms) and calls
+`useItemLists` (`src/workspace/`) debounces search input (250 ms) and calls
 `POST /api/items/search`. While a query is active, the note list switches from
 chronological order to relevance order and shows a similarity percentage badge.
 The app can also trigger embedding maintenance from the UI.
@@ -351,4 +351,4 @@ embedding return a 500 with "JINA_API_KEY environment variable not set."
 | `lib/db-items/scripts/regenerate-embeddings.mjs`                    | Bulk offline regeneration                                   |
 | `apps/notes-next/app/api/items/search/route.ts`                     | Next.js search route                                        |
 | `apps/notes-next/app/api/items/maintenance/embeddings/route.ts`     | Maintenance route                                           |
-| `apps/notes-next/src/components/items/ItemsApp.tsx`                 | Client search UI and debounce                               |
+| `apps/notes-next/src/workspace/useItemLists.ts`                     | Client search UI and debounce                               |

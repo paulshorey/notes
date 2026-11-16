@@ -6,8 +6,10 @@ Next.js 16 web app for the Notes product. Serves the React UI and the REST API. 
 
 ```
 app/                        — Next.js App Router: pages, layouts, API routes only
-  page.tsx                  — renders <ItemsApp /> from src/
   layout.tsx                — root layout with ThemeProvider (Gravity UI) + MantineProvider
+  (workspace)/              — route group for every view of the workspace's items
+    layout.tsx              — ItemsWorkspaceProvider + AppShell around the view's page
+    page.tsx                — `/`, the Notes view
   providers.tsx             — client-side providers
   globals.css
   embeddings/               — debug page for testing Jina embeddings
@@ -40,10 +42,31 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     health/                 — GET (liveness probe)
 
 src/                        — non-route code (import with "@/..." alias)
+  workspace/                — the workspace session shared by every view
+    ItemsWorkspaceProvider.tsx       — runs the controller once and provides it as `useItemsWorkspace()`
+    useItemsWorkspaceController.ts   — composes the hooks below, in dependency order
+    useWorkspaceState.ts    — state, refs, and store subscriptions the other hooks share
+    useResultsColumnLayout.ts — sidebar width and drawer layout
+    useWorkspaceData.ts     — applying loaded data, cache writes, preference saves
+    useItemSaveEngine.ts    — `saveEntry`, flushes, detached saves, exit persistence
+    useOpenItemEntries.ts   — opening, closing, and editing entries of the open-item ring
+    useItemLists.ts         — the active view's items, search, and sidebar groups
+    useSessionLifecycle.ts  — `restoreSession`, anonymous sign-in, startup
+    useAccountActions.ts    — login, signup, logout, workspace switching, backup
+    useTaxonomyActions.ts   — category, subcategory, status, tag, and group actions
+  views/
+    registry.ts             — `ITEM_VIEWS`: each view's kind, route, and label
+    notes/NotesView.tsx     — the Notes view: the editor for the active entry
+  capabilities/             — one module per thing an item can hold
+    types.ts                — `ItemDraftPart` and `DraftControlProps`
+    draftParts.ts           — composes the parts into the draft, the save request, and list labels
+    taxonomy.ts             — filing and tags parts
+    text/, schedule/, status/ — each capability's draft part and editor control
   components/
-    items/                  — text-focused Notes UI (ItemsApp and sub-components)
-      ItemsApp.tsx          — top-level notes page container
-      ItemsApp.module.css   — shared notes CSS module
+    shell/
+      AppShell.tsx          — header, sidebar, dialogs, and notifications around a view
+      AppShell.module.css   — shell layout CSS module
+    items/                  — components shared by the shell and the views
       WorkspaceHeader.tsx       — app-wide header (logo, save status, recent notes, user menu, sidebar toggle)
       FeedbackNotifications.tsx
       ResultsColumn.tsx     — notes sidebar (categories, tags, note actions)
@@ -59,8 +82,9 @@ src/                        — non-route code (import with "@/..." alias)
                               useOpenItemsAutosave)
   lib/                      — shared utilities (api, dates, strings, itemDraft,
                               itemsCache, openItemsStorage)
-  stores/                   — Zustand store (itemsAppStore) and the pure open-item ring
-                              reducers (openItems)
+  stores/                   — Zustand stores: itemsAppStore (open-item ring, sidebar and
+                              dialog state), workspaceStore (account, workspaces, items,
+                              vocabulary), and the pure open-item ring reducers (openItems)
   types/                    — shared types (TextCaptureFormState, EmbeddingMaintenanceMode, ...)
   constants/                — shared constants
 ```
@@ -74,6 +98,31 @@ src/                        — non-route code (import with "@/..." alias)
 
 ## Architecture
 
+The app is a shell around views. `app/(workspace)/layout.tsx` mounts
+`ItemsWorkspaceProvider` and `AppShell` once; they stay mounted while the user moves
+between views, so the session, the open-item ring, and pending saves carry across.
+
+- **Workspace.** `useItemsWorkspaceController` composes the hooks in `src/workspace/`.
+  Each hook takes the outputs of the hooks before it and returns the names it declares;
+  the provider exposes them all through `useItemsWorkspace()`. A hook may depend only
+  on hooks earlier in the controller. `workspaceStore` holds everything loaded from the
+  server; the workspace hooks are its only writers.
+- **Views.** A view is a screen over the items of one kind (`@lib/db-items/contracts/item-kinds`).
+  `src/views/registry.ts` lists them. To add one, add its entry and a page under
+  `app/(workspace)/`. The workspace keeps every item of the active workspace;
+  `useItemLists` narrows the lists to the active view's kind with `isKind`, so an item
+  that is several kinds appears in each of those views and opens as the same entry.
+- **Capabilities.** Each thing an item can hold has a module in `src/capabilities/`:
+  a draft part (`ItemDraftPart`: its form fields, how a stored item fills them, what a
+  save sends, and its list label) and an editor control. `draftParts.ts` composes the
+  parts, so the form state, the dirty check, the save request, and list labels pick up
+  a new capability from its part. The order of `DRAFT_PARTS` is a stored format:
+  browsers keep entry signatures serialized in that order, so add parts at the end.
+  `test/item-draft.test.ts` pins it.
+- **Save rule.** The save engine and the open-item ring hold no rule about text. The
+  engine asks the active view's `canSave` whether a draft is saved, and `isEmptyDraft`
+  asks each part whether it is blank. Notes saves a draft once it has text.
+
 - All database access and embedding logic is in `@lib/db-items`. API routes call `itemsAppService` from `@lib/db-items/services/items-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
 
@@ -86,7 +135,7 @@ visibility when resizing within a layout. Keep `SIDEBAR_OVERLAY_MEDIA_QUERY` in
 
 ## Startup and service worker
 
-The root layout reads Auth.js once and seeds `SessionProvider`, so returning users do not need a client-side session round trip before startup. `ItemsApp` then calls `GET /api/bootstrap`, which authenticates once and loads the session, notes, categories, and tags in parallel. Keep this as the single cold-start data path; separate startup requests add auth and database work and can race one another.
+The root layout reads Auth.js once and seeds `SessionProvider`, so returning users do not need a client-side session round trip before startup. `useSessionLifecycle` then calls `GET /api/bootstrap`, which authenticates once and loads the session, notes, categories, and tags in parallel. Keep this as the single cold-start data path; separate startup requests add auth and database work and can race one another.
 
 Every note belongs to exactly one active workspace, is filed in at most one category and one subcategory of that category, has multiple tags, and may have one status. Category/subcategory/status/tag ids must come from that same workspace. New notes start unfiled unless an action explicitly specifies a category. The uncategorized add button and the category and subcategory triggers with an empty selection show `__` beside their icons. The category dropdown includes a display-only `uncategorized` option that clears the category and its subcategory. The subcategory picker appears only once a category is chosen and lists that category's subcategories; choosing another category clears it. `src/lib/itemFiling.ts` holds the shared rules: `existingFiling` keeps only the part of a selection that still exists. The category add action and selector form a visual split button; the add action remains icon-only. The sidebar groups notes with no category under the display-only `uncategorized` label; this is never a category record. All real categories, including the last one, can be deleted. Reserve the normalized category name `uncategorized` through `@lib/db-items/contracts/category-name` in both UI and service writes. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
 
@@ -132,7 +181,7 @@ Several notes are open at once, in a bounded most-recently-used **ring**. Openin
 
 The editor has **no submit control** — notes only ever save in the background. `TextCaptureForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so Enter in an expanded date field cannot implicitly submit and reload the page. Do not reintroduce a save mode that resets the editor after saving: it would recycle the ring slot holding the just-saved note, and throw away anything typed while the request was in flight.
 
-Notes persist through `saveEntry(key, mode)` in `ItemsApp.tsx`, keyed by entry:
+Notes persist through `saveEntry(key, mode)` in `useItemSaveEngine.ts`, keyed by entry:
 
 - `autosave` — trailing debounce (`ITEM_AUTOSAVE_DEBOUNCE_MS`, 3s). Saves for different entries run concurrently; a second save of the _same_ entry queues behind the first.
 - `flush` — awaited save, used only where the session itself changes (`handleLogin`, `handleSignup`, `handleLogout`) via `flushAllPendingSaves()`. Ordinary note switching no longer flushes.
@@ -146,7 +195,7 @@ Notes persist through `saveEntry(key, mode)` in `ItemsApp.tsx`, keyed by entry:
 
 ## Store selectors
 
-Selectors passed to `useItemsAppStore` must return an existing reference or a primitive. One that builds a new object or array each call hands `useSyncExternalStore` a fresh snapshot on every render and hangs the app in an infinite loop. Derive that kind of value with `useMemo` in the component instead.
+Selectors passed to `useItemsAppStore` or `useWorkspaceStore` must return an existing reference or a primitive. One that builds a new object or array each call hands `useSyncExternalStore` a fresh snapshot on every render and hangs the app in an infinite loop. Derive that kind of value with `useMemo` in the component instead.
 
 ## User preferences
 
@@ -163,7 +212,7 @@ Anonymous users see a sign-in / create-account toggle in the header popup
 submit the form; the popup closes only after a successful login or signup.
 
 - **Create account (common path, claim-in-place):** `handleSignup` flushes pending saves, POSTs `/api/anon-session/claim` (which sets username/email/hashed password and flips `is_anonymous` on the _same_ row), then re-runs `signIn("credentials")` for the same user id so the JWT's `isAnonymous` flips. No data moves between users, no merge token exists in this path.
-- **Sign in to an existing account (merge path):** to keep this race-free there is exactly **one** writer of post-login session data: the `restoreSession` effect in `ItemsApp.tsx`. `handleLogin` only flushes, captures a signed merge token while still anonymous (stashed in `sessionStorage` under `notes-pending-merge-token`), and calls `signIn`. The flush ignores an untouched new editor slot: `savedSignature: null` can make it technically dirty, but it has no content to save and must not block sign-in. Started drafts are still flushed (and a started draft that cannot save still blocks the session change). When `restoreSession` next runs for a real (non-anonymous) session and finds a pending token, it POSTs `/api/anon-session/merge`, then loads the account's data once (skipping the stale cache paint). The login handlers must not load data or run the merge themselves — doing so reintroduces the clobber race.
+- **Sign in to an existing account (merge path):** to keep this race-free there is exactly **one** writer of post-login session data: the `restoreSession` effect in `useSessionLifecycle.ts`. `handleLogin` only flushes, captures a signed merge token while still anonymous (stashed in `sessionStorage` under `notes-pending-merge-token`), and calls `signIn`. The flush ignores an untouched new editor slot: `savedSignature: null` can make it technically dirty, but it has no content to save and must not block sign-in. Started drafts are still flushed (and a started draft that cannot save still blocks the session change). When `restoreSession` next runs for a real (non-anonymous) session and finds a pending token, it POSTs `/api/anon-session/merge`, then loads the account's data once (skipping the stale cache paint). The login handlers must not load data or run the merge themselves — doing so reintroduces the clobber race.
 
 Merge failure handling (no silent loss): if merge-token capture fails in `handleLogin` while the visitor has notes, the sign-in is aborted with an error so the user retries while still anonymous. If the merge POST itself fails transiently (network/5xx), `restoreSession` re-stashes the token so a page reload retries within the token's 10-minute TTL; a 4xx is permanent (token/anon row invalid) and only shows a warning. Server-side, the merge also carries the visitor's explicitly-set preferences into the real account (per-property, anon wins) — see `lib/db-items`.
 
@@ -178,9 +227,10 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
   Popup so outside-click handling cannot unmount the portaled modal.
 - **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
 - This package consumes item contracts; `@lib/db-items` owns migrations.
-  The Notes screen selects `isTextItem` records (the `note` kind) and saves an entry
-  only when it has text (`isSaveableForm`). That rule belongs to this screen: the item
-  service accepts an item holding any capability, with or without text.
+  The Notes view lists items of the `note` kind and saves an entry
+  only when it has text (its `canSave` in `src/views/registry.ts`). That rule belongs
+  to this view: the item service accepts an item holding any capability, with or
+  without text.
   Canonical requests use `/api/items` and `X-Items-Contract: 2`; the legacy Notes
   HTTP facade and persisted identity/storage names are rollout compatibility boundaries.
   See `docs/db/item-core.md`.

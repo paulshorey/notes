@@ -3,7 +3,7 @@
 import type { ItemRecord } from "@lib/db-items"
 import { Text } from "@gravity-ui/uikit"
 import type { ReactNode } from "react"
-import { itemHeadline } from "@/lib/strings"
+import { itemListLabel } from "@/capabilities/draftParts"
 import type { DisplayItemItem } from "@/lib/itemGroups"
 import styles from "./ItemResultsList.module.css"
 
@@ -54,6 +54,7 @@ export function ItemResultsList({
   return (
     <div className={styles.itemList}>
       {items.map(({ item, relevance }) => {
+        const label = itemListLabel(item)
         const isActive = activeItemId === item.id
         const isOpen = openItemIds.includes(item.id)
         const relevanceLabel = formatSimilarity(relevance)
@@ -73,10 +74,10 @@ export function ItemResultsList({
                 onEdit(item)
               }
             }}
-            aria-label={`Edit note: ${itemHeadline(item.description)}`}
+            aria-label={`Edit note: ${label}`}
           >
             <div className={styles.itemLine}>
-              <div className={styles.itemTitleCollapsed}>{itemHeadline(item.description)}</div>
+              <div className={styles.itemTitleCollapsed}>{label}</div>
               {relevanceLabel && <span className={styles.similarityBadge}>{relevanceLabel}</span>}
               <div
                 className={styles.itemAction}

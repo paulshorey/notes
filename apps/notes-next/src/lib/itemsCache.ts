@@ -8,7 +8,7 @@ import type {
 } from "@lib/db-items"
 
 /**
- * Local snapshot of the data that `ItemsApp` shows on startup.
+ * Local snapshot of the data that the workspace shows on startup.
  *
  * Keeping a copy in `localStorage` lets the app render immediately on the next
  * launch (instead of blocking on a network round-trip to restore the session),

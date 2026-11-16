@@ -1,0 +1,46 @@
+import { hasText } from "@lib/db-items/contracts/item-capabilities"
+import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
+import type { ItemDraft } from "@/capabilities/draftParts"
+
+/**
+ * A view is a screen over the items of one kind. The same item appears in every view
+ * whose kind it is, and opening it anywhere opens the same item.
+ *
+ * Add a view here and give its route a page under `app/(workspace)/`. The shell reads
+ * this list for navigation and uses the active view's kind to decide which of the
+ * workspace's items that screen lists.
+ */
+export interface ItemView {
+  kind: ItemKindKey
+  /** Path of the view's page. */
+  route: string
+  /** Plural name shown in navigation. */
+  label: string
+  /**
+   * Whether this view saves a draft in its current state. The item service accepts an
+   * item holding any capability, so this is the view's own rule about what is worth
+   * keeping; the save engine asks the active view and holds no rule of its own.
+   */
+  canSave: (draft: ItemDraft) => boolean
+}
+
+export const ITEM_VIEWS: readonly ItemView[] = [
+  {
+    kind: "note",
+    route: "/",
+    label: "Notes",
+    // Notes captures text, so a draft is worth saving once it has some.
+    canSave: (draft) => hasText(draft.description),
+  },
+]
+
+/** The view a path belongs to: the longest route that is the path or a parent of it. */
+export const viewForPath = (pathname: string): ItemView => {
+  const match = [...ITEM_VIEWS]
+    .sort((left, right) => right.route.length - left.route.length)
+    .find(
+      (view) =>
+        pathname === view.route || (view.route !== "/" && pathname.startsWith(`${view.route}/`)),
+    )
+  return match ?? ITEM_VIEWS[0]!
+}

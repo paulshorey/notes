@@ -20,7 +20,7 @@ Every new visitor can use the app immediately — create workspaces, notes,
 categories, statuses, and tags — without registering. Behind the scenes:
 
 1. The browser has **no session** on first load.
-2. `ItemsApp` detects `authStatus === "unauthenticated"` and calls
+2. `useSessionLifecycle` detects `authStatus === "unauthenticated"` and calls
    `signIn("anonymous")`.
 3. NextAuth creates a real `user_v1` row with `is_anonymous = true` and issues
    a JWT session cookie.
@@ -112,7 +112,7 @@ work; on successful login the password is rehashed in place.
 ## Anonymous session bootstrap
 
 ```typescript
-// ItemsApp.tsx — runs when authStatus is "unauthenticated"
+// src/workspace/useSessionLifecycle.ts — runs when authStatus is "unauthenticated"
 void signIn("anonymous", { redirect: false })
 ```
 
@@ -149,7 +149,7 @@ between users, so there is no merge token and no load-path race.
 Validation (service layer): non-empty username, password ≥ 8 characters,
 optional email must contain `@` if present.
 
-### Client (`handleSignup` in `ItemsApp.tsx`)
+### Client (`handleSignup` in `src/workspace/useAccountActions.ts`)
 
 1. `await flushPendingNoteSave()` — persist any debounced draft on the same row
 2. `POST /api/anon-session/claim` with form fields
@@ -176,7 +176,7 @@ reconciled server-side.
 ### Critical invariant (Phase 1)
 
 > **There is exactly one writer of post-login session data:** the
-> `restoreSession` effect in `ItemsApp.tsx`.
+> `restoreSession` effect in `src/workspace/useSessionLifecycle.ts`.
 
 Login handlers must **not** load notes or run the merge themselves. They only:
 
@@ -238,7 +238,7 @@ Anonymous data remains on the orphaned row for manual recovery or cleanup.
 
 ## Session restore & caching
 
-`restoreSession` (effect in `ItemsApp.tsx`) is the central loader after any auth
+`restoreSession` (effect in `useSessionLifecycle.ts`) is the central loader after any auth
 change:
 
 - Waits for `authStatus !== "loading"`
@@ -413,7 +413,7 @@ claim + credentials sign-in. On validation or `409` conflict, keep the popup
 open on the signup form so the user can correct input or switch to sign-in.
 
 Wire this by moving `setMenuOpen(false)` into the success paths of
-`handleLogin` / `handleSignup` in `ItemsApp.tsx` (or returning success/failure
+`handleLogin` / `handleSignup` in `useAccountActions.ts` (or returning success/failure
 from handlers to `WorkspaceHeader`).
 
 #### 5. Verification checklist
@@ -436,7 +436,7 @@ Automated (follow-up): a component test that clicks the toggle and asserts
 | File                                                       | Change                                                                                                           |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `apps/notes-next/src/components/items/WorkspaceHeader.tsx` | `type="button"` on toggles; popup close resets `authMode` + signup fields; defer menu close to parent on success |
-| `apps/notes-next/src/components/items/ItemsApp.tsx`        | Optional client validation in `handleSignup`; close popup only on success                                        |
+| `apps/notes-next/src/workspace/useAccountActions.ts`       | Optional client validation in `handleSignup`; close popup only on success                                        |
 | `apps/notes-next/AGENTS.md`                                | Note the sign-in/signup toggle behavior once fixed                                                               |
 
 No server or schema changes are required for this fix — it is purely client-side

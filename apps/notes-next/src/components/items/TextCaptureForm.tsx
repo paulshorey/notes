@@ -1,32 +1,17 @@
 "use client"
 
-import dynamic from "next/dynamic"
 import { Button, Popup } from "@gravity-ui/uikit"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
-import {
-  CalendarBlank,
-  DotsThree,
-  FolderOpen,
-  FolderSimple,
-  Plus,
-  Tag,
-  X,
-} from "@phosphor-icons/react"
+import { DotsThree, FolderOpen, FolderSimple, Plus, Tag, X } from "@phosphor-icons/react"
 import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-items"
 import type { TextCaptureFormState } from "@/types/items"
 import { normalizeLabel } from "@/lib/strings"
-import { createDefaultDueValue, createDefaultRemindValue } from "@/types/items"
-import type { AtomicEditorProps } from "@/components/editor/AtomicEditor"
+import { ScheduleField } from "@/capabilities/schedule/ScheduleField"
+import { StatusPicker } from "@/capabilities/status/StatusPicker"
+import { TextEditorControl } from "@/capabilities/text/TextEditorControl"
 import styles from "./TextCaptureForm.module.css"
-
-const AtomicEditor = dynamic<AtomicEditorProps>(
-  () => import("@/components/editor/AtomicEditor").then((mod) => mod.AtomicEditor),
-  {
-    ssr: false,
-  },
-)
 
 interface TextCaptureFormProps {
   form: TextCaptureFormState
@@ -118,9 +103,6 @@ export function TextCaptureForm({
     return new Set(selectedTagLabels.map((label) => normalizeLabel(label)))
   }, [selectedTagLabels])
 
-  const selectedStatusLabel =
-    statuses.find((status) => status.id === form.selectedStatusId)?.label ?? "No status"
-
   const newItemHasUserInput =
     form.description !== "" ||
     form.selectedCategoryId !== null ||
@@ -164,61 +146,9 @@ export function TextCaptureForm({
     addTagLabel(label)
   }
 
-  const expandDateField = (field: "due" | "remind") => {
-    setMorePickerOpen(false)
-    setForm((prev) =>
-      field === "due"
-        ? {
-            ...prev,
-            dueExpanded: true,
-            timeDue: prev.timeDue || createDefaultDueValue(),
-          }
-        : {
-            ...prev,
-            remindExpanded: true,
-            timeRemind: prev.timeRemind || createDefaultRemindValue(),
-          },
-    )
-  }
-
-  const renderDateField = (
-    field: "due" | "remind",
-    label: "Due" | "Remind",
-    expanded: boolean,
-    value: string | null,
-  ) => {
-    if (!expanded) {
-      return (
-        <button
-          type="button"
-          className={styles.moreMenuItem}
-          onClick={() => expandDateField(field)}
-          role="menuitem"
-        >
-          <span>{label}</span>
-          <CalendarBlank size={14} weight="regular" />
-        </button>
-      )
-    }
-
-    return (
-      <label className={styles.dateField}>
-        <span className={styles.dateFieldLabel}>{label}</span>
-        <input
-          type="datetime-local"
-          value={value ?? ""}
-          onChange={(e) =>
-            setForm((p) =>
-              field === "due"
-                ? { ...p, timeDue: e.target.value }
-                : { ...p, timeRemind: e.target.value },
-            )
-          }
-          className={styles.dateInput}
-        />
-      </label>
-    )
-  }
+  /** Each capability control changes its own slice of the form. */
+  const patchForm = (patch: (current: TextCaptureFormState) => Partial<TextCaptureFormState>) =>
+    setForm((current) => ({ ...current, ...patch(current) }))
 
   return (
     <section className={styles.formColumn}>
@@ -241,14 +171,14 @@ export function TextCaptureForm({
           )}
         </div>
 
-        <AtomicEditor
+        <TextEditorControl
+          draft={form}
+          onChange={patchForm}
           autofocus={editorAutofocus}
           documentId={descriptionEditorSessionId}
-          initialRevealText={editorRevealText}
+          revealText={editorRevealText}
           pasteUrlAsMarkdown={pasteUrlAsMarkdown}
           placeholder="Write now, organize later..."
-          value={form.description}
-          onUpdate={(description) => setForm((prev) => ({ ...prev, description }))}
         />
 
         <div className={styles.formToolbar}>
@@ -340,9 +270,11 @@ export function TextCaptureForm({
             emptyWithoutQueryMessage="No tags yet"
             inputPlaceholder="Enter new tag..."
           />
-          {form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
-          {form.remindExpanded &&
-            renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
+          {/* An added date sits in the toolbar; until then it is offered in the More menu. */}
+          {form.dueExpanded && <ScheduleField field="due" draft={form} onChange={patchForm} />}
+          {form.remindExpanded && (
+            <ScheduleField field="remind" draft={form} onChange={patchForm} />
+          )}
 
           <div className={styles.morePicker}>
             <button
@@ -384,26 +316,30 @@ export function TextCaptureForm({
                   <span>Delete</span>
                 </button>
                 <div className={styles.moreMenuDivider} aria-hidden="true" />
-                {!form.dueExpanded && renderDateField("due", "Due", form.dueExpanded, form.timeDue)}
-                {!form.remindExpanded &&
-                  renderDateField("remind", "Remind", form.remindExpanded, form.timeRemind)}
-                <FilterablePicker
-                  variant="menu"
-                  triggerLabel="Status"
-                  triggerRole="menuitem"
-                  value={selectedStatusLabel}
-                  triggerAriaLabel="Status"
-                  listboxAriaLabel="Status options"
-                  options={[{ id: "", label: "No status" }, ...statuses]}
-                  selectedIds={[form.selectedStatusId ?? ""]}
+                {!form.dueExpanded && (
+                  <ScheduleField
+                    field="due"
+                    draft={form}
+                    onChange={patchForm}
+                    onExpand={() => setMorePickerOpen(false)}
+                  />
+                )}
+                {!form.remindExpanded && (
+                  <ScheduleField
+                    field="remind"
+                    draft={form}
+                    onChange={patchForm}
+                    onExpand={() => setMorePickerOpen(false)}
+                  />
+                )}
+                <StatusPicker
+                  draft={form}
+                  statuses={statuses}
                   pending={createStatusPending}
                   open={activeMorePicker === "status"}
                   onOpenChange={(open) => updateMorePicker("status", open)}
-                  placement={["left-start", "right-start", "top-start", "bottom-start"]}
-                  onSelectOption={(status) => onSelectStatusId(String(status.id))}
-                  onCreateOption={onCreateStatus}
-                  emptyWithoutQueryMessage="No statuses yet"
-                  inputPlaceholder="Enter new status..."
+                  onSelectStatusId={onSelectStatusId}
+                  onCreateStatus={onCreateStatus}
                 />
                 <FilterablePicker
                   variant="menu"

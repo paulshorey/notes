@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { isSaveableForm, serializeItemDraft } from "@/lib/itemDraft"
+import { serializeItemDraft } from "@/lib/itemDraft"
 import type { OpenItemEntry, OpenItemKey } from "@/stores/openItems"
 
 export const ITEM_AUTOSAVE_DEBOUNCE_MS = 3000
@@ -39,10 +39,13 @@ const retryDelay = (attempts: number) =>
 export function useOpenItemsAutosave({
   entries,
   enabled,
+  canSave,
   saveEntry,
 }: {
   entries: OpenItemEntry[]
   enabled: boolean
+  /** The active view's rule for which drafts are saved. */
+  canSave: (form: OpenItemEntry["form"]) => boolean
   saveEntry: (key: OpenItemKey, mode: "autosave") => boolean | Promise<boolean>
 }) {
   const timersRef = useRef(new Map<OpenItemKey, ArmedTimer>())
@@ -69,7 +72,7 @@ export function useOpenItemsAutosave({
     const dirtyKeys = new Set<OpenItemKey>()
 
     for (const entry of entries) {
-      if (!isSaveableForm(entry.form)) continue
+      if (!canSave(entry.form)) continue
 
       const signature = serializeItemDraft(entry.itemId, entry.form)
       if (signature === entry.savedSignature) continue
@@ -116,7 +119,7 @@ export function useOpenItemsAutosave({
     for (const key of [...failures.keys()]) {
       if (!dirtyKeys.has(key)) failures.delete(key)
     }
-  }, [enabled, entries])
+  }, [canSave, enabled, entries])
 
   useEffect(() => {
     const timers = timersRef.current

@@ -20,7 +20,8 @@
     "./sql/user": "./sql/user/index.ts",
     "./sql/*": "./sql/*.ts",
     "./contracts/item-content": "./contracts/item-content.ts",
-    "./contracts/item-capabilities": "./contracts/item-capabilities.ts"
+    "./contracts/item-capabilities": "./contracts/item-capabilities.ts",
+    "./contracts/item-kinds": "./contracts/item-kinds.ts"
   },
   "scripts": {
     "app:contract:check": "node scripts/generate-app-contract.mjs --check",

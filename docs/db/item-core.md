@@ -24,8 +24,8 @@ service applies the rule on create and update. The tables accept a bare item.
 
 No layer below the Notes screen requires text. Listing, group actions, backup, restore,
 and account merge carry an item without text; text search and embeddings skip it.
-Requiring text is a rule of the Notes screen alone (`isSaveableForm` in `notes-next`),
-because that screen captures nothing else.
+Requiring text is a rule of the Notes view alone (its `canSave` in the `notes-next`
+view registry), because that view captures nothing else.
 
 ### Stored capabilities
 
@@ -73,8 +73,9 @@ removed.
 | `task` | a status, a due date, or a reminder |
 
 `itemKinds(item)` lists an item's kinds and `isKind(item, key)` tests one. Each kind is
-the selection rule of one view. The Notes screen lists the `note` kind through
-`isTextItem`, which also narrows the item to its text.
+the selection rule of one view: `notes-next` keeps every item of the workspace and each
+view lists the items of its kind. `isTextItem` is the `note` test for code that also
+needs the item narrowed to its text.
 
 ## This refactor
 

@@ -1,4 +1,4 @@
-import { hasText } from "@lib/db-items/contracts/item-capabilities"
+import { itemDraftRequest } from "@/capabilities/draftParts"
 import type { TextCaptureFormState } from "@/types/items"
 import type { ItemRef } from "@/stores/openItems"
 
@@ -15,30 +15,9 @@ export const snapshotTextCaptureForm = (form: TextCaptureFormState): TextCapture
  * or the entry reads as permanently dirty.
  */
 export const serializeItemDraft = (itemId: ItemRef | null, form: TextCaptureFormState) =>
-  JSON.stringify({
-    itemId,
-    categoryId: form.selectedCategoryId,
-    subcategoryId: form.selectedSubcategoryId,
-    statusId: form.selectedStatusId,
-    tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
-    description: form.description,
-    timeDue: form.dueExpanded ? form.timeDue : null,
-    timeRemind: form.remindExpanded ? form.timeRemind : null,
-  })
+  JSON.stringify({ itemId, ...itemDraftRequest(form) })
 
 export const itemRequestBody = (form: TextCaptureFormState, workspaceId: number) => ({
   workspaceId,
-  categoryId: form.selectedCategoryId,
-  subcategoryId: form.selectedSubcategoryId,
-  statusId: form.selectedStatusId,
-  tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
-  description: form.description,
-  timeDue: form.dueExpanded ? form.timeDue : null,
-  timeRemind: form.remindExpanded ? form.timeRemind : null,
+  ...itemDraftRequest(form),
 })
-
-/**
- * The Notes screen captures text, so an entry is worth saving once it has some. This is
- * a rule of this screen only: the item service accepts an item holding any capability.
- */
-export const isSaveableForm = (form: TextCaptureFormState) => hasText(form.description)

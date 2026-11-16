@@ -18,8 +18,8 @@ todos:
     content: "S4. Account merge and restore move item rows instead of copying them; backup and duplicate detection read the registry; db:verify fails on an item table no capability declares."
     status: completed
   - id: shell_and_modules
-    content: "S5. Split ItemsApp.tsx into an app shell (workspace, taxonomy, view switcher), a save engine, open-item state, and one module per capability. Notes becomes the first view."
-    status: pending
+    content: "S5. An app shell around views: a workspace provider composed of hooks (save engine, open-item ring, session, taxonomy), a view registry with Notes as its first entry, and one client module per capability that the draft, dirty check, and save request are built from."
+    status: completed
   - id: tasks_view
     content: "S6. Tasks view: a board by status and a list by due date over the same items, with no new storage. An item with text and a status shows in Notes and in Tasks."
     status: pending
@@ -27,7 +27,7 @@ todos:
     content: "S7. Add a permanent uid (UUID) to items and workspaces as the public identity, client-generated on create so a retried create is harmless. Integer ids stay as internal keys."
     status: pending
   - id: files_capability
-    content: "S8. Files as the first capability with new storage, built only through the extension points: item_file_v1, upload and download on the media bucket, backup with bytes, a client module, and the media and voice memo kinds."
+    content: "S8. Files as the first capability with new storage, built only through the extension points: item_file_v1, the service's per-capability validate and write hooks, upload and download on the media bucket, backup with bytes, a client module, and the media and voice memo kinds."
     status: pending
   - id: lossless_input
     content: "L1–L3. Independent small releases: store item text as typed; add normalized label keys that carry uniqueness; stop lowercasing labels."
@@ -116,31 +116,38 @@ lines true.
    second workspace-owned row, so the database rejects a link across workspaces. Rows
    addressed from outside get a `uuid` key.
 2. **Registry entry**, in two halves with the same key. The browser-safe half in
-   `contracts/item-capabilities.ts` says how to tell the capability is present and what
-   it contributes to a draft's dirty check. The server half says how it is validated,
-   written, exported, imported, and compared.
+   `contracts/item-capabilities.ts` says how to tell the capability is present. The
+   server half says how it is validated, written, exported, imported, and compared.
 3. **Nothing else on the server.** Delete cascades. Account merge moves the item row, so
    its tables follow (S4). Backup and duplicate detection iterate the registry (S4).
-4. **One client module**: editor control, compact list renderer, and capture handler
-   (S5).
+4. **One client module** in `apps/notes-next/src/capabilities/`: a draft part (its
+   form fields, how a stored item fills them, what a save sends, when it is blank, and
+   its list label) and an editor control. The draft, the dirty check, and the save
+   request are composed from the parts, so adding the part to the list is the only
+   edit outside the module. A capability captured by a gesture, such as a dropped
+   file, adds its capture handler here.
 
 ### Adding a kind and its view
 
 1. **Kind entry** in `contracts/item-kinds.ts`: key, label, and a predicate over the item.
-2. **View entry** in the client: route, list component, and the defaults a quick-add in
-   that view applies (the Tasks board adds an item with that column's status).
+2. **View entry** in `apps/notes-next/src/views/registry.ts`: kind, route, label, and
+   `canSave`, the view's rule for which drafts it saves (Notes saves a draft once it has
+   text). Its page goes under `app/(workspace)/`, inside the shared shell. A view with a
+   quick-add also declares the defaults it applies (the Tasks board adds an item with
+   that column's status).
 
 ### Hooks
 
 Type-specific logic attaches to the registries instead of branching in the item service:
 
-| Hook                           | Runs                                         | First user                                                        |
-| ------------------------------ | -------------------------------------------- | ----------------------------------------------------------------- |
-| `validate`, `write`            | inside the save transaction, per capability  | S5 (existing writes move here)                                    |
-| `afterCommit`                  | after a save commits, per changed capability | text embeddings; later thumbnails, transcripts, reminder delivery |
-| `export`, `import`, `identity` | backup, restore, duplicate detection         | S4                                                                |
-| `quickAddDefaults`             | when a view creates an item                  | S6                                                                |
-| `onEnter`, `onLeave` (kind)    | after a save changes an item's kinds         | added with the first feature that needs one                       |
+| Hook                           | Runs                                         | First user                                            |
+| ------------------------------ | -------------------------------------------- | ----------------------------------------------------- |
+| `validate`, `write`            | inside the save transaction, per capability  | S8 (file rows)                                        |
+| `afterCommit`                  | after a save commits, per changed capability | S8 (thumbnails); later transcripts, reminder delivery |
+| `canSave` (view)               | when the save engine considers a draft       | S5 (Notes requires text)                              |
+| `export`, `import`, `identity` | backup, restore, duplicate detection         | S4                                                    |
+| `quickAddDefaults`             | when a view creates an item                  | S6                                                    |
+| `onEnter`, `onLeave` (kind)    | after a save changes an item's kinds         | added with the first feature that needs one           |
 
 A hook is added in the step that has its first user, never ahead of one.
 
@@ -319,21 +326,31 @@ audit reports an undeclared column and table.
 
 ### S5. App shell and capability modules
 
-`ItemsApp.tsx` is 3,407 lines and holds the save engine, the open-item ring, workspace
-and vocabulary state, and the form. A second view cannot be added to it safely.
+The client is a shell around views, so a second view is a registry entry and a page.
 
-- **Shell.** Workspace header, taxonomy sidebar, and a view switcher, shared by every
-  view. Workspace, vocabulary, and taxonomy-selection state move to Zustand stores.
-- **Save engine and open-item state** become hooks and stores with no dependency on the
-  text form. The existing open-item and autosave tests pass unchanged.
-- **Capability modules.** Text, schedule, and status each provide an editor control, a
-  compact list renderer, and a capture handler. Draft signatures and the browser cache
-  build from the registry, so a new capability joins dirty checks without editing them.
-- **Views.** A view registry maps a kind to a route and a list component. Notes is the
-  first entry, and `/` stays the Notes view. The loaded item set is no longer filtered
-  to text items at load; each view filters by its kind.
-- **Service.** Capability writes move behind the `validate` and `write` hooks, and
-  embed-on-write becomes the text capability's `afterCommit`.
+- **Shell.** `app/(workspace)/layout.tsx` mounts the workspace provider and `AppShell`
+  (header, taxonomy sidebar, dialogs, notifications) once for every view.
+- **Workspace.** `useItemsWorkspaceController` composes one hook per concern: shared
+  state, sidebar layout, loaded data, the save engine, the open-item ring, the lists,
+  the session lifecycle, account actions, and taxonomy actions. Each depends only on
+  the hooks before it. Account, workspace, item, and vocabulary data live in
+  `workspaceStore`; the ring and the taxonomy selection live in `itemsAppStore`.
+- **Save engine and open-item ring** hold no rule about text. The engine asks the
+  active view's `canSave` whether a draft is saved, and the ring's empty-draft test
+  asks each draft part whether it is blank.
+- **Capability modules.** Text, schedule, and status each provide a draft part and an
+  editor control; filing and tags provide draft parts. Form state, entry signatures,
+  the save request, and list labels are composed from the parts. Their order is a
+  stored format, pinned by a test, because browsers keep entry signatures.
+- **Views.** `views/registry.ts` maps a kind to a route. Notes is the first entry and
+  `/` stays the Notes view. The workspace keeps every item it loads, and each view
+  lists the items of its kind.
+
+The item service keeps writing the columns of the item row in one statement. Text
+embeddings are computed before the save transaction and written in that statement, so
+a saved note is searchable as soon as the save returns. Per-capability `validate`,
+`write`, and `afterCommit` hooks arrive with the first capability that has rows of its
+own (S8).
 
 No behavior change for the user.
 
@@ -343,6 +360,7 @@ The first second view. It adds no storage: `status` and `schedule` are already o
 item.
 
 - `/tasks` shows items of kind `task` in the current workspace and taxonomy selection.
+  The shell gains its view switcher here, with the second view.
 - **Board.** One column per workspace status in `position` order, plus a column for
   tasks with a date and no status. Dragging a card changes its status. Cards order by
   due date, then last modified.
@@ -380,6 +398,9 @@ Photos, video, voice memos, receipts, and invoices are all "an item with a file"
 
 - `item_file_v1(id uuid, item_id, storage_key, content_type, byte_size, sha256,
 original_name, role, position, width, height, duration_ms, time_created)`.
+- The item service gains per-capability `validate` and `write` hooks that run inside
+  the save transaction, and `afterCommit` for work that follows it. File rows are their
+  first user; the columns of the item row stay in the single item statement.
 - Upload and download through short-lived signed URLs. The storage key is `f/<uuid>`.
 - A file with no text is a valid item under the S1 rule.
 - Kinds `media` (image or video) and `voice memo` (audio), each with a view entry.
