@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  hasItemCapability,
   hasItemContent,
   ITEM_CAPABILITIES,
   ITEM_CONTENT_REQUIRED_ERROR,
@@ -39,10 +40,9 @@ const record = (values: Partial<ItemRecord> = {}): ItemRecord => ({
   ...values,
 })
 
-test("capability keys are unique and at least one counts as content", () => {
+test("capability keys are unique", () => {
   const keys = ITEM_CAPABILITIES.map((capability) => capability.key)
   assert.equal(new Set(keys).size, keys.length)
-  assert.ok(ITEM_CAPABILITIES.some((capability) => capability.content))
 })
 
 test("an item reports each capability it holds, from a record or a write request", () => {
@@ -65,23 +65,35 @@ test("an item reports each capability it holds, from a record or a write request
     "text",
     "status",
   ])
+  assert.equal(hasItemCapability(input({ statusId: 4 }), "status"), true)
+  assert.equal(hasItemCapability(input({ statusId: 4 }), "text"), false)
 })
 
-test("taxonomy, schedule, and status do not make an item on their own", () => {
-  const withoutText: ItemCapabilitySource[] = [
+test("any single capability makes an item, and text is never required", () => {
+  const savable: ItemCapabilitySource[] = [
+    input({ description: " x " }),
+    input({ timeDue: "2027-01-02T03:04:05.000Z" }),
+    input({ timeRemind: "2027-01-02T03:04:05.000Z" }),
+    input({ statusId: 4 }),
+    record({ status: { id: 4, label: "done" } }),
+  ]
+  for (const item of savable) assert.equal(hasItemContent(item), true)
+})
+
+test("taxonomy alone does not make an item", () => {
+  const empty: ItemCapabilitySource[] = [
+    input(),
     input({ categoryIds: [1], tagIds: [2] }),
     input({ description: "  \n\t " }),
-    input({ timeDue: "2027-01-02T03:04:05.000Z", statusId: 4 }),
-    record({ status: { id: 4, label: "done" }, categories: [{ id: 1, label: "work" }] }),
+    record({ categories: [{ id: 1, label: "work" }], tags: [{ id: 2, label: "urgent" }] }),
   ]
-  for (const item of withoutText) assert.equal(hasItemContent(item), false)
-  assert.equal(hasItemContent(input({ description: " x " })), true)
+  for (const item of empty) assert.equal(hasItemContent(item), false)
 })
 
-test("the item service refuses to save an item without content", async () => {
+test("the item service refuses to save an item that holds nothing", async () => {
   // Both calls must fail before any database or embedding-provider access.
   await assert.rejects(
-    createItemForItemsApp({ userId: 1, item: input({ timeDue: "2027-01-02T03:04:05.000Z" }) }),
+    createItemForItemsApp({ userId: 1, item: input({ categoryIds: [1], tagIds: [2] }) }),
     (error: unknown) => {
       assert.ok(error instanceof Error)
       assert.equal(error.message, ITEM_CONTENT_REQUIRED_ERROR)

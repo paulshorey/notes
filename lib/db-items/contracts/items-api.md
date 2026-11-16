@@ -30,7 +30,8 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 `ItemInput` contains `workspaceId`, `categoryIds`, nullable `statusId`, `tagIds`,
 nullable `description`, `timeDue`, and `timeRemind`. The HTTP parser accepts
 omitted text as null. `POST` and `PATCH` return `400` when the item would hold no
-content capability; today that means nonblank text (`contracts/item-capabilities.ts`).
+capability at all: text, a due or reminder date, or a status each suffice on their own
+(`contracts/item-capabilities.ts`). Search returns only items with text.
 `ItemRecord` returns `id`, `workspaceId`, category/status/tag references,
 `description`, due/reminder dates, and creation/modification timestamps. An item
 has one workspace; relationship IDs must belong to that workspace. A new item

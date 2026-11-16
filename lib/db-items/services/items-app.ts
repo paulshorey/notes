@@ -554,8 +554,8 @@ export const deleteStatusForItemsApp = async (
   r: DeleteStatusRequest,
 ): Promise<DeleteResponse | null> =>
   (await deleteStatusForWorkspace(r.userId, r.workspaceId, r.statusId)) ? { ok: true } : null
-// Storage accepts a bare item; requiring content is product policy that follows the
-// capability registry, so it is enforced here and not by a database constraint.
+// Storage accepts a bare item. The service refuses only an item that holds no capability
+// at all; it never requires text, which is a rule of the Notes screen alone.
 export const createItemForItemsApp = async (r: CreateItemRequest): Promise<ItemResponse> => {
   assertItemHasContent(r.item)
   return {

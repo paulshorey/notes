@@ -15,9 +15,13 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for zero category links. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
 - Composite foreign keys enforce that every item relation comes from the item's own workspace.
 - `contracts/item-capabilities.ts` is the registry of what an item can hold (text,
-  schedule, status). Declare a new kind of content there instead of branching on fields.
-  `hasItemContent` is the save rule, applied by `createItemForItemsApp` and
-  `updateItemForItemsApp`; the SQL layer and the tables still accept a bare item.
+  schedule, status). Declare new content there instead of branching on fields.
+  `hasItemContent` is the save rule (at least one capability, never text specifically),
+  applied by `createItemForItemsApp` and `updateItemForItemsApp`; the SQL layer and the
+  tables still accept a bare item. Nothing in this package may require text.
+- `contracts/item-kinds.ts` names what an item holds (`note`, `task`). A kind is
+  computed, never stored, and an item can be several kinds. Select the items of a view
+  with `isKind` instead of testing fields.
 - `contracts/item-group-actions.ts` defines group selection and tagged actions.
   `sql/item-groups.ts` owns the shared predicate, preview fingerprint, transaction,
   and action registry; add future member actions there rather than new category

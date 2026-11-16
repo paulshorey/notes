@@ -1,6 +1,6 @@
-import { hasText } from "./item-capabilities"
+import { isKind } from "./item-kinds"
 import type { ItemRecord } from "./items-app"
 
-/** The current note editor is a text-bearing projection of generic items. */
+/** The Notes view lists the items of kind "note". This narrows them to their text. */
 export const isTextItem = (item: ItemRecord): item is ItemRecord & { description: string } =>
-  hasText(item.description)
+  isKind(item, "note")

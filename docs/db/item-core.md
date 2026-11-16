@@ -10,19 +10,38 @@ extend an item without converting it into another exclusive type.
 `contracts/item-capabilities.ts` in `@lib/db-items` is the registry of what an item can
 hold beyond identity, workspace, and taxonomy:
 
-| Capability | Stored as                      | Counts as content |
-| ---------- | ------------------------------ | ----------------- |
-| `text`     | `description`                  | yes               |
-| `schedule` | `time_due`, `time_remind`      | no                |
-| `status`   | `status_id` → workspace status | no                |
+| Capability | Stored as                      |
+| ---------- | ------------------------------ |
+| `text`     | `description`                  |
+| `schedule` | `time_due`, `time_remind`      |
+| `status`   | `status_id` → workspace status |
 
-`itemCapabilities(item)` lists the capabilities an item holds. `hasItemContent(item)`
-is the save rule: an item needs at least one content capability, so categories, tags, a
-status, or dates alone do not make an item. The item service applies the rule on create
-and update and the web client applies the same function before saving. The tables
-accept a bare item; the rule is product policy that widens as content capabilities are
-added. A perceived type such as "note" or "task" is a name for a combination of
-capabilities and is not stored.
+Every capability is optional and none is required. `itemCapabilities(item)` lists the
+capabilities an item holds. `hasItemContent(item)` is the save rule: an item must hold
+at least one capability, so a date or a status alone makes an item, and categories and
+tags alone do not, because taxonomy organizes content and is not content. The item
+service applies the rule on create and update. The tables accept a bare item.
+
+No layer below the Notes screen requires text. Listing, group actions, backup, restore,
+and account merge carry an item without text; text search and embeddings skip it.
+Requiring text is a rule of the Notes screen alone (`isSaveableForm` in `notes-next`),
+because that screen captures nothing else.
+
+## Kinds
+
+`contracts/item-kinds.ts` names what an item holds. A kind is computed from the item
+every time and never stored, so it cannot disagree with the content. An item can be
+several kinds at once, and it stops being a kind when the content that made it one is
+removed.
+
+| Kind   | An item is this kind when it holds  |
+| ------ | ----------------------------------- |
+| `note` | text                                |
+| `task` | a status, a due date, or a reminder |
+
+`itemKinds(item)` lists an item's kinds and `isKind(item, key)` tests one. Each kind is
+the selection rule of one view. The Notes screen lists the `note` kind through
+`isTextItem`, which also narrows the item to its text.
 
 ## This refactor
 
@@ -36,7 +55,6 @@ integer IDs, text, timestamps, dates, vectors, vocabulary IDs, and relationships
 are preserved. Category/status/tag vocabulary is workspace-scoped; category and
 tag link tables now reference `item_id`. Composite foreign keys still reject
 cross-workspace relationships. `description` remains nullable in this first step.
-`isTextItem` is the explicit selection rule for the current note client.
 
 Category and uncategorized navigation groups share transactional bulk actions.
 See [item group actions](item-group-actions.md) for selection, rename/deletion,
@@ -53,7 +71,7 @@ without changing the meaning of the item identity established here.
 New data routes are `/api/items`, `/api/items/search`, and
 `/api/items/maintenance/embeddings`. Payloads use `item`, `items`, `itemId`,
 `itemCount`, `itemsImported`, and `itemsSkipped`. Item text is nullable in storage and
-in payloads; the item service refuses to save an item without content.
+in payloads; the item service refuses to save only an item that holds no capability.
 
 The new web client sends `X-Items-Contract: 1` to select item-only payloads on
 shared routes such as bootstrap, vocabulary, and backup. Common routes without

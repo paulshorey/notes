@@ -1,4 +1,4 @@
-import { hasItemContent } from "@lib/db-items/contracts/item-capabilities"
+import { hasText } from "@lib/db-items/contracts/item-capabilities"
 import type { TextCaptureFormState } from "@/types/items"
 import type { ItemRef } from "@/stores/openItems"
 
@@ -37,13 +37,7 @@ export const itemRequestBody = (form: TextCaptureFormState, workspaceId: number)
 })
 
 /**
- * Whether an entry holds anything the server will store. The capability registry
- * decides, so this follows it as new kinds of content are added.
+ * The Notes screen captures text, so an entry is worth saving once it has some. This is
+ * a rule of this screen only: the item service accepts an item holding any capability.
  */
-export const isSaveableForm = (form: TextCaptureFormState) =>
-  hasItemContent({
-    description: form.description,
-    statusId: form.selectedStatusId,
-    timeDue: form.dueExpanded ? form.timeDue : null,
-    timeRemind: form.remindExpanded ? form.timeRemind : null,
-  })
+export const isSaveableForm = (form: TextCaptureFormState) => hasText(form.description)
