@@ -24,6 +24,7 @@ import { type TextCaptureFormState } from "@/types/items"
 import { updateItemsCacheList } from "@/lib/itemsCache"
 import { type OpenItemKey, itemEntryKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
+import { collectSessionFlushEntries } from "@/lib/openItemsExit"
 import {
   type ItemFiling,
   existingFiling,
@@ -50,6 +51,7 @@ export function useTaxonomyActions(
     activeKey,
     activeWorkspaceId,
     activeWorkspaceIdRef,
+    canSaveDraftRef,
     applyServerItemToEntry,
     categories,
     categoriesRef,
@@ -633,8 +635,8 @@ export function useTaxonomyActions(
       taxonomyRefreshTimeoutRef.current = null
     }
     // Opening the modal synchronously pauses autosave and exit PATCHes. Settle
-    // existing requests, then save dirty persisted entries only; new drafts are
-    // not members of a server-side group.
+    // existing requests, then save the dirty stored entries their view would save;
+    // new drafts are not members of a server-side group.
     const settled = await Promise.allSettled([...saveInFlightRef.current.values()])
     if (settled.some((result) => result.status === "rejected"))
       throw new Error(
@@ -642,9 +644,11 @@ export function useTaxonomyActions(
       )
     if (userRef.current?.id !== userId || activeWorkspaceIdRef.current !== workspaceId)
       throw new Error("The active workspace changed. Reopen the group action.")
-    const entries = useItemsAppStore
-      .getState()
-      .openItems.filter((entry) => entry.itemId !== null && isEntryDirty(entry))
+    const entries = collectSessionFlushEntries(
+      useItemsAppStore.getState().openItems,
+      isEntryDirty,
+      canSaveDraftRef.current,
+    ).filter((entry) => entry.itemId !== null)
     const detached = [...detachedSavesRef.current].filter(([, entry]) => entry.itemId !== null)
     const saved = await Promise.all([
       ...entries.map((entry) => saveEntry(entry.key, "flush")),
@@ -655,6 +659,7 @@ export function useTaxonomyActions(
     persistOpenItemsRef.current()
   }, [
     activeWorkspaceIdRef,
+    canSaveDraftRef,
     detachedSavesRef,
     persistOpenItemsRef,
     saveEntry,
