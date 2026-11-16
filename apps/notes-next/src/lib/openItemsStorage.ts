@@ -1,3 +1,4 @@
+import { draftHoldsContent } from "@/capabilities/draftParts"
 import { isPublicUid } from "@lib/db-items/contracts/public-uid"
 import { newPublicUid } from "@/lib/publicUid"
 import { ITEM_KINDS, type ItemKindKey } from "@lib/db-items/contracts/item-kinds"
@@ -369,9 +370,13 @@ export const writeOpenItemsSnapshot = (
   try {
     writeRaw({
       ...snapshot,
-      entries: snapshot.entries.map((entry) =>
-        dirtyKeys.has(entry.key) ? entry : { ...entry, form: { ...entry.form, description: "" } },
-      ),
+      // A clean entry's text can be dropped: the server has it. Its signature moves
+      // with the form, or the entry would reload as an edit that removed the text.
+      entries: snapshot.entries.map((entry) => {
+        if (dirtyKeys.has(entry.key)) return entry
+        const form = { ...entry.form, description: "" }
+        return { ...entry, form, savedSignature: serializeItemDraft(entry.itemId, form) }
+      }),
     })
     return true
   } catch {
@@ -473,9 +478,10 @@ export const reconcileOpenItems = (
         baseTimeModified: null,
         savedSignature: null,
       }
-      // An entry whose unsaved edit was removing everything has nothing to keep: its
-      // item was deleted because it was emptied.
-      if (isEmptyDraft(orphan)) continue
+      // An entry whose unsaved edit was removing its content has nothing to keep: its
+      // item was deleted because it was emptied. What is left, such as tags, could
+      // never be created as an item.
+      if (!draftHoldsContent(orphan.form)) continue
       orphanedDraftCount += 1
       entries.push(orphan)
       nextDraftSequence += 1

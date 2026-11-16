@@ -22,6 +22,10 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - Composite foreign keys enforce that every item relation comes from the item's own workspace.
 - `contracts/item-capabilities.ts` is the registry of what an item can hold (text,
   schedule, status). Declare new content there instead of branching on fields.
+  `ITEM_HAS_CONTENT_SQL` (`sql/item/stored-capabilities.ts`) is the same rule over an
+  item row, built from each stored capability's `present` condition; a statement that
+  removes content from items, such as deleting a status, deletes the items it leaves
+  with none.
   `hasItemContent` is the save rule (at least one capability, never text specifically),
   applied by `createItemForItemsApp` and `updateItemForItemsApp`; the SQL layer and the
   tables still accept a bare item. Nothing in this package may require text.

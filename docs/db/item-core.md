@@ -48,7 +48,7 @@ Requiring text to start a note is a rule of the Notes view alone (its `canCreate
 An item without content is not kept. The service refuses to store one, and the web
 client deletes a stored item when an edit removes the last of its content: emptying a
 note deletes it, unless it still has a status or a date, in which case it stays as a
-task.
+task. Deleting a status deletes the items whose only content it was.
 
 ### Stored capabilities
 

@@ -156,7 +156,11 @@ between views, so the session, the open-item ring, and pending saves carry acros
   - An item left with no content at all is deleted, because an item without content
     is not kept. The entry stays open as an unsaved draft with the same uid, so typing
     again creates the item anew under that uid. The exit keepalive sends the deletion
-    too, and a restored entry whose item was deleted this way is dropped.
+    too, an answer that the item is already gone counts as done, and a restored entry
+    whose item was deleted this way is dropped.
+  - An entry opened from a stored item starts clean (`savedSignature` is set from the
+    item), so opening a note sends nothing. A date field that is empty while focused
+    is an edit in progress; the date is removed when the field is left empty.
     The save engine and the open-item ring hold no rule about text; they ask this
     function.
 - **Changing view.** Each entry records the view it was last opened in (`entry.view`),
@@ -233,7 +237,7 @@ Notes persist through `saveEntry(key, mode)` in `useItemSaveEngine.ts`, keyed by
 - `flush` — awaited save, used where the session, the workspace, or a group is about to change (`handleLogin`, `handleSignup`, `handleLogout`, workspace switch, backup, group actions) via `flushAllPendingSaves()` and `prepareItemGroupAction`. Ordinary note switching does not flush. Both collect entries with `collectSessionFlushEntries`, which waits only for entries that have a save to send. An untouched slot, or a draft its view would not start an item from (in Notes, one holding only tags, a date, or a status), sends nothing and never blocks the change. An entry with a save to send still blocks when that save fails, so nothing the user wrote is lost.
 - `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is not retried.
 
-`pagehide`/`visibilitychange` write the persistence snapshot **first**, while entries are still dirty and including anything in `detachedSaves`. That snapshot is the durable recovery if keepalive bodies are dropped (browsers share a bounded in-flight quota). Keepalive then sends every pending entry: a PATCH for a stored note and a POST for a never-saved draft. `visibilitychange` then `pagehide` share a sent-keys set so the same request is not fired twice.
+`pagehide`/`visibilitychange` write the persistence snapshot **first**, while entries are still dirty and including anything in `detachedSaves`. That snapshot is the durable recovery if keepalive bodies are dropped (browsers share a bounded in-flight quota). Keepalive then sends every pending entry: a POST for a never-saved draft, a PATCH for a stored note, and a DELETE for a stored note that was emptied. `visibilitychange` then `pagehide` share a sent-keys set so the same request is not fired twice.
 
 **A create is safe to repeat.** Every entry has a `uid` (`src/lib/publicUid.ts`): its item's, or for a draft the one its create will carry (`newItemRequestBody`). The server stores one item per uid, so a create sent again, after a lost answer or by a reload replaying the draft from its snapshot, finds the item the first one stored and answers `200` instead of `201`. Nothing was written in that case, so `saveEntry` follows a `200` with a PATCH of the same snapshot to that item. Quick-add sends a uid too. The address bar names the open item by uid (`?item=`); an older `?id=` address still opens its item and is rewritten. A link may name an item in a workspace other than the one last open: startup passes the uid to `GET /api/bootstrap?item=`, which opens the workspace that holds it, and skips the cached paint when the cached workspace does not have the item. The editor's document is named by the entry's uid, because every workspace's ring starts its drafts at the same key.
 

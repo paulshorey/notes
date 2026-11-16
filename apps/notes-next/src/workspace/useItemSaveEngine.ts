@@ -166,7 +166,20 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         // kept. The entry stays open as an unsaved draft: if the user types again, it
         // is created anew under the same uid.
         if (action === "delete" && itemId !== null) {
-          await readJson<{ ok: true }>(await send("DELETE", { itemId }))
+          // This snapshot may be older than the entry: a flush or a queued save pins
+          // it before waiting its turn. If the user has typed since, the item is not
+          // empty any more, and the next save sends what it holds.
+          const current = detached
+            ? null
+            : useItemsAppStore.getState().openItems.find((item) => item.key === key)
+          if (current && draftHoldsContent(current.form)) {
+            queuedAutosaveKeysRef.current.add(key)
+            return
+          }
+          // Already gone is the outcome asked for: the exit keepalive may have sent
+          // this deletion, or an earlier answer was lost.
+          const response = await send("DELETE", { itemId })
+          if (response.status !== 404) await readJson<{ ok: true }>(response)
           if (userRef.current?.id !== currentUser.id) return
           forgetDeletedItem(currentUser.id, workspaceId, itemId)
           scheduleTaxonomyRefresh(currentUser.id)
@@ -297,10 +310,10 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
   saveEntryRef.current = saveEntry
 
   /**
-   * Persist every dirty entry the active view would save and wait for all of them.
-   * Used only where the session or the workspace is about to change, since ordinary
-   * note switching does not block on a save. An entry the view does not save, such
-   * as a draft holding only a tag, is skipped: it must never block the change.
+   * Persist every dirty entry that has a save to send and wait for all of them. Used
+   * only where the session or the workspace is about to change, since ordinary note
+   * switching does not block on a save. An entry with nothing to send, such as a
+   * Notes draft holding only a tag, is skipped: it must never block the change.
    */
 
   const flushAllPendingSaves = useCallback(async () => {

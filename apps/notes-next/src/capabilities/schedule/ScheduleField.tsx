@@ -1,6 +1,7 @@
 "use client"
 
 import { CalendarBlank } from "@phosphor-icons/react"
+import { useState } from "react"
 import styles from "@/components/items/TextCaptureForm.module.css"
 import type { DraftControlProps } from "../types"
 import { createDefaultDueValue, createDefaultRemindValue, type ScheduleDraft } from "./draft"
@@ -64,15 +65,50 @@ export function ScheduleField({
   return (
     <label className={styles.dateField}>
       <span className={styles.dateFieldLabel}>{label}</span>
-      <input
-        type="datetime-local"
+      <DateInput
         value={value ?? ""}
-        onChange={(event) => {
-          const next = event.target.value
-          onChange(() => (field === "due" ? { timeDue: next } : { timeRemind: next }))
-        }}
-        className={styles.dateInput}
+        onCommit={(next) =>
+          onChange(() =>
+            field === "due"
+              ? { timeDue: next, dueExpanded: next !== null }
+              : { timeRemind: next, remindExpanded: next !== null },
+          )
+        }
       />
     </label>
+  )
+}
+
+/**
+ * A date and time input that reports a date only when it has one. While a part of the
+ * date is being retyped the browser's value is empty; that is an edit in progress,
+ * not a removal, so the draft keeps its date until the field is left empty.
+ */
+function DateInput({
+  value,
+  onCommit,
+}: {
+  value: string
+  onCommit: (value: string | null) => void
+}) {
+  const [incomplete, setIncomplete] = useState(false)
+
+  return (
+    <input
+      type="datetime-local"
+      value={incomplete ? "" : value}
+      onChange={(event) => {
+        const next = event.target.value
+        setIncomplete(next === "")
+        if (next !== "") onCommit(next)
+      }}
+      onBlur={() => {
+        if (!incomplete) return
+        // Left empty: the user removed the date.
+        setIncomplete(false)
+        onCommit(null)
+      }}
+      className={styles.dateInput}
+    />
   )
 }

@@ -1,5 +1,6 @@
 import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { isBlankItemDraft } from "@/capabilities/draftParts"
+import { serializeItemDraft } from "@/lib/itemDraft"
 import { newPublicUid } from "@/lib/publicUid"
 import { DEFAULT_VIEW_KIND } from "@/views/registry"
 import type { ItemRecord } from "@lib/db-items"
@@ -273,6 +274,9 @@ export const openExistingItem = (
     uid: item.uid,
     baseTimeModified: item.timeModified,
     form,
+    // The entry starts as what is stored. Without this it would read as edited and be
+    // saved back unchanged, which also marks the item as just modified.
+    savedSignature: serializeItemDraft(item.id, form),
     categoryInputValue: itemFilingLabel(item),
   })
 

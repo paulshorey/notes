@@ -12,6 +12,11 @@ import type { ItemCapabilityKey } from "../../contracts/item-capabilities"
  * item moves to workspace `$1`: the expression finds the row with the same label there.
  */
 export interface StoredItemPart {
+  /**
+   * For a capability: an SQL condition over the item row `n` that is true when the
+   * item holds it. It mirrors `isPresent` in the browser-safe half of the registry.
+   */
+  present?: string
   /** Columns of workspace_item_v1 this part owns. */
   columns: readonly string[]
   /** Tables with a foreign key to workspace_item_v1 this part owns, by table name. */
@@ -143,6 +148,8 @@ export const ITEM_TAXONOMY: StoredItemPart = {
  */
 export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart> = {
   text: {
+    // Text counts when it has a character that is not whitespace, as `hasText` decides.
+    present: String.raw`COALESCE(n.description,'') ~ '\S'`,
     columns: ["description"],
     tables: {},
     fields: {
@@ -154,6 +161,7 @@ export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart>
     },
   },
   schedule: {
+    present: `(n.time_due IS NOT NULL OR n.time_remind IS NOT NULL)`,
     columns: ["time_due", "time_remind"],
     tables: {},
     fields: {
@@ -166,6 +174,7 @@ export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart>
     },
   },
   status: {
+    present: `n.status_id IS NOT NULL`,
     columns: ["status_id"],
     tables: {},
     fields: {
@@ -204,6 +213,15 @@ export const ITEM_STORAGE_OWNERS = {
   columns: [...STORED_PARTS.flatMap((part) => part.columns), ...ITEM_DERIVED_COLUMNS],
   tables: STORED_PARTS.flatMap((part) => Object.keys(part.tables)),
 }
+
+/**
+ * True for an item row `n` that holds at least one capability. An item that holds none
+ * is not kept, so a statement that removes content from items deletes the ones it
+ * leaves empty.
+ */
+export const ITEM_HAS_CONTENT_SQL = `(${Object.values(STORED_ITEM_CAPABILITIES)
+  .map((part) => part.present)
+  .join(" OR ")})`
 
 const quoted = (name: string) => `"${name}"`
 const allFields = STORED_PARTS.flatMap((part) => Object.entries(part.fields))

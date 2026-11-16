@@ -44,7 +44,7 @@ export function useOpenItemsAutosave({
 }: {
   entries: OpenItemEntry[]
   enabled: boolean
-  /** Whether the entry's view saves it in its current state. */
+  /** Whether a save of the entry would send anything. */
   canSave: (entry: OpenItemEntry) => boolean
   saveEntry: (key: OpenItemKey, mode: "autosave") => boolean | Promise<boolean>
 }) {

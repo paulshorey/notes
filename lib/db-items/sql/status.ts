@@ -1,3 +1,4 @@
+import { ITEM_HAS_CONTENT_SQL } from "./item/stored-capabilities"
 import type { PoolClient } from "pg"
 import type { StatusRecord } from "../contracts/items-app"
 import { getDb } from "../lib/db/postgres"
@@ -86,9 +87,17 @@ export const deleteStatusForWorkspace = async (userId: number, workspaceId: numb
       await client.query("ROLLBACK")
       return false
     }
-    await client.query(
-      `UPDATE public.workspace_item_v1 SET status_id=NULL WHERE workspace_id=$1 AND status_id=$2`,
+    const unset = await client.query<{ id: number }>(
+      `UPDATE public.workspace_item_v1 SET status_id=NULL WHERE workspace_id=$1 AND status_id=$2
+       RETURNING id`,
       [workspaceId, id],
+    )
+    // An item whose only content was this status now holds nothing, and an item
+    // without content is not kept.
+    await client.query(
+      `DELETE FROM public.workspace_item_v1 n
+       WHERE n.workspace_id=$1 AND n.id=ANY($2::int[]) AND NOT ${ITEM_HAS_CONTENT_SQL}`,
+      [workspaceId, unset.rows.map((row) => row.id)],
     )
     await client.query(`DELETE FROM public.workspace_status_v1 WHERE id=$1 AND workspace_id=$2`, [
       id,
