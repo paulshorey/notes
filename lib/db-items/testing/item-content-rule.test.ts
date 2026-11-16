@@ -68,6 +68,12 @@ describe("an item without content is not kept (DB)", { skip: !testDbUrl }, () =>
     const ids = {
       text: await insert(w.workspaceId, { description: "words" }),
       blankText: await insert(w.workspaceId, { description: "  \n\t " }),
+      // Whitespace that `trim` removes but a locale's space class may not include.
+      unicodeSpaces: await insert(w.workspaceId, {
+        description: "\u00A0\u1680\u2003\u2028\u2029\u202F\u205F\u3000\uFEFF",
+      }),
+      // Characters `trim` keeps, which some collations call spaces.
+      controlOnly: await insert(w.workspaceId, { description: "\u0085\u001C" }),
       due: await insert(w.workspaceId, { due: "2027-01-02T03:04:05Z" }),
       remind: await insert(w.workspaceId, { remind: "2027-01-02T03:04:05Z" }),
       status: await insert(w.workspaceId, { status: w.status }),
@@ -92,6 +98,8 @@ describe("an item without content is not kept (DB)", { skip: !testDbUrl }, () =>
       {
         text: true,
         blankText: false,
+        unicodeSpaces: false,
+        controlOnly: true,
         due: true,
         remind: true,
         status: true,

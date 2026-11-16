@@ -104,6 +104,8 @@ function DateInput({
       }}
       onBlur={() => {
         if (!incomplete) return
+        // Switching to another window also blurs the field; that is not leaving it.
+        if (!document.hasFocus()) return
         // Left empty: the user removed the date.
         setIncomplete(false)
         onCommit(null)

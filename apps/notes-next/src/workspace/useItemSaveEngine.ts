@@ -90,6 +90,23 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     detachRemovedEntriesRef.current(setMaxOpenItemsInStore(preferredMaxOpenItems))
   }, [preferredMaxOpenItems, setMaxOpenItemsInStore])
 
+  /**
+   * Forget the record of an entry that left the ring, once the save that captured it
+   * has stored its text. Only that save may do it, and only while the record still
+   * holds the text it captured: a save of the open entry that started earlier, or a
+   * later record for the same key, would otherwise erase words that were never sent.
+   */
+  const forgetDetachedSave = useCallback(
+    (key: OpenItemKey, captured: { form: unknown }) => {
+      if (detachedSavesRef.current.get(key)?.form !== captured.form) return
+      detachedSavesRef.current.delete(key)
+      // Evicted notes live in the snapshot until this lands. Drop them now so a
+      // reload does not reopen a note the user already closed.
+      persistOpenItemsRef.current()
+    },
+    [detachedSavesRef, persistOpenItemsRef],
+  )
+
   const saveEntry = useCallback(
     async function saveEntry(key: OpenItemKey, mode: ItemSaveMode): Promise<boolean> {
       if (mode !== "flush" && useItemsAppStore.getState().itemGroupDialog) {
@@ -112,7 +129,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       // Nothing left to save: the entry was closed and its work already landed.
       if (!source) return true
 
-      const formSnapshot = snapshotTextCaptureForm(source.form)
+      let formSnapshot = snapshotTextCaptureForm(source.form)
       let itemId = source.itemId
       let draftSignature = serializeItemDraft(itemId, formSnapshot)
 
@@ -142,7 +159,12 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
         itemId = settled.itemId
         draftSignature = serializeItemDraft(itemId, formSnapshot)
-        if (draftSignature === settled.savedSignature) return true
+        if (draftSignature === settled.savedSignature) {
+          // The save this one waited for already stored the same content, so the
+          // record of what left the ring has nothing more to send.
+          if (detached) forgetDetachedSave(key, detached)
+          return true
+        }
       }
 
       // Decided once the item's address is settled: the save that was in flight may
@@ -168,45 +190,50 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         if (action === "delete" && itemId !== null) {
           // This snapshot may be older than the entry: a flush or a queued save pins
           // it before waiting its turn. If the user has typed since, the item is not
-          // empty any more, and the next save sends what it holds.
-          const current = detached
-            ? null
-            : useItemsAppStore.getState().openItems.find((item) => item.key === key)
+          // empty any more, and this save sends what it holds now instead.
+          const current =
+            detachedSavesRef.current.get(key) ??
+            useItemsAppStore.getState().openItems.find((item) => item.key === key)
           if (current && draftHoldsContent(current.form)) {
-            queuedAutosaveKeysRef.current.add(key)
+            formSnapshot = snapshotTextCaptureForm(current.form)
+          } else {
+            // Already gone is the outcome asked for: the exit keepalive may have sent
+            // this deletion, or an earlier answer was lost.
+            const response = await send("DELETE", { itemId })
+            if (response.status !== 404) await readJson<{ ok: true }>(response)
+            if (userRef.current?.id !== currentUser.id) return
+            forgetDeletedItem(currentUser.id, workspaceId, itemId)
+            scheduleTaxonomyRefresh(currentUser.id)
+            patchEntry(key, { itemId: null, baseTimeModified: null, savedSignature: null })
+            const detachedRecord = detachedSavesRef.current.get(key)
+            if (detachedRecord) {
+              detachedSavesRef.current.set(key, {
+                ...detachedRecord,
+                itemId: null,
+                savedSignature: null,
+              })
+            }
+            setStatusMessage("The empty note was removed.")
             return
           }
-          // Already gone is the outcome asked for: the exit keepalive may have sent
-          // this deletion, or an earlier answer was lost.
-          const response = await send("DELETE", { itemId })
-          if (response.status !== 404) await readJson<{ ok: true }>(response)
-          if (userRef.current?.id !== currentUser.id) return
-          forgetDeletedItem(currentUser.id, workspaceId, itemId)
-          scheduleTaxonomyRefresh(currentUser.id)
-          patchEntry(key, { itemId: null, baseTimeModified: null, savedSignature: null })
-          const detachedRecord = detachedSavesRef.current.get(key)
-          if (detachedRecord) {
-            detachedSavesRef.current.set(key, {
-              ...detachedRecord,
-              itemId: null,
-              savedSignature: null,
-            })
-          }
-          setStatusMessage("The empty note was removed.")
-          return
         }
 
-        let response =
-          itemId === null
-            ? await send("POST", {
-                item: newItemRequestBody(formSnapshot, workspaceId, source.uid),
-              })
-            : await update(itemId)
+        const create = () =>
+          send("POST", { item: newItemRequestBody(formSnapshot, workspaceId, source.uid) })
+
+        let creating = itemId === null
+        let response = itemId === null ? await create() : await update(itemId)
+        // The item was deleted somewhere else while this entry was open. What the user
+        // is writing is kept: it is created again under the entry's uid.
+        if (!creating && response.status === 404) {
+          creating = true
+          response = await create()
+        }
         let data = await readJson<{ item: ItemRecord }>(response)
 
         // A create answered with 200 found the item an earlier attempt had stored, so
         // this version was not written. It goes to that item as an update.
-        if (itemId === null && response.status === 200) {
+        if (creating && response.status === 200) {
           response = await update(data.item.id)
           data = await readJson<{ item: ItemRecord }>(response)
         }
@@ -273,12 +300,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         // Drop the detached record only once its text is actually stored.
         // Keeping it on failure is what lets the exit keepalive and the
         // pre-sign-out flush still find the words that left the ring.
-        if (persisted) {
-          detachedSavesRef.current.delete(key)
-          // Evicted notes live in the snapshot until this lands. Drop them now
-          // so a reload does not reopen a note the user already closed.
-          if (detached) persistOpenItemsRef.current()
-        }
+        if (persisted && detached) forgetDetachedSave(key, detached)
       }
 
       if (queuedAutosaveKeysRef.current.delete(key)) {
@@ -295,9 +317,9 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       detachedSavesRef,
       groupDeferredSaveKeysRef,
       forgetDeletedItem,
+      forgetDetachedSave,
       mergeSavedItem,
       patchEntry,
-      persistOpenItemsRef,
       queuedAutosaveKeysRef,
       saveInFlightRef,
       scheduleTaxonomyRefresh,

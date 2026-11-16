@@ -157,7 +157,10 @@ between views, so the session, the open-item ring, and pending saves carry acros
     is not kept. The entry stays open as an unsaved draft with the same uid, so typing
     again creates the item anew under that uid. The exit keepalive sends the deletion
     too, an answer that the item is already gone counts as done, and a restored entry
-    whose item was deleted this way is dropped.
+    whose item was deleted this way is dropped. A deletion reads the entry again
+    before it is sent; if the user has typed since, it sends that content instead.
+  - An update answered `404` means the item was deleted somewhere else. What the user
+    is writing is kept: the item is created again under the entry's uid.
   - An entry opened from a stored item starts clean (`savedSignature` is set from the
     item), so opening a note sends nothing. A date field that is empty while focused
     is an edit in progress; the date is removed when the field is left empty.
@@ -235,7 +238,7 @@ Notes persist through `saveEntry(key, mode)` in `useItemSaveEngine.ts`, keyed by
 
 - `autosave` — trailing debounce (`ITEM_AUTOSAVE_DEBOUNCE_MS`, 3s). Saves for different entries run concurrently; a second save of the _same_ entry queues behind the first.
 - `flush` — awaited save, used where the session, the workspace, or a group is about to change (`handleLogin`, `handleSignup`, `handleLogout`, workspace switch, backup, group actions) via `flushAllPendingSaves()` and `prepareItemGroupAction`. Ordinary note switching does not flush. Both collect entries with `collectSessionFlushEntries`, which waits only for entries that have a save to send. An untouched slot, or a draft its view would not start an item from (in Notes, one holding only tags, a date, or a status), sends nothing and never blocks the change. An entry with a save to send still blocks when that save fails, so nothing the user wrote is lost.
-- `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is not retried.
+- `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is not retried. Only the detached save itself forgets its record (`forgetDetachedSave`), and only while the record still holds the text it captured, so a save of the open entry that started earlier cannot erase words typed just before the note was closed.
 
 `pagehide`/`visibilitychange` write the persistence snapshot **first**, while entries are still dirty and including anything in `detachedSaves`. That snapshot is the durable recovery if keepalive bodies are dropped (browsers share a bounded in-flight quota). Keepalive then sends every pending entry: a POST for a never-saved draft, a PATCH for a stored note, and a DELETE for a stored note that was emptied. `visibilitychange` then `pagehide` share a sent-keys set so the same request is not fired twice.
 

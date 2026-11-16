@@ -148,8 +148,10 @@ export const ITEM_TAXONOMY: StoredItemPart = {
  */
 export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart> = {
   text: {
-    // Text counts when it has a character that is not whitespace, as `hasText` decides.
-    present: String.raw`COALESCE(n.description,'') ~ '\S'`,
+    // Text counts when it has a character that JavaScript's `trim` would keep, which is
+    // what `hasText` decides. The whitespace is listed, because the regular expression
+    // classes for it follow the database's collation and differ between providers.
+    present: String.raw`COALESCE(n.description,'') ~ '[^\t\n\v\f\r \u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]'`,
     columns: ["description"],
     tables: {},
     fields: {
