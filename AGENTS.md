@@ -84,9 +84,14 @@ semantic search. See [agent setup](docs/operations/agent-environment.md) for fla
 
 Docs, guides, and code comments describe only the current code and infrastructure.
 NEVER describe removed or replaced systems, former names or IDs, or how a change or
-migration happened; Git history and PR descriptions hold that. When something changes,
-rewrite the affected text to state the new reality. Compatibility code that still
-exists is current: describe what it does now.
+migration happened; Git history holds that. When something changes, rewrite the
+affected text to state the new reality. Compatibility code that still exists is
+current: describe what it does now.
+
+Plans and PR descriptions follow the same rule. Describe the change against the base
+branch and the reasons for its decisions. Do not mention superseded PRs, discarded
+plans or implementations, or review back-and-forth, unless the reader needs it to
+understand or safely ship the change.
 
 # Research and report
 

@@ -29,7 +29,8 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 
 `ItemInput` contains `workspaceId`, `categoryIds`, nullable `statusId`, `tagIds`,
 nullable `description`, `timeDue`, and `timeRemind`. The HTTP parser accepts
-omitted text as null. The current text capture form requires nonblank text.
+omitted text as null. `POST` and `PATCH` return `400` when the item would hold no
+content capability; today that means nonblank text (`contracts/item-capabilities.ts`).
 `ItemRecord` returns `id`, `workspaceId`, category/status/tag references,
 `description`, due/reminder dates, and creation/modification timestamps. An item
 has one workspace; relationship IDs must belong to that workspace. A new item
@@ -37,7 +38,6 @@ can have zero category links. No exclusive `type` field is introduced.
 
 Search ranks query embeddings against item description embeddings. Maintenance
 modes are `missing` and `stale`. Search does not implicitly repair embeddings.
-Textless items persist without requiring an embedding-provider call.
 
 ## Shared routes and older clients
 

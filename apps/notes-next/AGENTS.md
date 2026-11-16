@@ -170,7 +170,8 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
   Popup so outside-click handling cannot unmount the portaled modal.
 - **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
 - This package consumes item contracts; `@lib/db-items` owns migrations.
-  The text client selects `isTextItem` records and requires nonblank text when saving.
+  The text client selects `isTextItem` records. Its save check (`isSaveableForm`) and
+  the item service share `hasItemContent` from `@lib/db-items/contracts/item-capabilities`.
   Canonical requests use `/api/items` and `X-Items-Contract: 1`; the legacy Notes
   HTTP facade and persisted identity/storage names are rollout compatibility boundaries.
   See `docs/db/item-core.md`.
