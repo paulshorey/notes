@@ -56,7 +56,9 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - `sql/item/stored-capabilities.ts`: the server half of the capability registry.
   Backup export and import, duplicate detection, and account merge are generated
   from it. Never list item columns by hand in those paths; declare the column or
-  table under the part that owns it. `db:verify` runs
+  table under the part that owns it. A table entry must name the backup field that
+  exports its rows and the statement that imports them, plus `rehome` if its rows
+  point into the workspace. `db:verify` runs
   `scripts/audit-item-storage.ts` and fails on an item column or item-referencing
   table that nothing declares.
 

@@ -16,7 +16,7 @@ import {
   USER_BACKUP_VERSION,
 } from "../../contracts/user-backup"
 import { getDb } from "../../lib/db/postgres"
-import { IMPORT_ITEMS_CTE, PORTABLE_ITEMS_SQL } from "../item/stored-capabilities"
+import { IMPORT_ITEMS_SQL, PORTABLE_ITEMS_SQL } from "../item/stored-capabilities"
 import { mergeAnonymousUserIntoWithClient } from "./anonymous"
 
 export class BackupAccountError extends Error {
@@ -163,19 +163,8 @@ const insertSubcategories = async (
   )
 }
 
-const insertItems = async (client: PoolClient, workspaceId: number, values: BackupItem[]) => {
-  // One statement stages every item and its tag links. Link inserts depend on
-  // inserted ids, so foreign keys see the items written by the same statement.
-  await client.query(
-    `${IMPORT_ITEMS_CTE}, tag_links AS (
-       INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
-       SELECT n.id,t.id,$1 FROM items n JOIN inserted i ON i.id=n.id
-       CROSS JOIN LATERAL unnest(n.tags) labels(label)
-       JOIN public.workspace_tag_v1 t ON t.workspace_id=$1 AND t.label=labels.label
-     ) SELECT COUNT(*) FROM inserted`,
-    [workspaceId, JSON.stringify(values)],
-  )
-}
+const insertItems = (client: PoolClient, workspaceId: number, values: BackupItem[]) =>
+  client.query(IMPORT_ITEMS_SQL, [workspaceId, JSON.stringify(values)])
 
 /** Stage the validated file as an anonymous source, then call the sign-in merge
  * in the SAME transaction. Failed staging/merge cannot leave temporary users or

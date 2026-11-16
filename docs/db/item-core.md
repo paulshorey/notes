@@ -35,6 +35,13 @@ fields in a backup item, how each field is exported and imported, whether it cou
 toward duplicate detection, and how a column that points into the item's workspace is
 re-pointed when the item moves to another workspace.
 
+A table that belongs to items cannot be declared on its own. Its entry names the backup
+field that reads its rows and gives the statement that writes them on restore, so
+owning a table always includes backing it up. A table whose rows also point into the
+workspace, as tag links do, adds how those rows are detached and attached again when
+the item moves; a table keyed only by item id needs nothing, because the item keeps its
+id. Rows in a retired table are deleted when their item moves.
+
 Four things are generated from those declarations and list no item column themselves:
 
 - **Backup export and import** (`sql/user/backup.ts`).

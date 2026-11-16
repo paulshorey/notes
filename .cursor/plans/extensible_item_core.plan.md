@@ -299,7 +299,9 @@ lists item columns by hand and a new capability cannot be left out of one of the
 - **Moving is not editing.** The timestamp trigger keeps a row's modification time while
   a transaction sets `app.keep_time_modified`, which the merge does around its moves.
 - **Registry-driven backup.** Each part declares its backup fields, how each is exported
-  and imported, and whether it counts toward duplicate detection. The backup version
+  and imported, and whether it counts toward duplicate detection. A table a part owns
+  must name the field that exports its rows and the statement that imports them, so a
+  table cannot be declared without being backed up. The backup version
   increases whenever the file gains a field, and the importer reads every earlier
   version.
 - **Guard.** `db:verify` fails on a column of `workspace_item_v1`, or a table with a

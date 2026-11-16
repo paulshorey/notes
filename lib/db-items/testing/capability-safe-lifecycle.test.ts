@@ -7,9 +7,12 @@ import { mergeAnonymousItemsAppSession } from "../services/items-app"
 import { listItemsByUser } from "../sql/item"
 import { findUndeclaredItemStorage } from "../sql/item/storage-audit"
 import {
+  IMPORT_ITEMS_SQL,
   ITEM_CORE,
   ITEM_IDENTITY_FIELDS,
+  ITEM_RETIRED_TABLES,
   ITEM_TAXONOMY,
+  MOVE_ITEMS_SQL,
   STORED_ITEM_CAPABILITIES,
 } from "../sql/item/stored-capabilities"
 import { createAnonymousUser } from "../sql/user/anonymous"
@@ -38,6 +41,20 @@ test("a backup item holds exactly the fields the registry declares", () => {
     [...ITEM_IDENTITY_FIELDS].sort(),
     declared.filter((field) => field !== "timeModified").sort(),
   )
+})
+
+test("every table a part owns is carried by one of that part's backup fields", () => {
+  for (const part of [ITEM_CORE, ITEM_TAXONOMY, ...Object.values(STORED_ITEM_CAPABILITIES)])
+    for (const [name, table] of Object.entries(part.tables)) {
+      // Without an exported field and an import, the rows would vanish on restore.
+      assert.ok(part.fields[table.field]?.export, `${name} names no exported field`)
+      assert.match(table.import, new RegExp(`INSERT INTO public\\.${name}\\b`), name)
+      assert.ok(IMPORT_ITEMS_SQL.includes(table.import), `${name} is not part of the import`)
+      if (table.rehome) assert.ok(MOVE_ITEMS_SQL.includes(table.rehome.detach), name)
+    }
+  // Rows of a retired table are dropped when their item moves, not left behind.
+  for (const name of ITEM_RETIRED_TABLES)
+    assert.match(MOVE_ITEMS_SQL, new RegExp(`DELETE FROM public\\.${name}\\b`), name)
 })
 
 describe("items keep their identity across accounts (DB)", { skip: !testDbUrl }, () => {
@@ -156,6 +173,13 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
       [realWorkspace.id],
     )
     const source = await visitor("shared name")
+    // An item filed before the single-category release still has a row in the retired
+    // link table, which pins it to its workspace through a composite foreign key.
+    await getDb().query(
+      `INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id)
+       SELECT n.id,n.category_id,n.workspace_id FROM public.workspace_item_v1 n WHERE n.id=$1`,
+      [source.item],
+    )
     const before = await stored(source.item)
 
     await mergeAnonymousItemsAppSession({ anonUserId: source.userId, realUserId })
@@ -190,6 +214,14 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
     assert.ok(tagIds.every((link) => link.workspace_id === realWorkspace.id))
     // Rows keyed by the item id came along without the merge knowing the table.
     assert.deepEqual(await probeRows(source.item), ["a", "b"])
+    assert.equal(
+      (
+        await getDb().query(`SELECT 1 FROM public.item_category_link_v1 WHERE item_id=$1`, [
+          source.item,
+        ])
+      ).rowCount,
+      0,
+    )
     // The account's status keeps its own position; the visitor's workspace is gone.
     assert.equal(
       (

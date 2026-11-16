@@ -14,13 +14,35 @@ import type { ItemCapabilityKey } from "../../contracts/item-capabilities"
 export interface StoredItemPart {
   /** Columns of workspace_item_v1 this part owns. */
   columns: readonly string[]
-  /** Tables with a foreign key to workspace_item_v1 this part owns. */
-  tables: readonly string[]
+  /** Tables with a foreign key to workspace_item_v1 this part owns, by table name. */
+  tables: Record<string, StoredItemTable>
   fields: Record<
     string,
     { type: string; export: string; import?: Record<string, string>; identity?: false }
   >
   rehome?: Record<string, string>
+}
+
+/**
+ * A table of rows that belong to items. Owning one means carrying its rows everywhere
+ * the item goes, so a table cannot be declared without saying how.
+ */
+export interface StoredItemTable {
+  /** The backup field of the same part whose `export` reads this table's rows. */
+  field: string
+  /**
+   * Writes the rows of restored items: the body of a data-modifying statement that
+   * reads the staged backup rows `items` (joined to `inserted` for the ids written)
+   * in workspace `$1`.
+   */
+  import: string
+  /**
+   * Needed only when a row also points into the item's workspace, so it cannot simply
+   * follow its item to another one. `detach` removes the rows of the `moved` items and
+   * returns what `attach` needs to write them again for workspace `$1`; `attach`
+   * receives the name of the relation holding those returned rows.
+   */
+  rehome?: { detach: string; attach: (detached: string) => string }
 }
 
 const labelIn = (table: string, workspace: string, label: string) =>
@@ -29,7 +51,7 @@ const labelIn = (table: string, workspace: string, label: string) =>
 /** Identity and ownership: present on every item, never content. */
 export const ITEM_CORE: StoredItemPart = {
   columns: ["id", "workspace_id", "time_created", "time_modified"],
-  tables: [],
+  tables: {},
   fields: {
     timeCreated: {
       type: "timestamptz",
@@ -46,10 +68,26 @@ export const ITEM_CORE: StoredItemPart = {
   },
 }
 
-/** Where the item is filed. Tags are links, written after the items exist. */
+/** Where the item is filed. Tags are links to the workspace's tags, matched by label. */
 export const ITEM_TAXONOMY: StoredItemPart = {
   columns: ["category_id", "subcategory_id"],
-  tables: ["item_tag_link_v1"],
+  tables: {
+    item_tag_link_v1: {
+      field: "tags",
+      import: `INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
+        SELECT n.id,t.id,$1 FROM items n JOIN inserted i ON i.id=n.id
+        CROSS JOIN LATERAL unnest(n.tags) labels(label)
+        JOIN public.workspace_tag_v1 t ON t.workspace_id=$1 AND t.label=labels.label`,
+      rehome: {
+        detach: `DELETE FROM public.item_tag_link_v1 l USING moved m WHERE l.item_id=m.id
+          RETURNING l.item_id,l.tag_id`,
+        attach: (detached) => `INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
+          SELECT o.item_id,dt.id,$1 FROM ${detached} o
+          JOIN public.workspace_tag_v1 st ON st.id=o.tag_id
+          JOIN public.workspace_tag_v1 dt ON dt.workspace_id=$1 AND dt.label=st.label`,
+      },
+    },
+  },
   fields: {
     category: {
       type: "text",
@@ -92,7 +130,7 @@ export const ITEM_TAXONOMY: StoredItemPart = {
 export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart> = {
   text: {
     columns: ["description"],
-    tables: [],
+    tables: {},
     fields: {
       description: {
         type: "text",
@@ -103,7 +141,7 @@ export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart>
   },
   schedule: {
     columns: ["time_due", "time_remind"],
-    tables: [],
+    tables: {},
     fields: {
       timeDue: { type: "timestamptz", export: "n.time_due", import: { time_due: `n."timeDue"` } },
       timeRemind: {
@@ -115,7 +153,7 @@ export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart>
   },
   status: {
     columns: ["status_id"],
-    tables: [],
+    tables: {},
     fields: {
       status: {
         type: "text",
@@ -141,7 +179,11 @@ export const ITEM_DERIVED_COLUMNS = [
   "embedding_updated_at",
 ] as const
 
-/** Tables that reference items but are no longer read or written. */
+/**
+ * Tables that reference items but are no longer read or written. Their rows are not
+ * carried anywhere; a moved item's rows are deleted so they cannot hold it in its old
+ * workspace.
+ */
 export const ITEM_RETIRED_TABLES = ["item_category_link_v1"] as const
 
 const STORED_PARTS: readonly StoredItemPart[] = [
@@ -153,7 +195,7 @@ const STORED_PARTS: readonly StoredItemPart[] = [
 /** Every item column and item-referencing table that some part accounts for. */
 export const ITEM_STORAGE_OWNERS = {
   columns: [...STORED_PARTS.flatMap((part) => part.columns), ...ITEM_DERIVED_COLUMNS],
-  tables: [...STORED_PARTS.flatMap((part) => part.tables), ...ITEM_RETIRED_TABLES],
+  tables: [...STORED_PARTS.flatMap((part) => Object.keys(part.tables)), ...ITEM_RETIRED_TABLES],
 }
 
 const quoted = (name: string) => `"${name}"`
@@ -172,12 +214,15 @@ export const PORTABLE_ITEMS_SQL = `SELECT n.id,${allFields
 
 const imported = allFields.flatMap(([, field]) => Object.entries(field.import ?? {}))
 
+const ownedTables = STORED_PARTS.flatMap((part) => Object.entries(part.tables))
+
 /**
- * Stage the backup items in `$2` (a JSON array) as items of workspace `$1`. Exposes two
- * relations to the statement that follows it: `items`, the staged rows with their new
- * ids, and `inserted`, the ids actually written.
+ * Restore the backup items in `$2` (a JSON array) as items of workspace `$1`: one
+ * statement stages every item with a new id, writes the item rows, then writes each
+ * owned table's rows. Those depend on the new ids, and running in the same statement
+ * lets their foreign keys see the items it wrote.
  */
-export const IMPORT_ITEMS_CTE = `WITH items AS MATERIALIZED (
+export const IMPORT_ITEMS_SQL = `WITH items AS MATERIALIZED (
     SELECT nextval(pg_get_serial_sequence('public.workspace_item_v1','id'))::int id,v.*
     FROM jsonb_to_recordset($2::jsonb) v(${allFields
       .map(([name, field]) => `${quoted(name)} ${field.type}`)
@@ -187,30 +232,28 @@ export const IMPORT_ITEMS_CTE = `WITH items AS MATERIALIZED (
     SELECT n.id,$1,${imported.map(([, value]) => value).join(",\n      ")}
     FROM items n
     RETURNING id
-  )`
+  )${ownedTables.map(([name, table]) => `, ${quoted(`${name}_rows`)} AS (\n    ${table.import}\n  )`).join("")}
+  SELECT COUNT(*) FROM inserted`
 
 const rehomed = STORED_PARTS.flatMap((part) => Object.entries(part.rehome ?? {}))
+const rehomedTables = ownedTables.flatMap(([name, table]) =>
+  table.rehome ? [{ name, ...table.rehome }] : [],
+)
 
 /**
  * Move the items of workspace `$2` to workspace `$1`, except the ids in `$3`. The rows
- * keep their ids, so everything keyed by item id comes along. Columns that point into
- * the old workspace are re-pointed by label, and tag links are re-created against the
- * destination's tags. Returns the moved ids.
+ * keep their ids, so everything keyed only by item id comes along untouched. Columns
+ * that point into the old workspace are re-pointed by label, and tables whose rows do
+ * the same are detached and attached again. It is one statement, so the composite
+ * foreign keys are checked once, against the final state. Returns the moved ids.
  */
 export const MOVE_ITEMS_SQL = `WITH moved AS MATERIALIZED (
     SELECT n.id FROM public.workspace_item_v1 n
     WHERE n.workspace_id=$2 AND n.id<>ALL($3::int[])
-  ), old_links AS (
-    DELETE FROM public.item_tag_link_v1 l USING moved m WHERE l.item_id=m.id
-    RETURNING l.item_id,l.tag_id
-  ), updated AS (
+  )${rehomedTables.map(({ name, detach }) => `, ${quoted(`${name}_detached`)} AS (\n    ${detach}\n  )`).join("")}${ITEM_RETIRED_TABLES.map((name) => `, ${quoted(`${name}_retired`)} AS (\n    DELETE FROM public.${name} l USING moved m WHERE l.item_id=m.id\n  )`).join("")}, updated AS (
     UPDATE public.workspace_item_v1 n SET workspace_id=$1,
       ${rehomed.map(([column, value]) => `${column}=${value}`).join(",\n      ")}
     FROM moved m WHERE n.id=m.id
     RETURNING n.id
-  ), new_links AS (
-    INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
-    SELECT o.item_id,dt.id,$1 FROM old_links o
-    JOIN public.workspace_tag_v1 st ON st.id=o.tag_id
-    JOIN public.workspace_tag_v1 dt ON dt.workspace_id=$1 AND dt.label=st.label
-  ) SELECT id FROM updated ORDER BY id`
+  )${rehomedTables.map(({ name, attach }) => `, ${quoted(`${name}_attached`)} AS (\n    ${attach(quoted(`${name}_detached`))}\n  )`).join("")}
+  SELECT id FROM updated ORDER BY id`
