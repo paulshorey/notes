@@ -153,6 +153,15 @@ const LABEL_CONFLICTS: Record<string, string> = {
     "A subcategory with that name already exists in this category.",
 }
 
+/**
+ * An item filed in the target after the group's items were read but before the target
+ * row was locked still references it, so removing the target fails its foreign key.
+ */
+const FILING_CONSTRAINTS = new Set([
+  "workspace_item_v1_category_workspace_fkey",
+  "workspace_item_v1_subcategory_category_fkey",
+])
+
 const withGroup = async <T>(
   userId: number,
   selection: ItemGroupSelection,
@@ -170,6 +179,12 @@ const withGroup = async <T>(
     await client.query("ROLLBACK")
     if (error && typeof error === "object" && "code" in error) {
       if (error.code === "40001" || error.code === "40P01") throw new ItemGroupConflictError()
+      if (
+        error.code === "23503" &&
+        "constraint" in error &&
+        FILING_CONSTRAINTS.has(String(error.constraint))
+      )
+        throw new ItemGroupConflictError()
       if (error.code === "23505") {
         const constraint = "constraint" in error ? String(error.constraint) : ""
         throw new ItemGroupConflictError(

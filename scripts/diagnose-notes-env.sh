@@ -311,6 +311,7 @@ WITH required(name) AS (
     ('public.user_workspace_v1'),
     ('public.workspace_item_v1'),
     ('public.workspace_category_v1'),
+    ('public.workspace_subcategory_v1'),
     ('public.workspace_status_v1'),
     ('public.workspace_tag_v1'),
     ('public.item_category_link_v1'),

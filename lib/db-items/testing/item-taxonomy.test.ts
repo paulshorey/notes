@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
+import { Client } from "pg"
 import type { ItemGroupSelection } from "../contracts/item-group-actions"
 import type { ItemInput } from "../contracts/items-app"
 import { getDb } from "../lib/db/postgres"
@@ -398,6 +399,68 @@ describe("one category and one subcategory per item (DB)", { skip: !testDbUrl },
     const untouched = await f.stored(elsewhere.id)
     assert.deepEqual(untouched.subcategory, { id: chores, label: "chores" })
     assert.equal(untouched.timeModified, elsewhere.timeModified)
+  })
+
+  test("an item filed while a category delete waits for its lock makes the delete a conflict", async () => {
+    const f = await fixture()
+    const work = await f.category("work")
+    const existing = await f.item({ categoryId: work, description: "existing" })
+    const selection = f.target({ kind: "category", categoryId: work })
+    const preview = await previewItemGroup(f.userId, selection)
+    const writer = new Client({ connectionString: testDbUrl })
+    await writer.connect()
+    let operation: Promise<unknown> | undefined
+    try {
+      // The uncommitted insert holds a key-share lock on the category row, so the
+      // delete reads its items without this one and then waits to lock the category.
+      await writer.query("BEGIN")
+      const late = (
+        await writer.query<{ id: number }>(
+          `INSERT INTO public.workspace_item_v1(workspace_id,category_id,description)
+           VALUES($1,$2,'late') RETURNING id`,
+          [f.workspace.id, work],
+        )
+      ).rows[0]!.id
+      await writer.query("SELECT 1 FROM pg_stat_activity WHERE datname=current_database()")
+      operation = executeItemGroupAction(
+        f.userId,
+        selection,
+        { kind: "delete", deleteItems: false },
+        preview.snapshot,
+      )
+      let blocked = false
+      for (let attempt = 0; attempt < 100 && !blocked; attempt++) {
+        await writer.query("SELECT pg_stat_clear_snapshot()")
+        blocked =
+          (
+            await writer.query(
+              `SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+               AND wait_event_type='Lock' AND pg_backend_pid()=ANY(pg_blocking_pids(pid))
+               AND query LIKE 'SELECT id,label,xmin::text AS revision FROM public.workspace_category_v1%'`,
+            )
+          ).rowCount! > 0
+        if (!blocked) await new Promise((resolve) => setTimeout(resolve, 5))
+      }
+      assert.equal(blocked, true, "the delete must wait on the writer's category lock")
+      await writer.query("COMMIT")
+
+      await assert.rejects(operation, (error) => {
+        assert.ok(error instanceof ItemGroupConflictError)
+        assert.match(error.message, /This group changed/)
+        return true
+      })
+      // Nothing was removed or unfiled.
+      assert.deepEqual(
+        (await f.categories()).map((category) => category.id),
+        [work],
+      )
+      for (const itemId of [existing.id, late])
+        assert.deepEqual((await f.stored(itemId)).category, { id: work, label: "work" })
+    } finally {
+      await writer.query("ROLLBACK")
+      await operation?.catch(() => undefined)
+      await writer.end()
+    }
   })
 
   test("naming the uncategorized group files only unfiled items", async () => {

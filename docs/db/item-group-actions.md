@@ -55,7 +55,8 @@ category and subcategory identity/label/revision, a category's subcategories, an
 ordered item IDs/revisions with their category and subcategory.
 It is a change detector, not a permission token or long-lived group ID. PostgreSQL
 row revisions avoid timestamp precision loss. Changes before execution, serialization
-failures, and deadlocks return 409; no mutation is automatically retried against a
+failures, deadlocks, and an item filed in the target while a delete waits for the
+target's lock return 409; no mutation is automatically retried against a
 new selection. A timeout or lost response requires a new preview and explicit
 confirmation. Newly arrived items are never swept into a replay of an old preview.
 
