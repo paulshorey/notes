@@ -126,6 +126,48 @@ test("a category that moved into another is replaced by that category's new subc
   })
 })
 
+test("a draft follows a move even when this client's category list is out of date", () => {
+  // Another tab added "packing" (23) to home after this client loaded its list, so the
+  // response holds two subcategories this client has never seen.
+  const nested = result({
+    category: category(2, "home", 6, [
+      [21, "ideas", 1],
+      [23, "packing", 0],
+      [22, "trips", 4],
+    ]),
+    removedCategoryId: 3,
+  })
+  assert.deepEqual(refileAfterGroupResult(before, nested, { categoryId: 3, subcategoryId: null }), {
+    categoryId: 2,
+    subcategoryId: 22,
+  })
+  // The destination itself is unknown to this client.
+  const intoUnknown = result({
+    category: category(8, "elsewhere", 4, [
+      [81, "older", 0],
+      [82, "trips", 4],
+    ]),
+    removedCategoryId: 3,
+  })
+  assert.deepEqual(
+    refileAfterGroupResult(before, intoUnknown, { categoryId: 3, subcategoryId: null }),
+    { categoryId: 8, subcategoryId: 82 },
+  )
+  // The moved category is unknown to this client: there is no label to match, so the
+  // draft is left for the caller to repair instead of being filed by guesswork.
+  const unknownSource = result({ category: nested.category, removedCategoryId: 7 })
+  assert.deepEqual(
+    refileAfterGroupResult(before, unknownSource, { categoryId: 7, subcategoryId: null }),
+    { categoryId: 7, subcategoryId: null },
+  )
+  // A subcategory became a category whose id this client already holds in its list.
+  const promoted = result({ category: category(3, "trips", 5), removedSubcategoryId: 12 })
+  assert.deepEqual(refileAfterGroupResult(before, promoted, { categoryId: 1, subcategoryId: 12 }), {
+    categoryId: 3,
+    subcategoryId: null,
+  })
+})
+
 test("deleting and renaming keep their existing effect on the list and move no draft", () => {
   const deletedSubcategory = result({
     category: category(1, "work", 5, [[11, "ideas", 3]]),

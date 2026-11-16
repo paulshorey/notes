@@ -139,12 +139,15 @@ export const refileAfterGroupResult = (
 ): { categoryId: number | null; subcategoryId: number | null } => {
   const destination = result.category
   if (!destination || filing.categoryId === null) return filing
-  const wasThere = previousCategories.find((category) => category.id === destination.id)
 
-  // A category moved into another one: it is now that category's new subcategory.
+  // A category moved into another one. Its new subcategory has the category's label,
+  // which is unique within the destination, so the label identifies it even when this
+  // client's copy of the destination is missing other subcategories.
   if (result.removedCategoryId !== null && filing.categoryId === result.removedCategoryId) {
-    const known = new Set(wasThere?.subcategories.map((subcategory) => subcategory.id))
-    const created = destination.subcategories.find((subcategory) => !known.has(subcategory.id))
+    const moved = previousCategories.find((category) => category.id === result.removedCategoryId)
+    const created = destination.subcategories.find(
+      (subcategory) => subcategory.label === moved?.label,
+    )
     return created ? { categoryId: destination.id, subcategoryId: created.id } : filing
   }
   if (filing.subcategoryId === null) return filing
@@ -153,8 +156,9 @@ export const refileAfterGroupResult = (
   if (destination.subcategories.some((subcategory) => subcategory.id === filing.subcategoryId))
     return { categoryId: destination.id, subcategoryId: filing.subcategoryId }
 
-  // A subcategory became a category: the response names a category that did not exist.
-  if (result.removedSubcategoryId === filing.subcategoryId && !wasThere)
+  // A subcategory became a category: the response names a category other than the one
+  // the subcategory was in. Deleting a subcategory names that same category instead.
+  if (result.removedSubcategoryId === filing.subcategoryId && destination.id !== filing.categoryId)
     return { categoryId: destination.id, subcategoryId: null }
   return filing
 }
