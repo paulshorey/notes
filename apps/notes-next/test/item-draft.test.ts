@@ -3,12 +3,14 @@ import test from "node:test"
 import type { ItemRecord } from "@lib/db-items"
 import {
   createEmptyItemDraft,
+  isBlankItemDraft,
   itemDraftFromItem,
   itemDraftRequest,
   itemListLabel,
 } from "../src/capabilities/draftParts"
 import { toDateTimeLocalValue } from "../src/lib/dates"
 import { itemRequestBody, serializeItemDraft } from "../src/lib/itemDraft"
+import { ITEM_VIEWS, viewForPath } from "../src/views/registry"
 
 const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   id: 12,
@@ -107,4 +109,41 @@ test("a list names an item by its text, then by what else it holds", () => {
     /^Reminder \S+/,
   )
   assert.equal(itemListLabel(item({ description: null, status: null, timeDue: null })), "Untitled")
+})
+
+test("a draft is blank until the user puts something in; presets do not count", () => {
+  const empty = createEmptyItemDraft()
+  assert.equal(isBlankItemDraft(empty), true)
+  assert.equal(
+    isBlankItemDraft({ ...empty, selectedCategoryId: 7, selectedSubcategoryId: 9 }),
+    true,
+  )
+  assert.equal(isBlankItemDraft({ ...empty, selectedStatusId: 4 }), true)
+  assert.equal(isBlankItemDraft({ ...empty, description: " \n " }), true)
+
+  assert.equal(isBlankItemDraft({ ...empty, description: "x" }), false)
+  assert.equal(isBlankItemDraft({ ...empty, selectedTagIds: [5] }), false)
+  assert.equal(isBlankItemDraft({ ...empty, dueExpanded: true }), false)
+  assert.equal(isBlankItemDraft({ ...empty, timeRemind: "2026-03-04T09:00" }), false)
+})
+
+test("the Notes view saves a draft only once it has text", () => {
+  const notes = viewForPath("/")
+  assert.equal(notes.kind, "note")
+  const empty = createEmptyItemDraft()
+  assert.equal(notes.canSave({ ...empty, description: "x" }), true)
+  assert.equal(notes.canSave({ ...empty, description: "  " }), false)
+  assert.equal(
+    notes.canSave({ ...empty, selectedStatusId: 4, selectedTagIds: [5], dueExpanded: true }),
+    false,
+  )
+})
+
+test("a path belongs to the view with the longest matching route", () => {
+  assert.equal(viewForPath("/").route, "/")
+  assert.equal(viewForPath("/somewhere/else").route, "/")
+  for (const view of ITEM_VIEWS) {
+    assert.equal(viewForPath(view.route), view)
+    if (view.route !== "/") assert.equal(viewForPath(`${view.route}/12`), view)
+  }
 })

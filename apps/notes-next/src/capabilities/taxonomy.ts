@@ -25,6 +25,7 @@ export interface TagsDraft {
 
 export const tagsPart: ItemDraftPart<TagsDraft> = {
   empty: () => ({ selectedTagIds: [] }),
+  isBlank: (draft) => draft.selectedTagIds.length === 0,
   fromItem: (item) => ({ selectedTagIds: item.tags.map((tag) => tag.id) }),
   toRequest: (draft) => ({
     tagIds: [...draft.selectedTagIds].sort((left, right) => left - right),

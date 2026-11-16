@@ -1,4 +1,6 @@
+import { hasText } from "@lib/db-items/contracts/item-capabilities"
 import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
+import type { ItemDraft } from "@/capabilities/draftParts"
 
 /**
  * A view is a screen over the items of one kind. The same item appears in every view
@@ -14,9 +16,23 @@ export interface ItemView {
   route: string
   /** Plural name shown in navigation. */
   label: string
+  /**
+   * Whether this view saves a draft in its current state. The item service accepts an
+   * item holding any capability, so this is the view's own rule about what is worth
+   * keeping; the save engine asks the active view and holds no rule of its own.
+   */
+  canSave: (draft: ItemDraft) => boolean
 }
 
-export const ITEM_VIEWS: readonly ItemView[] = [{ kind: "note", route: "/", label: "Notes" }]
+export const ITEM_VIEWS: readonly ItemView[] = [
+  {
+    kind: "note",
+    route: "/",
+    label: "Notes",
+    // Notes captures text, so a draft is worth saving once it has some.
+    canSave: (draft) => hasText(draft.description),
+  },
+]
 
 /** The view a path belongs to: the longest route that is the path or a parent of it. */
 export const viewForPath = (pathname: string): ItemView => {

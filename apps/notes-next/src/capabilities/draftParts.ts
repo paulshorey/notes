@@ -3,6 +3,7 @@ import { schedulePart, type ScheduleDraft } from "./schedule/draft"
 import { statusPart, type StatusDraft } from "./status/draft"
 import { filingPart, tagsPart, type FilingDraft, type TagsDraft } from "./taxonomy"
 import { textPart, type TextDraft } from "./text/draft"
+import type { ItemDraftPart } from "./types"
 
 /** Everything a form holds for one item: its filing, its tags, and each capability. */
 export type ItemDraft = FilingDraft & StatusDraft & TagsDraft & TextDraft & ScheduleDraft
@@ -25,6 +26,12 @@ export const itemDraftFromItem = (item: ItemRecord): ItemDraft =>
 /** The item fields a save sends for this draft, and what the dirty check compares. */
 export const itemDraftRequest = (draft: ItemDraft): Record<string, unknown> =>
   Object.assign({}, ...DRAFT_PARTS.map((part) => part.toRequest(draft)))
+
+const BLANK_CHECKS: readonly Pick<ItemDraftPart<ItemDraft>, "isBlank">[] = DRAFT_PARTS
+
+/** Whether the user has put nothing into the draft. Presets do not count. */
+export const isBlankItemDraft = (draft: ItemDraft): boolean =>
+  BLANK_CHECKS.every((part) => part.isBlank?.(draft) ?? true)
 
 /** Content first: text names an item when it has some, then what else it holds. */
 const LIST_LABEL_PARTS = [textPart, statusPart, schedulePart] as const

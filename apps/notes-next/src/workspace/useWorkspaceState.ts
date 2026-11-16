@@ -27,6 +27,14 @@ export function useWorkspaceState() {
   // The view on screen decides which of the workspace's items the lists show.
   const activeView = viewForPath(usePathname())
 
+  // Which drafts are saved is the active view's rule. Effects read the function;
+  // callbacks that outlive a render read the ref.
+  const canSaveDraft = activeView.canSave
+
+  const canSaveDraftRef = useRef(canSaveDraft)
+
+  canSaveDraftRef.current = canSaveDraft
+
   const [identifier, setIdentifier] = useState("")
 
   const [password, setPassword] = useState("")
@@ -285,6 +293,8 @@ export function useWorkspaceState() {
 
   return {
     activeView,
+    canSaveDraft,
+    canSaveDraftRef,
     authSession,
     authStatus,
     identifier,

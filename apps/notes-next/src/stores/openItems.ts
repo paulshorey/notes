@@ -1,3 +1,4 @@
+import { isBlankItemDraft } from "@/capabilities/draftParts"
 import type { ItemRecord } from "@lib/db-items"
 import { itemFilingLabel } from "@/lib/itemFiling"
 import {
@@ -106,19 +107,11 @@ export const isEntryDirty = (
 ): boolean => signature(entry) !== entry.savedSignature
 
 /**
- * Mirrors `newItemHasUserInput` in `TextCaptureForm`, inverted: an entry the user has
- * not put anything into. Used to skip creating redundant drafts and to discard
- * abandoned ones.
+ * An unsaved entry the user has not put anything into. Used to skip creating redundant
+ * drafts and to discard abandoned ones.
  */
 export const isEmptyDraft = (entry: OpenItemEntry): boolean =>
-  entry.itemId === null &&
-  entry.form.description.trim() === "" &&
-  entry.form.selectedTagIds.length === 0 &&
-  entry.pendingTagLabels.length === 0 &&
-  !entry.form.dueExpanded &&
-  entry.form.timeDue === null &&
-  !entry.form.remindExpanded &&
-  entry.form.timeRemind === null
+  entry.itemId === null && entry.pendingTagLabels.length === 0 && isBlankItemDraft(entry.form)
 
 const createEntry = (
   key: OpenItemKey,

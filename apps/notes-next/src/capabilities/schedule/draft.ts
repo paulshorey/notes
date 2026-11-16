@@ -26,6 +26,11 @@ const dateLabel = (value: string) =>
 
 export const schedulePart: ItemDraftPart<ScheduleDraft> = {
   empty: () => ({ timeDue: null, timeRemind: null, dueExpanded: false, remindExpanded: false }),
+  isBlank: (draft) =>
+    !draft.dueExpanded &&
+    draft.timeDue === null &&
+    !draft.remindExpanded &&
+    draft.timeRemind === null,
   fromItem: (item) => ({
     timeDue: item.timeDue === null ? null : toDateTimeLocalValue(item.timeDue),
     timeRemind: item.timeRemind === null ? null : toDateTimeLocalValue(item.timeRemind),

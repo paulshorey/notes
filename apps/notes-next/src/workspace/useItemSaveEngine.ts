@@ -4,12 +4,7 @@ import { type ItemRecord } from "@lib/db-items"
 import { useCallback, useEffect, useRef } from "react"
 import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
 import { useOpenItemsAutosave } from "@/hooks/useOpenItemsAutosave"
-import {
-  isSaveableForm,
-  itemRequestBody,
-  serializeItemDraft,
-  snapshotTextCaptureForm,
-} from "@/lib/itemDraft"
+import { itemRequestBody, serializeItemDraft, snapshotTextCaptureForm } from "@/lib/itemDraft"
 import {
   collectExitFlushItems,
   collectSessionFlushEntries,
@@ -27,6 +22,8 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
   const {
     activeKey,
     activeWorkspaceIdRef,
+    canSaveDraft,
+    canSaveDraftRef,
     detachedSavesRef,
     didRehydrateOpenItemsRef,
     exitKeepaliveKeysRef,
@@ -54,18 +51,8 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       for (const entry of removed) {
         if (!isEntryDirty(entry)) continue
 
-        // Text the server will not accept — today that means a note with no
-        // category. Dropping it here would destroy it silently, which is exactly
-        // what the ring makes easy to miss, since an unsaved note looks no
-        // different from a saved one until it is evicted.
-        if (!isSaveableForm(entry.form)) {
-          if (entry.form.description.trim() !== "") {
-            setErrorMessage(
-              "A note was closed before it could be saved because it has no category. Reopen it from the list and choose one.",
-            )
-          }
-          continue
-        }
+        // A draft its view does not save holds nothing to send.
+        if (!canSaveDraftRef.current(entry.form)) continue
 
         detachedSavesRef.current.set(entry.key, {
           itemId: entry.itemId,
@@ -78,7 +65,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         persistOpenItemsRef.current()
       }
     },
-    [detachedSavesRef, persistOpenItemsRef, saveEntryRef, setErrorMessage],
+    [canSaveDraftRef, detachedSavesRef, persistOpenItemsRef, saveEntryRef],
   )
 
   const detachRemovedEntriesRef = useRef(detachRemovedEntries)
@@ -118,7 +105,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       let itemId = source.itemId
       let draftSignature = serializeItemDraft(itemId, formSnapshot)
 
-      if (!isSaveableForm(formSnapshot)) return false
+      if (!canSaveDraftRef.current(formSnapshot)) return false
       if (entry && !detached && draftSignature === entry.savedSignature) return true
 
       const inFlight = saveInFlightRef.current.get(key)
@@ -225,7 +212,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
       if (queuedAutosaveKeysRef.current.delete(key)) {
         const latest = useItemsAppStore.getState().openItems.find((item) => item.key === key)
-        if (latest && isSaveableForm(latest.form) && isEntryDirty(latest)) {
+        if (latest && canSaveDraftRef.current(latest.form) && isEntryDirty(latest)) {
           void saveEntry(key, "autosave")
         }
       }
@@ -234,6 +221,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     },
     [
       activeWorkspaceIdRef,
+      canSaveDraftRef,
       detachedSavesRef,
       groupDeferredSaveKeysRef,
       mergeSavedItem,
@@ -286,6 +274,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
   useOpenItemsAutosave({
     entries: openItems,
     enabled: Boolean(user) && itemGroupDialog === null,
+    canSave: canSaveDraft,
     saveEntry,
   })
 
@@ -298,7 +287,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       if (saveInFlightRef.current.has(entry.key)) continue
 
       const next =
-        entry.form.description.trim() === "" && entry.itemId === null
+        entry.itemId === null && !canSaveDraft(entry.form)
           ? "idle"
           : isEntryDirty(entry)
             ? "unsaved"
@@ -306,7 +295,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
       if (entry.saveStatus !== next) patchEntry(entry.key, { saveStatus: next })
     }
-  }, [openItems, patchEntry, saveInFlightRef, user])
+  }, [canSaveDraft, openItems, patchEntry, saveInFlightRef, user])
 
   // Best-effort save when the tab is being hidden or torn down. Keepalive
   // bodies share a browser quota, so the durable guarantee is the local
@@ -327,7 +316,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         store.openItems,
         detachedSavesRef.current,
         isEntryDirty,
-        isSaveableForm,
+        canSaveDraftRef.current,
       )
       const keepalive = selectKeepaliveExitItems(pending, exitKeepaliveKeysRef.current)
 
@@ -369,6 +358,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     }
   }, [
     activeWorkspaceIdRef,
+    canSaveDraftRef,
     detachedSavesRef,
     exitKeepaliveKeysRef,
     persistOpenItemsRef,

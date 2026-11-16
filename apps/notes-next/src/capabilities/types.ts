@@ -17,6 +17,12 @@ export interface ItemDraftPart<Slice extends object> {
    * pending label) must not appear here.
    */
   toRequest: (draft: Slice) => Record<string, unknown>
+  /**
+   * Whether the draft holds nothing the user put into this part. Leave it out for a
+   * part that a view presets, such as the filing or status a new item starts with:
+   * a preset alone never makes a draft worth keeping.
+   */
+  isBlank?: (draft: Slice) => boolean
   /** A one-line label for lists, when the item holds this part. */
   listLabel?: (item: ItemRecord) => string | null
 }
