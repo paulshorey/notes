@@ -13,7 +13,6 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - Every item has one `workspace_id`, one nullable `category_id`, one nullable `subcategory_id`, one nullable `status_id`, and zero or more tag links. See `docs/db/item-taxonomy.md`.
 - A subcategory (`workspace_subcategory_v1`) belongs to one category and is unique by label within it. The hierarchy is exactly two levels. Categories, statuses, and tags are unique by normalized label within a workspace, and status and tags are not part of the hierarchy.
 - An item's subcategory always belongs to its category: composite foreign keys enforce it, and `resolveItemFiling` (`sql/item/shared.ts`) clears a subcategory that does not fit instead of failing the save. The item foreign keys take no delete action, so remove a category or subcategory only through the group engine, never with a bare `DELETE`.
-- `item_category_link_v1` is unused and kept only for a previous-release server during a deploy. Do not read or write it.
 - Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for an item with no category. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
 - Composite foreign keys enforce that every item relation comes from the item's own workspace.
 - `contracts/item-capabilities.ts` is the registry of what an item can hold (text,

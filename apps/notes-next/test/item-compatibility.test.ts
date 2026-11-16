@@ -14,10 +14,7 @@ import {
 import { itemJson, legacyNoteHandler } from "../app/api/_lib/legacy-note-contract"
 import { readItemsUserId } from "../src/lib/sessionIdentity"
 import { createBackupRouteHandlers } from "../app/api/_lib/backup-route-handlers"
-import {
-  backupFixture,
-  upgradedFlatCategoryBackup,
-} from "@lib/db-items/testing/user-backup-fixture"
+import { backupFixture } from "@lib/db-items/testing/user-backup-fixture"
 import { parseUserBackup } from "@lib/db-items/contracts/user-backup"
 
 test("legacy note writes and canonical item reads reach the same authenticated item service", async () => {
@@ -38,7 +35,7 @@ test("legacy note writes and canonical item reads reach the same authenticated i
       headers: { "content-type": "application/json", authorization: `Bearer ${sampleApiToken}` },
       body: JSON.stringify({
         userId: 999,
-        note: { workspaceId: 3, description: "A note", categoryIds: [], tagIds: [] },
+        note: { workspaceId: 3, description: "A note", tagIds: [] },
       }),
     }),
   )
@@ -77,48 +74,57 @@ test("old signed session identities stay valid and canonical identity takes prec
   assert.equal(readItemsUserId({ notesUserId: "41" }), null)
 })
 
-test("an older web build downloads a version-one backup that the new backend still imports", async () => {
+test("every client downloads the current backup version, which the backend imports", async () => {
   const handlers = createBackupRouteHandlers(
     createFakeItemsAppService({ exportUserBackup: async () => backupFixture() }),
   )
-  const response = await handlers.GET(
-    new Request("https://test/api/backup", {
-      headers: { authorization: `Bearer ${sampleApiToken}` },
-    }),
-  )
-  assert.equal(response.status, 200)
-  const legacy = await response.json()
-  assert.equal(legacy.version, 1)
-  assert.ok(Array.isArray(legacy.workspaces[0].notes))
-  // Version 1 has no subcategories, so that level is not in the older file.
-  assert.deepEqual(legacy.workspaces[0].notes[0].categories, ["shared"])
-  assert.equal("subcategories" in legacy.workspaces[0].categories[0], false)
-  assert.deepEqual(parseUserBackup(legacy), upgradedFlatCategoryBackup())
-
-  // A client that names an item contract downloads the current version in full.
-  for (const contract of ["1", "2"]) {
-    const current = await handlers.GET(
+  for (const contract of [undefined, "1", "2"]) {
+    const response = await handlers.GET(
       new Request("https://test/api/backup", {
-        headers: { authorization: `Bearer ${sampleApiToken}`, "x-items-contract": contract },
+        headers: {
+          authorization: `Bearer ${sampleApiToken}`,
+          ...(contract ? { "x-items-contract": contract } : {}),
+        },
       }),
     )
-    assert.deepEqual(await current.json(), backupFixture())
+    assert.equal(response.status, 200)
+    const file = await response.json()
+    assert.deepEqual(file, backupFixture())
+    assert.deepEqual(parseUserBackup(file), backupFixture())
   }
 })
 
-test("only the current item contract omits the category list earlier clients read", async () => {
+test("a note-named save that lists several categories is refused, not silently unfiled", async () => {
+  let writes = 0
+  const handlers = createItemsRouteHandlers(
+    createFakeItemsAppService({
+      createItemForItemsApp: async (input) => {
+        writes += 1
+        return createFakeItemsAppService().createItemForItemsApp(input)
+      },
+    }),
+  )
+  const response = await legacyNoteHandler(handlers.POST)(
+    new Request("https://test/api/notes", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${sampleApiToken}` },
+      body: JSON.stringify({
+        note: { workspaceId: 3, description: "A note", categoryIds: [5], tagIds: [] },
+      }),
+    }),
+  )
+  assert.equal(response.status, 400)
+  assert.match((await response.json()).error, /out of date\. Reload/)
+  assert.equal(writes, 0)
+})
+
+test("item payloads are never reshaped; only a shared route with no contract adds note names", async () => {
   const service = createFakeItemsAppService()
   const item = (await service.listItemsForItemsApp({ userId: 7, workspaceId: 3 })).items[0]!
-  const unfiled = { ...item, id: 43, category: null, subcategory: null }
-  const preview = await service.previewItemGroupForItemsApp({
-    userId: 7,
-    selection: { workspaceId: 3, target: { kind: "uncategorized" } },
-  })
   const payload = {
-    items: [item, unfiled],
+    items: [item, { ...item, id: 43, category: null, subcategory: null }],
     results: [{ item, similarity: 0.5 }],
-    preview,
-    user: { id: 7, preferences: { notesApp: { category: 1, subcategory: 2, tags: [] } } },
+    user: { id: 7, preferences: { notesApp: { items: [1], tags: [] } } },
   }
   const respond = async (path: string, contract?: string) =>
     (
@@ -130,27 +136,19 @@ test("only the current item contract omits the category list earlier clients rea
       )
     ).json()
 
-  // Contract 2: exactly the service payload.
-  assert.deepEqual(await respond("/api/bootstrap", "2"), payload)
-  assert.deepEqual(await respond("/api/items", "2"), payload)
+  for (const body of [
+    await respond("/api/bootstrap", "2"),
+    await respond("/api/bootstrap", "1"),
+    await respond("/api/items"),
+  ])
+    assert.deepEqual(body, payload)
 
-  // Contract 1, and an item route with no contract: the same fields plus the list.
-  for (const body of [await respond("/api/bootstrap", "1"), await respond("/api/items")]) {
-    assert.deepEqual(body.items[0].categories, [item.category])
-    assert.deepEqual(body.items[0].category, item.category)
-    assert.deepEqual(body.items[0].subcategory, item.subcategory)
-    assert.deepEqual(body.items[1].categories, [])
-    assert.deepEqual(body.results[0].item.categories, [item.category])
-    assert.equal(body.preview.sharedItemCount, 0)
-    assert.equal(body.notes, undefined)
-    // Preferences are user data and are never reshaped.
-    assert.deepEqual(body.user.preferences, payload.user.preferences)
-  }
-
-  // A shared route with no contract also gets the note-named aliases.
+  // A shared route with no contract also carries the same rows under note names.
   const oldest = await respond("/api/bootstrap")
-  assert.deepEqual(oldest.notes[0].categories, [item.category])
-  assert.deepEqual(oldest.items[1].categories, [])
+  assert.deepEqual(oldest.notes, payload.items)
+  assert.deepEqual(oldest.items, payload.items)
+  assert.equal("categories" in oldest.items[0], false)
+  // Preferences are user data and are never reshaped.
   assert.deepEqual(oldest.user.preferences, payload.user.preferences)
 })
 
@@ -193,9 +191,7 @@ test("legacy PATCH and DELETE translate streamed Next.js requests and retain aut
     const body = JSON.stringify({
       userId: 999,
       noteId: 41,
-      ...(method === "PATCH"
-        ? { note: { workspaceId: 3, categoryIds: [], tagIds: [], description: null } }
-        : {}),
+      ...(method === "PATCH" ? { note: { workspaceId: 3, tagIds: [], description: null } } : {}),
     })
     const stream = new ReadableStream({
       start(controller) {

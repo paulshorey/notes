@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: taxonomy_remove_links
     content: "S3b. Drop the category link table, its legacy view, and the earlier item contract shapes, once every environment runs S2."
-    status: pending
+    status: completed
   - id: capability_safe_lifecycle
     content: "S4. Account merge and restore move item rows instead of copying them; backup and duplicate detection read the registry; db:verify fails on an item table no capability declares."
     status: completed
@@ -278,10 +278,15 @@ becomes before it is sent. A draft that was being filed in a moved group follows
 
 ### S3b. Remove the link table
 
-Drop `item_category_link_v1`, its legacy view, and the earlier item contract shapes
-(the `categories` list on responses and `categoryIds` on requests). This is the contract
-half of S2: it ships only after every environment, production included, runs S2, so no
-previous-release server that reads the link table is still serving during the deploy.
+`item_category_link_v1` and its legacy view are dropped, along with the earlier item
+contract shapes: responses no longer carry a `categories` list, every client downloads
+the current backup version, and an item request that lists `categoryIds` is refused with
+a message to reload, because saving it would unfile the item. This is the contract half
+of S2 and shipped after every environment, production included, ran S2.
+
+Tests of earlier migrations run against the schema as it was just before the migration
+under test (`testing/historical-migration.ts`), so they do not depend on tables that
+later migrations remove.
 
 ### S4. Capability-safe lifecycle
 

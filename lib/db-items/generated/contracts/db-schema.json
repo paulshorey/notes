@@ -1,21 +1,4 @@
 {
-  "item_category_link_v1": [
-    {
-      "column": "item_id",
-      "nullable": false,
-      "type": "number"
-    },
-    {
-      "column": "category_id",
-      "nullable": false,
-      "type": "number"
-    },
-    {
-      "column": "workspace_id",
-      "nullable": false,
-      "type": "number"
-    }
-  ],
   "item_tag_link_v1": [
     {
       "column": "item_id",

@@ -25,13 +25,18 @@ const timestamp = (value: unknown, field: string) => {
 const nullableId = (value: unknown, field: string) =>
   value == null || value === "" ? null : positiveInt(value, field)
 
-/** A request written for several categories per item files the item in the first one. */
+export const OUTDATED_ITEM_REQUEST_ERROR =
+  "This page is out of date. Reload it to keep saving; your text is kept."
+
+/**
+ * A request that lists `categoryIds` comes from a page loaded before items had one
+ * category. Saving it would unfile the item, so it is refused and the page keeps its
+ * draft until it is reloaded.
+ */
 const categoryId = (record: Record<string, unknown>) => {
-  if (record.categoryId !== undefined) return nullableId(record.categoryId, "categoryId")
-  if (record.categoryIds == null) return null
-  if (!Array.isArray(record.categoryIds))
-    throw new Error("categoryIds must be an array of integers.")
-  return record.categoryIds.length === 0 ? null : positiveInt(record.categoryIds[0], "categoryIds")
+  if (record.categoryId === undefined && record.categoryIds !== undefined)
+    throw new Error(OUTDATED_ITEM_REQUEST_ERROR)
+  return nullableId(record.categoryId, "categoryId")
 }
 
 export const parseItemInput = (value: unknown): ItemInput => {

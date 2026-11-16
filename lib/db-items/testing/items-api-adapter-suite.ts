@@ -794,7 +794,7 @@ export const registerItemsApiAdapterSuite = (
         userId: 7,
         item: {
           workspaceId: 3,
-          categoryIds: [5],
+          categoryId: 5,
           statusId: null,
           tagIds: [12],
           description: "No due or reminder dates selected.",
@@ -804,7 +804,6 @@ export const registerItemsApiAdapterSuite = (
 
     assert.equal(response.status, 201)
     assert.deepEqual(response.body, { item: itemWithoutDates })
-    // A request that lists several categories files the item in the first one.
     assert.deepEqual(requests, [
       {
         userId: 7,
@@ -820,6 +819,45 @@ export const registerItemsApiAdapterSuite = (
         },
       },
     ])
+  })
+
+  test(`${adapterName} refuses a save from a page that still lists several categories`, async (t) => {
+    let writes = 0
+    const adapter = await createAdapter(
+      createFakeItemsAppService({
+        createItemForItemsApp: async () => {
+          writes += 1
+          return { item: sampleItem }
+        },
+        updateItemForItemsApp: async () => {
+          writes += 1
+          return { item: sampleItem }
+        },
+      }),
+    )
+    t.after(async () => adapter.close?.())
+    const item = {
+      workspaceId: 3,
+      categoryIds: [5],
+      statusId: null,
+      tagIds: [12],
+      description: "Typed in a page loaded before items had one category.",
+    }
+    for (const [method, body] of [
+      ["POST", { item }],
+      ["PATCH", { itemId: 41, item }],
+    ] as const) {
+      const response = await adapter.request({
+        method,
+        path: "/api/items",
+        headers: authHeaders,
+        body,
+      })
+      // Saving would unfile the item, so the page is told to reload and keeps its draft.
+      assert.equal(response.status, 400)
+      assert.match(String(readError(response.body)), /out of date\. Reload/)
+    }
+    assert.equal(writes, 0)
   })
 
   test(`${adapterName} returns 404 when an update target is missing`, async (t) => {
@@ -842,7 +880,7 @@ export const registerItemsApiAdapterSuite = (
         itemId: 999,
         item: {
           workspaceId: 3,
-          categoryIds: [5],
+          categoryId: 5,
           statusId: null,
           tagIds: [12],
           description: "The Notes API routes should follow the shared contract.",

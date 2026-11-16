@@ -1,13 +1,10 @@
 import assert from "node:assert/strict"
-import { readFile } from "node:fs/promises"
 import { randomUUID } from "node:crypto"
-import { after, describe, test } from "node:test"
-import { adaptHistoricalMigration } from "./historical-migration"
-import { getDb } from "../lib/db/postgres"
+import { test } from "node:test"
+import { withSchemaBefore } from "./historical-migration"
 import { getCategoryNameError } from "../contracts/category-name"
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
-if (testDbUrl) process.env.DB_ITEMS_URL = testDbUrl
 
 // ECMAScript WhiteSpace + LineTerminator, including every Space_Separator.
 const trimCharacters = [
@@ -21,25 +18,19 @@ const trimCharacters = [
   0xfeff,
 ].map((point) => String.fromCodePoint(point))
 
-describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () => {
-  after(async () => {
-    if (testDbUrl) await getDb().end()
-  })
+const ORIGINAL = "202610182100__retire_default_category.sql"
+const CORRECTION = "202610192200__normalize_reserved_category_name.sql"
 
-  for (const alreadyApplied of [false, true]) {
-    test(`normalizes reserved names with original cleanup ${alreadyApplied ? "already applied" : "pending"}`, async () => {
-      const client = await getDb().connect()
-      try {
-        await client.query("BEGIN")
-        // Serialize with other DB tests; all fixtures and DDL are rolled back.
-        await client.query(
-          `ALTER TABLE public.workspace_category_v1 DROP CONSTRAINT workspace_category_v1_label_not_reserved_check`,
-        )
-        const originalMigration = await readFile(
-          new URL("../migrations/202610182100__retire_default_category.sql", import.meta.url),
-          "utf8",
-        )
-        if (alreadyApplied) await client.query(adaptHistoricalMigration(originalMigration))
+// The tables carry the names they had when these migrations were written.
+for (const alreadyApplied of [false, true]) {
+  test(
+    `normalizes reserved names with original cleanup ${alreadyApplied ? "already applied" : "pending"}`,
+    { skip: !testDbUrl },
+    () =>
+      // The schema before the original cleanup; the correction is the migration under test.
+      withSchemaBefore(testDbUrl!, ORIGINAL, async (client, applyFile) => {
+        const apply = (file = CORRECTION) => applyFile(file)
+        if (alreadyApplied) await apply(ORIGINAL)
         const userId = (
           await client.query<{ id: number }>(
             `INSERT INTO public.user_v1(username,is_anonymous) VALUES($1,true) RETURNING id`,
@@ -65,7 +56,7 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
           keptIds.push(
             (
               await client.query<{ id: number }>(
-                `INSERT INTO public.workspace_category_v1(workspace_id,label) VALUES($1,$2) RETURNING id`,
+                `INSERT INTO public.workspace_note_category_v1(workspace_id,label) VALUES($1,$2) RETURNING id`,
                 [workspaceIds[0], label],
               )
             ).rows[0]!.id,
@@ -83,7 +74,7 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
           reservedIds.push(
             (
               await client.query<{ id: number }>(
-                `INSERT INTO public.workspace_category_v1(workspace_id,label) VALUES($1,$2) RETURNING id`,
+                `INSERT INTO public.workspace_note_category_v1(workspace_id,label) VALUES($1,$2) RETURNING id`,
                 [workspaceIds[index % 2], label],
               )
             ).rows[0]!.id,
@@ -94,8 +85,8 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
           itemIds.push(
             (
               await client.query<{ id: number }>(
-                `INSERT INTO public.workspace_item_v1(workspace_id,description,time_created,time_modified)
-                 VALUES($1,'whitespace legacy membership','2020-01-01','2021-01-01') RETURNING id`,
+                `INSERT INTO public.user_note_v1(workspace_id,description,time_created,time_modified)
+               VALUES($1,'whitespace legacy membership','2020-01-01','2021-01-01') RETURNING id`,
                 [workspaceId],
               )
             ).rows[0]!.id,
@@ -103,51 +94,45 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
         }
         for (const [index, categoryId] of reservedIds.entries()) {
           await client.query(
-            `INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id) VALUES($1,$2,$3)`,
+            `INSERT INTO public.user_note_category_link_v1(note_id,category_id,workspace_id) VALUES($1,$2,$3)`,
             [itemIds[index % 2], categoryId, workspaceIds[index % 2]],
           )
         }
         for (const categoryId of keptIds) {
           await client.query(
-            `INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id) VALUES($1,$2,$3)`,
+            `INSERT INTO public.user_note_category_link_v1(note_id,category_id,workspace_id) VALUES($1,$2,$3)`,
             [itemIds[0], categoryId, workspaceIds[0]],
           )
         }
         const tagId = (
           await client.query<{ id: number }>(
-            `INSERT INTO public.workspace_tag_v1(workspace_id,label) VALUES($1,$2) RETURNING id`,
+            `INSERT INTO public.workspace_note_tag_v1(workspace_id,label) VALUES($1,$2) RETURNING id`,
             [workspaceIds[0], "\tuncategorized\t"],
           )
         ).rows[0]!.id
         await client.query(
-          `INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id) VALUES($1,$2,$3)`,
+          `INSERT INTO public.user_note_tag_link_v1(note_id,tag_id,workspace_id) VALUES($1,$2,$3)`,
           [itemIds[0], tagId, workspaceIds[0]],
         )
         const beforeItems = (
           await client.query(
-            `SELECT * FROM public.workspace_item_v1 WHERE id=ANY($1::int[]) ORDER BY id`,
+            `SELECT * FROM public.user_note_v1 WHERE id=ANY($1::int[]) ORDER BY id`,
             [itemIds],
           )
         ).rows
         const beforeTags = (
-          await client.query(`SELECT * FROM public.item_tag_link_v1 WHERE item_id=ANY($1::int[])`, [
-            itemIds,
-          ])
+          await client.query(
+            `SELECT * FROM public.user_note_tag_link_v1 WHERE note_id=ANY($1::int[])`,
+            [itemIds],
+          )
         ).rows
-        if (!alreadyApplied) await client.query(adaptHistoricalMigration(originalMigration))
-        const correction = await readFile(
-          new URL(
-            "../migrations/202610192200__normalize_reserved_category_name.sql",
-            import.meta.url,
-          ),
-          "utf8",
-        )
-        await client.query(adaptHistoricalMigration(correction))
+        if (!alreadyApplied) await apply(ORIGINAL)
+        await apply()
 
         assert.deepEqual(
           (
             await client.query(
-              `SELECT * FROM public.workspace_item_v1 WHERE id=ANY($1::int[]) ORDER BY id`,
+              `SELECT * FROM public.user_note_v1 WHERE id=ANY($1::int[]) ORDER BY id`,
               [itemIds],
             )
           ).rows,
@@ -156,7 +141,7 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
         assert.deepEqual(
           (
             await client.query(
-              `SELECT * FROM public.item_tag_link_v1 WHERE item_id=ANY($1::int[])`,
+              `SELECT * FROM public.user_note_tag_link_v1 WHERE note_id=ANY($1::int[])`,
               [itemIds],
             )
           ).rows,
@@ -165,7 +150,7 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
         assert.deepEqual(
           (
             await client.query(
-              `SELECT category_id FROM public.item_category_link_v1 WHERE item_id=ANY($1::int[]) ORDER BY category_id`,
+              `SELECT category_id FROM public.user_note_category_link_v1 WHERE note_id=ANY($1::int[]) ORDER BY category_id`,
               [itemIds],
             )
           ).rows.map((row) => row.category_id),
@@ -174,12 +159,13 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
         assert.deepEqual(
           (
             await client.query(
-              `SELECT label FROM public.workspace_category_v1 WHERE workspace_id=ANY($1::int[]) ORDER BY id`,
+              `SELECT label FROM public.workspace_note_category_v1 WHERE workspace_id=ANY($1::int[]) ORDER BY id`,
               [workspaceIds],
             )
           ).rows.map((row) => row.label),
           keepLabels,
         )
+        await client.query("BEGIN")
         for (const label of [
           "uncategorized",
           ...trimCharacters.map((character) => `${character}uncategorized${character}`),
@@ -187,18 +173,15 @@ describe("reserved category whitespace cleanup (DB)", { skip: !testDbUrl }, () =
           " UnCaTeGoRiZeD ",
         ]) {
           for (const sql of [
-            `INSERT INTO public.workspace_category_v1(workspace_id,label) VALUES($1,$2)`,
-            `UPDATE public.workspace_category_v1 SET label=$2 WHERE workspace_id=$1 AND id=${keptIds[0]}`,
+            `INSERT INTO public.workspace_note_category_v1(workspace_id,label) VALUES($1,$2)`,
+            `UPDATE public.workspace_note_category_v1 SET label=$2 WHERE workspace_id=$1 AND id=${keptIds[0]}`,
           ]) {
             await client.query("SAVEPOINT rejected_name")
             await assert.rejects(client.query(sql, [workspaceIds[0], label]), { code: "23514" })
             await client.query("ROLLBACK TO SAVEPOINT rejected_name")
           }
         }
-      } finally {
         await client.query("ROLLBACK")
-        client.release()
-      }
-    })
-  }
-})
+      }),
+  )
+}

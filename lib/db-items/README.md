@@ -26,7 +26,6 @@ rejects mismatched client/server versions.
 - `workspace_category_v1`, `workspace_status_v1`, `workspace_tag_v1`: workspace vocabulary
 - `workspace_subcategory_v1`: subcategories, each belonging to one category
 - `item_tag_link_v1`: zero or more tags per item
-- `item_category_link_v1`: unused; kept for a previous-release server during a deploy
 
 Each item belongs to one workspace. Composite foreign keys reject relationships
 across workspaces and a subcategory outside the item's category. `uncategorized` is

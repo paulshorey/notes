@@ -179,13 +179,6 @@ export const ITEM_DERIVED_COLUMNS = [
   "embedding_updated_at",
 ] as const
 
-/**
- * Tables that reference items but are no longer read or written. Their rows are not
- * carried anywhere; a moved item's rows are deleted so they cannot hold it in its old
- * workspace.
- */
-export const ITEM_RETIRED_TABLES = ["item_category_link_v1"] as const
-
 const STORED_PARTS: readonly StoredItemPart[] = [
   ITEM_CORE,
   ITEM_TAXONOMY,
@@ -195,7 +188,7 @@ const STORED_PARTS: readonly StoredItemPart[] = [
 /** Every item column and item-referencing table that some part accounts for. */
 export const ITEM_STORAGE_OWNERS = {
   columns: [...STORED_PARTS.flatMap((part) => part.columns), ...ITEM_DERIVED_COLUMNS],
-  tables: [...STORED_PARTS.flatMap((part) => Object.keys(part.tables)), ...ITEM_RETIRED_TABLES],
+  tables: STORED_PARTS.flatMap((part) => Object.keys(part.tables)),
 }
 
 const quoted = (name: string) => `"${name}"`
@@ -271,7 +264,7 @@ const rehomedTables = ownedTables.flatMap(([name, table]) =>
 export const MOVE_ITEMS_SQL = `WITH moved AS MATERIALIZED (
     SELECT n.id FROM public.workspace_item_v1 n
     WHERE n.workspace_id=$2 AND n.id<>ALL($3::int[])
-  )${rehomedTables.map(({ name, detach }) => `, ${quoted(`${name}_detached`)} AS (\n    ${detach}\n  )`).join("")}${ITEM_RETIRED_TABLES.map((name) => `, ${quoted(`${name}_retired`)} AS (\n    DELETE FROM public.${name} l USING moved m WHERE l.item_id=m.id\n  )`).join("")}, updated AS (
+  )${rehomedTables.map(({ name, detach }) => `, ${quoted(`${name}_detached`)} AS (\n    ${detach}\n  )`).join("")}, updated AS (
     UPDATE public.workspace_item_v1 n SET workspace_id=$1,
       ${rehomed.map(([column, value]) => `${column}=${value}`).join(",\n      ")}
     FROM moved m WHERE n.id=m.id

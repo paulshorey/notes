@@ -16,6 +16,7 @@ import {
   parsePreviewItemGroupRequest,
 } from "../services/item-group-actions"
 import { createItemForUser, listItemsByUser, parseItemInput, updateItemForUser } from "../sql/item"
+import { OUTDATED_ITEM_REQUEST_ERROR } from "../sql/item/parse"
 import { executeItemGroupAction, previewItemGroup } from "../sql/item-groups"
 import { ItemGroupConflictError, ItemGroupNotFoundError } from "../sql/item-group-errors"
 import { createAnonymousUser } from "../sql/user/anonymous"
@@ -24,7 +25,7 @@ import { createWorkspaceForUser, listWorkspacesByUser } from "../sql/workspace"
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
 if (testDbUrl) process.env.DB_ITEMS_URL = testDbUrl
 
-test("an item request names one category, and an old request's list files it in the first", () => {
+test("an item request names one category, and a request that lists several is refused", () => {
   const base = { workspaceId: 1, description: "text" }
   assert.deepEqual(
     (({ categoryId, subcategoryId }) => ({ categoryId, subcategoryId }))(
@@ -34,12 +35,14 @@ test("an item request names one category, and an old request's list files it in 
   )
   assert.equal(parseItemInput(base).categoryId, null)
   assert.equal(parseItemInput(base).subcategoryId, null)
-  assert.equal(parseItemInput({ ...base, categoryIds: [7, 3] }).categoryId, 7)
-  assert.equal(parseItemInput({ ...base, categoryIds: [] }).categoryId, null)
-  // The single field wins when a request carries both.
+  // A page loaded before items had one category would unfile the item by saving it.
+  for (const categoryIds of [[7, 3], [7], []])
+    assert.throws(() => parseItemInput({ ...base, categoryIds }), {
+      message: OUTDATED_ITEM_REQUEST_ERROR,
+    })
+  // A request that names the single field is current, whatever else it carries.
   assert.equal(parseItemInput({ ...base, categoryId: null, categoryIds: [7] }).categoryId, null)
   assert.throws(() => parseItemInput({ ...base, categoryId: 0 }))
-  assert.throws(() => parseItemInput({ ...base, categoryIds: "7" }))
 })
 
 test("category and group requests accept a parent category and a subcategory target", () => {

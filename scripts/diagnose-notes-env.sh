@@ -314,7 +314,6 @@ WITH required(name) AS (
     ('public.workspace_subcategory_v1'),
     ('public.workspace_status_v1'),
     ('public.workspace_tag_v1'),
-    ('public.item_category_link_v1'),
     ('public.item_tag_link_v1'),
     ('public.schema_migrations_cursor')
 )
