@@ -1,11 +1,14 @@
 export { getDb } from "./lib/db/postgres"
 export { isTextItem } from "./contracts/item-content"
 export {
+  hasItemCapability,
   hasItemContent,
   ITEM_CAPABILITIES,
   itemCapabilities,
   ItemContentRequiredError,
 } from "./contracts/item-capabilities"
+export { isKind, ITEM_KINDS, itemKinds } from "./contracts/item-kinds"
+export type { ItemKind, ItemKindKey } from "./contracts/item-kinds"
 
 export {
   createItemForUser,

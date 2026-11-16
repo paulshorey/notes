@@ -47,6 +47,7 @@ export const listItemsStaleEmbeddingsByUser = async (userId: number, limit: numb
   )
   return rows
 }
+/** Text search ranks items by their text, so an item without text is never a result. */
 export const searchItemsByEmbedding = async (
   userId: number,
   workspaceId: number,
@@ -58,6 +59,7 @@ export const searchItemsByEmbedding = async (
     CASE WHEN n.description_embedding IS NOT NULL THEN 1-(n.description_embedding <=> $3::vector) ELSE 0 END semantic_similarity
     FROM public.workspace_item_v1 n LEFT JOIN public.workspace_status_v1 s ON s.id=n.status_id AND s.workspace_id=n.workspace_id
     JOIN public.user_workspace_v1 w ON w.id=n.workspace_id WHERE w.user_id=$1 AND n.workspace_id=$2
+    AND NULLIF(btrim(n.description),'') IS NOT NULL
     ORDER BY semantic_similarity DESC,n.time_modified DESC LIMIT $4`,
     [userId, workspaceId, queryEmbedding, limit],
   )

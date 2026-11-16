@@ -4,7 +4,7 @@ overview: An item is identity, workspace, and taxonomy (one category, one subcat
 todos:
   - id: kinds_and_save_rule
     content: "S1. Kind registry (note, task) beside the capability registry; the service accepts any item that holds at least one capability; requiring text becomes a rule of the Notes screen only."
-    status: pending
+    status: completed
   - id: taxonomy_single_category
     content: "S2. One category and one subcategory per item: workspace_subcategory_v1, category_id and subcategory_id on the item, item contract 2, backup version 3, nested sidebar and two-level picker."
     status: pending
