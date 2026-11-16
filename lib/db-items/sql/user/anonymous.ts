@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import type { PoolClient } from "pg"
 import type { RestoreBackupResponse } from "../../contracts/items-app"
+import { MOVE_ITEMS_SQL } from "../item/stored-capabilities"
 import { itemMergeIdentities } from "./item-merge-identity"
 import type { UserV1Row } from "../../generated/typescript/db-types"
 import { getDb } from "../../lib/db/postgres"
@@ -177,6 +178,20 @@ export const MERGE_TABLE_STRATEGIES: Record<string, "dedup-remap" | "reparent" |
   user_api_token_v1: "drop",
 }
 
+/**
+ * Changing who owns a row is not an edit. The timestamp trigger keeps a row's stored
+ * modification time while this transaction-scoped setting is on.
+ */
+const withStoredTimeModified = async <T>(client: PoolClient, work: () => Promise<T>) => {
+  await client.query(`SELECT set_config('app.keep_time_modified','on',true)`)
+  try {
+    return await work()
+  } finally {
+    // A failed statement has already aborted the transaction; there is nothing to reset.
+    await client.query(`SELECT set_config('app.keep_time_modified','off',true)`).catch(() => {})
+  }
+}
+
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
@@ -269,21 +284,22 @@ export const mergeAnonymousUserIntoWithClient = async (
       `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 AND label=$2`,
       [realUserId, source.label],
     )
-    if (!collision.rows[0] && !deduplicateItems) {
-      await client.query(`UPDATE public.user_workspace_v1 SET user_id=$1 WHERE id=$2`, [
-        realUserId,
-        source.id,
-      ])
-      continue
-    }
-    let destinationId = collision.rows[0]?.id
+    const destinationId = collision.rows[0]?.id
     if (!destinationId) {
-      const inserted = await client.query<{ id: number }>(
-        `INSERT INTO public.user_workspace_v1(user_id,label,time_created,time_modified)
-         VALUES($1,$2,$3,$4) RETURNING id`,
-        [realUserId, source.label, source.time_created, source.time_modified],
-      )
-      destinationId = inserted.rows[0]!.id
+      // No workspace of that name: the whole workspace changes owner, and its items,
+      // vocabulary, and everything attached to them come along untouched.
+      const moved = await withStoredTimeModified(client, async () => {
+        await client.query(`UPDATE public.user_workspace_v1 SET user_id=$1 WHERE id=$2`, [
+          realUserId,
+          source.id,
+        ])
+        return client.query(
+          `SELECT COUNT(*)::int count FROM public.workspace_item_v1 WHERE workspace_id=$1`,
+          [source.id],
+        )
+      })
+      result.itemsImported += moved.rows[0]!.count
+      continue
     }
     const existingCounts = new Map<string, number>()
     const sourceIdentities = deduplicateItems
@@ -329,41 +345,12 @@ export const mergeAnonymousUserIntoWithClient = async (
         skippedIds.push(id)
       }
     }
-    // Allocate a stable id map once, then copy items and their tag links in
-    // batches. MATERIALIZED keeps nextval from being evaluated more than once.
-    const copied = await client.query<{ source_id: number; destination_id: number }>(
-      `WITH item_map AS MATERIALIZED (
-        SELECT n.*,nextval(pg_get_serial_sequence('public.workspace_item_v1','id'))::int new_id
-        FROM public.workspace_item_v1 n WHERE n.workspace_id=$2 AND n.id<>ALL($3::int[]) ORDER BY n.id
-      ), inserted AS (
-        INSERT INTO public.workspace_item_v1(id,workspace_id,category_id,subcategory_id,status_id,
-          description,time_due,time_remind,
-          description_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
-        SELECT m.new_id,$1,dc.id,dsub.id,ds.id,m.description,m.time_due,m.time_remind,
-          m.description_embedding,m.embedding_model,m.embedding_updated_at,m.time_created,m.time_modified
-        FROM item_map m
-        LEFT JOIN public.workspace_status_v1 ss ON ss.id=m.status_id AND ss.workspace_id=$2
-        LEFT JOIN public.workspace_status_v1 ds ON ds.workspace_id=$1 AND ds.label=ss.label
-        LEFT JOIN public.workspace_category_v1 sc ON sc.id=m.category_id
-        LEFT JOIN public.workspace_category_v1 dc ON dc.workspace_id=$1 AND dc.label=sc.label
-        LEFT JOIN public.workspace_subcategory_v1 ssub ON ssub.id=m.subcategory_id
-        LEFT JOIN public.workspace_subcategory_v1 dsub
-          ON dsub.category_id=dc.id AND dsub.label=ssub.label
-        RETURNING id
-      ) SELECT m.id source_id,m.new_id destination_id FROM item_map m JOIN inserted i ON i.id=m.new_id`,
-      [destinationId, source.id, skippedIds],
+    // The items move instead of being copied: each keeps its id, so its embeddings and
+    // every row keyed by item id stay attached without being listed here.
+    const moved = await withStoredTimeModified(client, () =>
+      client.query<{ id: number }>(MOVE_ITEMS_SQL, [destinationId, source.id, skippedIds]),
     )
-    const sourceIds = copied.rows.map((row) => row.source_id)
-    const destinationIds = copied.rows.map((row) => row.destination_id)
-    await client.query(
-      `INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
-       SELECT m.destination_id,dt.id,$3 FROM unnest($1::int[],$2::int[]) m(source_id,destination_id)
-       JOIN public.item_tag_link_v1 l ON l.item_id=m.source_id
-       JOIN public.workspace_tag_v1 st ON st.id=l.tag_id
-       JOIN public.workspace_tag_v1 dt ON dt.workspace_id=$3 AND dt.label=st.label`,
-      [sourceIds, destinationIds, destinationId],
-    )
-    result.itemsImported += copied.rows.length
+    result.itemsImported += moved.rows.length
     result.itemsSkipped += skippedIds.length
     await client.query(`DELETE FROM public.user_workspace_v1 WHERE id=$1`, [source.id])
   }

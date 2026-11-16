@@ -211,8 +211,11 @@ Merge SQL (simplified):
 - **Categories / statuses / tags:** dedupe by `(workspace_id, label)` inside a
   collided workspace; subcategories dedupe by label within the category of the
   same label
-- **Notes and links:** clone into collided workspaces with vocabulary ids
-  remapped; preserve ids when an entire workspace can be reparented
+- **Notes:** move into the collided workspace. Each note keeps its id, its
+  timestamps, its embedding, and every row keyed by its id; its category,
+  subcategory, and status are re-pointed to the account's rows of the same label,
+  and its tag links are re-created against the account's tags. A workspace with a
+  new label changes owner as a whole
 - **Delete** the anonymous `user_v1` row after every workspace is transferred
 
 `MERGE_TABLE_STRATEGIES` in `anonymous.ts` documents every table with a direct

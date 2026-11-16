@@ -53,6 +53,12 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - `sql/user/backup.ts`: snapshot export and atomic staged restore. Restore calls
   `mergeAnonymousUserIntoWithClient` on the same client/transaction; do not use
   the pool-acquiring merge wrapper inside a transaction (pool defaults to one).
+- `sql/item/stored-capabilities.ts`: the server half of the capability registry.
+  Backup export and import, duplicate detection, and account merge are generated
+  from it. Never list item columns by hand in those paths; declare the column or
+  table under the part that owns it. `db:verify` runs
+  `scripts/audit-item-storage.ts` and fails on an item column or item-referencing
+  table that nothing declares.
 
 ## Notes
 
@@ -79,6 +85,11 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   If you add a real DB uniqueness constraint (e.g. `lower()` indexes) later,
   audit existing rows for case-duplicates first and you can then drop the
   advisory locks.
+- Account merge moves item rows; it never copies them. An item keeps its id, so
+  its embeddings and any table keyed by `item_id` follow without merge code. Columns
+  that point into the old workspace are re-pointed by label through each part's
+  `rehome` entry. The merge sets `app.keep_time_modified` for those statements so
+  the timestamp trigger keeps each row's modification time.
 - Because claim flips `is_anonymous` on a live row, `mergeAnonymousUserInto`
   locks its source-anonymity check with `FOR UPDATE`. This serializes a merge
   against a concurrent claim of the same row so the merge cannot delete a row

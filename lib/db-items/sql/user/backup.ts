@@ -16,6 +16,7 @@ import {
   USER_BACKUP_VERSION,
 } from "../../contracts/user-backup"
 import { getDb } from "../../lib/db/postgres"
+import { IMPORT_ITEMS_CTE, PORTABLE_ITEMS_SQL } from "../item/stored-capabilities"
 import { mergeAnonymousUserIntoWithClient } from "./anonymous"
 
 export class BackupAccountError extends Error {
@@ -26,6 +27,15 @@ export class BackupAccountError extends Error {
     super(message)
   }
 }
+
+/** A stored row in its backup form: every field under its own name, times as ISO text. */
+const portableItem = ({ id: _id, ...fields }: { id: number } & Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(fields).map(([name, value]) => [
+      name,
+      value instanceof Date ? value.toISOString() : value,
+    ]),
+  ) as unknown as BackupItem
 
 type DatedRow = { id: number; label: string; time_created: Date; time_modified: Date }
 const dated = (row: DatedRow): BackupVocabulary => ({
@@ -82,26 +92,7 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
         )
       ).rows
       const items = (
-        await client.query<{
-          description: string | null
-          category: string | null
-          subcategory: string | null
-          status: string | null
-          tags: string[]
-          time_due: Date | null
-          time_remind: Date | null
-          time_created: Date
-          time_modified: Date
-        }>(
-          `SELECT n.description,n.time_due,n.time_remind,n.time_created,n.time_modified,s.label status,
-          (SELECT c.label FROM public.workspace_category_v1 c WHERE c.id=n.category_id) category,
-          (SELECT sc.label FROM public.workspace_subcategory_v1 sc WHERE sc.id=n.subcategory_id) subcategory,
-          ARRAY(SELECT t.label FROM public.item_tag_link_v1 l
-            JOIN public.workspace_tag_v1 t ON t.id=l.tag_id WHERE l.item_id=n.id ORDER BY t.label) tags
-         FROM public.workspace_item_v1 n LEFT JOIN public.workspace_status_v1 s ON s.id=n.status_id
-         WHERE n.workspace_id=$1 ORDER BY n.id`,
-          [w.id],
-        )
+        await client.query<{ id: number } & Record<string, unknown>>(PORTABLE_ITEMS_SQL, [w.id])
       ).rows
       workspaces.push({
         ...dated(w),
@@ -113,17 +104,7 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
         })),
         tags: tags.map(dated),
         statuses: statuses.map((s) => ({ ...dated(s), position: s.position })),
-        items: items.map((n) => ({
-          description: n.description,
-          category: n.category,
-          subcategory: n.subcategory,
-          status: n.status,
-          tags: n.tags,
-          timeDue: n.time_due?.toISOString() ?? null,
-          timeRemind: n.time_remind?.toISOString() ?? null,
-          timeCreated: n.time_created.toISOString(),
-          timeModified: n.time_modified.toISOString(),
-        })),
+        items: items.map(portableItem),
       })
     }
     const currentId = user.preferences.notesApp?.currentWorkspaceId
@@ -186,19 +167,7 @@ const insertItems = async (client: PoolClient, workspaceId: number, values: Back
   // One statement stages every item and its tag links. Link inserts depend on
   // inserted ids, so foreign keys see the items written by the same statement.
   await client.query(
-    `WITH items AS MATERIALIZED (
-       SELECT nextval(pg_get_serial_sequence('public.workspace_item_v1','id'))::int id,v.* FROM jsonb_to_recordset($2::jsonb)
-         v(description text,status text,category text,subcategory text,tags text[],"timeDue" timestamptz,
-           "timeRemind" timestamptz,"timeCreated" timestamptz,"timeModified" timestamptz)
-     ), inserted AS (
-       INSERT INTO public.workspace_item_v1(id,workspace_id,category_id,subcategory_id,status_id,
-         description,time_due,time_remind,time_created,time_modified)
-       SELECT n.id,$1,c.id,sc.id,s.id,n.description,n."timeDue",n."timeRemind",n."timeCreated",n."timeModified"
-       FROM items n LEFT JOIN public.workspace_status_v1 s ON s.workspace_id=$1 AND s.label=n.status
-       LEFT JOIN public.workspace_category_v1 c ON c.workspace_id=$1 AND c.label=n.category
-       LEFT JOIN public.workspace_subcategory_v1 sc ON sc.category_id=c.id AND sc.label=n.subcategory
-       RETURNING id
-     ), tag_links AS (
+    `${IMPORT_ITEMS_CTE}, tag_links AS (
        INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
        SELECT n.id,t.id,$1 FROM items n JOIN inserted i ON i.id=n.id
        CROSS JOIN LATERAL unnest(n.tags) labels(label)
