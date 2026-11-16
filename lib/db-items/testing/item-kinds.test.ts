@@ -15,6 +15,7 @@ const source = (values: Partial<ItemCapabilitySource> = {}): ItemCapabilitySourc
 
 const record = (values: Partial<ItemRecord> = {}): ItemRecord => ({
   id: 1,
+  uid: "0b6f1c1e-8f0a-4c56-9d3e-2a7b5c9e4f10",
   workspaceId: 1,
   category: null,
   subcategory: null,

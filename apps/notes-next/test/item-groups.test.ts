@@ -40,6 +40,7 @@ const item = (
   const nestedIn = filedIn?.subcategories.find((c) => c.id === subcategoryId)
   return {
     id,
+    uid: `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
     workspaceId: 1,
     category: filedIn ? { id: filedIn.id, label: filedIn.label } : null,
     subcategory: nestedIn ? { id: nestedIn.id, label: nestedIn.label } : null,

@@ -20,6 +20,7 @@ import type {
   EmbeddingMaintenanceResponse,
   ItemsRequest,
   ItemsResponse,
+  CreateItemResponse,
   ItemResponse,
   SearchRequest,
   SearchResponse,
@@ -60,8 +61,10 @@ import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
 import {
-  createItemForUser,
+  createOrFindItemForUser,
   deleteItemForUser,
+  findItemByUidInWorkspace,
+  findWorkspaceIdByItemUid,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
   listItemsStaleEmbeddingsByUser,
@@ -118,6 +121,7 @@ import {
   updateUserPreferencesById,
   verifyUserCredentials,
 } from "../sql/user"
+import { PUBLIC_UID_TAKEN_ERROR } from "../contracts/public-uid"
 import {
   createBackfillEmbeddingInputs,
   createBackfillTagEmbeddings,
@@ -205,7 +209,9 @@ export const getItemsAppErrorStatus = (error: unknown) =>
             ? error.status >= 400 && error.status < 500
               ? 502
               : error.status
-            : error instanceof Error && error.message === CLAIM_IDENTIFIER_TAKEN_ERROR
+            : error instanceof Error &&
+                (error.message === CLAIM_IDENTIFIER_TAKEN_ERROR ||
+                  error.message === PUBLIC_UID_TAKEN_ERROR)
               ? 409
               : 400
 export const parseSessionRequest = (userId: unknown): SessionRequest => ({
@@ -395,6 +401,13 @@ export const updateItemsAppUserPreferences = async (r: UpdateUserPreferencesRequ
   return user ? { user } : null
 }
 
+/**
+ * The workspace of the user's item with this uid, so a link to an item opens the
+ * workspace it lives in. Null when the user has no such item.
+ */
+export const findItemWorkspaceForItemsApp = async (r: { userId: number; uid: string }) =>
+  findWorkspaceIdByItemUid(r.userId, r.uid)
+
 export const listWorkspacesForItemsApp = async (
   r: WorkspacesRequest,
 ): Promise<WorkspacesResponse> => {
@@ -571,15 +584,20 @@ export const deleteStatusForItemsApp = async (
   (await deleteStatusForWorkspace(r.userId, r.workspaceId, r.statusId)) ? { ok: true } : null
 // Storage accepts a bare item. The service refuses only an item that holds no capability
 // at all; it never requires text, which is a rule of the Notes screen alone.
-export const createItemForItemsApp = async (r: CreateItemRequest): Promise<ItemResponse> => {
+export const createItemForItemsApp = async (r: CreateItemRequest): Promise<CreateItemResponse> => {
   assertItemHasContent(r.item)
-  return {
-    item: await createItemForUser(
-      r.userId,
-      r.item,
-      await createItemEmbeddingInput({ description: r.item.description }),
-    ),
+  // A repeated create is answered before anything else is asked for. The text is not
+  // written again, so it needs no embedding, and the caller gets its item back even
+  // while the embedding provider is unavailable.
+  if (r.item.uid) {
+    const stored = await findItemByUidInWorkspace(r.userId, r.item.workspaceId, r.item.uid)
+    if (stored) return { item: stored, created: false }
   }
+  return createOrFindItemForUser(
+    r.userId,
+    r.item,
+    await createItemEmbeddingInput({ description: r.item.description }),
+  )
 }
 const normalized = (v: string | null | undefined) => (v ?? "").trim()
 const canReuse = (
@@ -706,6 +724,7 @@ export const itemsAppService = {
   getItemsAppUserIdForToken,
   revokeItemsAppToken,
   updateItemsAppUserPreferences,
+  findItemWorkspaceForItemsApp,
   listWorkspacesForItemsApp,
   createWorkspaceForItemsApp,
   updateWorkspaceForItemsApp,

@@ -6,17 +6,19 @@ import { ensureDefaultStatusForWorkspace } from "./status"
 export const DEFAULT_WORKSPACE_LABEL = "personal"
 interface Row {
   id: number
+  uid: string
   user_id: number
   label: string
   item_count: number | string | null
 }
 const map = (r: Row): WorkspaceRecord => ({
   id: r.id,
+  uid: r.uid,
   userId: r.user_id,
   label: r.label,
   itemCount: Number(r.item_count ?? 0),
 })
-const select = `SELECT w.id,w.user_id,w.label,(SELECT COUNT(*)::int FROM public.workspace_item_v1 n WHERE n.workspace_id=w.id) item_count FROM public.user_workspace_v1 w`
+const select = `SELECT w.id,w.uid,w.user_id,w.label,(SELECT COUNT(*)::int FROM public.workspace_item_v1 n WHERE n.workspace_id=w.id) item_count FROM public.user_workspace_v1 w`
 export const seedWorkspaceDefaults = async (client: PoolClient, workspaceId: number) => {
   await ensureDefaultStatusForWorkspace(client, workspaceId)
   await ensureDefaultTagForWorkspace(client, workspaceId)

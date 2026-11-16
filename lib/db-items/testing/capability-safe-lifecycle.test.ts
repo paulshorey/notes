@@ -21,7 +21,8 @@ import { createAnonymousUser } from "../sql/user/anonymous"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 import { listWorkspacesByUser } from "../sql/workspace"
 import { createCurrentSchemaDatabase } from "./historical-migration"
-import { backupFixture } from "./user-backup-fixture"
+import { backupFixture, contentOf, withoutUid } from "./user-backup-fixture"
+import { isPublicUid } from "../contracts/public-uid"
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
 
@@ -37,11 +38,16 @@ test("a backup item holds exactly the fields the registry declares", () => {
     (part) => Object.keys(part.fields),
   )
   assert.equal(new Set(declared).size, declared.length, "a field is declared twice")
-  assert.deepEqual(declared.sort(), Object.keys(backupFixture().workspaces[0]!.items[0]!).sort())
-  // Everything except the modification time decides whether two items are the same.
+  // The fixture is a file from before items had a uid, so it has every field but that.
+  assert.deepEqual(
+    declared.sort(),
+    [...Object.keys(backupFixture().workspaces[0]!.items[0]!), "uid"].sort(),
+  )
+  // Content decides whether two items are the same: not when it was last touched, and
+  // not the uid, which a second copy of an item never shares.
   assert.deepEqual(
     [...ITEM_IDENTITY_FIELDS].sort(),
-    declared.filter((field) => field !== "timeModified").sort(),
+    declared.filter((field) => field !== "timeModified" && field !== "uid").sort(),
   )
 })
 
@@ -300,17 +306,20 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
     const exported = await exportUserBackup(sourceId)
     const item = exported.workspaces.find((workspace) => workspace.label === "personal")!.items[0]!
     // Every declared field made the trip, with every capability present.
-    assert.deepEqual(item, backupFixture().workspaces[0]!.items[0])
+    assert.deepEqual(withoutUid(item), backupFixture().workspaces[0]!.items[0])
+    assert.ok(isPublicUid(item.uid), "an item restored from a file without uids is given one")
 
     assert.deepEqual(await restoreUserBackup(targetId, exported), {
       itemsImported: 1,
       itemsSkipped: 0,
     })
     const again = await exportUserBackup(targetId)
-    assert.deepEqual(
-      again.workspaces.find((workspace) => workspace.label === "personal"),
-      exported.workspaces.find((workspace) => workspace.label === "personal"),
-    )
+    const personal = (backup: typeof exported) =>
+      backup.workspaces.find((workspace) => workspace.label === "personal")!
+    assert.deepEqual(contentOf(personal(again)), contentOf(personal(exported)))
+    // The source account still holds the item, so the copy has a uid of its own.
+    assert.ok(isPublicUid(personal(again).items[0]!.uid))
+    assert.notEqual(personal(again).items[0]!.uid, item.uid)
     // The same file again adds nothing, in either account.
     for (const userId of [sourceId, targetId])
       assert.deepEqual(await restoreUserBackup(userId, exported), {

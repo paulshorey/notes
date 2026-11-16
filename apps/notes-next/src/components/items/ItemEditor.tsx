@@ -48,9 +48,10 @@ export function ItemEditor({ onClose }: { onClose?: () => void }) {
       statuses={statuses}
       tags={tags}
       pendingTagLabels={activeEntry?.pendingTagLabels ?? EMPTY_PENDING_TAG_LABELS}
-      // Keying the editor on the entry as well as the session id is what
-      // makes switching notes swap documents: same entry, same document.
-      descriptionEditorSessionId={`${activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
+      // The editor holds one document per entry, named by the entry's uid. A ring key
+      // is not enough: each workspace has its own ring, and the first draft in each
+      // has the same key, so the editor would keep showing the other workspace's text.
+      descriptionEditorSessionId={`${activeEntry?.uid ?? activeEntry?.key ?? "none"}:${activeEntry?.editorSessionId ?? 0}`}
       editorAutofocus={activeEntry?.autofocus ?? false}
       editorRevealText={activeEntry?.revealText ?? null}
       createCategoryPending={createCategoryPending}

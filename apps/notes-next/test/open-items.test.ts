@@ -23,6 +23,7 @@ import {
 
 const makeItem = (id: number, description = `note ${id}`): ItemRecord => ({
   id,
+  uid: `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
   workspaceId: 1,
   category: { id: 7, label: "inbox" },
   subcategory: null,

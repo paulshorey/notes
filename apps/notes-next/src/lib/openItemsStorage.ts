@@ -1,3 +1,5 @@
+import { isPublicUid } from "@lib/db-items/contracts/public-uid"
+import { newPublicUid } from "@/lib/publicUid"
 import { ITEM_KINDS, type ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { DEFAULT_VIEW_KIND } from "@/views/registry"
 import type { ItemRecord } from "@lib/db-items"
@@ -43,6 +45,8 @@ const CLEAN_ENTRY_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000
 interface PersistedEntry {
   key: OpenItemKey
   itemId: number | null
+  /** Absent in snapshots written before entries carried a uid. */
+  uid?: string
   baseTimeModified: string | null
   form: TextCaptureFormState
   /** Absent in snapshots written before entries recorded their view. */
@@ -165,6 +169,7 @@ export const toSnapshot = (
   entries: state.openItems.map((entry) => ({
     key: entry.key,
     itemId: entry.itemId,
+    uid: entry.uid,
     baseTimeModified: entry.baseTimeModified,
     form: entry.form,
     view: entry.view,
@@ -426,6 +431,8 @@ export const reconcileOpenItems = (
     const base: OpenItemEntry = {
       key: persisted.key,
       itemId: persisted.itemId,
+      // A draft keeps the uid it may already have sent a create with.
+      uid: isPublicUid(persisted.uid) ? persisted.uid : newPublicUid(),
       baseTimeModified: persisted.baseTimeModified ?? null,
       form: persisted.form,
       view: isItemKindKey(persisted.view) ? persisted.view : DEFAULT_VIEW_KIND,
@@ -462,6 +469,8 @@ export const reconcileOpenItems = (
         ...base,
         key: `draft:${nextDraftSequence}`,
         itemId: null,
+        // The item is gone; what was typed becomes a new item with its own identity.
+        uid: newPublicUid(),
         baseTimeModified: null,
         savedSignature: null,
       })
@@ -478,6 +487,7 @@ export const reconcileOpenItems = (
       const form = itemToFormState(record)
       entries.push({
         ...base,
+        uid: record.uid,
         form,
         baseTimeModified: record.timeModified,
         savedSignature: serializeItemDraft(record.id, form),
@@ -486,7 +496,7 @@ export const reconcileOpenItems = (
       continue
     }
 
-    entries.push(base)
+    entries.push({ ...base, uid: record.uid })
   }
 
   // Repair references to categories and tags that no longer exist. Same rule:

@@ -1,6 +1,8 @@
-export { createItemForUser } from "./add"
+export { createItemForUser, createOrFindItemForUser } from "./add"
 export { deleteItemForUser } from "./delete"
 export {
+  findItemByUidInWorkspace,
+  findWorkspaceIdByItemUid,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
   listItemsStaleEmbeddingsByUser,

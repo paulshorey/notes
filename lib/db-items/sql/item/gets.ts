@@ -16,6 +16,31 @@ export const listItemsByUser = async (userId: number, workspaceId: number) => {
   )
   return rows.map(mapItem)
 }
+/** The user's item with this uid in this workspace, or null. */
+export const findItemByUidInWorkspace = async (
+  userId: number,
+  workspaceId: number,
+  uid: string,
+) => {
+  const { rows } = await getDb().query<ItemRow>(
+    `${itemSelect}
+    JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
+    WHERE n.uid=$3::uuid AND n.workspace_id=$2 AND w.user_id=$1`,
+    [userId, workspaceId, uid],
+  )
+  return rows[0] ? mapItem(rows[0]) : null
+}
+
+/** The workspace that holds the user's item with this uid, or null when they have none. */
+export const findWorkspaceIdByItemUid = async (userId: number, uid: string) => {
+  const { rows } = await getDb().query<{ workspace_id: number }>(
+    `SELECT n.workspace_id FROM public.workspace_item_v1 n
+     JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
+     WHERE n.uid=$2::uuid AND w.user_id=$1`,
+    [userId, uid],
+  )
+  return rows[0]?.workspace_id ?? null
+}
 export const selectItemEmbeddingStateById = async (itemId: number, userId: number) => {
   const { rows } = await getDb().query<{
     description: string | null

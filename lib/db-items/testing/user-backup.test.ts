@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { isPublicUid } from "../contracts/public-uid"
 import { after, describe, mock, test } from "node:test"
 import { parseUserBackup } from "../contracts/user-backup"
 import { getDb } from "../lib/db/postgres"
@@ -6,6 +7,8 @@ import { createAnonymousUser } from "../sql/user/anonymous"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 import {
   backupFixture,
+  contentOf,
+  withoutUid,
   flatCategoryBackupFixture,
   upgradedFlatCategoryBackup,
 } from "./user-backup-fixture"
@@ -207,8 +210,17 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
     const imported = targetBackup.workspaces[0]!.items.find(
       (n) => n.description === file.workspaces[0]!.items[0]!.description,
     )
-    assert.deepEqual(imported, file.workspaces[0]!.items[0])
-    assert.deepEqual(targetBackup.workspaces[1], backup.workspaces[1])
+    assert.deepEqual(withoutUid(imported!), file.workspaces[0]!.items[0])
+    assert.deepEqual(contentOf(targetBackup.workspaces[1]!), contentOf(backup.workspaces[1]!))
+    // The source account still holds these items, so the copies get uids of their own.
+    const sourceUids = new Set(
+      backup.workspaces.flatMap((workspace) => workspace.items.map((item) => item.uid)),
+    )
+    for (const workspace of targetBackup.workspaces)
+      for (const item of workspace.items) {
+        assert.ok(isPublicUid(item.uid))
+        assert.equal(sourceUids.has(item.uid), false)
+      }
     assert.ok(targetBackup.workspaces[0]!.categories.some((c) => c.label === "unused"))
     assert.equal(targetBackup.workspaces[0]!.statuses.find((s) => s.label === "todo")!.position, 2)
     assert.equal(targetBackup.preferences.notesApp!.pasteUrlAsMarkdown, true)
@@ -257,7 +269,7 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
       (n) => n.description === workspace.items[0]!.description,
     )!
     const { categories: _legacy, ...portable } = workspace.items[0]!
-    assert.deepEqual(item, { ...portable, category: null, subcategory: null })
+    assert.deepEqual(withoutUid(item), { ...portable, category: null, subcategory: null })
     assert.equal(
       restored.workspaces[0]!.categories.some((c) => c.label === "uncategorized"),
       false,

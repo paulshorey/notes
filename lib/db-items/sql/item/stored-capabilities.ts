@@ -50,9 +50,23 @@ const labelIn = (table: string, workspace: string, label: string) =>
 
 /** Identity and ownership: present on every item, never content. */
 export const ITEM_CORE: StoredItemPart = {
-  columns: ["id", "workspace_id", "time_created", "time_modified"],
+  columns: ["id", "uid", "workspace_id", "time_created", "time_modified"],
   tables: {},
   fields: {
+    // A restored item keeps its uid when no item has it. A uid that is taken, here or
+    // by an earlier item of the same backup, means this is a second copy, which gets
+    // its own. It never decides whether two items are the same: content does.
+    uid: {
+      type: "uuid",
+      export: "n.uid",
+      import: {
+        uid: `COALESCE((SELECT n.uid WHERE NOT EXISTS (
+            SELECT 1 FROM public.workspace_item_v1 taken WHERE taken.uid=n.uid)
+          AND NOT EXISTS (SELECT 1 FROM items earlier WHERE earlier.uid=n.uid AND earlier.id<n.id)),
+          gen_random_uuid())`,
+      },
+      identity: false,
+    },
     timeCreated: {
       type: "timestamptz",
       export: "n.time_created",

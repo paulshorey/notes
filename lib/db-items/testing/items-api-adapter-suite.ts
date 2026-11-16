@@ -35,6 +35,7 @@ const sampleUser = {
 
 const sampleItem = {
   id: 41,
+  uid: "0b6f1c1e-8f0a-4c56-9d3e-2a7b5c9e4f10",
   workspaceId: 3,
   category: { id: 5, label: "work" },
   subcategory: { id: 6, label: "api" },
@@ -79,6 +80,7 @@ const sampleCategory = {
 
 const sampleWorkspace = {
   id: 3,
+  uid: "7d2a9f04-3b1c-4e8d-a6f5-9c0e1b2d3a44",
   userId: sampleUser.id,
   label: "personal",
   itemCount: 1,
@@ -130,6 +132,7 @@ export const createFakeItemsAppService = (
   restoreUserBackup: async () => ({ itemsImported: 0, itemsSkipped: 0 }),
   getItemsAppErrorStatus: () => 400,
   getItemsAppSession: async () => ({ user: sampleUser }),
+  findItemWorkspaceForItemsApp: async () => null,
   loginItemsAppUser: async () => ({ token: sampleApiToken, user: sampleUser }),
   getItemsAppUserIdForToken: async ({ token }) => (token === sampleApiToken ? sampleUser.id : null),
   revokeItemsAppToken: async ({ token }) => token === sampleApiToken,
@@ -735,6 +738,7 @@ export const registerItemsApiAdapterSuite = (
       body: {
         userId: 7,
         item: {
+          uid: " 0B6F1C1E-8F0A-4C56-9D3E-2A7B5C9E4F10 ",
           workspaceId: 3,
           categoryId: 5,
           subcategoryId: 6,
@@ -753,6 +757,7 @@ export const registerItemsApiAdapterSuite = (
       {
         userId: 7,
         item: {
+          uid: "0b6f1c1e-8f0a-4c56-9d3e-2a7b5c9e4f10",
           workspaceId: 3,
           categoryId: 5,
           subcategoryId: 6,
@@ -808,6 +813,7 @@ export const registerItemsApiAdapterSuite = (
       {
         userId: 7,
         item: {
+          uid: null,
           workspaceId: 3,
           categoryId: 5,
           subcategoryId: null,
@@ -819,6 +825,53 @@ export const registerItemsApiAdapterSuite = (
         },
       },
     ])
+  })
+
+  test(`${adapterName} answers 200 when a create names an item that already exists`, async (t) => {
+    const adapter = await createAdapter(
+      createFakeItemsAppService({
+        createItemForItemsApp: async () => ({ item: sampleItem, created: false }),
+      }),
+    )
+    t.after(async () => adapter.close?.())
+
+    const response = await adapter.request({
+      method: "POST",
+      path: "/api/items",
+      headers: authHeaders,
+      body: {
+        userId: 7,
+        item: { uid: sampleItem.uid, workspaceId: 3, tagIds: [], description: "Sent again." },
+      },
+    })
+    assert.equal(response.status, 200)
+    assert.deepEqual(response.body, { item: sampleItem })
+  })
+
+  test(`${adapterName} refuses a create whose uid is not a UUID`, async (t) => {
+    let writes = 0
+    const adapter = await createAdapter(
+      createFakeItemsAppService({
+        createItemForItemsApp: async () => {
+          writes += 1
+          return { item: sampleItem }
+        },
+      }),
+    )
+    t.after(async () => adapter.close?.())
+
+    const response = await adapter.request({
+      method: "POST",
+      path: "/api/items",
+      headers: authHeaders,
+      body: {
+        userId: 7,
+        item: { uid: "41", workspaceId: 3, tagIds: [], description: "Not a public id." },
+      },
+    })
+    assert.equal(response.status, 400)
+    assert.deepEqual(response.body, { error: "uid must be a UUID." })
+    assert.equal(writes, 0)
   })
 
   test(`${adapterName} refuses a save from a page that still lists several categories`, async (t) => {

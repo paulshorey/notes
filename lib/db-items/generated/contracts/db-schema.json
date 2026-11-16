@@ -115,6 +115,11 @@
       "column": "time_modified",
       "nullable": false,
       "type": "Date"
+    },
+    {
+      "column": "uid",
+      "nullable": false,
+      "type": "string"
     }
   ],
   "workspace_category_v1": [
@@ -224,6 +229,11 @@
       "column": "subcategory_id",
       "nullable": true,
       "type": "number"
+    },
+    {
+      "column": "uid",
+      "nullable": false,
+      "type": "string"
     }
   ],
   "workspace_status_v1": [

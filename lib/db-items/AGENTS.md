@@ -10,6 +10,11 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 ## Workspace ownership model
 
 - `user_v1` owns `user_workspace_v1`; items and all item vocabulary are owned through a workspace.
+- Items and workspaces each have a `uid` (uuid, unique, never changed) beside the integer
+  `id`. The uid is the public identity; integer ids stay the keys. `createOrFindItemForUser`
+  inserts with `ON CONFLICT (uid) DO NOTHING` and reports `created: false` when the uid named
+  an existing item of that workspace, and refuses a uid held anywhere else. See the
+  Identity section of `docs/db/item-core.md`.
 - Every item has one `workspace_id`, one nullable `category_id`, one nullable `subcategory_id`, one nullable `status_id`, and zero or more tag links. See `docs/db/item-taxonomy.md`.
 - A subcategory (`workspace_subcategory_v1`) belongs to one category and is unique by label within it. The hierarchy is exactly two levels. Categories, statuses, and tags are unique by normalized label within a workspace, and status and tags are not part of the hierarchy.
 - An item's subcategory always belongs to its category: composite foreign keys enforce it, and `resolveItemFiling` (`sql/item/shared.ts`) clears a subcategory that does not fit instead of failing the save. The item foreign keys take no delete action, so remove a category or subcategory only through the group engine, never with a bare `DELETE`.

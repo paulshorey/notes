@@ -25,7 +25,7 @@ todos:
     status: completed
   - id: public_identity
     content: "S7. Add a permanent uid (UUID) to items and workspaces as the public identity, client-generated on create so a retried create is harmless. Integer ids stay as internal keys."
-    status: pending
+    status: completed
   - id: files_capability
     content: "S8. Files as the first capability with new storage, built only through the extension points: item_file_v1, the service's per-capability validate and write hooks, upload and download on the media bucket, backup with bytes, a client module, and the media and voice memo kinds."
     status: pending
@@ -409,18 +409,26 @@ second view with a different rule.
 
 ### S7. Public identity
 
-`uid uuid NOT NULL DEFAULT gen_random_uuid()` with a unique index on items and
-workspaces, backfilled by the migration.
+`uid uuid NOT NULL DEFAULT gen_random_uuid()` with a unique constraint on items and
+workspaces. The default fills existing rows as the column is added.
 
-- The API returns `uid` and accepts it wherever it accepts an item or workspace id.
-- Create accepts a client-generated `uid` and inserts with `ON CONFLICT (uid) DO NOTHING`,
-  then returns the row. A create retried after a lost response returns the same item
-  instead of a duplicate.
-- Backups carry `uid`. Restore keeps it when it is unused and assigns a new one when it
+- The API returns `uid` on every item and workspace.
+- Create accepts a client-chosen `uid` and inserts with `ON CONFLICT (uid) DO NOTHING`.
+  A create repeated after a lost answer finds the item the first one stored, writes
+  nothing, and answers `200` instead of `201`; the client then sends its content as an
+  update. A uid held by an item elsewhere is refused with `409`.
+- The client gives every open entry a uid and sends it with the create, so autosave
+  retries, a reload that replays a draft, and the exit keepalive can all send a create
+  without making a second item. The exit keepalive therefore sends drafts too.
+- The address of an item is its uid (`?item=`). Older integer addresses still open.
+- Backups carry `uid`. Restore keeps it when it is free and assigns a new one when it
   is taken.
+- An item keeps its uid when it moves between accounts.
 - Integer ids remain the primary and foreign keys. Nothing is swapped.
 
-Item URLs, file routes, device caches, and links between items use the uid.
+Requests that act on a loaded record keep using its integer id, which the client always
+has. A route that is addressed from outside, starting with file routes in S8, takes the
+uid. Device caches and links between items use the uid.
 
 ### S8. Files, the first capability with new storage
 

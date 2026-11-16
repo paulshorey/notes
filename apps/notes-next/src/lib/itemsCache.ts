@@ -1,3 +1,4 @@
+import { isPublicUid } from "@lib/db-items/contracts/public-uid"
 import type {
   CategoryRecord,
   ItemRecord,
@@ -16,7 +17,7 @@ import type {
  * pattern, scoped to the notes app data.
  */
 export interface ItemsCacheSnapshot {
-  schemaVersion: 4
+  schemaVersion: 5
   userId: number
   user: UserSummary
   workspaces: WorkspaceRecord[]
@@ -28,6 +29,7 @@ export interface ItemsCacheSnapshot {
   savedAt: number
 }
 
+const CACHE_SCHEMA_VERSION = 5
 const LEGACY_CACHE_STORAGE_PREFIX = "notes-app-cache-v2"
 const CACHE_STORAGE_PREFIX = "items-app-cache-v3"
 const LATEST_CACHE_STORAGE_KEY = `${CACHE_STORAGE_PREFIX}:latest`
@@ -45,10 +47,13 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const isSnapshot = (value: unknown): value is ItemsCacheSnapshot => {
   if (!isObject(value)) return false
-  if (value.schemaVersion !== 4) return false
+  if (value.schemaVersion !== CACHE_SCHEMA_VERSION) return false
   if (typeof value.userId !== "number" || !Number.isInteger(value.userId)) return false
   if (!isObject(value.user)) return false
   if (!Array.isArray(value.items)) return false
+  // The editor and the address name an item by its uid, so a list without them is
+  // not usable. A uid cannot be made up here; only the server knows it.
+  if (!value.items.every((item) => isObject(item) && isPublicUid(item.uid))) return false
   if (!Array.isArray(value.categories)) return false
   if (
     !Array.isArray(value.statuses) ||
@@ -61,51 +66,17 @@ const isSnapshot = (value: unknown): value is ItemsCacheSnapshot => {
   return true
 }
 
-const mapRows = (rows: unknown, map: (row: Record<string, unknown>) => unknown) =>
-  Array.isArray(rows) ? rows.map((row: unknown) => (isObject(row) ? map(row) : row)) : rows
-
-/** Version 2 used note names. */
-const fromNoteNames = (value: Record<string, unknown>) => {
-  const { notes, ...rest } = value
-  const counts = (rows: unknown) =>
-    mapRows(rows, (row) => ({ ...row, itemCount: row.itemCount ?? row.noteCount }))
-  return {
-    ...rest,
-    schemaVersion: 3,
-    items: rest.items ?? notes,
-    workspaces: counts(rest.workspaces),
-    categories: counts(rest.categories),
-    statuses: counts(rest.statuses),
-    tags: counts(rest.tags),
-  }
-}
-
-/** Version 3 held a list of categories per item and categories without subcategories. */
-const fromCategoryLists = (value: Record<string, unknown>) => ({
-  ...value,
-  schemaVersion: 4,
-  items: mapRows(value.items, ({ categories, ...item }) => ({
-    category: Array.isArray(categories) ? (categories[0] ?? null) : null,
-    subcategory: null,
-    ...item,
-  })),
-  categories: mapRows(value.categories, (category) => ({ subcategories: [], ...category })),
-})
-
-const decodeSnapshot = (raw: string): unknown => {
-  let value: unknown = JSON.parse(raw)
-  if (isObject(value) && value.schemaVersion === 2) value = fromNoteNames(value)
-  if (isObject(value) && value.schemaVersion === 3) value = fromCategoryLists(value)
-  return value
-}
+/**
+ * The cache holds a copy of what the server has, so there is nothing to upgrade: a
+ * snapshot in any other shape is ignored and the next load fetches a fresh one.
+ */
+const decodeSnapshot = (raw: string): unknown => JSON.parse(raw)
 
 export const readItemsCache = (expectedUserId: number): ItemsCacheSnapshot | null => {
   if (!isBrowser()) return null
 
   try {
-    const latestKey =
-      window.localStorage.getItem(LATEST_CACHE_STORAGE_KEY) ??
-      window.localStorage.getItem(`${LEGACY_CACHE_STORAGE_PREFIX}:latest`)
+    const latestKey = window.localStorage.getItem(LATEST_CACHE_STORAGE_KEY)
     const raw = latestKey ? window.localStorage.getItem(latestKey) : null
     if (!raw) return null
 
@@ -127,7 +98,7 @@ export const writeItemsCache = (
 
   try {
     const payload: ItemsCacheSnapshot = {
-      schemaVersion: 4,
+      schemaVersion: CACHE_SCHEMA_VERSION,
       ...snapshot,
       savedAt: Date.now(),
     }

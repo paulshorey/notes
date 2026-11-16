@@ -5,6 +5,24 @@ nonblank authored text, presented by the current text-focused web client. Adding
 future dates, files, contacts, financial information, or task properties will
 extend an item without converting it into another exclusive type.
 
+## Identity
+
+Every item and every workspace has two ids. The integer `id` is the primary key and
+the target of every foreign key; it stays inside the database and the API calls that
+act on a loaded record. The `uid` is a UUID that never changes and is the identity
+everything else uses: addresses, backups, and whatever a device keeps
+(`contracts/public-uid.ts`).
+
+A create may name the uid of its item. The server stores one item per uid, so a create
+that is sent twice stores one item: the second finds the first one's row, writes
+nothing, and answers `200` with that item instead of `201`. The caller then sends its
+content as an update. A uid held by an item in another workspace or account is refused
+with `409` and reveals nothing about that item.
+
+An item keeps its uid when it moves between accounts. A backup carries uids, and a
+restore keeps a uid that is free and assigns a new one when an item or workspace
+already has it, because that restore is making a second copy.
+
 ## Capabilities
 
 `contracts/item-capabilities.ts` in `@lib/db-items` is the registry of what an item can
@@ -129,10 +147,13 @@ Compatibility never makes a client-supplied user ID authoritative.
 - Backup version 3 nests subcategories and stores one category per item. Import
   accepts version 2's category lists and version 1's `workspaces[].notes`, with the
   reserved-category conversion. Every client downloads version 3.
-- Browser cache and open-item storage use version 4. Readers upgrade note-named
-  and category-list snapshots, including serialized IDs and clean/dirty signatures.
-  Authored text and navigation keys are preserved. Legacy dirty snapshots are
-  not removed if the upgraded snapshot cannot be written.
+- Open-item storage uses version 4. Its reader upgrades note-named and category-list
+  snapshots, including serialized IDs and clean/dirty signatures. Authored text and
+  navigation keys are preserved. Legacy dirty snapshots are not removed if the upgraded
+  snapshot cannot be written.
+- The browser's copy of server data uses version 5 and requires a uid on every item.
+  It is never upgraded: a snapshot in another shape is ignored, and the next load
+  fetches a fresh one.
 - Existing encrypted cookies with `notesUserId` remain valid. Sessions expose
   both identity fields during the transition. The `notesApp` preference namespace
   and its `maxOpenNotes` setting intentionally remain text-client preferences.

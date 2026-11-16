@@ -1,5 +1,6 @@
 import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { isBlankItemDraft } from "@/capabilities/draftParts"
+import { newPublicUid } from "@/lib/publicUid"
 import { DEFAULT_VIEW_KIND } from "@/views/registry"
 import type { ItemRecord } from "@lib/db-items"
 import { itemFilingLabel } from "@/lib/itemFiling"
@@ -28,6 +29,11 @@ export interface OpenItemEntry {
   key: OpenItemKey
   /** null while this entry is a new note that has never been persisted. */
   itemId: ItemRef | null
+  /**
+   * The item's public uid. A new entry chooses its own and its create carries it, so
+   * a create that is sent again finds the item the first one stored.
+   */
+  uid: string
   /**
    * `timeModified` of the record this entry was last loaded or saved from.
    * Nothing reads it yet; it is the base revision a conflict check would need,
@@ -128,6 +134,7 @@ const createEntry = (
   return {
     key,
     itemId: null,
+    uid: newPublicUid(),
     baseTimeModified: null,
     savedSignature: null,
     saveStatus: "idle",
@@ -272,6 +279,7 @@ export const openExistingItem = (
   const form = itemToFormState(item)
   const entry = createEntry(itemEntryKey(item.id), {
     itemId: item.id,
+    uid: item.uid,
     baseTimeModified: item.timeModified,
     form,
     categoryInputValue: itemFilingLabel(item),

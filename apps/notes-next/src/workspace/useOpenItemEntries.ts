@@ -182,8 +182,12 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
       const selection = readItemsUrlSelection()
       const store = useItemsAppStore.getState()
 
-      if (selection.itemId !== null) {
-        const item = itemList.find((item) => item.id === selection.itemId)
+      if (selection.itemUid !== null || selection.itemId !== null) {
+        const item = itemList.find((item) =>
+          selection.itemUid !== null
+            ? item.uid === selection.itemUid
+            : item.id === selection.itemId,
+        )
         if (item) {
           // openExistingItem keeps the in-memory draft when the note is already
           // open, so this activates without clobbering unsaved text.
@@ -397,19 +401,22 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
     patchEntry(activeEntry.key, { revealText: null })
   }, [activeEntry?.key, activeEntry?.revealText, patchEntry])
 
+  // A draft has no address until it is stored.
+  const activeItemUid = activeEntry && activeEntry.itemId !== null ? activeEntry.uid : null
+
   useEffect(() => {
     if (!user) return
     if (!itemsUrlSelectionReady) return
 
     // Mirrors the *active* entry so the address bar stays copy-pasteable.
     writeItemsUrlSelection({
-      itemId: activeEntry?.itemId ?? null,
+      itemUid: activeItemUid,
       categoryId: activeEntry?.form.selectedCategoryId ?? null,
       subcategoryId: activeEntry?.form.selectedSubcategoryId ?? null,
       tagIds: activeEntry?.form.selectedTagIds ?? [],
     })
   }, [
-    activeEntry?.itemId,
+    activeItemUid,
     activeEntry?.form.selectedCategoryId,
     activeEntry?.form.selectedSubcategoryId,
     activeEntry?.form.selectedTagIds,

@@ -47,6 +47,7 @@ const makeItem = (
   timeModified = "2026-03-01T00:00:00.000Z",
 ): ItemRecord => ({
   id,
+  uid: `00000000-0000-4000-8000-${String(id).padStart(12, "0")}`,
   workspaceId: 1,
   category: { id: 7, label: "inbox" },
   subcategory: { id: 70, label: "today" },
@@ -498,54 +499,44 @@ test("a failed legacy draft upgrade preserves its only durable copy", () => {
   }
 })
 
-test("an existing server cache upgrades item lists and relationship counts without altering preferences", async () => {
-  const { readItemsCache } = await import("../src/lib/itemsCache")
+test("a server cache is used for the first paint only when its items have uids", async () => {
+  const { readItemsCache, writeItemsCache } = await import("../src/lib/itemsCache")
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window")
   const storage = new MemoryStorage()
-  const preferences = { notesApp: { maxOpenNotes: 5 } }
-  storage.setItem("notes-app-cache-v2:latest", "notes-app-cache-v2:1:1")
-  storage.setItem(
-    "notes-app-cache-v2:1:1",
-    JSON.stringify({
-      schemaVersion: 2,
-      userId: 1,
-      activeWorkspaceId: 1,
-      savedAt: Date.now(),
-      user: { id: 1, username: "owner", email: null, phone: null, preferences },
-      notes: [
-        {
-          ...makeItem(41, "authored notes text"),
-          category: undefined,
-          subcategory: undefined,
-          categories: [
-            { id: 7, label: "inbox" },
-            { id: 9, label: "second" },
-          ],
-        },
-      ],
-      workspaces: [{ id: 1, userId: 1, label: "personal", noteCount: 1 }],
-      categories: [{ id: 7, workspaceId: 1, label: "inbox", noteCount: 1, lastUsedAt: null }],
-      statuses: [],
-      tags: [],
-    }),
-  )
   Object.defineProperty(globalThis, "window", {
     value: { localStorage: storage },
     configurable: true,
   })
+  const preferences = { notesApp: { maxOpenNotes: 5 } }
+  const current = {
+    userId: 1,
+    activeWorkspaceId: 1,
+    user: { id: 1, username: "owner", email: null, phone: null, preferences },
+    items: [makeItem(41, "authored notes text")],
+    workspaces: [],
+    categories: [],
+    statuses: [],
+    tags: [],
+  }
   try {
+    writeItemsCache(current as unknown as Parameters<typeof writeItemsCache>[0])
     const cached = readItemsCache(1)!
-    assert.equal(cached.schemaVersion, 4)
+    assert.equal(cached.schemaVersion, 5)
     assert.equal(cached.items[0]?.description, "authored notes text")
-    // A cached list of categories becomes the first one, with no subcategory.
-    assert.deepEqual(cached.items[0]?.category, { id: 7, label: "inbox" })
-    assert.equal(cached.items[0]?.subcategory, null)
-    assert.equal("categories" in cached.items[0]!, false)
-    assert.equal(cached.categories[0]?.itemCount, 1)
-    assert.deepEqual(cached.categories[0]?.subcategories, [])
-    assert.equal(cached.workspaces[0]?.itemCount, 1)
+    assert.equal(cached.items[0]?.uid, makeItem(41, "").uid)
     assert.deepEqual(cached.user.preferences, preferences)
-    assert.equal(readItemsCache(2), null)
+    assert.equal(readItemsCache(2), null, "another user's cache is not read")
+
+    // A snapshot written before items had a uid cannot name its items, so it is not
+    // used. It is a copy of server data, and the next load replaces it.
+    const key = storage.getItem("items-app-cache-v3:latest")!
+    const stored = JSON.parse(storage.getItem(key)!)
+    const withoutUid = { ...stored.items[0] }
+    delete withoutUid.uid
+    storage.setItem(key, JSON.stringify({ ...stored, items: [withoutUid] }))
+    assert.equal(readItemsCache(1), null)
+    storage.setItem(key, JSON.stringify({ ...stored, schemaVersion: 4 }))
+    assert.equal(readItemsCache(1), null, "an earlier version is not read")
   } finally {
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow)
     else Reflect.deleteProperty(globalThis, "window")

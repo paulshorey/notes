@@ -3,7 +3,7 @@ import type { PoolClient } from "pg"
 import { assertCategoryNameAllowed } from "../../contracts/category-name"
 
 export const itemColumns = `
-  n.id, n.workspace_id, n.description, n.time_due, n.time_remind,
+  n.id, n.uid, n.workspace_id, n.description, n.time_due, n.time_remind,
   n.time_created, n.time_modified,
   CASE WHEN s.id IS NULL THEN NULL ELSE json_build_object('id', s.id, 'label', s.label) END AS status,
   (SELECT json_build_object('id', c.id, 'label', c.label)
@@ -21,6 +21,7 @@ export const itemSelect = `SELECT ${itemColumns} FROM public.workspace_item_v1 n
 
 export interface ItemRow {
   id: number
+  uid: string
   workspace_id: number
   description: string | null
   time_due: Date | null
@@ -49,6 +50,7 @@ const parseRefs = (value: unknown): CategoryRef[] =>
 
 export const mapItem = (row: ItemRow): ItemRecord => ({
   id: row.id,
+  uid: row.uid,
   workspaceId: row.workspace_id,
   category: parseRefs([row.category])[0] ?? null,
   subcategory: parseRefs([row.subcategory])[0] ?? null,

@@ -8,6 +8,7 @@ import type {
   UserPreferences,
 } from "./items-app"
 import { UNCATEGORIZED_LABEL } from "./category-name"
+import { isPublicUid } from "./public-uid"
 
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
 export const USER_BACKUP_VERSION = 3
@@ -55,6 +56,14 @@ const timestamp = (value: unknown): string => {
   return new Date(value).toISOString()
 }
 const nullableTimestamp = (value: unknown) => (value === null ? null : timestamp(value))
+/**
+ * A record's uid, as an entry to spread into it. Files written before records had a
+ * uid carry none, and the parsed record then has no uid either; restore assigns one.
+ */
+const optionalUid = (value: unknown): { uid?: string } => {
+  if (value === undefined || value === null) return {}
+  return isPublicUid(value) ? { uid: value } : fail("Backup contains an invalid uid.")
+}
 const unique = <T>(values: T[], getLabel: (value: T) => string): T[] => {
   if (new Set(values.map(getLabel)).size !== values.length)
     fail("Backup contains duplicate labels.")
@@ -171,6 +180,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         )
           fail("An item refers to a subcategory outside its category.")
         return {
+          ...optionalUid(n.uid),
           description: n.description as string | null,
           category,
           subcategory,
@@ -183,6 +193,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         }
       })
       return {
+        ...optionalUid(w.uid),
         ...vocabulary(w),
         categories: categories.filter((category) => category.label !== UNCATEGORIZED_LABEL),
         statuses,
