@@ -1,5 +1,6 @@
 "use client"
 
+import { readItemsUrlSelection } from "@/lib/itemsUrlSelection"
 import { type BootstrapResponse, type SessionResponse } from "@lib/db-items"
 import { useEffect } from "react"
 import { signIn, signOut } from "next-auth/react"
@@ -91,13 +92,20 @@ export function useSessionLifecycle(
       {
         applyUser,
         workspaceId,
+        itemUid = null,
       }: {
         applyUser: boolean
         workspaceId?: number
+        /** The item the address names; the server opens the workspace that holds it. */
+        itemUid?: string | null
       },
     ) => {
       const bootstrapResponse = await fetchWithTimeout(
-        workspaceId === undefined ? "/api/bootstrap" : `/api/bootstrap?workspaceId=${workspaceId}`,
+        workspaceId !== undefined
+          ? `/api/bootstrap?workspaceId=${workspaceId}`
+          : itemUid !== null
+            ? `/api/bootstrap?item=${itemUid}`
+            : "/api/bootstrap",
         {
           cache: "no-store",
         },
@@ -266,8 +274,18 @@ export function useSessionLifecycle(
       // Skip the stale-while-revalidate cache paint when a merge just ran: the
       // cached snapshot predates the merge, so we load fresh post-merge data in
       // a single pass instead.
-      const cachedSnapshot =
+      const storedSnapshot =
         !pendingMergeToken && Number.isInteger(numericUserId) ? readItemsCache(numericUserId) : null
+
+      // The address may name an item in a workspace other than the one last open
+      // here. The cached snapshot holds one workspace, so if the item is not in it,
+      // skip the cached paint and let the server open the workspace that holds it.
+      const linkedItemUid = readItemsUrlSelection().itemUid
+      const cachedSnapshot =
+        storedSnapshot &&
+        (linkedItemUid === null || storedSnapshot.items.some((item) => item.uid === linkedItemUid))
+          ? storedSnapshot
+          : null
 
       // Stale-while-revalidate. If we have a recent local snapshot for this
       // user, render the app immediately from cache and refresh in the
@@ -330,7 +348,10 @@ export function useSessionLifecycle(
       }
 
       try {
-        const result = await fetchFreshSession(storedUserId, { applyUser: true })
+        const result = await fetchFreshSession(storedUserId, {
+          applyUser: true,
+          itemUid: linkedItemUid,
+        })
         if (!active) return
 
         rehydrateOpenItems(result.sessionData.user.id, {

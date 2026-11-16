@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { itemJson } from "./legacy-note-contract"
+import { isPublicUid } from "@lib/db-items/contracts/public-uid"
 import { itemsAppService, type ItemsAppService } from "@lib/db-items/services/items-app"
 import { resolveRequestUserId, type SessionUserResolver } from "./items-app-route-handlers"
 
@@ -29,13 +30,20 @@ export const createBootstrapRouteHandler =
       }
 
       const workspaceResult = await service.listWorkspacesForItemsApp({ userId })
-      const requested = Number.parseInt(
-        new URL(request.url).searchParams.get("workspaceId") ?? "",
-        10,
-      )
+      const params = new URL(request.url).searchParams
+      const requested = Number.parseInt(params.get("workspaceId") ?? "", 10)
+      // A link names an item by uid and nothing else, so the item decides which
+      // workspace opens. An explicit workspace still wins, and a uid the user has no
+      // item for changes nothing.
+      const linkedUid = params.get("item")?.trim().toLowerCase()
+      const linked =
+        Number.isNaN(requested) && isPublicUid(linkedUid)
+          ? await service.findItemWorkspaceForItemsApp({ userId, uid: linkedUid })
+          : null
       const preferred = session.user.preferences.notesApp?.currentWorkspaceId
       const active =
         workspaceResult.workspaces.find((w) => w.id === requested) ??
+        workspaceResult.workspaces.find((w) => w.id === linked) ??
         workspaceResult.workspaces.find((w) => w.id === preferred) ??
         workspaceResult.workspaces[0]
       if (!active) throw new Error("No workspace is available.")

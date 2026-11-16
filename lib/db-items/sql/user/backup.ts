@@ -179,6 +179,9 @@ export const restoreUserBackup = async (
   const client = await getDb().connect()
   try {
     await client.query("BEGIN")
+    // Restores take turns. One that keeps a uid has to see whether another restore of
+    // the same file already took it, and that is only visible once the other commits.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext('items.restore.uid'))`)
     const destination = (
       await client.query<{ is_anonymous: boolean }>(
         `SELECT is_anonymous FROM public.user_v1 WHERE id=$1 FOR UPDATE`,

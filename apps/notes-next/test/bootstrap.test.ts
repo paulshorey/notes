@@ -187,3 +187,52 @@ test("expired-session recovery keeps unsaved text under the old identity and emp
     else Reflect.deleteProperty(globalThis, "window")
   }
 })
+
+test("a link to an item opens the workspace that holds it", async () => {
+  const uid = "0b6f1c1e-8f0a-4c56-9d3e-2a7b5c9e4f10"
+  const workspaces = [
+    {
+      id: 3,
+      uid: "7d2a9f04-3b1c-4e8d-a6f5-9c0e1b2d3a44",
+      userId: 7,
+      label: "personal",
+      itemCount: 0,
+    },
+    { id: 9, uid: "1c3e5a70-2b4d-4f6a-8c9e-0a1b2c3d4e5f", userId: 7, label: "side", itemCount: 1 },
+  ]
+  const asked: Array<{ userId: number; uid: string }> = []
+  const loaded: number[] = []
+  const base = createFakeItemsAppService()
+  const service = createFakeItemsAppService({
+    listWorkspacesForItemsApp: async () => ({ workspaces }),
+    findItemWorkspaceForItemsApp: async (input) => {
+      asked.push(input)
+      return input.uid === uid ? 9 : null
+    },
+    listItemsForItemsApp: async (input) => {
+      loaded.push(input.workspaceId)
+      return base.listItemsForItemsApp(input)
+    },
+  })
+  const open = async (query: string) => {
+    const response = await createBootstrapRouteHandler(
+      service,
+      async () => 7,
+    )(new Request(`https://notes.test/api/bootstrap${query}`))
+    assert.equal(response.status, 200)
+    return ((await response.json()) as { activeWorkspaceId: number }).activeWorkspaceId
+  }
+
+  assert.equal(await open(`?item=${uid.toUpperCase()}`), 9, "the item's workspace opens")
+  assert.deepEqual(asked, [{ userId: 7, uid }])
+  assert.equal(
+    await open("?item=11111111-2222-4333-8444-555555555555"),
+    3,
+    "an unknown uid changes nothing",
+  )
+  assert.equal(await open("?item=41"), 3, "something that is not a uid is not looked up")
+  assert.equal(asked.length, 2)
+  assert.equal(await open(`?workspaceId=3&item=${uid}`), 3, "an explicit workspace wins")
+  assert.equal(asked.length, 2)
+  assert.deepEqual(loaded, [9, 3, 3, 3])
+})

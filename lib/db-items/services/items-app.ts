@@ -63,6 +63,7 @@ import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
 import {
   createOrFindItemForUser,
   deleteItemForUser,
+  findWorkspaceIdByItemUid,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
   listItemsStaleEmbeddingsByUser,
@@ -399,6 +400,13 @@ export const updateItemsAppUserPreferences = async (r: UpdateUserPreferencesRequ
   return user ? { user } : null
 }
 
+/**
+ * The workspace of the user's item with this uid, so a link to an item opens the
+ * workspace it lives in. Null when the user has no such item.
+ */
+export const findItemWorkspaceForItemsApp = async (r: { userId: number; uid: string }) =>
+  findWorkspaceIdByItemUid(r.userId, r.uid)
+
 export const listWorkspacesForItemsApp = async (
   r: WorkspacesRequest,
 ): Promise<WorkspacesResponse> => {
@@ -708,6 +716,7 @@ export const itemsAppService = {
   getItemsAppUserIdForToken,
   revokeItemsAppToken,
   updateItemsAppUserPreferences,
+  findItemWorkspaceForItemsApp,
   listWorkspacesForItemsApp,
   createWorkspaceForItemsApp,
   updateWorkspaceForItemsApp,

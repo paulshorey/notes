@@ -132,6 +132,7 @@ export const createFakeItemsAppService = (
   restoreUserBackup: async () => ({ itemsImported: 0, itemsSkipped: 0 }),
   getItemsAppErrorStatus: () => 400,
   getItemsAppSession: async () => ({ user: sampleUser }),
+  findItemWorkspaceForItemsApp: async () => null,
   loginItemsAppUser: async () => ({ token: sampleApiToken, user: sampleUser }),
   getItemsAppUserIdForToken: async ({ token }) => (token === sampleApiToken ? sampleUser.id : null),
   revokeItemsAppToken: async ({ token }) => token === sampleApiToken,

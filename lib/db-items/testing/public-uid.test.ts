@@ -8,7 +8,12 @@ import {
 } from "../contracts/public-uid"
 import { getDb } from "../lib/db/postgres"
 import { getItemsAppErrorStatus, mergeAnonymousItemsAppSession } from "../services/items-app"
-import { createItemForUser, createOrFindItemForUser, listItemsByUser } from "../sql/item"
+import {
+  createItemForUser,
+  createOrFindItemForUser,
+  findWorkspaceIdByItemUid,
+  listItemsByUser,
+} from "../sql/item"
 import { createAnonymousUser } from "../sql/user/anonymous"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 import { createWorkspaceForUser, listWorkspacesByUser } from "../sql/workspace"
@@ -255,6 +260,46 @@ describe("public uid (DB)", { skip: !testDbUrl }, () => {
       w.items.map((item) => item.uid),
     )
     assert.equal(new Set(uids).size, 3)
+  })
+
+  test("two restores of one file at the same moment both succeed, and one keeps the uids", async () => {
+    const source = await realUser()
+    const side = await createWorkspaceForUser(source.userId, `raced ${randomUUID().slice(0, 8)}`)
+    await createItemForUser(source.userId, input(side.id, "restored twice at once"), noEmbedding)
+    const backup = await exportUserBackup(source.userId)
+    const original = backup.workspaces.find((w) => w.label === side.label)!
+    await getDb().query(`DELETE FROM public.user_v1 WHERE id=$1`, [source.userId])
+
+    const [first, second] = [await realUser(), await realUser()]
+    const results = await Promise.all(
+      [first, second].map((account) => restoreUserBackup(account.userId, backup)),
+    )
+    assert.deepEqual(
+      results.map((result) => result.itemsImported),
+      [1, 1],
+    )
+    const restored = await Promise.all(
+      [first, second].map(
+        async (account) =>
+          (await exportUserBackup(account.userId)).workspaces.find((w) => w.label === side.label)!,
+      ),
+    )
+    const workspaceUids = restored.map((workspace) => workspace.uid)
+    const itemUids = restored.map((workspace) => workspace.items[0]!.uid)
+    assert.notEqual(workspaceUids[0], workspaceUids[1])
+    assert.notEqual(itemUids[0], itemUids[1])
+    assert.equal(workspaceUids.filter((uid) => uid === original.uid).length, 1)
+    assert.equal(itemUids.filter((uid) => uid === original.items[0]!.uid).length, 1)
+  })
+
+  test("a uid finds the workspace of the user's own item only", async () => {
+    const owner = await realUser()
+    const second = await createWorkspaceForUser(owner.userId, "second")
+    const item = await createItemForUser(owner.userId, input(second.id, "linked"), noEmbedding)
+    assert.equal(await findWorkspaceIdByItemUid(owner.userId, item.uid), second.id)
+    const other = await realUser()
+    assert.equal(await findWorkspaceIdByItemUid(other.userId, item.uid), null)
+    assert.equal(await findWorkspaceIdByItemUid(owner.userId, randomUUID()), null)
   })
 
   test("a backup with a uid that is not a UUID is refused", async () => {
