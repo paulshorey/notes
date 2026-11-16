@@ -33,6 +33,15 @@ const BLANK_CHECKS: readonly Pick<ItemDraftPart<ItemDraft>, "isBlank">[] = DRAFT
 export const isBlankItemDraft = (draft: ItemDraft): boolean =>
   BLANK_CHECKS.every((part) => part.isBlank?.(draft) ?? true)
 
+const CONTENT_CHECKS: readonly Pick<ItemDraftPart<ItemDraft>, "holds">[] = DRAFT_PARTS
+
+/**
+ * Whether a save of this draft would store any capability. It is the item service's
+ * own rule (`hasItemContent`) applied to a draft.
+ */
+export const draftHoldsContent = (draft: ItemDraft): boolean =>
+  CONTENT_CHECKS.some((part) => part.holds?.(draft) ?? false)
+
 /** Content first: text names an item when it has some, then what else it holds. */
 const LIST_LABEL_PARTS = [textPart, statusPart, schedulePart] as const
 

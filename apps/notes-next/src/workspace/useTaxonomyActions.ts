@@ -24,15 +24,12 @@ import { type TextCaptureFormState } from "@/types/items"
 import { updateItemsCacheList } from "@/lib/itemsCache"
 import { type OpenItemKey, itemEntryKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
+import { useWorkspaceStore } from "@/stores/workspaceStore"
+import { createEmptyItemDraft } from "@/capabilities/draftParts"
+import { itemRequestBody } from "@/lib/itemDraft"
 import { collectSessionFlushEntries } from "@/lib/openItemsExit"
 import { canSaveEntry } from "@/views/registry"
-import {
-  type ItemFiling,
-  existingFiling,
-  filingLabel,
-  isSameFiling,
-  upsertCategory,
-} from "@/lib/itemFiling"
+import { existingFiling, filingLabel, isSameFiling, upsertCategory } from "@/lib/itemFiling"
 import { isResultsDrawerLayout } from "@/lib/resultsColumn"
 import { isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
@@ -40,6 +37,14 @@ import type { WorkspaceDataOutput } from "./useWorkspaceData"
 import type { ItemSaveEngineOutput } from "./useItemSaveEngine"
 import type { OpenItemEntriesOutput } from "./useOpenItemEntries"
 import type { ItemListsOutput } from "./useItemLists"
+
+/** The fields a list action may change on a stored item; the rest are sent as stored. */
+type StoredItemChange = Partial<{
+  categoryId: number | null
+  subcategoryId: number | null
+  statusId: number | null
+  tagIds: number[]
+}>
 
 export function useTaxonomyActions(
   ctx: WorkspaceStateOutput &
@@ -50,6 +55,7 @@ export function useTaxonomyActions(
 ) {
   const {
     activeKey,
+    activeView,
     activeWorkspaceId,
     activeWorkspaceIdRef,
     applyServerItemToEntry,
@@ -66,6 +72,7 @@ export function useTaxonomyActions(
     fallbackTagId,
     groupDeferredSaveKeysRef,
     itemsRef,
+    mergeSavedItem,
     loadItems,
     openDraftEntry,
     openItemEntry,
@@ -77,6 +84,7 @@ export function useTaxonomyActions(
     refreshResults,
     remapEntriesAfterCategoryChange,
     saveEntry,
+    scheduleTaxonomyRefresh,
     saveInFlightRef,
     searchMode,
     selectedTagId,
@@ -526,12 +534,33 @@ export function useTaxonomyActions(
     return data.tag
   }
 
+  /**
+   * The stored item a list action should start from. If the item is open with unsaved
+   * edits its view would save, those are saved first, so a change made from a list
+   * never overwrites what the user typed.
+   */
+  const settleOpenEntryFor = async (item: ItemRecord): Promise<ItemRecord> => {
+    const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
+    if (!entry || !isEntryDirty(entry) || !canSaveEntry(entry)) return item
+    if (!(await saveEntry(entry.key, "flush")))
+      throw new Error("Couldn't save your changes to this item first. Try again.")
+    return useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? item
+  }
+
+  /** Change fields of a stored item from a list, without opening it. */
   const patchItemFromSidebar = async (
-    item: ItemRecord,
-    nextFiling: ItemFiling,
-    nextTagIds: number[],
+    listedItem: ItemRecord,
+    change: (current: ItemRecord) => StoredItemChange,
   ) => {
     if (!user) return null
+    const item = await settleOpenEntryFor(listedItem)
+    const fields = {
+      categoryId: item.category?.id ?? null,
+      subcategoryId: item.subcategory?.id ?? null,
+      statusId: item.status?.id ?? null,
+      tagIds: item.tags.map((tag) => tag.id),
+      ...change(item),
+    }
 
     const request = (async () => {
       const response = await itemsFetch("/api/items", {
@@ -542,9 +571,7 @@ export function useTaxonomyActions(
           itemId: item.id,
           item: {
             workspaceId: activeWorkspaceId,
-            ...nextFiling,
-            statusId: item.status?.id ?? null,
-            tagIds: nextTagIds,
+            ...fields,
             description: item.description ?? "",
             timeDue: item.timeDue,
             timeRemind: item.timeRemind,
@@ -591,11 +618,10 @@ export function useTaxonomyActions(
       if (item.category?.id === category.id) return
 
       // A subcategory belongs to the category the note is leaving.
-      const updatedItem = await patchItemFromSidebar(
-        item,
-        { categoryId: category.id, subcategoryId: null },
-        item.tags.map((tag) => tag.id),
-      )
+      const updatedItem = await patchItemFromSidebar(item, () => ({
+        categoryId: category.id,
+        subcategoryId: null,
+      }))
       if (updatedItem) applyServerItemToEntry(updatedItem)
       setStatusMessage(`Note moved to “${category.label}”.`)
     } catch (error) {
@@ -610,20 +636,63 @@ export function useTaxonomyActions(
       const tag = await resolveTagForSidebarMove(tagLabel)
       if (!tag) return
 
-      const nextTagIds = item.tags
-        .filter((itemTag) => itemTag.id !== fromTagId && itemTag.id !== tag.id)
-        .map((itemTag) => itemTag.id)
-      nextTagIds.push(tag.id)
-
-      const updatedItem = await patchItemFromSidebar(
-        item,
-        { categoryId: item.category?.id ?? null, subcategoryId: item.subcategory?.id ?? null },
-        nextTagIds,
-      )
+      const updatedItem = await patchItemFromSidebar(item, (current) => ({
+        tagIds: [
+          ...current.tags
+            .filter((itemTag) => itemTag.id !== fromTagId && itemTag.id !== tag.id)
+            .map((itemTag) => itemTag.id),
+          tag.id,
+        ],
+      }))
       if (updatedItem) applyServerItemToEntry(updatedItem)
       setStatusMessage(`Note tag changed to “${tag.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
+    }
+  }
+
+  /** Set or clear an item's status from a list, as a board does when a card moves. */
+  const handleSetItemStatus = async (item: ItemRecord, statusId: number | null) => {
+    if (!user || (item.status?.id ?? null) === statusId) return
+    clearMessages()
+    try {
+      const updatedItem = await patchItemFromSidebar(item, () => ({ statusId }))
+      if (updatedItem) applyServerItemToEntry(updatedItem)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    }
+  }
+
+  /**
+   * Create an item from one line typed into a list, with the defaults of the view it
+   * was typed in. It is stored directly and does not open in the editor.
+   */
+  const handleQuickAddItem = async (
+    description: string,
+    context: { statusId: number | null },
+  ): Promise<boolean> => {
+    const workspaceId = activeWorkspaceId
+    if (!user || workspaceId === null) return false
+    const draft = {
+      ...createEmptyItemDraft(),
+      ...activeView.quickAddDefaults?.(context),
+      description,
+    }
+    if (!activeView.canSave(draft)) return false
+    clearMessages()
+    try {
+      const response = await itemsFetch("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, item: itemRequestBody(draft, workspaceId) }),
+      })
+      const data = await readJson<{ item: ItemRecord }>(response)
+      mergeSavedItem(user.id, data.item)
+      scheduleTaxonomyRefresh(user.id)
+      return true
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+      return false
     }
   }
 
@@ -903,6 +972,8 @@ export function useTaxonomyActions(
     resolveCategoryForSidebarMove,
     resolveTagForSidebarMove,
     patchItemFromSidebar,
+    handleSetItemStatus,
+    handleQuickAddItem,
     handleMoveItemCategory,
     handleMoveItemTag,
     prepareItemGroupAction,

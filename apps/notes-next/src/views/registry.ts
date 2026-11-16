@@ -1,6 +1,6 @@
 import { hasText } from "@lib/db-items/contracts/item-capabilities"
 import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
-import type { ItemDraft } from "@/capabilities/draftParts"
+import { draftHoldsContent, type ItemDraft } from "@/capabilities/draftParts"
 
 /**
  * A view is a screen over the items of one kind. The same item appears in every view
@@ -28,6 +28,11 @@ export interface ItemView {
    * whichever entry becomes active.
    */
   alwaysShowsEditor: boolean
+  /**
+   * What a quick-add in this view puts on the new item besides the typed text, given
+   * where in the view it was added.
+   */
+  quickAddDefaults?: (context: { statusId: number | null }) => Partial<ItemDraft>
 }
 
 /** The view an entry belongs to when nothing says otherwise. */
@@ -41,6 +46,16 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     // Notes captures text, so a draft is worth saving once it has some.
     canSave: (draft) => hasText(draft.description),
     alwaysShowsEditor: true,
+  },
+  {
+    kind: "task",
+    route: "/tasks",
+    label: "Tasks",
+    // A task may have no text: a status or a date alone is worth keeping.
+    canSave: draftHoldsContent,
+    alwaysShowsEditor: false,
+    // A card added to a board column starts with that column's status.
+    quickAddDefaults: ({ statusId }) => ({ selectedStatusId: statusId }),
   },
 ]
 

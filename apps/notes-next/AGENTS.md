@@ -10,6 +10,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
   (workspace)/              — route group for every view of the workspace's items
     layout.tsx              — ItemsWorkspaceProvider + AppShell around the view's page
     page.tsx                — `/`, the Notes view
+    tasks/page.tsx          — `/tasks`, the Tasks view
   providers.tsx             — client-side providers
   globals.css
   embeddings/               — debug page for testing Jina embeddings
@@ -57,6 +58,8 @@ src/                        — non-route code (import with "@/..." alias)
   views/
     registry.ts             — `ITEM_VIEWS`: each view's kind, route, and label
     notes/NotesView.tsx     — the Notes view: the editor for the active entry
+    tasks/TasksView.tsx     — the Tasks view: board by status, list by due date
+    tasks/taskLists.ts      — pure column and ordering rules for the board and list
   capabilities/             — one module per thing an item can hold
     types.ts                — `ItemDraftPart` and `DraftControlProps`
     draftParts.ts           — composes the parts into the draft, the save request, and list labels
@@ -66,12 +69,14 @@ src/                        — non-route code (import with "@/..." alias)
     shell/
       AppShell.tsx          — header, sidebar, dialogs, and notifications around a view
       AppShell.module.css   — shell layout CSS module
+      ViewSwitcher.tsx      — header links to each registered view
     items/                  — components shared by the shell and the views
       WorkspaceHeader.tsx       — app-wide header (logo, save status, recent notes, user menu, sidebar toggle)
       FeedbackNotifications.tsx
       ResultsColumn.tsx     — notes sidebar (categories, tags, note actions)
       ItemResultsList.tsx
       TextCaptureForm.tsx
+      ItemEditor.tsx        — TextCaptureForm bound to the active entry; shared by every view
       modals/
         ItemGroupActionModal.tsx
         EditTagModal.tsx
@@ -108,10 +113,19 @@ between views, so the session, the open-item ring, and pending saves carry acros
   on hooks earlier in the controller. `workspaceStore` holds everything loaded from the
   server; the workspace hooks are its only writers.
 - **Views.** A view is a screen over the items of one kind (`@lib/db-items/contracts/item-kinds`).
-  `src/views/registry.ts` lists them. To add one, add its entry and a page under
-  `app/(workspace)/`. The workspace keeps every item of the active workspace;
+  `src/views/registry.ts` lists them: Notes at `/` and Tasks at `/tasks`. To add one,
+  add its entry and a page under `app/(workspace)/`; `ViewSwitcher` in the header
+  links to each. The workspace keeps every item of the active workspace;
   `useItemLists` narrows the lists to the active view's kind with `isKind`, so an item
   that is several kinds appears in each of those views and opens as the same entry.
+  Every view edits through `ItemEditor`, bound to the active entry. Notes always shows
+  it; Tasks shows it in place of the board once the user opens an item.
+- **Tasks.** `views/tasks/taskLists.ts` builds the board (a column per status in
+  position order, then a column for dated tasks with no status) and the due-date list.
+  Dragging a card calls `handleSetItemStatus`; a column's quick-add calls
+  `handleQuickAddItem`, which applies the view's `quickAddDefaults`. Both store
+  directly without opening the item. A list action first saves the item's open,
+  unsaved edits (`settleOpenEntryFor`), so it never overwrites what the user typed.
 - **Capabilities.** Each thing an item can hold has a module in `src/capabilities/`:
   a draft part (`ItemDraftPart`: its form fields, how a stored item fills them, what a
   save sends, and its list label) and an editor control. `draftParts.ts` composes the
@@ -119,9 +133,15 @@ between views, so the session, the open-item ring, and pending saves carry acros
   a new capability from its part. The order of `DRAFT_PARTS` is a stored format:
   browsers keep entry signatures serialized in that order, so add parts at the end.
   `test/item-draft.test.ts` pins it.
-- **Save rule.** The save engine and the open-item ring hold no rule about text. The
-  engine asks the active view's `canSave` whether a draft is saved, and `isEmptyDraft`
-  asks each part whether it is blank. Notes saves a draft once it has text.
+- **Save rule.** The save engine and the open-item ring hold no rule about text. Each
+  entry records the view it was last opened in (`entry.view`), and `canSaveEntry` asks
+  that view's `canSave`: an edit is judged by the view it was made in, whichever view
+  is on screen when the save runs. Notes saves an entry once it has text; Tasks saves
+  one that holds any content (`draftHoldsContent`). The store hands the active entry
+  to the view on screen when the user opens or activates it there, or when that view
+  always shows the editor. Just before a view takes an entry over, `beforeViewClaim`
+  lets the engine send what is still pending under the outgoing view's rule.
+  `isEmptyDraft` asks each part whether it is blank.
 
 - All database access and embedding logic is in `@lib/db-items`. API routes call `itemsAppService` from `@lib/db-items/services/items-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
