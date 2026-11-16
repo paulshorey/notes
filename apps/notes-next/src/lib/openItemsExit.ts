@@ -20,7 +20,7 @@ export interface DetachedSaveSnapshot {
 }
 
 /** What a view's save rule looks at: the entry's view and its draft. */
-type SaveCandidate = Pick<OpenItemEntry, "view" | "form">
+type SaveCandidate = Pick<OpenItemEntry, "view" | "form" | "itemId">
 
 export interface ExitFlushItem {
   key: OpenItemKey

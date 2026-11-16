@@ -15,6 +15,9 @@ import { writeOpenItemsSnapshot } from "@/lib/openItemsStorage"
 import { type OpenItemEntry, type OpenItemKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { canSaveEntry } from "@/views/registry"
+import { useWorkspaceStore } from "@/stores/workspaceStore"
+import { itemFilingLabel } from "@/lib/itemFiling"
+import { itemToFormState } from "@/types/items"
 import { type ItemSaveMode, OPEN_ITEMS_PERSIST_DEBOUNCE_MS, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
 import type { WorkspaceDataOutput } from "./useWorkspaceData"
@@ -26,6 +29,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     activeWorkspaceIdRef,
     detachedSavesRef,
     didRehydrateOpenItemsRef,
+    directWritesRef,
     exitKeepaliveKeysRef,
     flushAllPendingSavesRef,
     groupDeferredSaveKeysRef,
@@ -106,7 +110,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       let itemId = source.itemId
       let draftSignature = serializeItemDraft(itemId, formSnapshot)
 
-      if (!canSaveEntry({ view: source.view, form: formSnapshot })) return false
+      if (!canSaveEntry({ view: source.view, form: formSnapshot, itemId })) return false
       if (entry && !detached && draftSignature === entry.savedSignature) return true
 
       const inFlight = saveInFlightRef.current.get(key)
@@ -257,23 +261,39 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     const results = await Promise.allSettled([
       ...entries.map((entry) => saveEntry(entry.key, "flush")),
       ...detachedKeys.map((key) => saveEntry(key, "detached")),
+      ...directWritesRef.current,
     ])
 
     // Reports failure rather than swallowing it. Callers are about to tear down
     // or replace the session, so proceeding past a failed save destroys the
     // draft it was carrying.
     return results.every((result) => result.status === "fulfilled" && result.value)
-  }, [detachedSavesRef, saveEntry])
+  }, [detachedSavesRef, directWritesRef, saveEntry])
 
   flushAllPendingSavesRef.current = flushAllPendingSaves
 
   // An entry is judged by the view it was opened in. Just before another view takes
-  // an entry over, send what is still pending under the outgoing view's rule.
+  // an entry over, settle the edits made under the outgoing view: save the ones it
+  // would save, and drop the ones it refused, so no other view's rule saves them.
   useEffect(() => {
     const store = useItemsAppStore.getState()
     store.setBeforeViewClaim((entry) => {
-      if (useItemsAppStore.getState().itemGroupDialog) return
-      if (isEntryDirty(entry) && canSaveEntry(entry)) void saveEntry(entry.key, "flush")
+      if (!isEntryDirty(entry)) return {}
+      if (canSaveEntry(entry)) return { wait: saveEntry(entry.key, "flush") }
+      // A never-saved draft has no stored state to go back to; it stays as typed.
+      const stored = useWorkspaceStore.getState().items.find((item) => item.id === entry.itemId)
+      if (!stored) return {}
+      const form = itemToFormState(stored)
+      return {
+        restore: {
+          form,
+          baseTimeModified: stored.timeModified,
+          savedSignature: serializeItemDraft(stored.id, form),
+          categoryInputValue: itemFilingLabel(stored),
+          pendingTagLabels: [],
+          editorSessionId: entry.editorSessionId + 1,
+        },
+      }
     })
     return () => useItemsAppStore.getState().setBeforeViewClaim(null)
   }, [saveEntry])

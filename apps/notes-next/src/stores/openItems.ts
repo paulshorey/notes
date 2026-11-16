@@ -143,13 +143,22 @@ const createEntry = (
   }
 }
 
-/** Hand the active entry to a view, so that view's rules apply to its edits. */
-export const claimActiveEntry = (state: OpenItemsState, view: ItemKindKey): OpenItemsState => {
+/**
+ * Hand the active entry to a view, so that view's rules apply to its edits. `restore`
+ * is applied with the hand-over, to drop edits the outgoing view refused to save.
+ */
+export const claimActiveEntry = (
+  state: OpenItemsState,
+  view: ItemKindKey,
+  restore: Partial<OpenItemEntry> = {},
+): OpenItemsState => {
   const active = getActiveEntry(state)
   if (!active || active.view === view) return state
   return {
     ...state,
-    openItems: state.openItems.map((entry) => (entry === active ? { ...entry, view } : entry)),
+    openItems: state.openItems.map((entry) =>
+      entry === active ? { ...entry, ...restore, view } : entry,
+    ),
   }
 }
 

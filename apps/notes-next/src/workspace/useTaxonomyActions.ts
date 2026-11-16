@@ -67,6 +67,7 @@ export function useTaxonomyActions(
     creatingTagLabelsRef,
     deletingTag,
     detachedSavesRef,
+    directWritesRef,
     editTagLabel,
     editingTag,
     fallbackTagId,
@@ -651,49 +652,66 @@ export function useTaxonomyActions(
     }
   }
 
+  /** Register a write made from a list, so a session change waits for it to land. */
+  const trackDirectWrite = (write: Promise<boolean>) => {
+    directWritesRef.current.add(write)
+    void write.finally(() => directWritesRef.current.delete(write))
+    return write
+  }
+
   /** Set or clear an item's status from a list, as a board does when a card moves. */
-  const handleSetItemStatus = async (item: ItemRecord, statusId: number | null) => {
-    if (!user || (item.status?.id ?? null) === statusId) return
+  const handleSetItemStatus = (item: ItemRecord, statusId: number | null) => {
+    if (!user || (item.status?.id ?? null) === statusId) return Promise.resolve(false)
     clearMessages()
-    try {
-      const updatedItem = await patchItemFromSidebar(item, () => ({ statusId }))
-      if (updatedItem) applyServerItemToEntry(updatedItem)
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
-    }
+    return trackDirectWrite(
+      (async () => {
+        try {
+          const updatedItem = await patchItemFromSidebar(item, () => ({ statusId }))
+          if (updatedItem) applyServerItemToEntry(updatedItem)
+          return true
+        } catch (error) {
+          setErrorMessage(getErrorMessage(error))
+          return false
+        }
+      })(),
+    )
   }
 
   /**
    * Create an item from one line typed into a list, with the defaults of the view it
    * was typed in. It is stored directly and does not open in the editor.
    */
-  const handleQuickAddItem = async (
+  const handleQuickAddItem = (
     description: string,
     context: { statusId: number | null },
   ): Promise<boolean> => {
     const workspaceId = activeWorkspaceId
-    if (!user || workspaceId === null) return false
+    if (!user || workspaceId === null) return Promise.resolve(false)
     const draft = {
       ...createEmptyItemDraft(),
       ...activeView.quickAddDefaults?.(context),
       description,
     }
-    if (!activeView.canSave(draft)) return false
+    if (!activeView.canSave(draft)) return Promise.resolve(false)
     clearMessages()
-    try {
-      const response = await itemsFetch("/api/items", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, item: itemRequestBody(draft, workspaceId) }),
-      })
-      const data = await readJson<{ item: ItemRecord }>(response)
-      mergeSavedItem(user.id, data.item)
-      scheduleTaxonomyRefresh(user.id)
-      return true
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
-      return false
-    }
+    return trackDirectWrite(
+      (async () => {
+        try {
+          const response = await itemsFetch("/api/items", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user.id, item: itemRequestBody(draft, workspaceId) }),
+          })
+          const data = await readJson<{ item: ItemRecord }>(response)
+          mergeSavedItem(user.id, data.item)
+          scheduleTaxonomyRefresh(user.id)
+          return true
+        } catch (error) {
+          setErrorMessage(getErrorMessage(error))
+          return false
+        }
+      })(),
+    )
   }
 
   const prepareItemGroupAction = useCallback(async () => {

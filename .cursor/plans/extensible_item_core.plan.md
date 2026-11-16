@@ -389,11 +389,14 @@ The second view. It adds no storage: `status` and `schedule` are already on ever
   view, and its `canSave` decides whether the entry's unsaved edits are saved. Tasks
   saves an entry that holds any content; Notes saves one that has text. So clearing
   the text of an item that still holds a status or date saves it from Tasks (the item
-  leaves Notes and stays in Tasks) and is not saved from Notes. Just before another
-  view takes an entry over, the engine saves what is pending under the outgoing rule.
-  An item is deleted only by the delete action.
-- A change made from a list (a board drag, a sidebar move) first saves the item's
-  open, unsaved edits, so it never overwrites them.
+  leaves Notes and stays in Tasks) and is not saved from Notes. Before another view
+  takes an entry over, edits the outgoing view would save are saved, and edits it
+  refused are dropped by restoring the stored item. In every view a new draft becomes
+  an item only once the user has put something into it; a preset status alone creates
+  nothing. An item is deleted only by the delete action.
+- A change made from a list (a board drag, a quick-add, a sidebar move) first saves
+  the item's open, unsaved edits, so it never overwrites them, and a session change
+  waits for it to land.
 
 The save engine changed in this step: it asked the view on screen which drafts to save,
 and now asks each entry's own view. That was the S5 boundary to fix, found by adding a

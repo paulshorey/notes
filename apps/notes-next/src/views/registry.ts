@@ -1,6 +1,6 @@
 import { hasText } from "@lib/db-items/contracts/item-capabilities"
 import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
-import { draftHoldsContent, type ItemDraft } from "@/capabilities/draftParts"
+import { draftHoldsContent, isBlankItemDraft, type ItemDraft } from "@/capabilities/draftParts"
 
 /**
  * A view is a screen over the items of one kind. The same item appears in every view
@@ -67,8 +67,17 @@ export const viewForKind = (kind: ItemKindKey): ItemView =>
  * opened in, and that view's rule decides: an edit is judged by the view it was made
  * in, whichever view is on screen when the save runs.
  */
-export const canSaveEntry = (entry: { view: ItemKindKey; form: ItemDraft }): boolean =>
-  viewForKind(entry.view).canSave(entry.form)
+export const canSaveEntry = (entry: {
+  view: ItemKindKey
+  form: ItemDraft
+  itemId: number | null
+}): boolean => {
+  // A never-saved draft becomes an item only once the user has put something into it.
+  // A preset alone, such as the status of the column it was opened from, creates
+  // nothing in any view.
+  if (entry.itemId === null && isBlankItemDraft(entry.form)) return false
+  return viewForKind(entry.view).canSave(entry.form)
+}
 
 /** The view a path belongs to: the longest route that is the path or a parent of it. */
 export const viewForPath = (pathname: string): ItemView => {

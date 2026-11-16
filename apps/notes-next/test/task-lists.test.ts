@@ -100,11 +100,31 @@ test("a draft holds content when a save would store a capability", () => {
   )
 })
 
-test("the same draft is judged by the view its entry belongs to", () => {
+test("the same stored item is judged by the view its entry belongs to", () => {
   const statusOnly = { ...createEmptyItemDraft(), selectedStatusId: 4 }
-  assert.equal(canSaveEntry({ view: "note", form: statusOnly }), false)
-  assert.equal(canSaveEntry({ view: "task", form: statusOnly }), true)
-  assert.equal(canSaveEntry({ view: "task", form: createEmptyItemDraft() }), false)
+  assert.equal(canSaveEntry({ view: "note", itemId: 9, form: statusOnly }), false)
+  assert.equal(canSaveEntry({ view: "task", itemId: 9, form: statusOnly }), true)
+  assert.equal(canSaveEntry({ view: "task", itemId: 9, form: createEmptyItemDraft() }), false)
+})
+
+test("a blank draft creates nothing in any view", () => {
+  const empty = createEmptyItemDraft()
+  const preset = { ...empty, selectedStatusId: 4, selectedCategoryId: 7 }
+  assert.equal(canSaveEntry({ view: "task", itemId: null, form: preset }), false)
+  assert.equal(canSaveEntry({ view: "note", itemId: null, form: preset }), false)
+  assert.equal(
+    canSaveEntry({
+      view: "task",
+      itemId: null,
+      form: { ...preset, dueExpanded: true, timeDue: "2026-03-04T10:30" },
+    }),
+    true,
+    "a date the user added makes a task worth creating",
+  )
+  assert.equal(
+    canSaveEntry({ view: "task", itemId: null, form: { ...preset, description: "x" } }),
+    true,
+  )
 })
 
 test("the Tasks view is registered beside Notes", () => {

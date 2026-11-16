@@ -192,6 +192,11 @@ export function useWorkspaceState() {
   // second save of the *same* note still queues behind the first.
   const saveInFlightRef = useRef(new Map<OpenItemKey, Promise<void>>())
 
+  // Writes made from a list without an open entry: a quick-add, a board drag, a
+  // sidebar move. Each resolves to whether it landed, and the session flush waits
+  // for them, so a session change cannot outrun one.
+  const directWritesRef = useRef(new Set<Promise<boolean>>())
+
   const queuedAutosaveKeysRef = useRef(new Set<OpenItemKey>())
 
   const groupDeferredSaveKeysRef = useRef(new Set<OpenItemKey>())
@@ -391,6 +396,7 @@ export function useWorkspaceState() {
     tagsRef,
     activeWorkspaceIdRef,
     saveInFlightRef,
+    directWritesRef,
     queuedAutosaveKeysRef,
     groupDeferredSaveKeysRef,
     detachedSavesRef,

@@ -58,10 +58,30 @@ type State = OpenItemsState & {
   activeViewKind: ItemKindKey
   activeViewAlwaysShowsEditor: boolean
   /**
-   * Called with the active entry just before another view takes it over, so the save
-   * engine can send edits still pending under the view they were made in.
+   * Called with the active entry just before another view takes it over. The save
+   * engine answers with what to do about edits made under the outgoing view.
    */
-  beforeViewClaim: ((entry: OpenItemEntry) => void) | null
+  beforeViewClaim: ((entry: OpenItemEntry) => ViewClaimPlan) | null
+  /**
+   * Counts the times the user opened or activated an entry. A view that shows its
+   * editor on demand watches it, because opening the entry that is already active
+   * changes nothing else.
+   */
+  openRequestCount: number
+}
+
+/** How an entry's pending edits are settled before another view takes it over. */
+export interface ViewClaimPlan {
+  /**
+   * A save of the edits under the outgoing view's rule. The entry changes view only
+   * once it succeeds, so a failed save is still retried under the rule it was made by.
+   */
+  wait?: Promise<boolean>
+  /**
+   * Applied as the entry changes view: the stored state of an item whose pending edits
+   * the outgoing view refused to save, so no other view's rule saves them.
+   */
+  restore?: Partial<OpenItemEntry>
 }
 
 type Actions = {
@@ -69,6 +89,8 @@ type Actions = {
   setBackupOperation: (operation: "download" | "restore" | null) => void
   resetDefaultState: () => void
   setBeforeViewClaim: (handler: State["beforeViewClaim"]) => void
+  /** Complete a hand-over that waited for a save, if the entry is still wanted there. */
+  finishViewClaim: (key: OpenItemKey, view: ItemKindKey) => void
   /** Set the view on screen. A view that always shows the editor takes the active entry. */
   setActiveView: (kind: ItemKindKey, alwaysShowsEditor: boolean) => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
@@ -112,6 +134,7 @@ const defaultState: State = {
   activeViewKind: DEFAULT_VIEW_KIND,
   activeViewAlwaysShowsEditor: true,
   beforeViewClaim: null,
+  openRequestCount: 0,
 }
 
 /**
@@ -123,10 +146,24 @@ const claimForActiveView = (state: State, opened = false): OpenItemsState => {
   const ring = openItemsSlice(state)
   if (!opened && !state.activeViewAlwaysShowsEditor) return ring
   const active = getActiveEntry(ring)
-  if (!active || active.view === state.activeViewKind) return ring
-  state.beforeViewClaim?.(active)
-  return claimActiveEntry(ring, state.activeViewKind)
+  const view = state.activeViewKind
+  if (!active || active.view === view) return ring
+  const plan = state.beforeViewClaim?.(active) ?? {}
+  if (plan.wait) {
+    const { key } = active
+    void plan.wait.then((saved) => {
+      if (saved) useItemsAppStore.getState().finishViewClaim(key, view)
+    })
+    return ring
+  }
+  return claimActiveEntry(ring, view, plan.restore)
 }
+
+/** The ring after the user opened or activated an entry in the view on screen. */
+const openedForActiveView = (state: State) => ({
+  ...claimForActiveView(state, true),
+  openRequestCount: state.openRequestCount + 1,
+})
 
 const openItemsSlice = (state: State): OpenItemsState => ({
   openItems: state.openItems,
@@ -147,7 +184,13 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
       activeViewKind: current.activeViewKind,
       activeViewAlwaysShowsEditor: current.activeViewAlwaysShowsEditor,
       beforeViewClaim: current.beforeViewClaim,
+      openRequestCount: current.openRequestCount,
     }))
+  },
+  finishViewClaim: (key, view) => {
+    const current = get()
+    if (current.activeKey !== key || current.activeViewKind !== view) return
+    set(claimActiveEntry(openItemsSlice(current), view))
   },
   setBeforeViewClaim: (beforeViewClaim) => set({ beforeViewClaim }),
   setActiveView: (kind, alwaysShowsEditor) => {
@@ -178,17 +221,17 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
   // shows it in its editor.
   openExistingItem: (item) => {
     const { state, removed } = openExistingItemIn(openItemsSlice(get()), item, get().maxOpenItems)
-    set(claimForActiveView({ ...get(), ...state }, true))
+    set(openedForActiveView({ ...get(), ...state }))
     return removed
   },
   openNewDraft: (options = {}) => {
     const { state, removed } = openNewDraftIn(openItemsSlice(get()), options, get().maxOpenItems)
-    set(claimForActiveView({ ...get(), ...state }, true))
+    set(openedForActiveView({ ...get(), ...state }))
     return removed
   },
   activateEntry: (key) => {
     const state = activateEntryIn(openItemsSlice(get()), key, get().maxOpenItems)
-    set(claimForActiveView({ ...get(), ...state }, true))
+    set(openedForActiveView({ ...get(), ...state }))
   },
   closeEntry: (key) => {
     const { state, removed } = closeEntryIn(openItemsSlice(get()), key, get().maxOpenItems)

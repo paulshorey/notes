@@ -6,6 +6,8 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { itemListLabel } from "@/capabilities/draftParts"
 import { ItemEditor } from "@/components/items/ItemEditor"
 import { itemFilingLabel } from "@/lib/itemFiling"
+import { useItemsAppStore } from "@/stores/itemsAppStore"
+import type { OpenItemKey } from "@/stores/openItems"
 import { useItemsWorkspace } from "@/workspace/ItemsWorkspaceProvider"
 import { dueLabel, isOverdue, taskBoardColumns, taskList } from "./taskLists"
 import styles from "./TasksView.module.css"
@@ -20,41 +22,60 @@ const DRAG_TYPE = "application/x-item-id"
 export function TasksView() {
   const {
     activeEntry,
+    activeKey,
     handleOpenItemFromResults,
     handleQuickAddItem,
     handleSetItemStatus,
     matchesSelectedTag,
+    setErrorMessage,
     statuses,
     viewItems,
   } = useItemsWorkspace()
 
   const [layout, setLayout] = useState<"board" | "list">("board")
-  const [editorOpen, setEditorOpen] = useState(false)
 
-  // The editor opens when the user opens an item here, from a card or the sidebar.
-  // Each such action hands the entry to this view and marks it activated.
-  const openedAt = activeEntry?.view === "task" ? activeEntry.lastActivatedAt : null
-  const seenOpenedAt = useRef(openedAt)
+  // The editor shows the entry the user last opened here, from a card, the sidebar,
+  // or the header. Every such action counts as an open request, including one for the
+  // entry that is already active. When another entry becomes active without one (the
+  // open entry was closed), the board comes back.
+  const openRequestCount = useItemsAppStore((state) => state.openRequestCount)
+  const seenOpenRequests = useRef(openRequestCount)
+  const [editorKey, setEditorKey] = useState<OpenItemKey | null>(null)
   useEffect(() => {
-    if (openedAt === seenOpenedAt.current) return
-    seenOpenedAt.current = openedAt
-    if (openedAt !== null) setEditorOpen(true)
-  }, [openedAt])
+    if (openRequestCount === seenOpenRequests.current) return
+    seenOpenRequests.current = openRequestCount
+    setEditorKey(useItemsAppStore.getState().activeKey)
+  }, [openRequestCount])
+  const editorOpen = editorKey !== null && editorKey === activeKey
+
+  // Overdue is relative to now, so the clock moves while the view stays open.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const tasks = useMemo(() => viewItems.filter(matchesSelectedTag), [matchesSelectedTag, viewItems])
   const columns = useMemo(() => taskBoardColumns(tasks, statuses), [statuses, tasks])
   const list = useMemo(() => taskList(tasks), [tasks])
 
-  const openTask = (task: ItemRecord) => {
-    handleOpenItemFromResults(task)
-    setEditorOpen(true)
+  const openTask = (task: ItemRecord) => handleOpenItemFromResults(task)
+
+  const moveTask = (task: ItemRecord, status: StatusRecord | null) => {
+    // Without a status, only a date keeps an item a task. Clearing the status of an
+    // undated task would take it off the board, which a drag should never do.
+    if (status === null && task.timeDue === null && task.timeRemind === null) {
+      setErrorMessage("Give this task a date before removing its status.")
+      return
+    }
+    void handleSetItemStatus(task, status?.id ?? null)
   }
 
   if (editorOpen && activeEntry) {
     return (
       <div className={styles.view}>
         <div className={styles.toolbar}>
-          <button type="button" className={styles.back} onClick={() => setEditorOpen(false)}>
+          <button type="button" className={styles.back} onClick={() => setEditorKey(null)}>
             <ArrowLeft size={14} weight="bold" aria-hidden />
             Tasks
           </button>
@@ -94,7 +115,8 @@ export function TasksView() {
               status={column.status}
               tasks={column.items}
               onOpen={openTask}
-              onDropTask={(task) => void handleSetItemStatus(task, column.status?.id ?? null)}
+              now={now}
+              onDropTask={(task) => moveTask(task, column.status)}
               onQuickAdd={(text) =>
                 handleQuickAddItem(text, { statusId: column.status?.id ?? null })
               }
@@ -106,7 +128,7 @@ export function TasksView() {
         <div className={styles.list} role="list" aria-label="Tasks by due date">
           {list.length === 0 && <p className={styles.empty}>No tasks yet.</p>}
           {list.map((task) => (
-            <TaskCard key={task.id} task={task} onOpen={openTask} showStatus />
+            <TaskCard key={task.id} task={task} now={now} onOpen={openTask} showStatus />
           ))}
         </div>
       )}
@@ -117,6 +139,7 @@ export function TasksView() {
 function TaskColumnView({
   status,
   tasks,
+  now,
   onOpen,
   onDropTask,
   onQuickAdd,
@@ -124,6 +147,7 @@ function TaskColumnView({
 }: {
   status: StatusRecord | null
   tasks: ItemRecord[]
+  now: number
   onOpen: (task: ItemRecord) => void
   onDropTask: (task: ItemRecord) => void
   onQuickAdd: (text: string) => Promise<boolean>
@@ -171,7 +195,7 @@ function TaskColumnView({
       </header>
       <div className={styles.cards} role="list">
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onOpen={onOpen} draggable />
+          <TaskCard key={task.id} task={task} now={now} onOpen={onOpen} draggable />
         ))}
       </div>
       {/* A task enters the last column by having a date, so nothing is added there. */}
@@ -193,19 +217,19 @@ function TaskColumnView({
 
 function TaskCard({
   task,
+  now,
   onOpen,
   draggable = false,
   showStatus = false,
 }: {
   task: ItemRecord
+  now: number
   onOpen: (task: ItemRecord) => void
   draggable?: boolean
   showStatus?: boolean
 }) {
   const title = itemListLabel(task)
   const due = dueLabel(task)
-  // Read the clock once per mount: a card is redrawn whenever its item changes.
-  const [now] = useState(() => Date.now())
   const filing = itemFilingLabel(task)
 
   return (

@@ -59,22 +59,25 @@ test("an entry that becomes active by itself is taken only by a view that shows 
   assert.equal(viewOf(3), "note", "Notes shows the active entry, so it takes it over")
 })
 
-test("pending edits are offered for saving before another view takes an entry", () => {
+test("the engine is asked about pending edits before another view takes an entry", () => {
   reset()
   const offered: Array<Pick<OpenItemEntry, "key" | "view">> = []
-  store().setBeforeViewClaim((entry) => offered.push({ key: entry.key, view: entry.view }))
+  store().setBeforeViewClaim((entry) => {
+    offered.push({ key: entry.key, view: entry.view })
+    return {}
+  })
 
   store().openExistingItem(item(1))
-  assert.deepEqual(offered, [], "nothing to offer when the view does not change")
+  assert.deepEqual(offered, [], "nothing to ask when the view does not change")
 
   store().setActiveView("task", false)
   assert.deepEqual(offered, [], "a view that leaves the active entry alone takes nothing")
 
   store().activateEntry("note:1")
-  assert.deepEqual(offered, [{ key: "note:1", view: "note" }], "offered with its outgoing view")
+  assert.deepEqual(offered, [{ key: "note:1", view: "note" }], "asked with its outgoing view")
 
   store().activateEntry("note:1")
-  assert.equal(offered.length, 1, "an entry already in this view is not offered again")
+  assert.equal(offered.length, 1, "an entry already in this view is not asked about again")
 
   store().resetDefaultState()
   assert.equal(store().activeViewKind, "task", "a session reset keeps the view on screen")
@@ -82,13 +85,89 @@ test("pending edits are offered for saving before another view takes an entry", 
   reset()
 })
 
+test("an entry changes view only after its pending save succeeds", async () => {
+  reset()
+  store().openExistingItem(item(1))
+  store().setActiveView("task", false)
+
+  let settle: (saved: boolean) => void = () => undefined
+  store().setBeforeViewClaim(() => ({
+    wait: new Promise<boolean>((resolve) => (settle = resolve)),
+  }))
+  store().activateEntry("note:1")
+  assert.equal(viewOf(1), "note", "the outgoing rule still applies while the save runs")
+  settle(false)
+  await Promise.resolve()
+  await Promise.resolve()
+  assert.equal(viewOf(1), "note", "a failed save keeps the entry under the rule it was made by")
+
+  store().activateEntry("note:1")
+  settle(true)
+  await Promise.resolve()
+  await Promise.resolve()
+  assert.equal(viewOf(1), "task", "once saved, the view takes the entry")
+
+  // The user moved on before the save landed: the hand-over is no longer wanted.
+  store().setBeforeViewClaim(() => ({}))
+  store().setActiveView("note", true)
+  assert.equal(viewOf(1), "note")
+  store().setActiveView("task", false)
+  store().setBeforeViewClaim(() => ({
+    wait: new Promise<boolean>((resolve) => (settle = resolve)),
+  }))
+  store().activateEntry("note:1")
+  store().setBeforeViewClaim(() => ({}))
+  store().setActiveView("note", true)
+  settle(true)
+  await Promise.resolve()
+  await Promise.resolve()
+  assert.equal(
+    viewOf(1),
+    "note",
+    "a late save does not hand the entry to a view no longer on screen",
+  )
+  reset()
+})
+
+test("edits the outgoing view refused are dropped as the entry changes view", () => {
+  reset()
+  store().openExistingItem(item(1))
+  store().patchEntryForm("note:1", (form) => ({ ...form, description: "" }))
+  store().setActiveView("task", false)
+  store().setBeforeViewClaim((entry) => ({
+    restore: { form: { ...entry.form, description: "note 1" }, savedSignature: "stored" },
+  }))
+  store().activateEntry("note:1")
+  const entry = store().openItems.find((open) => open.itemId === 1)!
+  assert.equal(entry.view, "task")
+  assert.equal(entry.form.description, "note 1", "the stored text is back")
+  assert.equal(entry.savedSignature, "stored")
+  reset()
+})
+
+test("every open or activation is an open request, even for the active entry", () => {
+  reset()
+  const before = store().openRequestCount
+  store().openExistingItem(item(1))
+  store().activateEntry("note:1")
+  store().openExistingItem(item(1))
+  store().openNewDraft()
+  assert.equal(store().openRequestCount, before + 4)
+  store().closeEntry("note:1")
+  assert.equal(store().openRequestCount, before + 4, "closing an entry is not opening one")
+  reset()
+})
+
 test("an entry is saved by the rule of its own view", () => {
   reset()
   store().openNewDraft()
   const draft = store().openItems[0]!
-  assert.equal(canSaveEntry({ view: "note", form: { ...draft.form, description: "x" } }), true)
   assert.equal(
-    canSaveEntry({ view: "note", form: { ...draft.form, selectedStatusId: 4 } }),
+    canSaveEntry({ view: "note", itemId: null, form: { ...draft.form, description: "x" } }),
+    true,
+  )
+  assert.equal(
+    canSaveEntry({ view: "note", itemId: 3, form: { ...draft.form, selectedStatusId: 4 } }),
     false,
     "Notes does not save an entry without text",
   )
