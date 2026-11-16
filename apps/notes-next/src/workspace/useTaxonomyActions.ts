@@ -611,9 +611,10 @@ export function useTaxonomyActions(
     // Register under the entry's key so an autosave for the same note queues
     // behind this write instead of racing it. Without this, moving an open,
     // dirty note from the sidebar could land in either order.
-    const openKey = useItemsAppStore
+    const openEntry = useItemsAppStore
       .getState()
-      .openItems.find((entry) => entry.itemId === item.id)?.key
+      .openItems.find((entry) => entry.itemId === item.id)
+    const openKey = openEntry?.key
     if (openKey) {
       saveInFlightRef.current.set(
         openKey,
@@ -632,7 +633,7 @@ export function useTaxonomyActions(
         saveInFlightRef.current.delete(openKey)
       }
     }
-    applyListWriteToEntry(data.item, changed)
+    applyListWriteToEntry(data.item, changed, openEntry?.form)
     await refreshResults(user.id)
     return data.item
   }
@@ -642,7 +643,11 @@ export function useTaxonomyActions(
    * entry while the write was in flight, those edits stay and only the fields the
    * write changed are taken, with the stored state as the new baseline.
    */
-  const applyListWriteToEntry = (item: ItemRecord, changed: StoredItemChange) => {
+  const applyListWriteToEntry = (
+    item: ItemRecord,
+    changed: StoredItemChange,
+    sentForm?: TextCaptureFormState,
+  ) => {
     const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
     if (!entry) return
     if (!isEntryDirty(entry)) {
@@ -652,7 +657,7 @@ export function useTaxonomyActions(
     const stored = itemToFormState(item)
     const refiled = "categoryId" in changed || "subcategoryId" in changed
     patchEntry(entry.key, {
-      form: draftAfterListWrite(entry.form, stored, changed),
+      form: draftAfterListWrite(entry.form, stored, changed, sentForm),
       baseTimeModified: item.timeModified,
       savedSignature: serializeItemDraft(item.id, stored),
       ...(refiled ? { categoryInputValue: itemFilingLabel(item) } : {}),

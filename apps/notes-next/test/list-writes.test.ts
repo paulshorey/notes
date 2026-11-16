@@ -57,3 +57,39 @@ test("edits typed while a list write was in flight survive it", () => {
   assert.equal(refiled.selectedStatusId, 8, "fields the write did not change keep the edit")
   assert.equal(refiled.description, "typed during the move")
 })
+
+test("a field the user changed after the write was sent keeps the later choice", () => {
+  const sent = itemDraftFromItem(item())
+  const stored = itemDraftFromItem(item({ status: { id: 6, label: "done" } }))
+
+  // Dropped on "done", then another status picked in the editor before the drop landed.
+  const pickedLater = { ...sent, selectedStatusId: 8 }
+  assert.equal(draftAfterListWrite(pickedLater, stored, { statusId: 6 }, sent).selectedStatusId, 8)
+
+  // Only text was typed meanwhile, so the status the write stored is taken.
+  const typedOnly = { ...sent, description: "typed" }
+  assert.equal(draftAfterListWrite(typedOnly, stored, { statusId: 6 }, sent).selectedStatusId, 6)
+
+  const refiledLater = { ...sent, selectedCategoryId: 3, selectedSubcategoryId: null }
+  const moved = itemDraftFromItem(item({ category: { id: 2, label: "home" }, subcategory: null }))
+  const merged = draftAfterListWrite(
+    refiledLater,
+    moved,
+    { categoryId: 2, subcategoryId: null },
+    sent,
+  )
+  assert.equal(merged.selectedCategoryId, 3)
+
+  const retaggedLater = { ...sent, selectedTagIds: [5] }
+  const retagged = itemDraftFromItem(item({ tags: [{ id: 40, label: "new" }] }))
+  assert.deepEqual(
+    draftAfterListWrite(retaggedLater, retagged, { tagIds: [40] }, sent).selectedTagIds,
+    [5],
+  )
+  assert.deepEqual(
+    draftAfterListWrite({ ...sent, selectedTagIds: [5, 31] }, retagged, { tagIds: [40] }, sent)
+      .selectedTagIds,
+    [40],
+    "the same tags in another order are not a later choice",
+  )
+})

@@ -31,21 +31,34 @@ export const changesNothing = (item: ItemRecord, change: StoredItemChange): bool
 
 /**
  * An open draft after a list write to its item landed while the draft held unsaved
- * edits. The edits stay; only the fields the write changed are taken from `stored`,
- * the form of the item as it is now stored.
+ * edits. The edits stay. A field the write changed is taken from `stored`, the form of
+ * the item as it is now stored, unless the user changed that same field after the
+ * write was sent: `sent` is the draft as it was then, and the later choice wins.
  */
 export const draftAfterListWrite = (
   draft: ItemDraft,
   stored: ItemDraft,
   change: StoredItemChange,
-): ItemDraft => ({
-  ...draft,
-  ...("categoryId" in change || "subcategoryId" in change
-    ? {
-        selectedCategoryId: stored.selectedCategoryId,
-        selectedSubcategoryId: stored.selectedSubcategoryId,
-      }
-    : {}),
-  ...("statusId" in change ? { selectedStatusId: stored.selectedStatusId } : {}),
-  ...("tagIds" in change ? { selectedTagIds: stored.selectedTagIds } : {}),
-})
+  sent: ItemDraft = draft,
+): ItemDraft => {
+  const sameTags = (left: number[], right: number[]) =>
+    [...left].sort((a, b) => a - b).join() === [...right].sort((a, b) => a - b).join()
+  const refiledSince =
+    draft.selectedCategoryId !== sent.selectedCategoryId ||
+    draft.selectedSubcategoryId !== sent.selectedSubcategoryId
+  return {
+    ...draft,
+    ...(("categoryId" in change || "subcategoryId" in change) && !refiledSince
+      ? {
+          selectedCategoryId: stored.selectedCategoryId,
+          selectedSubcategoryId: stored.selectedSubcategoryId,
+        }
+      : {}),
+    ...("statusId" in change && draft.selectedStatusId === sent.selectedStatusId
+      ? { selectedStatusId: stored.selectedStatusId }
+      : {}),
+    ...("tagIds" in change && sameTags(draft.selectedTagIds, sent.selectedTagIds)
+      ? { selectedTagIds: stored.selectedTagIds }
+      : {}),
+  }
+}

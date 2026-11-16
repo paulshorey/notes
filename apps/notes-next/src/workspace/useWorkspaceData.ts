@@ -9,7 +9,7 @@ import {
   type UserSummary,
 } from "@lib/db-items"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { itemsFetch, readJson } from "@/lib/api"
 import { updateItemsCacheList, updateItemsCacheUser } from "@/lib/itemsCache"
 import { RESULTS_COLUMN_DEFAULT_WIDTH } from "@/lib/resultsColumn"
@@ -89,6 +89,9 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
    * stop being visible while still holding unsaved text.
    */
 
+  // Counts list reads, so only the most recently started one is applied.
+  const latestItemsRequestRef = useRef(0)
+
   const loadItems = useCallback(
     async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
       if (workspaceId === null) return []
@@ -97,12 +100,16 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
       // stale-while-revalidate startup) should keep showing the existing data.
       const showLoadingIndicator = itemsRef.current.length === 0
       if (showLoadingIndicator) setItemsLoading(true)
+      const request = (latestItemsRequestRef.current += 1)
       try {
         const response = await itemsFetch(`/api/items?workspaceId=${workspaceId}`, {
           cache: "no-store",
         })
         const data = await readJson<ItemsResponse>(response)
         if (activeWorkspaceIdRef.current !== workspaceId) return data.items
+        // A list read that started earlier can arrive after a later one. Applying it
+        // would put back what a write in between had already changed.
+        if (request !== latestItemsRequestRef.current) return data.items
         setItems(data.items)
         updateItemsCacheList(userId, workspaceId, "items", data.items)
         return data.items
