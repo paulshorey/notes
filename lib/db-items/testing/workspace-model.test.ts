@@ -53,7 +53,7 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
       await getDb().query(`DELETE FROM public.user_v1 WHERE id=$1`, [userId])
     }
   })
-  test("stores multiple categories and rejects cross-workspace relations", async () => {
+  test("files an item in one category and rejects cross-workspace relations", async () => {
     const userId = await createUser()
     try {
       const personal = await createWorkspaceForUser(userId, "personal")
@@ -70,16 +70,17 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
         userId,
         {
           workspaceId: personal.id,
-          categoryIds: categories.rows.map((r) => r.id),
+          categoryId: categories.rows[1]!.id,
+          subcategoryId: null,
           statusId: status.rows[0]!.id,
           tagIds: [],
-          description: "two categories",
+          description: "one category",
           timeDue: null,
           timeRemind: null,
         },
         { descriptionEmbedding: null, embeddingModel: null },
       )
-      assert.equal(item.categories.length, 2)
+      assert.equal(item.category?.id, categories.rows[1]!.id)
       assert.equal((await listItemsByUser(userId, other.id)).length, 0)
       const otherStatus = await getDb().query<{ id: number }>(
         `SELECT id FROM public.workspace_status_v1 WHERE workspace_id=$1 LIMIT 1`,
@@ -90,7 +91,8 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
           userId,
           {
             workspaceId: personal.id,
-            categoryIds: [],
+            categoryId: null,
+            subcategoryId: null,
             statusId: otherStatus.rows[0]!.id,
             tagIds: [],
             description: "invalid",
@@ -109,8 +111,8 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
         [other.id],
       )
       for (const invalidInput of [
-        { categoryIds: [otherCategory.rows[0]!.id], tagIds: [] },
-        { categoryIds: [], tagIds: [otherTag.rows[0]!.id] },
+        { categoryId: otherCategory.rows[0]!.id, subcategoryId: null, tagIds: [] },
+        { categoryId: null, subcategoryId: null, tagIds: [otherTag.rows[0]!.id] },
       ]) {
         await assert.rejects(
           createItemForUser(
@@ -137,7 +139,8 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
         userId,
         {
           workspaceId: personal.id,
-          categoryIds: [categories.rows[0]!.id],
+          categoryId: categories.rows[0]!.id,
+          subcategoryId: null,
           statusId: null,
           tagIds: [personalTag.rows[0]!.id],
           description: item.description ?? "",
@@ -147,10 +150,7 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
         null,
         item.description,
       )
-      assert.deepEqual(
-        updated?.categories.map((category) => category.id),
-        [categories.rows[0]!.id],
-      )
+      assert.equal(updated?.category?.id, categories.rows[0]!.id)
       assert.equal(updated?.status, null)
       assert.deepEqual(
         updated?.tags.map((tag) => tag.id),

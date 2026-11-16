@@ -16,7 +16,7 @@ import type {
  * pattern, scoped to the notes app data.
  */
 export interface ItemsCacheSnapshot {
-  schemaVersion: 3
+  schemaVersion: 4
   userId: number
   user: UserSummary
   workspaces: WorkspaceRecord[]
@@ -45,7 +45,7 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const isSnapshot = (value: unknown): value is ItemsCacheSnapshot => {
   if (!isObject(value)) return false
-  if (value.schemaVersion !== 3) return false
+  if (value.schemaVersion !== 4) return false
   if (typeof value.userId !== "number" || !Number.isInteger(value.userId)) return false
   if (!isObject(value.user)) return false
   if (!Array.isArray(value.items)) return false
@@ -61,16 +61,14 @@ const isSnapshot = (value: unknown): value is ItemsCacheSnapshot => {
   return true
 }
 
-const decodeSnapshot = (raw: string): unknown => {
-  const value: unknown = JSON.parse(raw)
-  if (!isObject(value) || value.schemaVersion !== 2) return value
+const mapRows = (rows: unknown, map: (row: Record<string, unknown>) => unknown) =>
+  Array.isArray(rows) ? rows.map((row: unknown) => (isObject(row) ? map(row) : row)) : rows
+
+/** Version 2 used note names. */
+const fromNoteNames = (value: Record<string, unknown>) => {
   const { notes, ...rest } = value
   const counts = (rows: unknown) =>
-    Array.isArray(rows)
-      ? rows.map((row: unknown) =>
-          isObject(row) ? { ...row, itemCount: row.itemCount ?? row.noteCount } : row,
-        )
-      : rows
+    mapRows(rows, (row) => ({ ...row, itemCount: row.itemCount ?? row.noteCount }))
   return {
     ...rest,
     schemaVersion: 3,
@@ -80,6 +78,25 @@ const decodeSnapshot = (raw: string): unknown => {
     statuses: counts(rest.statuses),
     tags: counts(rest.tags),
   }
+}
+
+/** Version 3 held a list of categories per item and categories without subcategories. */
+const fromCategoryLists = (value: Record<string, unknown>) => ({
+  ...value,
+  schemaVersion: 4,
+  items: mapRows(value.items, ({ categories, ...item }) => ({
+    category: Array.isArray(categories) ? (categories[0] ?? null) : null,
+    subcategory: null,
+    ...item,
+  })),
+  categories: mapRows(value.categories, (category) => ({ subcategories: [], ...category })),
+})
+
+const decodeSnapshot = (raw: string): unknown => {
+  let value: unknown = JSON.parse(raw)
+  if (isObject(value) && value.schemaVersion === 2) value = fromNoteNames(value)
+  if (isObject(value) && value.schemaVersion === 3) value = fromCategoryLists(value)
+  return value
 }
 
 export const readItemsCache = (expectedUserId: number): ItemsCacheSnapshot | null => {
@@ -110,7 +127,7 @@ export const writeItemsCache = (
 
   try {
     const payload: ItemsCacheSnapshot = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       ...snapshot,
       savedAt: Date.now(),
     }

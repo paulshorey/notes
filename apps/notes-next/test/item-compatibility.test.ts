@@ -11,10 +11,13 @@ import {
   createStatusesRouteHandlers,
   createWorkspacesRouteHandlers,
 } from "../app/api/_lib/items-app-route-handlers"
-import { legacyNoteHandler } from "../app/api/_lib/legacy-note-contract"
+import { itemJson, legacyNoteHandler } from "../app/api/_lib/legacy-note-contract"
 import { readItemsUserId } from "../src/lib/sessionIdentity"
 import { createBackupRouteHandlers } from "../app/api/_lib/backup-route-handlers"
-import { backupFixture } from "@lib/db-items/testing/user-backup-fixture"
+import {
+  backupFixture,
+  upgradedFlatCategoryBackup,
+} from "@lib/db-items/testing/user-backup-fixture"
 import { parseUserBackup } from "@lib/db-items/contracts/user-backup"
 
 test("legacy note writes and canonical item reads reach the same authenticated item service", async () => {
@@ -87,7 +90,68 @@ test("an older web build downloads a version-one backup that the new backend sti
   const legacy = await response.json()
   assert.equal(legacy.version, 1)
   assert.ok(Array.isArray(legacy.workspaces[0].notes))
-  assert.deepEqual(parseUserBackup(legacy), backupFixture())
+  // Version 1 has no subcategories, so that level is not in the older file.
+  assert.deepEqual(legacy.workspaces[0].notes[0].categories, ["shared"])
+  assert.equal("subcategories" in legacy.workspaces[0].categories[0], false)
+  assert.deepEqual(parseUserBackup(legacy), upgradedFlatCategoryBackup())
+
+  // A client that names an item contract downloads the current version in full.
+  for (const contract of ["1", "2"]) {
+    const current = await handlers.GET(
+      new Request("https://test/api/backup", {
+        headers: { authorization: `Bearer ${sampleApiToken}`, "x-items-contract": contract },
+      }),
+    )
+    assert.deepEqual(await current.json(), backupFixture())
+  }
+})
+
+test("only the current item contract omits the category list earlier clients read", async () => {
+  const service = createFakeItemsAppService()
+  const item = (await service.listItemsForItemsApp({ userId: 7, workspaceId: 3 })).items[0]!
+  const unfiled = { ...item, id: 43, category: null, subcategory: null }
+  const preview = await service.previewItemGroupForItemsApp({
+    userId: 7,
+    selection: { workspaceId: 3, target: { kind: "uncategorized" } },
+  })
+  const payload = {
+    items: [item, unfiled],
+    results: [{ item, similarity: 0.5 }],
+    preview,
+    user: { id: 7, preferences: { notesApp: { category: 1, subcategory: 2, tags: [] } } },
+  }
+  const respond = async (path: string, contract?: string) =>
+    (
+      await itemJson(
+        new Request(`https://test${path}`, {
+          headers: contract ? { "x-items-contract": contract } : {},
+        }),
+        payload,
+      )
+    ).json()
+
+  // Contract 2: exactly the service payload.
+  assert.deepEqual(await respond("/api/bootstrap", "2"), payload)
+  assert.deepEqual(await respond("/api/items", "2"), payload)
+
+  // Contract 1, and an item route with no contract: the same fields plus the list.
+  for (const body of [await respond("/api/bootstrap", "1"), await respond("/api/items")]) {
+    assert.deepEqual(body.items[0].categories, [item.category])
+    assert.deepEqual(body.items[0].category, item.category)
+    assert.deepEqual(body.items[0].subcategory, item.subcategory)
+    assert.deepEqual(body.items[1].categories, [])
+    assert.deepEqual(body.results[0].item.categories, [item.category])
+    assert.equal(body.preview.sharedItemCount, 0)
+    assert.equal(body.notes, undefined)
+    // Preferences are user data and are never reshaped.
+    assert.deepEqual(body.user.preferences, payload.user.preferences)
+  }
+
+  // A shared route with no contract also gets the note-named aliases.
+  const oldest = await respond("/api/bootstrap")
+  assert.deepEqual(oldest.notes[0].categories, [item.category])
+  assert.deepEqual(oldest.items[1].categories, [])
+  assert.deepEqual(oldest.user.preferences, payload.user.preferences)
 })
 
 test("timeout-bound client requests select item payloads while retaining authorization", async () => {
@@ -103,7 +167,7 @@ test("timeout-bound client requests select item payloads while retaining authori
       headers: { authorization: `Bearer ${sampleApiToken}` },
     })
     assert.equal(response.status, 200)
-    assert.equal(headers?.get("x-items-contract"), "1")
+    assert.equal(headers?.get("x-items-contract"), "2")
     assert.equal(headers?.get("authorization"), `Bearer ${sampleApiToken}`)
   } finally {
     globalThis.fetch = originalFetch

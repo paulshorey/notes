@@ -48,7 +48,8 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
 
   const input = (workspaceId: number, values: Partial<ItemInput> = {}): ItemInput => ({
     workspaceId,
-    categoryIds: [],
+    categoryId: null,
+    subcategoryId: null,
     statusId: null,
     tagIds: [],
     description: null,
@@ -102,7 +103,7 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     await assert.rejects(
       createItemForItemsApp({
         userId,
-        item: input(workspace.id, { categoryIds: [category.rows[0]!.id] }),
+        item: input(workspace.id, { categoryId: category.rows[0]!.id }),
       }),
       { message: ITEM_CONTENT_REQUIRED_ERROR },
     )

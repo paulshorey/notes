@@ -13,13 +13,14 @@ export const itemMergeIdentities = async (client: PoolClient, workspaceId: numbe
     time_due: Date | null
     time_remind: Date | null
     status: string | null
-    categories: string[]
+    category: string | null
+    subcategory: string | null
     tags: string[]
   }>(
     `SELECT n.id,n.description,n.time_created,n.time_due,n.time_remind,s.label status,
-       ARRAY(SELECT c.label FROM public.item_category_link_v1 l
-         JOIN public.workspace_category_v1 c ON c.id=l.category_id
-         WHERE l.item_id=n.id ORDER BY c.label) categories,
+       (SELECT c.label FROM public.workspace_category_v1 c WHERE c.id=n.category_id) category,
+       (SELECT sc.label FROM public.workspace_subcategory_v1 sc
+         WHERE sc.id=n.subcategory_id) subcategory,
        ARRAY(SELECT t.label FROM public.item_tag_link_v1 l
          JOIN public.workspace_tag_v1 t ON t.id=l.tag_id
          WHERE l.item_id=n.id ORDER BY t.label) tags

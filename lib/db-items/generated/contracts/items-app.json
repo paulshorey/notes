@@ -143,6 +143,55 @@
           "kind": "scalar",
           "type": "string",
           "nullable": true
+        },
+        {
+          "name": "subcategories",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "SubcategoryRecord"
+          },
+          "nullable": false
+        }
+      ]
+    },
+    "SubcategoryRecord": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "itemCount",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "lastUsedAt",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
         }
       ]
     },
@@ -316,14 +365,18 @@
           "nullable": false
         },
         {
-          "name": "categories",
+          "name": "category",
           "optional": false,
-          "kind": "array",
-          "items": {
-            "kind": "model",
-            "type": "CategoryRef"
-          },
-          "nullable": false
+          "kind": "model",
+          "type": "CategoryRef",
+          "nullable": true
+        },
+        {
+          "name": "subcategory",
+          "optional": false,
+          "kind": "model",
+          "type": "CategoryRef",
+          "nullable": true
         },
         {
           "name": "status",
@@ -407,14 +460,18 @@
           "nullable": false
         },
         {
-          "name": "categoryIds",
+          "name": "categoryId",
           "optional": false,
-          "kind": "array",
-          "items": {
-            "kind": "scalar",
-            "type": "number"
-          },
-          "nullable": false
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "subcategoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
         },
         {
           "name": "statusId",
@@ -589,6 +646,13 @@
           "optional": false,
           "kind": "scalar",
           "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "categoryId",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
           "nullable": false
         }
       ]
@@ -1215,6 +1279,13 @@
           "kind": "model",
           "type": "CategoryRecord",
           "nullable": false
+        },
+        {
+          "name": "subcategory",
+          "optional": true,
+          "kind": "model",
+          "type": "SubcategoryRecord",
+          "nullable": false
         }
       ]
     },
@@ -1479,6 +1550,41 @@
         }
       ]
     },
+    "BackupCategory": {
+      "fields": [
+        {
+          "name": "label",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeCreated",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeModified",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "subcategories",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "BackupVocabulary"
+          },
+          "nullable": false
+        }
+      ]
+    },
     "BackupWorkspace": {
       "fields": [
         {
@@ -1508,7 +1614,7 @@
           "kind": "array",
           "items": {
             "kind": "model",
-            "type": "BackupVocabulary"
+            "type": "BackupCategory"
           },
           "nullable": false
         },
@@ -1554,14 +1660,18 @@
           "nullable": true
         },
         {
-          "name": "categories",
+          "name": "category",
           "optional": false,
-          "kind": "array",
-          "items": {
-            "kind": "scalar",
-            "type": "string"
-          },
-          "nullable": false
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "subcategory",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
         },
         {
           "name": "status",
@@ -1657,6 +1767,24 @@
         },
         {
           "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "SubcategoryItemGroupTarget": {
+      "fields": [
+        {
+          "name": "kind",
+          "optional": false,
+          "kind": "literal",
+          "value": "subcategory",
+          "nullable": false
+        },
+        {
+          "name": "subcategoryId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -1820,7 +1948,7 @@
           "nullable": false
         },
         {
-          "name": "sharedItemCount",
+          "name": "subcategoryCount",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -1863,6 +1991,13 @@
           "kind": "scalar",
           "type": "number",
           "nullable": true
+        },
+        {
+          "name": "removedSubcategoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
         }
       ]
     },
@@ -1872,6 +2007,10 @@
         {
           "kind": "model",
           "type": "CategoryItemGroupTarget"
+        },
+        {
+          "kind": "model",
+          "type": "SubcategoryItemGroupTarget"
         },
         {
           "kind": "model",

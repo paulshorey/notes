@@ -6,6 +6,7 @@ import type {
   CategoriesResponse,
   CategoryRecord,
   CreateCategoryResponse,
+  SubcategoryRecord,
   TagsResponse,
   TagRecord,
   CreateTagResponse,
@@ -96,6 +97,14 @@ import {
   getItemSortTime,
   type DisplayItemItem,
 } from "@/lib/itemGroups"
+import {
+  existingFiling,
+  filingLabel,
+  isSameFiling,
+  itemFilingLabel,
+  upsertCategory,
+  type ItemFiling,
+} from "@/lib/itemFiling"
 import { WorkspaceHeader, type SignupFields } from "./WorkspaceHeader"
 import { ResultsColumn, type StatusItemGroup, type TagItemGroup } from "./ResultsColumn"
 import { ItemGroupActionModal } from "./modals/ItemGroupActionModal"
@@ -115,6 +124,7 @@ const OPEN_ITEMS_PERSIST_DEBOUNCE_MS = 1000
 const TAXONOMY_REFRESH_DEBOUNCE_MS = 4000
 const ITEM_URL_ID_PARAM = "id"
 const ITEM_URL_CATEGORY_PARAM = "category"
+const ITEM_URL_SUBCATEGORY_PARAM = "subcategory"
 const ITEM_URL_TAGS_PARAM = "tags"
 
 // A signed, short-lived token captured while the browser is still an anonymous
@@ -153,6 +163,7 @@ interface ItemsUrlSelection {
   hasState: boolean
   itemId: number | null
   categoryId: number | null
+  subcategoryId: number | null
   tagIds: number[]
 }
 
@@ -196,7 +207,7 @@ const parsePositiveInteger = (value: string | null) => {
 
 const readItemsUrlSelection = (): ItemsUrlSelection => {
   if (typeof window === "undefined") {
-    return { hasState: false, itemId: null, categoryId: null, tagIds: [] }
+    return { hasState: false, itemId: null, categoryId: null, subcategoryId: null, tagIds: [] }
   }
 
   const params = new URLSearchParams(window.location.search)
@@ -220,6 +231,7 @@ const readItemsUrlSelection = (): ItemsUrlSelection => {
       params.has(ITEM_URL_TAGS_PARAM),
     itemId: parsePositiveInteger(params.get(ITEM_URL_ID_PARAM)),
     categoryId: parsePositiveInteger(params.get(ITEM_URL_CATEGORY_PARAM)),
+    subcategoryId: parsePositiveInteger(params.get(ITEM_URL_SUBCATEGORY_PARAM)),
     tagIds,
   }
 }
@@ -227,6 +239,7 @@ const readItemsUrlSelection = (): ItemsUrlSelection => {
 const writeItemsUrlSelection = ({
   itemId,
   categoryId,
+  subcategoryId,
   tagIds,
 }: Omit<ItemsUrlSelection, "hasState">) => {
   if (typeof window === "undefined") {
@@ -244,6 +257,12 @@ const writeItemsUrlSelection = ({
     url.searchParams.delete(ITEM_URL_CATEGORY_PARAM)
   } else {
     url.searchParams.set(ITEM_URL_CATEGORY_PARAM, String(categoryId))
+  }
+
+  if (categoryId === null || subcategoryId === null) {
+    url.searchParams.delete(ITEM_URL_SUBCATEGORY_PARAM)
+  } else {
+    url.searchParams.set(ITEM_URL_SUBCATEGORY_PARAM, String(subcategoryId))
   }
 
   const nextTagIds = Array.from(new Set(tagIds)).filter((id) => Number.isInteger(id) && id > 0)
@@ -756,7 +775,8 @@ export default function ItemsApp() {
   const openDraftEntry = useCallback(
     (
       options: {
-        categoryIds?: number[]
+        categoryId?: number | null
+        subcategoryId?: number | null
         statusId?: number | null
         tagIds?: number[]
         categoryLabel?: string
@@ -810,7 +830,6 @@ export default function ItemsApp() {
       if (!usable) return
 
       const itemsById = new Map(itemList.map((item) => [item.id, item]))
-      const categoryIds = new Set(categoryList.map((category) => category.id))
       const statusIds = new Set(statusList.map((status) => status.id))
       const tagIds = new Set(tagList.map((tag) => tag.id))
 
@@ -818,7 +837,7 @@ export default function ItemsApp() {
         usable,
         (itemId) => itemsById.get(itemId),
         {
-          categoryExists: (categoryId) => categoryIds.has(categoryId),
+          existingFiling: (filing) => existingFiling(categoryList, filing),
           statusExists: (statusId) => statusIds.has(statusId),
           tagExists: (tagId) => tagIds.has(tagId),
         },
@@ -876,19 +895,12 @@ export default function ItemsApp() {
       const validTagIds = selection.tagIds.filter((tagId) =>
         tagList.some((tag) => tag.id === tagId),
       )
-      const categoryId =
-        selection.categoryId !== null &&
-        categoryList.some((category) => category.id === selection.categoryId)
-          ? selection.categoryId
-          : null
+      const filing = existingFiling(categoryList, selection)
 
       openDraftEntry({
-        categoryIds: categoryId === null ? [] : [categoryId],
+        ...filing,
         tagIds: validTagIds,
-        categoryLabel:
-          categoryId === null
-            ? ""
-            : (categoryList.find((category) => category.id === categoryId)?.label ?? ""),
+        categoryLabel: filingLabel(categoryList, filing),
       })
       setItemsUrlSelectionReady(true)
     },
@@ -900,17 +912,20 @@ export default function ItemsApp() {
     // outgoing entry keeps autosaving in the background, so there is nothing
     // to await here.
     clearMessages()
-    openDraftEntry({ categoryIds: [], statusId: null, tagIds: [] })
+    openDraftEntry({ categoryId: null, statusId: null, tagIds: [] })
   }, [clearMessages, openDraftEntry])
 
   const handleAddItemInCategory = useCallback(() => {
     clearMessages()
-    const categoryIds =
-      useItemsAppStore.getState().openItems.find((entry) => entry.key === activeKey)?.form
-        .selectedCategoryIds ?? []
-    openDraftEntry({
-      categoryIds: categoryIds.filter((id) => categoriesRef.current.some((c) => c.id === id)),
+    const form = useItemsAppStore
+      .getState()
+      .openItems.find((entry) => entry.key === activeKey)?.form
+    // The new note starts where the current one is filed.
+    const filing = existingFiling(categoriesRef.current, {
+      categoryId: form?.selectedCategoryId ?? null,
+      subcategoryId: form?.selectedSubcategoryId ?? null,
     })
+    openDraftEntry({ ...filing, categoryLabel: filingLabel(categoriesRef.current, filing) })
   }, [activeKey, clearMessages, openDraftEntry])
 
   const loadItems = useCallback(
@@ -1344,12 +1359,14 @@ export default function ItemsApp() {
     // Mirrors the *active* entry so the address bar stays copy-pasteable.
     writeItemsUrlSelection({
       itemId: activeEntry?.itemId ?? null,
-      categoryId: activeEntry?.form.selectedCategoryIds[0] ?? null,
+      categoryId: activeEntry?.form.selectedCategoryId ?? null,
+      subcategoryId: activeEntry?.form.selectedSubcategoryId ?? null,
       tagIds: activeEntry?.form.selectedTagIds ?? [],
     })
   }, [
     activeEntry?.itemId,
-    activeEntry?.form.selectedCategoryIds,
+    activeEntry?.form.selectedCategoryId,
+    activeEntry?.form.selectedSubcategoryId,
     activeEntry?.form.selectedTagIds,
     itemsUrlSelectionReady,
     user,
@@ -1445,14 +1462,16 @@ export default function ItemsApp() {
             form,
             baseTimeModified: serverItem.timeModified,
             savedSignature: serializeItemDraft(serverItem.id, form),
-            categoryInputValue: serverItem.categories.map((category) => category.label).join(", "),
+            categoryInputValue: itemFilingLabel(serverItem),
             pendingTagLabels: [],
           }
         }
 
-        const validIds = entry.form.selectedCategoryIds.filter((id) =>
-          categoryList.some((category) => category.id === id),
-        )
+        const current = {
+          categoryId: entry.form.selectedCategoryId,
+          subcategoryId: entry.form.selectedSubcategoryId,
+        }
+        const filing = existingFiling(categoryList, current)
         const validStatusId =
           entry.form.selectedStatusId === null ||
           statusList.some((status) => status.id === entry.form.selectedStatusId)
@@ -1462,7 +1481,7 @@ export default function ItemsApp() {
           tagList.some((tag) => tag.id === id),
         )
         if (
-          validIds.length === entry.form.selectedCategoryIds.length &&
+          isSameFiling(filing, current) &&
           validStatusId === entry.form.selectedStatusId &&
           validTagIds.length === entry.form.selectedTagIds.length
         ) {
@@ -1471,7 +1490,8 @@ export default function ItemsApp() {
 
         const form = {
           ...entry.form,
-          selectedCategoryIds: validIds,
+          selectedCategoryId: filing.categoryId,
+          selectedSubcategoryId: filing.subcategoryId,
           selectedStatusId: validStatusId,
           selectedTagIds: validTagIds,
         }
@@ -1480,10 +1500,7 @@ export default function ItemsApp() {
           savedSignature: isEntryDirty(entry)
             ? entry.savedSignature
             : serializeItemDraft(entry.itemId, form),
-          categoryInputValue: form.selectedCategoryIds
-            .map((id) => categoryList.find((category) => category.id === id)?.label)
-            .filter(Boolean)
-            .join(", "),
+          categoryInputValue: filingLabel(categoryList, filing),
         }
       })
     },
@@ -1506,7 +1523,7 @@ export default function ItemsApp() {
         form,
         baseTimeModified: item.timeModified,
         savedSignature: serializeItemDraft(item.id, form),
-        categoryInputValue: item.categories.map((category) => category.label).join(", "),
+        categoryInputValue: itemFilingLabel(item),
         pendingTagLabels: [],
       })
     },
@@ -1540,11 +1557,12 @@ export default function ItemsApp() {
     [patchEntryForm],
   )
 
-  const categoryLabelById = useCallback(
-    (categoryId: number | null) =>
-      categoryId === null
-        ? "uncategorized"
-        : (categories.find((category) => category.id === categoryId)?.label ?? "uncategorized"),
+  const filingLabelFor = useCallback(
+    (form: TextCaptureFormState) =>
+      filingLabel(categories, {
+        categoryId: form.selectedCategoryId,
+        subcategoryId: form.selectedSubcategoryId,
+      }) || "uncategorized",
     [categories],
   )
 
@@ -2572,12 +2590,13 @@ export default function ItemsApp() {
     closeIfDrawer()
   }
 
-  const handleAddItemForCategory = (category: CategoryRecord | null) => {
+  const handleAddItemForCategory = (
+    category: CategoryRecord | null,
+    subcategory: SubcategoryRecord | null = null,
+  ) => {
     clearMessages()
-    openDraftEntry({
-      categoryIds: category ? [category.id] : [],
-      categoryLabel: category?.label ?? "",
-    })
+    const filing = { categoryId: category?.id ?? null, subcategoryId: subcategory?.id ?? null }
+    openDraftEntry({ ...filing, categoryLabel: filingLabel(categories, filing) })
     closeIfDrawer()
   }
 
@@ -2591,7 +2610,7 @@ export default function ItemsApp() {
     if (rawId === "") {
       if (activeKey === null) return
       patchEntry(activeKey, (entry) => ({
-        form: { ...entry.form, selectedCategoryIds: [] },
+        form: { ...entry.form, selectedCategoryId: null, selectedSubcategoryId: null },
         categoryInputValue: "",
       }))
       return
@@ -2606,16 +2625,28 @@ export default function ItemsApp() {
     }
     if (activeKey === null) return
     patchEntry(activeKey, (entry) => {
-      const alreadySoleSelection =
-        entry.form.selectedCategoryIds.length === 1 &&
-        entry.form.selectedCategoryIds[0] === category.id
-      const next = alreadySoleSelection ? [] : [category.id]
+      // Choosing the current category again clears it. Either way the subcategory
+      // goes: it belongs to the category that is no longer selected.
+      const next = entry.form.selectedCategoryId === category.id ? null : category.id
       return {
-        form: { ...entry.form, selectedCategoryIds: next },
-        categoryInputValue: next
-          .map((id) => categories.find((item) => item.id === id)?.label)
-          .filter(Boolean)
-          .join(", "),
+        form: { ...entry.form, selectedCategoryId: next, selectedSubcategoryId: null },
+        categoryInputValue: next === null ? "" : category.label,
+      }
+    })
+  }
+
+  const handleSelectSubcategory = (rawId: string) => {
+    if (activeKey === null) return
+    const id = rawId === "" ? null : Number.parseInt(rawId, 10)
+    patchEntry(activeKey, (entry) => {
+      const filing = existingFiling(categories, {
+        categoryId: entry.form.selectedCategoryId,
+        // Choosing the current subcategory again clears it.
+        subcategoryId: id === entry.form.selectedSubcategoryId ? null : id,
+      })
+      return {
+        form: { ...entry.form, selectedSubcategoryId: filing.subcategoryId },
+        categoryInputValue: filingLabel(categories, filing),
       }
     })
   }
@@ -2727,7 +2758,11 @@ export default function ItemsApp() {
       patchEntry(targetKey, (entry) => ({
         form: {
           ...entry.form,
-          selectedCategoryIds: [existingCategory.id],
+          selectedCategoryId: existingCategory.id,
+          selectedSubcategoryId:
+            entry.form.selectedCategoryId === existingCategory.id
+              ? entry.form.selectedSubcategoryId
+              : null,
         },
         categoryInputValue: existingCategory.label,
       }))
@@ -2742,20 +2777,83 @@ export default function ItemsApp() {
         body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
       })
       const data = await readJson<CreateCategoryResponse>(response)
-      setCategories((prev) => {
-        const without = prev.filter((category) => category.id !== data.category.id)
-        return [...without, data.category].sort((a, b) =>
-          a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-        )
-      })
+      setCategories((prev) => upsertCategory(prev, data.category))
       patchEntry(targetKey, (entry) => ({
         form: {
           ...entry.form,
-          selectedCategoryIds: [data.category.id],
+          selectedCategoryId: data.category.id,
+          selectedSubcategoryId: null,
         },
         categoryInputValue: data.category.label,
       }))
       setStatusMessage(`Category “${data.category.label}” added.`)
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    } finally {
+      setCreateCategoryPending(false)
+    }
+  }
+
+  /** Create a subcategory of the entry's category, or select it if it exists. */
+  const handleCreateSubcategory = async (
+    rawLabel: string,
+    targetKey: OpenItemKey | null = activeKey,
+  ) => {
+    if (!user) {
+      setErrorMessage("Sign in before adding subcategories.")
+      return
+    }
+    const label = rawLabel.trim()
+    const nameError = getCategoryNameError(label)
+    if (nameError) {
+      setErrorMessage(nameError)
+      return
+    }
+    if (label === "" || targetKey === null) return
+    // Captured before awaiting: the entry may be filed elsewhere by the time this returns.
+    const categoryId =
+      useItemsAppStore.getState().openItems.find((entry) => entry.key === targetKey)?.form
+        .selectedCategoryId ?? null
+    const category = categories.find((entry) => entry.id === categoryId)
+    if (!category) {
+      setErrorMessage("Choose a category before adding a subcategory.")
+      return
+    }
+    const selectSubcategory = (subcategoryId: number, list: CategoryRecord[]) =>
+      patchEntry(targetKey, (entry) =>
+        entry.form.selectedCategoryId === category.id
+          ? {
+              form: { ...entry.form, selectedSubcategoryId: subcategoryId },
+              categoryInputValue: filingLabel(list, { categoryId: category.id, subcategoryId }),
+            }
+          : {},
+      )
+    const existing = category.subcategories.find(
+      (subcategory) => normalizeLabel(subcategory.label) === normalizeLabel(label),
+    )
+    if (existing) {
+      selectSubcategory(existing.id, categories)
+      return
+    }
+    clearMessages()
+    setCreateCategoryPending(true)
+    try {
+      const response = await itemsFetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          workspaceId: activeWorkspaceId,
+          categoryId: category.id,
+          label,
+        }),
+      })
+      const data = await readJson<CreateCategoryResponse>(response)
+      if (!data.subcategory) throw new Error("The subcategory was not created.")
+      const latest = upsertCategory(categoriesRef.current, data.category)
+      setCategories(latest)
+      selectSubcategory(data.subcategory.id, latest)
+      setStatusMessage(`Subcategory “${data.subcategory.label}” added to “${data.category.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -2792,12 +2890,7 @@ export default function ItemsApp() {
       body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
     })
     const data = await readJson<CreateCategoryResponse>(response)
-    setCategories((prev) => {
-      const without = prev.filter((category) => category.id !== data.category.id)
-      return [...without, data.category].sort((a, b) =>
-        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-      )
-    })
+    setCategories((prev) => upsertCategory(prev, data.category))
     return data.category
   }
 
@@ -2832,7 +2925,7 @@ export default function ItemsApp() {
 
   const patchItemFromSidebar = async (
     item: ItemRecord,
-    nextCategoryIds: number[],
+    nextFiling: ItemFiling,
     nextTagIds: number[],
   ) => {
     if (!user) return null
@@ -2846,7 +2939,7 @@ export default function ItemsApp() {
           itemId: item.id,
           item: {
             workspaceId: activeWorkspaceId,
-            categoryIds: nextCategoryIds,
+            ...nextFiling,
             statusId: item.status?.id ?? null,
             tagIds: nextTagIds,
             description: item.description ?? "",
@@ -2892,11 +2985,12 @@ export default function ItemsApp() {
     try {
       const category = await resolveCategoryForSidebarMove(categoryLabel)
       if (!category) return
-      if (item.categories.some((item) => item.id === category.id)) return
+      if (item.category?.id === category.id) return
 
+      // A subcategory belongs to the category the note is leaving.
       const updatedItem = await patchItemFromSidebar(
         item,
-        [...item.categories.map((item) => item.id), category.id],
+        { categoryId: category.id, subcategoryId: null },
         item.tags.map((tag) => tag.id),
       )
       if (updatedItem) applyServerItemToEntry(updatedItem)
@@ -2920,7 +3014,7 @@ export default function ItemsApp() {
 
       const updatedItem = await patchItemFromSidebar(
         item,
-        item.categories.map((item) => item.id),
+        { categoryId: item.category?.id ?? null, subcategoryId: item.subcategory?.id ?? null },
         nextTagIds,
       )
       if (updatedItem) applyServerItemToEntry(updatedItem)
@@ -2981,15 +3075,17 @@ export default function ItemsApp() {
             category.id !== result.removedCategoryId && category.id !== result.category?.id,
         )
         .concat(result.category ? [result.category] : [])
-      const validCategoryIds = new Set(latestCategories.map((category) => category.id))
       for (const [key, entry] of detachedSavesRef.current) {
+        const filing = existingFiling(latestCategories, {
+          categoryId: entry.form.selectedCategoryId,
+          subcategoryId: entry.form.selectedSubcategoryId,
+        })
         detachedSavesRef.current.set(key, {
           ...entry,
           form: {
             ...entry.form,
-            selectedCategoryIds: entry.form.selectedCategoryIds.filter((id) =>
-              validCategoryIds.has(id),
-            ),
+            selectedCategoryId: filing.categoryId,
+            selectedSubcategoryId: filing.subcategoryId,
           },
         })
       }
@@ -3262,7 +3358,7 @@ export default function ItemsApp() {
               onLogout={handleLogout}
               maxOpenItems={maxOpenItems}
               onMaxOpenItemsChange={handleMaxOpenItemsChange}
-              categoryLabelById={categoryLabelById}
+              filingLabelFor={filingLabelFor}
               onSelectOpenItem={activateEntryInStore}
               onCloseOpenItem={handleCloseOpenItem}
               embeddingMaintenancePending={embeddingMaintenancePending}
@@ -3298,6 +3394,8 @@ export default function ItemsApp() {
             createStatusPending={createStatusPending}
             createTagPending={createTagPending}
             onSelectCategoryId={handleSelectCategory}
+            onSelectSubcategoryId={handleSelectSubcategory}
+            onCreateSubcategory={handleCreateSubcategory}
             onSelectStatusId={handleSelectStatus}
             onCreateCategory={handleCreateCategory}
             onCreateStatus={handleCreateStatus}
@@ -3363,7 +3461,8 @@ export default function ItemsApp() {
           activeItemId={activeEntry?.itemId ?? null}
           openItemIds={openItemIds}
           activeKey={activeKey}
-          activeCategoryIds={activeForm.selectedCategoryIds}
+          activeCategoryId={activeForm.selectedCategoryId}
+          activeSubcategoryId={activeForm.selectedSubcategoryId}
           activeTagIds={activeForm.selectedTagIds}
           onEditItem={handleOpenItemFromResults}
           onAddItemForCategory={handleAddItemForCategory}

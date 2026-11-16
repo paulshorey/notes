@@ -16,7 +16,8 @@ const source = (values: Partial<ItemCapabilitySource> = {}): ItemCapabilitySourc
 const record = (values: Partial<ItemRecord> = {}): ItemRecord => ({
   id: 1,
   workspaceId: 1,
-  categories: [],
+  category: null,
+  subcategory: null,
   status: null,
   tags: [],
   description: null,
@@ -58,7 +59,8 @@ test("removing content removes the kind it made, and only that kind", () => {
 
 test("taxonomy gives an item no kind", () => {
   const filed = record({
-    categories: [{ id: 1, label: "work" }],
+    category: { id: 1, label: "work" },
+    subcategory: { id: 3, label: "ideas" },
     tags: [{ id: 2, label: "urgent" }],
   })
   assert.deepEqual(itemKinds(filed), [])

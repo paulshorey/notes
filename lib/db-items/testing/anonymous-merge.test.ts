@@ -74,12 +74,12 @@ describe("anonymous workspace merge (DB)", { skip: !testDbUrl }, () => {
         [anonWorkspace.id, realWorkspace.id],
       )
       const refs = await getDb().query<{
-        categories: number[]
+        category_id: number
         status_id: number
         tag_id: number
       }>(
         `SELECT
-           ARRAY(SELECT id FROM public.workspace_category_v1 WHERE workspace_id=$1 AND label IN ('shared','anon-only') ORDER BY id) categories,
+           (SELECT id FROM public.workspace_category_v1 WHERE workspace_id=$1 AND label='shared') category_id,
            (SELECT id FROM public.workspace_status_v1 WHERE workspace_id=$1 AND label='todo') status_id,
            (SELECT id FROM public.workspace_tag_v1 WHERE workspace_id=$1 AND label='important') tag_id`,
         [anonWorkspace.id],
@@ -88,7 +88,8 @@ describe("anonymous workspace merge (DB)", { skip: !testDbUrl }, () => {
         anon.id,
         {
           workspaceId: anonWorkspace.id,
-          categoryIds: refs.rows[0]!.categories,
+          categoryId: refs.rows[0]!.category_id,
+          subcategoryId: null,
           statusId: refs.rows[0]!.status_id,
           tagIds: [refs.rows[0]!.tag_id],
           description: "anonymous workspace note",
@@ -101,9 +102,24 @@ describe("anonymous workspace merge (DB)", { skip: !testDbUrl }, () => {
       const result = await mergeAnonymousItemsAppSession({ anonUserId: anon.id, realUserId })
       const items = await listItemsByUser(realUserId, realWorkspace.id)
       assert.equal(items.length, 1)
-      assert.deepEqual(
-        items[0]!.categories.map((category) => category.label),
-        ["anon-only", "shared"],
+      // The item is filed in the account's own "shared" category, matched by label.
+      const sharedId = (
+        await getDb().query<{ id: number }>(
+          `SELECT id FROM public.workspace_category_v1 WHERE workspace_id=$1 AND label='shared'`,
+          [realWorkspace.id],
+        )
+      ).rows[0]!.id
+      assert.deepEqual(items[0]!.category, { id: sharedId, label: "shared" })
+      assert.equal(items[0]!.subcategory, null)
+      // A category only the visitor had is carried over even though no item uses it.
+      assert.equal(
+        (
+          await getDb().query(
+            `SELECT 1 FROM public.workspace_category_v1 WHERE workspace_id=$1 AND label='anon-only'`,
+            [realWorkspace.id],
+          )
+        ).rowCount,
+        1,
       )
       assert.equal(items[0]!.status?.label, "todo")
       assert.deepEqual(
@@ -137,7 +153,8 @@ describe("anonymous workspace merge (DB)", { skip: !testDbUrl }, () => {
         anon.id,
         {
           workspaceId: side.id,
-          categoryIds: [],
+          categoryId: null,
+          subcategoryId: null,
           statusId: null,
           tagIds: [],
           description: "keep my id",

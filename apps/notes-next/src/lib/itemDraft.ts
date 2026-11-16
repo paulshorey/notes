@@ -4,7 +4,6 @@ import type { ItemRef } from "@/stores/openItems"
 
 export const snapshotTextCaptureForm = (form: TextCaptureFormState): TextCaptureFormState => ({
   ...form,
-  selectedCategoryIds: [...form.selectedCategoryIds],
   selectedTagIds: [...form.selectedTagIds],
 })
 
@@ -18,7 +17,8 @@ export const snapshotTextCaptureForm = (form: TextCaptureFormState): TextCapture
 export const serializeItemDraft = (itemId: ItemRef | null, form: TextCaptureFormState) =>
   JSON.stringify({
     itemId,
-    categoryIds: [...form.selectedCategoryIds].sort((left, right) => left - right),
+    categoryId: form.selectedCategoryId,
+    subcategoryId: form.selectedSubcategoryId,
     statusId: form.selectedStatusId,
     tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
     description: form.description,
@@ -28,7 +28,8 @@ export const serializeItemDraft = (itemId: ItemRef | null, form: TextCaptureForm
 
 export const itemRequestBody = (form: TextCaptureFormState, workspaceId: number) => ({
   workspaceId,
-  categoryIds: [...form.selectedCategoryIds].sort((left, right) => left - right),
+  categoryId: form.selectedCategoryId,
+  subcategoryId: form.selectedSubcategoryId,
   statusId: form.selectedStatusId,
   tagIds: [...form.selectedTagIds].sort((left, right) => left - right),
   description: form.description,

@@ -300,6 +300,15 @@ export const mergeAnonymousUserIntoWithClient = async (
       ON CONFLICT(workspace_id,label) DO NOTHING`,
       [destinationId, source.id],
     )
+    // A subcategory is matched by its label within the category of the same label.
+    await client.query(
+      `INSERT INTO public.workspace_subcategory_v1(category_id,label,time_created,time_modified)
+      SELECT dc.id,ss.label,ss.time_created,ss.time_modified FROM public.workspace_subcategory_v1 ss
+      JOIN public.workspace_category_v1 sc ON sc.id=ss.category_id AND sc.workspace_id=$2
+      JOIN public.workspace_category_v1 dc ON dc.workspace_id=$1 AND dc.label=sc.label
+      ON CONFLICT(category_id,label) DO NOTHING`,
+      [destinationId, source.id],
+    )
     await client.query(
       `INSERT INTO public.workspace_status_v1(workspace_id,label,position,time_created,time_modified)
       SELECT $1,label,position,time_created,time_modified FROM public.workspace_status_v1 WHERE workspace_id=$2
@@ -320,34 +329,32 @@ export const mergeAnonymousUserIntoWithClient = async (
         skippedIds.push(id)
       }
     }
-    // Allocate a stable id map once, then copy items and both relation sets in
+    // Allocate a stable id map once, then copy items and their tag links in
     // batches. MATERIALIZED keeps nextval from being evaluated more than once.
     const copied = await client.query<{ source_id: number; destination_id: number }>(
       `WITH item_map AS MATERIALIZED (
         SELECT n.*,nextval(pg_get_serial_sequence('public.workspace_item_v1','id'))::int new_id
         FROM public.workspace_item_v1 n WHERE n.workspace_id=$2 AND n.id<>ALL($3::int[]) ORDER BY n.id
       ), inserted AS (
-        INSERT INTO public.workspace_item_v1(id,workspace_id,status_id,description,time_due,time_remind,
+        INSERT INTO public.workspace_item_v1(id,workspace_id,category_id,subcategory_id,status_id,
+          description,time_due,time_remind,
           description_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
-        SELECT m.new_id,$1,ds.id,m.description,m.time_due,m.time_remind,
+        SELECT m.new_id,$1,dc.id,dsub.id,ds.id,m.description,m.time_due,m.time_remind,
           m.description_embedding,m.embedding_model,m.embedding_updated_at,m.time_created,m.time_modified
         FROM item_map m
         LEFT JOIN public.workspace_status_v1 ss ON ss.id=m.status_id AND ss.workspace_id=$2
         LEFT JOIN public.workspace_status_v1 ds ON ds.workspace_id=$1 AND ds.label=ss.label
+        LEFT JOIN public.workspace_category_v1 sc ON sc.id=m.category_id
+        LEFT JOIN public.workspace_category_v1 dc ON dc.workspace_id=$1 AND dc.label=sc.label
+        LEFT JOIN public.workspace_subcategory_v1 ssub ON ssub.id=m.subcategory_id
+        LEFT JOIN public.workspace_subcategory_v1 dsub
+          ON dsub.category_id=dc.id AND dsub.label=ssub.label
         RETURNING id
       ) SELECT m.id source_id,m.new_id destination_id FROM item_map m JOIN inserted i ON i.id=m.new_id`,
       [destinationId, source.id, skippedIds],
     )
     const sourceIds = copied.rows.map((row) => row.source_id)
     const destinationIds = copied.rows.map((row) => row.destination_id)
-    await client.query(
-      `INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id)
-       SELECT m.destination_id,dc.id,$3 FROM unnest($1::int[],$2::int[]) m(source_id,destination_id)
-       JOIN public.item_category_link_v1 l ON l.item_id=m.source_id
-       JOIN public.workspace_category_v1 sc ON sc.id=l.category_id
-       JOIN public.workspace_category_v1 dc ON dc.workspace_id=$3 AND dc.label=sc.label`,
-      [sourceIds, destinationIds, destinationId],
-    )
     await client.query(
       `INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
        SELECT m.destination_id,dt.id,$3 FROM unnest($1::int[],$2::int[]) m(source_id,destination_id)

@@ -1,8 +1,9 @@
 import { getDb } from "../../lib/db/postgres"
 import {
   ensureStatusIdForWorkspace,
-  replaceItemCategoriesForItem,
   replaceItemTagsForItem,
+  resolveItemFiling,
+  rethrowFilingRace,
   selectItemById,
   toNullableText,
 } from "./shared"
@@ -19,6 +20,12 @@ export const updateItemForUser = async (
   try {
     await client.query("BEGIN")
     await ensureStatusIdForWorkspace(client, item.workspaceId, item.statusId)
+    const filing = await resolveItemFiling(
+      client,
+      item.workspaceId,
+      item.categoryId,
+      item.subcategoryId,
+    )
     const values: unknown[] = [
       itemId,
       userId,
@@ -27,11 +34,13 @@ export const updateItemForUser = async (
       toNullableText(item.description),
       item.timeDue,
       item.timeRemind,
+      filing.categoryId,
+      filing.subcategoryId,
     ]
     let embeddingSql = ""
     if (embeddings !== null) {
       embeddingSql =
-        ", description_embedding=$8::vector, embedding_model=$9, embedding_updated_at=$10"
+        ", description_embedding=$10::vector, embedding_model=$11, embedding_updated_at=$12"
       values.push(
         embeddings.descriptionEmbedding,
         embeddings.embeddingModel,
@@ -40,11 +49,12 @@ export const updateItemForUser = async (
     }
     let guard = ""
     if (embeddings === null && expectedDescription !== undefined) {
-      guard = `AND n.description IS NOT DISTINCT FROM $8::text`
+      guard = `AND n.description IS NOT DISTINCT FROM $10::text`
       values.push(toNullableText(expectedDescription ?? ""))
     }
     const result = await client.query(
-      `UPDATE public.workspace_item_v1 n SET workspace_id=$3,status_id=$4,description=$5,time_due=$6,time_remind=$7${embeddingSql}
+      `UPDATE public.workspace_item_v1 n SET workspace_id=$3,status_id=$4,description=$5,time_due=$6,time_remind=$7,
+       category_id=$8,subcategory_id=$9${embeddingSql}
        FROM public.user_workspace_v1 w WHERE n.id=$1 AND w.id=n.workspace_id AND w.user_id=$2 AND w.id=$3 ${guard}`,
       values,
     )
@@ -52,7 +62,6 @@ export const updateItemForUser = async (
       await client.query("ROLLBACK")
       return null
     }
-    await replaceItemCategoriesForItem(client, itemId, item.workspaceId, item.categoryIds)
     await replaceItemTagsForItem(client, itemId, item.workspaceId, item.tagIds)
     const updated = await selectItemById(client, itemId, userId)
     if (!updated) throw new Error("Failed to load updated item.")
@@ -60,7 +69,7 @@ export const updateItemForUser = async (
     return updated
   } catch (error) {
     await client.query("ROLLBACK")
-    throw error
+    return rethrowFilingRace(error)
   } finally {
     client.release()
   }

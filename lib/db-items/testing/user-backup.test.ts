@@ -4,7 +4,11 @@ import { parseUserBackup } from "../contracts/user-backup"
 import { getDb } from "../lib/db/postgres"
 import { createAnonymousUser } from "../sql/user/anonymous"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
-import { backupFixture } from "./user-backup-fixture"
+import {
+  backupFixture,
+  flatCategoryBackupFixture,
+  upgradedFlatCategoryBackup,
+} from "./user-backup-fixture"
 
 describe("backup validation", () => {
   test("validates portable data, removes foreign workspace ids, retains unknown preferences", () => {
@@ -22,22 +26,61 @@ describe("backup validation", () => {
     assert.equal("password" in parsed, false)
     assert.deepEqual((parsed.preferences as Record<string, unknown>).futureApp, { keep: true })
   })
+  test("reads a file with several categories per item and keeps the first one listed", () => {
+    const file = flatCategoryBackupFixture()
+    assert.deepEqual(parseUserBackup(file), upgradedFlatCategoryBackup())
+    const { workspaces, ...rest } = file
+    const versionOne = {
+      ...rest,
+      version: 1,
+      workspaces: workspaces.map(({ items, ...workspace }) => ({ ...workspace, notes: items })),
+    }
+    assert.deepEqual(parseUserBackup(versionOne), upgradedFlatCategoryBackup())
+    file.workspaces[0]!.items[0]!.categories = ["unused", "shared"]
+    const item = parseUserBackup(file).workspaces[0]!.items[0]!
+    assert.equal(item.category, "unused")
+    assert.equal(item.subcategory, null)
+    file.workspaces[0]!.items[0]!.categories = []
+    assert.equal(parseUserBackup(file).workspaces[0]!.items[0]!.category, null)
+  })
   test("converts legacy uncategorized memberships after validating all references", () => {
-    const file = backupFixture()
+    const file = flatCategoryBackupFixture()
     const workspace = file.workspaces[0]!
     workspace.categories.push({ ...workspace.categories[0]!, label: "uncategorized" })
     workspace.items[0]!.categories = ["uncategorized", "shared"]
     const parsed = parseUserBackup(file)
-    assert.deepEqual(parsed.workspaces[0]!.items[0]!.categories, ["shared"])
+    assert.equal(parsed.workspaces[0]!.items[0]!.category, "shared")
     assert.equal(
       parsed.workspaces[0]!.categories.some((c) => c.label === "uncategorized"),
       false,
     )
     assert.deepEqual(workspace.items[0]!.categories, ["uncategorized", "shared"])
     workspace.items[0]!.categories = ["uncategorized"]
-    assert.deepEqual(parseUserBackup(file).workspaces[0]!.items[0]!.categories, [])
+    assert.equal(parseUserBackup(file).workspaces[0]!.items[0]!.category, null)
     workspace.categories = workspace.categories.filter((c) => c.label !== "uncategorized")
     assert.throws(() => parseUserBackup(file), /outside its workspace/)
+  })
+  test("a subcategory must belong to the item's category", () => {
+    const file = backupFixture()
+    const item = file.workspaces[0]!.items[0]!
+    assert.equal(parseUserBackup(file).workspaces[0]!.items[0]!.subcategory, "ideas")
+    item.category = "unused"
+    assert.throws(() => parseUserBackup(file), /subcategory outside its category/)
+    item.category = null
+    assert.throws(() => parseUserBackup(file), /subcategory outside its category/)
+    item.subcategory = null
+    assert.equal(parseUserBackup(file).workspaces[0]!.items[0]!.category, null)
+    // The same subcategory label may exist under two categories.
+    file.workspaces[0]!.categories[1]!.subcategories = [
+      { ...file.workspaces[0]!.categories[0]!.subcategories[0]! },
+    ]
+    item.category = "unused"
+    item.subcategory = "ideas"
+    assert.equal(parseUserBackup(file).workspaces[0]!.items[0]!.subcategory, "ideas")
+    file.workspaces[0]!.categories[1]!.subcategories.push({
+      ...file.workspaces[0]!.categories[1]!.subcategories[0]!,
+    })
+    assert.throws(() => parseUserBackup(file), /duplicate labels/)
   })
   test("rejects malformed dates, relations, versions, duplicate labels, positions and unsafe preferences", () => {
     for (const change of [
@@ -45,7 +88,7 @@ describe("backup validation", () => {
         b.version = 99
       },
       (b: ReturnType<typeof backupFixture>) => {
-        b.workspaces[0]!.items[0]!.categories = ["foreign"]
+        b.workspaces[0]!.items[0]!.category = "foreign"
       },
       (b: ReturnType<typeof backupFixture>) => {
         b.workspaces[0]!.items[0]!.status = "foreign"
@@ -116,7 +159,8 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
       {
         ...side.items[0]!,
         description: null,
-        categories: [],
+        category: null,
+        subcategory: null,
         status: null,
         tags: [],
         timeDue: null,
@@ -201,9 +245,9 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
     })
   })
 
-  test("restores a legacy literal category as empty links under the reserved-name constraint", async () => {
+  test("restores a legacy literal category as no category under the reserved-name constraint", async () => {
     const id = await realUser()
-    const file = backupFixture()
+    const file = flatCategoryBackupFixture()
     const workspace = file.workspaces[0]!
     workspace.categories.push({ ...workspace.categories[0]!, label: "uncategorized" })
     workspace.items[0]!.categories = ["uncategorized"]
@@ -212,7 +256,8 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
     const item = restored.workspaces[0]!.items.find(
       (n) => n.description === workspace.items[0]!.description,
     )!
-    assert.deepEqual(item, { ...workspace.items[0]!, categories: [] })
+    const { categories: _legacy, ...portable } = workspace.items[0]!
+    assert.deepEqual(item, { ...portable, category: null, subcategory: null })
     assert.equal(
       restored.workspaces[0]!.categories.some((c) => c.label === "uncategorized"),
       false,
@@ -302,7 +347,8 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
     const items = (await exportUserBackup(id)).workspaces[0]!.items
     assert.equal(items.length, 1000)
     for (const item of items) {
-      assert.deepEqual(item.categories, template.categories)
+      assert.equal(item.category, template.category)
+      assert.equal(item.subcategory, template.subcategory)
       assert.equal(item.status, template.status)
       assert.deepEqual(item.tags, template.tags)
     }

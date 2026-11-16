@@ -52,13 +52,14 @@ categories, statuses, tags, authentication, and user-facing wording.
 
 `workspace_item_v1` is the former `user_note_v1` table, renamed in place. Existing
 integer IDs, text, timestamps, dates, vectors, vocabulary IDs, and relationships
-are preserved. Category/status/tag vocabulary is workspace-scoped; category and
-tag link tables now reference `item_id`. Composite foreign keys still reject
-cross-workspace relationships. `description` remains nullable in this first step.
+are preserved. Category/status/tag vocabulary is workspace-scoped, and composite
+foreign keys reject cross-workspace relationships. `description` is nullable.
 
-Category and uncategorized navigation groups share transactional bulk actions.
-See [item group actions](item-group-actions.md) for selection, rename/deletion,
-preview conflict handling, and client coordination.
+An item is filed in at most one category and one subcategory of that category; see
+[item taxonomy](item-taxonomy.md). Category, subcategory, and uncategorized
+navigation groups share transactional bulk actions; see
+[item group actions](item-group-actions.md) for selection, rename/deletion, preview
+conflict handling, and client coordination.
 
 This change does not introduce exclusive item types, split text into a companion
 table, add UUIDs/revision checks, change scheduling, or implement attachments,
@@ -73,9 +74,11 @@ New data routes are `/api/items`, `/api/items/search`, and
 `itemCount`, `itemsImported`, and `itemsSkipped`. Item text is nullable in storage and
 in payloads; the item service refuses to save only an item that holds no capability.
 
-The new web client sends `X-Items-Contract: 1` to select item-only payloads on
-shared routes such as bootstrap, vocabulary, and backup. Common routes without
-that header include legacy field aliases for older loaded browser builds. The
+The web client sends `X-Items-Contract: 2` to select the current item payloads on
+shared routes such as bootstrap, vocabulary, and backup. A request with contract `1`
+also receives the category list an earlier build reads, and a shared route with no
+contract also includes note-named field aliases
+([earlier clients](item-taxonomy.md#earlier-clients-and-files)). The
 `/api/notes` compatibility facade translates old requests and responses at the
 HTTP boundary; it calls the same authenticated item service and database rows.
 Compatibility never makes a client-supplied user ID authoritative.
@@ -91,11 +94,12 @@ Compatibility never makes a client-supplied user ID authoritative.
 - The single existing `user_note_v1_id_seq` keeps its name temporarily because
   old account-merge SQL calls it literally. New code discovers the owning
   sequence with `pg_get_serial_sequence`; no competing allocator is created.
-- Backup version 2 uses `workspaces[].items`. Import still accepts version 1's
-  `workspaces[].notes`, with the existing reserved-category conversion. Older
-  web clients download version 1 when they omit the item-contract header.
-- Browser cache and open-item storage use version 3. Readers upgrade existing
-  note-named snapshots, including serialized IDs and clean/dirty signatures.
+- Backup version 3 nests subcategories and stores one category per item. Import
+  accepts version 2's category lists and version 1's `workspaces[].notes`, with the
+  reserved-category conversion. A client that names no item contract downloads
+  version 1.
+- Browser cache and open-item storage use version 4. Readers upgrade note-named
+  and category-list snapshots, including serialized IDs and clean/dirty signatures.
   Authored text and navigation keys are preserved. Legacy dirty snapshots are
   not removed if the upgraded snapshot cannot be written.
 - Existing encrypted cookies with `notesUserId` remain valid. Sessions expose

@@ -57,7 +57,8 @@ type Actions = {
   setMaxOpenItems: (value: number) => OpenItemEntry[]
   openExistingItem: (item: ItemRecord) => OpenItemEntry[]
   openNewDraft: (options?: {
-    categoryIds?: number[]
+    categoryId?: number | null
+    subcategoryId?: number | null
     statusId?: number | null
     tagIds?: number[]
     categoryLabel?: string

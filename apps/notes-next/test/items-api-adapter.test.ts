@@ -39,7 +39,7 @@ const createNextAdapter = (service: ItemsAppService): ItemsApiAdapter => {
         body: body == null ? undefined : JSON.stringify(body),
         headers: {
           "Content-Type": "application/json",
-          "X-Items-Contract": "1",
+          "X-Items-Contract": "2",
           ...headers,
         },
         method,

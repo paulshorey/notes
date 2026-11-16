@@ -130,12 +130,13 @@ test("group responses replace changed items and remove deleted items without cha
   const base = createFakeItemsAppService()
   const item = (await base.listItemsForItemsApp({ userId: 7, workspaceId: 3 })).items[0]!
   const other = { ...item, id: 42, description: "keep this text" }
-  const updated = { ...item, categories: [{ id: 9, label: "receipts" }] }
+  const updated = { ...item, category: { id: 9, label: "receipts" }, subcategory: null }
   const result: ItemGroupActionResponse = {
     items: [updated],
     deletedItemIds: [],
     category: null,
     removedCategoryId: null,
+    removedSubcategoryId: null,
   }
   assert.deepEqual(applyItemGroupResult([item, other], result), [updated, other])
   assert.deepEqual(
@@ -149,7 +150,7 @@ test("group responses replace changed items and remove deleted items without cha
       itemIds: [],
       itemCount: 4,
       textItemCount: 2,
-      sharedItemCount: 1,
+      subcategoryCount: 0,
     }),
     "2 notes and 2 other items",
   )

@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import type { ItemRecord } from "@lib/db-items"
 import { serializeItemDraft } from "../src/lib/itemDraft"
+import { NO_FILING } from "../src/lib/itemFiling"
 import { itemToFormState, createDefaultTextCaptureForm } from "../src/types/items"
 import {
   readOpenItemsSnapshot,
@@ -47,7 +48,8 @@ const makeItem = (
 ): ItemRecord => ({
   id,
   workspaceId: 1,
-  categories: [{ id: 7, label: "inbox" }],
+  category: { id: 7, label: "inbox" },
+  subcategory: { id: 70, label: "today" },
   status: null,
   tags: [],
   description,
@@ -65,7 +67,7 @@ const cleanEntry = (item: ItemRecord) => {
     baseTimeModified: item.timeModified,
     form,
     savedSignature: serializeItemDraft(item.id, form),
-    categoryInputValue: item.categories[0]?.label ?? "",
+    categoryInputValue: item.category?.label ?? "",
     pendingTagLabels: [],
     openedAt: Date.now(),
     lastActivatedAt: Date.now(),
@@ -78,7 +80,7 @@ const dirtyEntry = (item: ItemRecord, typed: string) => {
 }
 
 const snapshotOf = (entries: OpenItemsSnapshot["entries"]): OpenItemsSnapshot => ({
-  schemaVersion: 3,
+  schemaVersion: 4,
   userId: 1,
   workspaceId: 1,
   activeKey: entries[0]?.key ?? null,
@@ -164,10 +166,26 @@ test("a deleted category is removed without assigning a replacement", () => {
   const item = makeItem(1, "text")
 
   const { state } = reconcileOpenItems(snapshotOf([cleanEntry(item)]), lookupFrom([item]), {
-    categoryExists: () => false,
+    existingFiling: () => NO_FILING,
   })
 
-  assert.deepEqual(state.openItems[0]?.form.selectedCategoryIds, [])
+  assert.equal(state.openItems[0]?.form.selectedCategoryId, null)
+  assert.equal(state.openItems[0]?.form.selectedSubcategoryId, null)
+})
+
+test("a deleted subcategory leaves the entry in its category", () => {
+  const item = makeItem(1, "text")
+
+  const { state } = reconcileOpenItems(snapshotOf([cleanEntry(item)]), lookupFrom([item]), {
+    existingFiling: (filing) => ({ ...filing, subcategoryId: null }),
+  })
+
+  assert.equal(state.openItems[0]?.form.selectedCategoryId, 7)
+  assert.equal(state.openItems[0]?.form.selectedSubcategoryId, null)
+  assert.equal(
+    state.openItems[0]?.savedSignature,
+    serializeItemDraft(item.id, state.openItems[0]!.form),
+  )
 })
 
 test("a form referencing a deleted status is reset to no status", () => {
@@ -215,7 +233,7 @@ test("no reconciliation outcome leaves an unedited entry dirty", () => {
   const { state } = reconcileOpenItems(
     snapshotOf([cleanEntry(stored), cleanEntry(untouched)]),
     lookupFrom([server, untouched]),
-    { categoryExists: () => false },
+    { existingFiling: () => NO_FILING },
   )
 
   for (const entry of state.openItems) {
@@ -264,8 +282,8 @@ test("legacy single-category snapshots upgrade without making clean entries dirt
   const form = itemToFormState(item)
   const legacyForm = {
     ...form,
-    selectedCategoryId: form.selectedCategoryIds[0],
-    selectedCategoryIds: undefined,
+    selectedCategoryId: 7,
+    selectedSubcategoryId: undefined,
     selectedStatusId: undefined,
   }
   const legacy = {
@@ -290,11 +308,61 @@ test("legacy single-category snapshots upgrade without making clean entries dirt
 
   const upgraded = upgradeOpenItemsSnapshot(legacy, 1, 9)
   assert.equal(upgraded.workspaceId, 9)
-  assert.deepEqual(upgraded.entries[0]?.form.selectedCategoryIds, [7])
+  assert.equal(upgraded.entries[0]?.form.selectedCategoryId, 7)
+  assert.equal(upgraded.entries[0]?.form.selectedSubcategoryId, null)
   assert.equal(
     upgraded.entries[0]?.savedSignature,
     serializeItemDraft(item.id, upgraded.entries[0]!.form),
   )
+})
+
+test("snapshots with a list of categories keep the first one, clean entries clean, and dirty text dirty", () => {
+  const item = { ...makeItem(1, "saved"), subcategory: null, status: { id: 8, label: "todo" } }
+  const listedForm: Record<string, unknown> = {
+    ...itemToFormState(item),
+    selectedCategoryIds: [7, 9],
+  }
+  delete listedForm.selectedCategoryId
+  delete listedForm.selectedSubcategoryId
+  // The signature this shape wrote for an unchanged entry.
+  const listedSignature = (description: string) =>
+    JSON.stringify({
+      itemId: item.id,
+      categoryIds: [7, 9],
+      statusId: 8,
+      tagIds: [],
+      description,
+      timeDue: null,
+      timeRemind: null,
+    })
+  const stored = {
+    ...snapshotOf([]),
+    schemaVersion: 3,
+    entries: [
+      { ...cleanEntry(item), form: listedForm, savedSignature: listedSignature("saved") },
+      {
+        ...cleanEntry(item),
+        key: "note:2",
+        form: { ...listedForm, description: "typed and never saved" },
+        savedSignature: listedSignature("saved"),
+      },
+    ],
+  } as unknown as StoredOpenItemsSnapshot
+
+  const upgraded = upgradeOpenItemsSnapshot(stored, 1, 1)
+  assert.equal(upgraded.schemaVersion, 4)
+  for (const entry of upgraded.entries) {
+    assert.equal(entry.form.selectedCategoryId, 7)
+    assert.equal(entry.form.selectedSubcategoryId, null)
+    assert.equal(entry.form.selectedStatusId, 8)
+    assert.equal("selectedCategoryIds" in entry.form, false)
+  }
+  const [clean, dirty] = upgraded.entries
+  assert.equal(clean!.savedSignature, serializeItemDraft(item.id, clean!.form))
+  assert.equal(dirty!.form.description, "typed and never saved")
+  assert.notEqual(dirty!.savedSignature, serializeItemDraft(item.id, dirty!.form))
+  // Upgrading what was just upgraded changes nothing.
+  assert.deepEqual(upgradeOpenItemsSnapshot(upgraded, 1, 1).entries, upgraded.entries)
 })
 
 test("workspace snapshots carry separate workspace identities", () => {
@@ -340,15 +408,17 @@ test("a wrong-user or malformed browser snapshot never reaches reconcile", async
   assert.equal(readOpenItemsSnapshot(1, 1), null)
 })
 
-test("repairing a dirty draft removes only deleted categories and preserves text", () => {
+test("repairing a dirty draft removes only the deleted subcategory and preserves text", () => {
   const item = makeItem(1, "saved")
   const entry = dirtyEntry(item, "unsaved text")
-  entry.form.selectedCategoryIds = [10, 20]
+  entry.form.selectedCategoryId = 20
+  entry.form.selectedSubcategoryId = 30
   const { state } = reconcileOpenItems(snapshotOf([entry]), lookupFrom([item]), {
-    categoryExists: (id) => id === 20,
+    existingFiling: ({ categoryId }) => ({ categoryId, subcategoryId: null }),
   })
   const repaired = state.openItems[0]!
-  assert.deepEqual(repaired.form.selectedCategoryIds, [20])
+  assert.equal(repaired.form.selectedCategoryId, 20)
+  assert.equal(repaired.form.selectedSubcategoryId, null)
   assert.equal(repaired.form.description, "unsaved text")
   assert.notEqual(serializeItemDraft(repaired.itemId, repaired.form), repaired.savedSignature)
 })
@@ -385,7 +455,7 @@ test("real version-two note snapshots retain clean signatures, dirty text, navig
   storage.setItem("notes-open-notes-v2:1:1", raw)
   try {
     const upgraded = readOpenItemsSnapshot(1, 1)!
-    assert.equal(upgraded.schemaVersion, 3)
+    assert.equal(upgraded.schemaVersion, 4)
     assert.equal(upgraded.activeKey, dirty.key)
     assert.deepEqual(upgraded.backStack, [clean.key])
     assert.equal(upgraded.entries[0]!.itemId, 41)
@@ -442,7 +512,17 @@ test("an existing server cache upgrades item lists and relationship counts witho
       activeWorkspaceId: 1,
       savedAt: Date.now(),
       user: { id: 1, username: "owner", email: null, phone: null, preferences },
-      notes: [makeItem(41, "authored notes text")],
+      notes: [
+        {
+          ...makeItem(41, "authored notes text"),
+          category: undefined,
+          subcategory: undefined,
+          categories: [
+            { id: 7, label: "inbox" },
+            { id: 9, label: "second" },
+          ],
+        },
+      ],
       workspaces: [{ id: 1, userId: 1, label: "personal", noteCount: 1 }],
       categories: [{ id: 7, workspaceId: 1, label: "inbox", noteCount: 1, lastUsedAt: null }],
       statuses: [],
@@ -455,9 +535,14 @@ test("an existing server cache upgrades item lists and relationship counts witho
   })
   try {
     const cached = readItemsCache(1)!
-    assert.equal(cached.schemaVersion, 3)
+    assert.equal(cached.schemaVersion, 4)
     assert.equal(cached.items[0]?.description, "authored notes text")
+    // A cached list of categories becomes the first one, with no subcategory.
+    assert.deepEqual(cached.items[0]?.category, { id: 7, label: "inbox" })
+    assert.equal(cached.items[0]?.subcategory, null)
+    assert.equal("categories" in cached.items[0]!, false)
     assert.equal(cached.categories[0]?.itemCount, 1)
+    assert.deepEqual(cached.categories[0]?.subcategories, [])
     assert.equal(cached.workspaces[0]?.itemCount, 1)
     assert.deepEqual(cached.user.preferences, preferences)
     assert.equal(readItemsCache(2), null)

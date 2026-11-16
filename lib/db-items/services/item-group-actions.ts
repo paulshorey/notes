@@ -26,6 +26,11 @@ const selection = (value: unknown): ItemGroupSelection => {
   if (target.kind === "uncategorized") return { workspaceId, target: { kind: "uncategorized" } }
   if (target.kind === "category")
     return { workspaceId, target: { kind: "category", categoryId: id(target.categoryId) } }
+  if (target.kind === "subcategory")
+    return {
+      workspaceId,
+      target: { kind: "subcategory", subcategoryId: id(target.subcategoryId) },
+    }
   throw new Error("Unknown item group.")
 }
 export const parsePreviewItemGroupRequest = (value: unknown): PreviewItemGroupRequest => {
@@ -72,7 +77,8 @@ export const executeItemGroupActionForItemsApp = async (input: ExecuteItemGroupA
   )
     throw new ItemGroupConflictError("This group is empty. There are no items to categorize.")
   let embedding
-  if (request.action.kind === "rename") {
+  // Only category labels carry an embedding; a subcategory rename needs no provider.
+  if (request.action.kind === "rename" && request.selection.target.kind !== "subcategory") {
     const label = request.action.label
     const categories = await listCategoriesByWorkspace(
       request.userId,

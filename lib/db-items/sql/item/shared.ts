@@ -6,10 +6,10 @@ export const itemColumns = `
   n.id, n.workspace_id, n.description, n.time_due, n.time_remind,
   n.time_created, n.time_modified,
   CASE WHEN s.id IS NULL THEN NULL ELSE json_build_object('id', s.id, 'label', s.label) END AS status,
-  COALESCE((SELECT json_agg(json_build_object('id', c.id, 'label', c.label) ORDER BY lower(c.label), c.id)
-    FROM public.item_category_link_v1 l
-    JOIN public.workspace_category_v1 c ON c.id=l.category_id AND c.workspace_id=n.workspace_id
-    WHERE l.item_id=n.id), '[]'::json) AS categories,
+  (SELECT json_build_object('id', c.id, 'label', c.label)
+    FROM public.workspace_category_v1 c WHERE c.id=n.category_id) AS category,
+  (SELECT json_build_object('id', sc.id, 'label', sc.label)
+    FROM public.workspace_subcategory_v1 sc WHERE sc.id=n.subcategory_id) AS subcategory,
   COALESCE((SELECT json_agg(json_build_object('id', t.id, 'label', t.label) ORDER BY lower(t.label), t.id)
     FROM public.item_tag_link_v1 l
     JOIN public.workspace_tag_v1 t ON t.id=l.tag_id AND t.workspace_id=n.workspace_id
@@ -27,7 +27,8 @@ export interface ItemRow {
   time_remind: Date | null
   time_created: Date
   time_modified: Date
-  categories: unknown
+  category: unknown
+  subcategory: unknown
   status: unknown
   tags: unknown
 }
@@ -49,7 +50,8 @@ const parseRefs = (value: unknown): CategoryRef[] =>
 export const mapItem = (row: ItemRow): ItemRecord => ({
   id: row.id,
   workspaceId: row.workspace_id,
-  categories: parseRefs(row.categories),
+  category: parseRefs([row.category])[0] ?? null,
+  subcategory: parseRefs([row.subcategory])[0] ?? null,
   status: parseRefs([row.status])[0] ?? null,
   tags: parseRefs(row.tags) as TagRef[],
   description: row.description,
@@ -90,37 +92,62 @@ export const ensureStatusIdForWorkspace = async (
   if (result.rowCount !== 1) throw new Error("Status was not found for this workspace.")
 }
 
-const replaceLinks = async (
+export const CATEGORY_NOT_IN_WORKSPACE_ERROR = "Category was not found for this workspace."
+
+/**
+ * The category and subcategory an item write will store. The category must belong to
+ * the workspace. A subcategory is kept only when it belongs to that category, so
+ * choosing another category, or none, clears a subcategory left over from the old one.
+ */
+export const resolveItemFiling = async (
   client: PoolClient,
-  kind: "category" | "tag",
+  workspaceId: number,
+  categoryId: number | null,
+  subcategoryId: number | null,
+): Promise<{ categoryId: number | null; subcategoryId: number | null }> => {
+  if (categoryId === null) return { categoryId: null, subcategoryId: null }
+  const category = await client.query(
+    `SELECT 1 FROM public.workspace_category_v1 WHERE workspace_id=$1 AND id=$2`,
+    [workspaceId, categoryId],
+  )
+  if (category.rowCount !== 1) throw new Error(CATEGORY_NOT_IN_WORKSPACE_ERROR)
+  if (subcategoryId === null) return { categoryId, subcategoryId: null }
+  const subcategory = await client.query(
+    `SELECT 1 FROM public.workspace_subcategory_v1 WHERE id=$1 AND category_id=$2`,
+    [subcategoryId, categoryId],
+  )
+  return { categoryId, subcategoryId: subcategory.rowCount === 1 ? subcategoryId : null }
+}
+
+/** A category or subcategory removed between the check above and the write. */
+export const rethrowFilingRace = (error: unknown): never => {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "23503" &&
+    "constraint" in error &&
+    (error.constraint === "workspace_item_v1_category_workspace_fkey" ||
+      error.constraint === "workspace_item_v1_subcategory_category_fkey")
+  )
+    throw new Error(CATEGORY_NOT_IN_WORKSPACE_ERROR)
+  throw error
+}
+
+export const replaceItemTagsForItem = async (
+  client: PoolClient,
   itemId: number,
   workspaceId: number,
   ids: number[],
 ) => {
-  const vocabulary = kind === "category" ? "workspace_category_v1" : "workspace_tag_v1"
-  const unique = await ensureIds(client, vocabulary, workspaceId, ids, `${kind} ids`)
-  const links = `item_${kind}_link_v1`
-  const column = `${kind}_id`
-  await client.query(`DELETE FROM public.${links} WHERE item_id=$1`, [itemId])
+  const unique = await ensureIds(client, "workspace_tag_v1", workspaceId, ids, "tag ids")
+  await client.query(`DELETE FROM public.item_tag_link_v1 WHERE item_id=$1`, [itemId])
   if (unique.length)
     await client.query(
-      `INSERT INTO public.${links} (item_id, ${column}, workspace_id) SELECT $1, value, $2 FROM unnest($3::int[]) value`,
+      `INSERT INTO public.item_tag_link_v1 (item_id, tag_id, workspace_id) SELECT $1, value, $2 FROM unnest($3::int[]) value`,
       [itemId, workspaceId, unique],
     )
 }
-
-export const replaceItemCategoriesForItem = (
-  client: PoolClient,
-  itemId: number,
-  workspaceId: number,
-  ids: number[],
-) => replaceLinks(client, "category", itemId, workspaceId, ids)
-export const replaceItemTagsForItem = (
-  client: PoolClient,
-  itemId: number,
-  workspaceId: number,
-  ids: number[],
-) => replaceLinks(client, "tag", itemId, workspaceId, ids)
 
 export const selectItemById = async (client: PoolClient, itemId: number, userId: number) => {
   const { rows } = await client.query<ItemRow>(
@@ -152,3 +179,22 @@ export const resolveCategoryIdForWorkspace = (
 }
 export const resolveTagIdForWorkspace = (client: PoolClient, workspaceId: number, label: string) =>
   resolve(client, "workspace_tag_v1", workspaceId, label)
+
+/** Find or create a subcategory of a category that belongs to the workspace. */
+export const resolveSubcategoryIdForCategory = async (
+  client: PoolClient,
+  workspaceId: number,
+  categoryId: number,
+  label: string,
+) => {
+  assertCategoryNameAllowed(label)
+  const normalized = label.trim().toLocaleLowerCase()
+  if (!normalized) return null
+  const { rows } = await client.query<{ id: number }>(
+    `INSERT INTO public.workspace_subcategory_v1 (category_id,label)
+     SELECT c.id,$3 FROM public.workspace_category_v1 c WHERE c.workspace_id=$1 AND c.id=$2
+     ON CONFLICT (category_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
+    [workspaceId, categoryId, normalized],
+  )
+  return rows[0]?.id ?? null
+}

@@ -38,7 +38,7 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
   contextRef.current = { userId, workspaceId, dialog }
 
   useEffect(() => {
-    setLabel(dialog?.target.kind === "category" ? dialog.label : "")
+    setLabel(dialog && dialog.target.kind !== "uncategorized" ? dialog.label : "")
   }, [dialog])
 
   useEffect(() => {
@@ -71,6 +71,7 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
 
   if (!dialog) return null
   const uncategorized = dialog.target.kind === "uncategorized"
+  const noun = dialog.target.kind === "subcategory" ? "subcategory" : "category"
   const renaming = dialog.intent === "rename"
   const normalizedLabel = label.trim().toLocaleLowerCase()
   const nameError = getCategoryNameError(label)
@@ -136,7 +137,7 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
               value={label}
               disabled={pending}
               onUpdate={setLabel}
-              placeholder="Category name"
+              placeholder={noun === "subcategory" ? "Subcategory name" : "Category name"}
               validationState={nameError ? "invalid" : undefined}
               errorMessage={nameError ?? undefined}
             />
@@ -154,15 +155,16 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
           <>
             {!uncategorized && (
               <Text variant="body-1" color="secondary">
-                Keeping items removes only this category. Items without other categories become
-                uncategorized.
+                {noun === "subcategory"
+                  ? "Keeping items removes only this subcategory. Its items stay in the category."
+                  : "Keeping items removes only this category. Its items become uncategorized."}
+                {preview.subcategoryCount > 0
+                  ? ` Its ${preview.subcategoryCount === 1 ? "subcategory is" : `${preview.subcategoryCount} subcategories are`} deleted with it.`
+                  : ""}
               </Text>
             )}
             <Text variant="body-1" color="secondary">
               Deleting items is permanent.
-              {preview.sharedItemCount > 0
-                ? ` ${preview.sharedItemCount} also ${preview.sharedItemCount === 1 ? "belongs" : "belong"} to other categories and will be deleted everywhere.`
-                : ""}
             </Text>
           </>
         )}
@@ -188,7 +190,7 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
               }
               onClick={() => void execute({ kind: "rename", label: normalizedLabel })}
             >
-              {uncategorized ? "Move items to category" : "Rename category"}
+              {uncategorized ? "Move items to category" : `Rename ${noun}`}
             </Button>
           ) : (
             <>
@@ -198,7 +200,7 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
                   disabled={!preview}
                   onClick={() => void execute({ kind: "delete", deleteItems: false })}
                 >
-                  Delete category, keep items
+                  Delete {noun}, keep items
                 </Button>
               )}
               <Button
@@ -209,7 +211,7 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
               >
                 {uncategorized
                   ? "Delete all items in this group"
-                  : "Delete category and all its items"}
+                  : `Delete ${noun} and all its items`}
               </Button>
             </>
           )}

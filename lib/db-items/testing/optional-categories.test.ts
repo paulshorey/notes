@@ -14,7 +14,7 @@ describe("optional categories (DB)", { skip: !testDbUrl }, () => {
     if (testDbUrl) await getDb().end()
   })
 
-  test("notes save with no categories and survive deleting their oldest and final category", async () => {
+  test("an item saves with no category and survives deleting the category it is filed in", async () => {
     const userId = (
       await getDb().query<{ id: number }>(
         `INSERT INTO public.user_v1(username,is_anonymous) VALUES($1,true) RETURNING id`,
@@ -26,7 +26,8 @@ describe("optional categories (DB)", { skip: !testDbUrl }, () => {
       assert.deepEqual(await listCategoriesByWorkspace(userId, workspace.id), [])
       const input = {
         workspaceId: workspace.id,
-        categoryIds: [] as number[],
+        categoryId: null as number | null,
+        subcategoryId: null,
         statusId: null,
         tagIds: [],
         description: "capture first",
@@ -35,19 +36,18 @@ describe("optional categories (DB)", { skip: !testDbUrl }, () => {
       }
       const embeddings = { descriptionEmbedding: null, embeddingModel: null }
       const item = await createItemForUser(userId, input, embeddings)
-      assert.deepEqual(item.categories, [])
+      assert.equal(item.category, null)
       const ids = (
         await getDb().query<{ id: number }>(
           `INSERT INTO public.workspace_category_v1(workspace_id,label) VALUES($1,'first'),($1,'last') RETURNING id`,
           [workspace.id],
         )
       ).rows.map((row) => row.id)
-      await updateItemForUser(item.id, userId, { ...input, categoryIds: ids }, null)
+      await updateItemForUser(item.id, userId, { ...input, categoryId: ids[1]! }, null)
+      // Deleting a category the item is not filed in leaves its filing alone.
       assert.equal(await deleteCategoryForWorkspace(userId, workspace.id, ids[0]!), true)
-      assert.deepEqual(
-        (await listItemsByUser(userId, workspace.id))[0]!.categories.map((c) => c.id),
-        [ids[1]],
-      )
+      assert.equal((await listItemsByUser(userId, workspace.id))[0]!.category?.id, ids[1])
+      // Deleting the category it is filed in unfiles the item and keeps it.
       assert.equal(await deleteCategoryForWorkspace(userId, workspace.id, ids[1]!), true)
       const client = await getDb().connect()
       try {
@@ -59,7 +59,7 @@ describe("optional categories (DB)", { skip: !testDbUrl }, () => {
       const stored = (await listItemsByUser(userId, workspace.id))[0]!
       assert.equal(stored.id, item.id)
       assert.equal(stored.description, input.description)
-      assert.deepEqual(stored.categories, [])
+      assert.equal(stored.category, null)
       const updated = await updateItemForUser(
         item.id,
         userId,
@@ -67,7 +67,7 @@ describe("optional categories (DB)", { skip: !testDbUrl }, () => {
         null,
       )
       assert.equal(updated!.description, "still saveable")
-      assert.deepEqual(updated!.categories, [])
+      assert.equal(updated!.category, null)
     } finally {
       await getDb().query(`DELETE FROM public.user_v1 WHERE id=$1`, [userId])
     }

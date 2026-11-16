@@ -64,6 +64,8 @@ export interface WorkspaceItemV1Row {
   embedding_updated_at: Date | null
   time_created: Date
   time_modified: Date
+  category_id: number | null
+  subcategory_id: number | null
 }
 
 export interface WorkspaceStatusV1Row {
@@ -71,6 +73,14 @@ export interface WorkspaceStatusV1Row {
   workspace_id: number
   label: string
   position: number
+  time_created: Date
+  time_modified: Date
+}
+
+export interface WorkspaceSubcategoryV1Row {
+  id: number
+  category_id: number
+  label: string
   time_created: Date
   time_modified: Date
 }
@@ -95,5 +105,6 @@ export interface PostgresDbSchema {
   workspace_category_v1: WorkspaceCategoryV1Row
   workspace_item_v1: WorkspaceItemV1Row
   workspace_status_v1: WorkspaceStatusV1Row
+  workspace_subcategory_v1: WorkspaceSubcategoryV1Row
   workspace_tag_v1: WorkspaceTagV1Row
 }

@@ -37,6 +37,7 @@ readonly ITEMS_DB_DEFAULT_TABLES=(
   user_workspace_v1
   workspace_item_v1
   workspace_category_v1
+  workspace_subcategory_v1
   workspace_status_v1
   workspace_tag_v1
   item_category_link_v1

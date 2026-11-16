@@ -22,12 +22,25 @@ const timestamp = (value: unknown, field: string) => {
   if (Number.isNaN(date.getTime())) throw new Error(`${field} must be a valid date.`)
   return date.toISOString()
 }
+const nullableId = (value: unknown, field: string) =>
+  value == null || value === "" ? null : positiveInt(value, field)
+
+/** A request written for several categories per item files the item in the first one. */
+const categoryId = (record: Record<string, unknown>) => {
+  if (record.categoryId !== undefined) return nullableId(record.categoryId, "categoryId")
+  if (record.categoryIds == null) return null
+  if (!Array.isArray(record.categoryIds))
+    throw new Error("categoryIds must be an array of integers.")
+  return record.categoryIds.length === 0 ? null : positiveInt(record.categoryIds[0], "categoryIds")
+}
+
 export const parseItemInput = (value: unknown): ItemInput => {
   if (typeof value !== "object" || value === null) throw new Error("Item payload is required.")
   const record = value as Record<string, unknown>
   return {
     workspaceId: positiveInt(record.workspaceId, "workspaceId"),
-    categoryIds: ids(record.categoryIds, "categoryIds"),
+    categoryId: categoryId(record),
+    subcategoryId: nullableId(record.subcategoryId, "subcategoryId"),
     statusId:
       record.statusId == null || record.statusId === ""
         ? null

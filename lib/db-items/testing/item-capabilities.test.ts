@@ -17,7 +17,8 @@ import {
 
 const input = (values: Partial<ItemInput> = {}): ItemInput => ({
   workspaceId: 1,
-  categoryIds: [],
+  categoryId: null,
+  subcategoryId: null,
   statusId: null,
   tagIds: [],
   description: null,
@@ -29,7 +30,8 @@ const input = (values: Partial<ItemInput> = {}): ItemInput => ({
 const record = (values: Partial<ItemRecord> = {}): ItemRecord => ({
   id: 1,
   workspaceId: 1,
-  categories: [],
+  category: null,
+  subcategory: null,
   status: null,
   tags: [],
   description: null,
@@ -83,9 +85,13 @@ test("any single capability makes an item, and text is never required", () => {
 test("taxonomy alone does not make an item", () => {
   const empty: ItemCapabilitySource[] = [
     input(),
-    input({ categoryIds: [1], tagIds: [2] }),
+    input({ categoryId: 1, subcategoryId: 3, tagIds: [2] }),
     input({ description: "  \n\t " }),
-    record({ categories: [{ id: 1, label: "work" }], tags: [{ id: 2, label: "urgent" }] }),
+    record({
+      category: { id: 1, label: "work" },
+      subcategory: { id: 3, label: "ideas" },
+      tags: [{ id: 2, label: "urgent" }],
+    }),
   ]
   for (const item of empty) assert.equal(hasItemContent(item), false)
 })
@@ -93,7 +99,10 @@ test("taxonomy alone does not make an item", () => {
 test("the item service refuses to save an item that holds nothing", async () => {
   // Both calls must fail before any database or embedding-provider access.
   await assert.rejects(
-    createItemForItemsApp({ userId: 1, item: input({ categoryIds: [1], tagIds: [2] }) }),
+    createItemForItemsApp({
+      userId: 1,
+      item: input({ categoryId: 1, subcategoryId: 3, tagIds: [2] }),
+    }),
     (error: unknown) => {
       assert.ok(error instanceof Error)
       assert.equal(error.message, ITEM_CONTENT_REQUIRED_ERROR)

@@ -21,13 +21,17 @@ rejects mismatched client/server versions.
 
 - `user_v1` and `user_api_token_v1`: identity and authentication
 - `user_workspace_v1`: user-owned workspaces
-- `workspace_item_v1`: workspace-owned items, including nullable text and dates
-- `workspace_category_v1`, `workspace_status_v1`, `workspace_tag_v1`: flat vocabulary
-- `item_category_link_v1`, `item_tag_link_v1`: zero-or-more item relationships
+- `workspace_item_v1`: workspace-owned items, including nullable text and dates, and
+  at most one `category_id` and one `subcategory_id`
+- `workspace_category_v1`, `workspace_status_v1`, `workspace_tag_v1`: workspace vocabulary
+- `workspace_subcategory_v1`: subcategories, each belonging to one category
+- `item_tag_link_v1`: zero or more tags per item
+- `item_category_link_v1`: unused; kept for a previous-release server during a deploy
 
 Each item belongs to one workspace. Composite foreign keys reject relationships
-across workspaces. `uncategorized` is display text for no category links; it is
-never a default category row. There is no exclusive item type discriminator.
+across workspaces and a subcategory outside the item's category. `uncategorized` is
+display text for an item with no category; it is never a default category row. There
+is no exclusive item type discriminator. See [item taxonomy](../../docs/db/item-taxonomy.md).
 
 ## Migration and verification commands
 

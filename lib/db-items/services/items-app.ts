@@ -73,6 +73,7 @@ import {
 } from "../sql/item"
 import { resolveCategoryIdForWorkspace, resolveTagIdForWorkspace } from "../sql/item/shared"
 import {
+  createSubcategoryForWorkspace,
   deleteCategoryForWorkspace,
   getCategoryByIdForWorkspace,
   listCategoriesByWorkspace,
@@ -224,7 +225,10 @@ export const parseWorkspacesRequest = (userId: unknown): WorkspacesRequest => ({
 export const parseCreateCategoryRequest = (v: unknown): CreateCategoryRequest => {
   const request = labelRequest(v)
   assertCategoryNameAllowed(request.label)
-  return request
+  const parent = object(v).categoryId
+  return parent == null
+    ? request
+    : { ...request, categoryId: parsePositiveInteger(parent, "categoryId") }
 }
 export const parseCreateTagRequest = (v: unknown): CreateTagRequest => labelRequest(v)
 export const parseCreateStatusRequest = (v: unknown): CreateStatusRequest => labelRequest(v)
@@ -479,6 +483,17 @@ export const createCategoryForItemsApp = async (
   r: CreateCategoryRequest,
 ): Promise<CreateCategoryResponse> => {
   assertCategoryNameAllowed(r.label)
+  if (r.categoryId !== undefined) {
+    if (!r.label) throw new Error("label is required.")
+    const created = await createSubcategoryForWorkspace(
+      r.userId,
+      r.workspaceId,
+      r.categoryId,
+      r.label,
+    )
+    if (!created) throw new Error(ITEMS_APP_CATEGORY_NOT_FOUND_ERROR)
+    return created
+  }
   const id = await createLabelEntity("category", r.userId, r.workspaceId, r.label)
   const category = await getCategoryByIdForWorkspace(r.userId, r.workspaceId, id)
   if (!category) throw new Error("Failed to load category.")

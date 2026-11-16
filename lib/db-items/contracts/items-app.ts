@@ -25,9 +25,19 @@ export interface UserSummary {
   preferences: UserPreferences
 }
 
+/** `itemCount` and `lastUsedAt` cover every item filed in the category, in a subcategory or not. */
 export interface CategoryRecord {
   id: number
   workspaceId: number
+  label: string
+  itemCount: number
+  lastUsedAt: string | null
+  subcategories: SubcategoryRecord[]
+}
+
+export interface SubcategoryRecord {
+  id: number
+  categoryId: number
   label: string
   itemCount: number
   lastUsedAt: string | null
@@ -67,10 +77,12 @@ export interface TagRef {
   label: string
 }
 
+/** An item is filed in at most one category and one subcategory of that category. */
 export interface ItemRecord {
   id: number
   workspaceId: number
-  categories: CategoryRef[]
+  category: CategoryRef | null
+  subcategory: CategoryRef | null
   status: CategoryRef | null
   tags: TagRef[]
   description: string | null
@@ -87,7 +99,8 @@ export interface SemanticSearchResult {
 
 export interface ItemInput {
   workspaceId: number
-  categoryIds: number[]
+  categoryId: number | null
+  subcategoryId: number | null
   statusId: number | null
   tagIds: number[]
   description: string | null
@@ -127,10 +140,12 @@ export interface WorkspacesRequest {
   userId: number
 }
 
+/** With `categoryId`, creates a subcategory of that category instead of a category. */
 export interface CreateCategoryRequest {
   userId: number
   workspaceId: number
   label: string
+  categoryId?: number
 }
 
 export interface UpdateCategoryRequest {
@@ -274,8 +289,10 @@ export interface CategoriesResponse {
   categories: CategoryRecord[]
 }
 
+/** `category` is the category itself or, for a subcategory, its refreshed parent. */
 export interface CreateCategoryResponse {
   category: CategoryRecord
+  subcategory?: SubcategoryRecord
 }
 
 export interface UpdateCategoryResponse {
@@ -347,11 +364,18 @@ export interface BackupStatus {
   timeModified: string
 }
 
+export interface BackupCategory {
+  label: string
+  timeCreated: string
+  timeModified: string
+  subcategories: BackupVocabulary[]
+}
+
 export interface BackupWorkspace {
   label: string
   timeCreated: string
   timeModified: string
-  categories: BackupVocabulary[]
+  categories: BackupCategory[]
   statuses: BackupStatus[]
   tags: BackupVocabulary[]
   items: BackupItem[]
@@ -359,7 +383,8 @@ export interface BackupWorkspace {
 
 export interface BackupItem {
   description: string | null
-  categories: string[]
+  category: string | null
+  subcategory: string | null
   status: string | null
   tags: string[]
   timeDue: string | null

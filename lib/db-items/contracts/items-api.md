@@ -27,15 +27,17 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 | `POST /api/items/search`                 | `{ workspaceId, query, limit }` | `{ results: [{ item, similarity }] }`   |
 | `POST /api/items/maintenance/embeddings` | `{ mode, limit }`               | `{ mode, processed, updated, hasMore }` |
 
-`ItemInput` contains `workspaceId`, `categoryIds`, nullable `statusId`, `tagIds`,
-nullable `description`, `timeDue`, and `timeRemind`. The HTTP parser accepts
+`ItemInput` contains `workspaceId`, nullable `categoryId` and `subcategoryId`, nullable
+`statusId`, `tagIds`, nullable `description`, `timeDue`, and `timeRemind`. A subcategory
+that does not belong to the category is cleared, not refused. The HTTP parser accepts
 omitted text as null. `POST` and `PATCH` return `400` when the item would hold no
 capability at all: text, a due or reminder date, or a status each suffice on their own
 (`contracts/item-capabilities.ts`). Search returns only items with text.
-`ItemRecord` returns `id`, `workspaceId`, category/status/tag references,
-`description`, due/reminder dates, and creation/modification timestamps. An item
-has one workspace; relationship IDs must belong to that workspace. A new item
-can have zero category links. No exclusive `type` field is introduced.
+`ItemRecord` returns `id`, `workspaceId`, nullable `category` and `subcategory`
+references, status and tag references, `description`, due/reminder dates, and
+creation/modification timestamps. An item has one workspace; relationship IDs must
+belong to that workspace. A new item needs no category. There is no `type` field.
+See `docs/db/item-taxonomy.md`.
 
 Search ranks query embeddings against item description embeddings. Maintenance
 modes are `missing` and `stale`. Search does not implicitly repair embeddings.
@@ -47,9 +49,15 @@ categories, statuses, and tags. `/api/session` reads the user and updates
 preferences; `/api/workspaces`, `/api/categories`, `/api/statuses`, and `/api/tags`
 manage the corresponding workspace-owned structures.
 
-The new client sends `X-Items-Contract: 1` on shared routes. Without that header,
-responses also include legacy field aliases (`notes`, `noteCount`, and import
-counts) for older loaded clients. `/api/notes`, `/api/notes/search`, and
+`POST /api/categories` with a `categoryId` creates a subcategory of that category and
+returns `{ category, subcategory }`, where `category` is the refreshed parent. Category
+records nest their `subcategories`.
+
+The client sends `X-Items-Contract: 2` on shared routes. Any other request also
+receives `categories` (zero or one entry) on each item, and an item request may list
+`categoryIds`, of which the first is used. A shared route with no contract header also
+includes legacy field aliases (`notes`, `noteCount`, and import counts) for older
+loaded clients. `/api/notes`, `/api/notes/search`, and
 `/api/notes/maintenance/embeddings` remain thin authenticated facades that translate
 old `note`/`noteId` payloads into the same item service and return old field names.
 Preferences and authored text are never mechanically rewritten.
@@ -57,14 +65,15 @@ Preferences and authored text are never mechanically rewritten.
 ## Portable backup and restore
 
 Both methods use `/api/backup`, authenticated by the same cookie or bearer token.
-GET downloads `jot-new-backup-YYYY-MM-DD.json`. Canonical callers send the item
-contract header and receive version 2; older clients receive version 1. POST takes
+GET downloads `jot-new-backup-YYYY-MM-DD.json`. Callers that send an item contract
+header receive version 3; a caller that sends none receives version 1. POST takes
 the entire JSON file, without another wrapper, and requires a permanent account.
 Success returns `{ itemsImported, itemsSkipped }` with legacy aliases when needed.
 
-The envelope's stable format is `jot.new-user-backup`. Version 2 contains
-`workspaces[].items`; import also accepts version 1's `workspaces[].notes` and
-normalizes it. Relationships use workspace-local labels. Files preserve nullable
+The envelope's stable format is `jot.new-user-backup`. Version 3 nests
+`subcategories` under each category and stores one `category` and `subcategory` per
+item. Import also accepts version 2's list of categories per item, keeping the first,
+and version 1's `workspaces[].notes`. Relationships use workspace-local labels. Files preserve nullable
 text, dates, timestamps, empty workspaces, unused vocabulary, and preferences;
 they exclude credentials, account identity, vectors, and browser draft/cache state.
 Unknown versions, invalid references, unsafe object keys, excessive nesting, more
