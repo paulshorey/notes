@@ -4,11 +4,9 @@ import {
   type CategoryRecord,
   type ItemRecord,
   type SearchResponse,
-  type StatusRecord,
   type TagRecord,
   type UserPreferences,
   type UserSummary,
-  type WorkspaceRecord,
 } from "@lib/db-items"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSession } from "next-auth/react"
@@ -19,6 +17,7 @@ import { viewForPath } from "@/views/registry"
 import { useSidebarDrawer } from "@/hooks/useSidebarDrawer"
 import { type OpenItemKey } from "@/stores/openItems"
 import { selectActiveEntry, useItemsAppStore } from "@/stores/itemsAppStore"
+import { useWorkspaceStore } from "@/stores/workspaceStore"
 import { RESULTS_COLUMN_DEFAULT_WIDTH } from "@/lib/resultsColumn"
 import { serializeUserPreferences } from "@/lib/userPreferences"
 import { type DetachedSave, type ItemSaveMode, getDefaultTagId } from "@/workspace/shared"
@@ -36,21 +35,42 @@ export function useWorkspaceState() {
 
   const itemGroupDialog = useItemsAppStore((s) => s.itemGroupDialog)
 
-  const [user, setUser] = useState<UserSummary | null>(null)
+  // Server data lives in a store so every view reads the same copy.
+  const user = useWorkspaceStore((state) => state.user)
 
-  const [userPreferences, setUserPreferences] = useState<UserPreferences>({})
+  const setUser = useWorkspaceStore((state) => state.setUser)
 
-  const [items, setItems] = useState<ItemRecord[]>([])
+  const userPreferences = useWorkspaceStore((state) => state.userPreferences)
 
-  const [categories, setCategories] = useState<CategoryRecord[]>([])
+  const setUserPreferences = useWorkspaceStore((state) => state.setUserPreferences)
 
-  const [statuses, setStatuses] = useState<StatusRecord[]>([])
+  const items = useWorkspaceStore((state) => state.items)
 
-  const [tags, setTags] = useState<TagRecord[]>([])
+  const setItems = useWorkspaceStore((state) => state.setItems)
 
-  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([])
+  const categories = useWorkspaceStore((state) => state.categories)
 
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<number | null>(null)
+  const setCategories = useWorkspaceStore((state) => state.setCategories)
+
+  const statuses = useWorkspaceStore((state) => state.statuses)
+
+  const setStatuses = useWorkspaceStore((state) => state.setStatuses)
+
+  const tags = useWorkspaceStore((state) => state.tags)
+
+  const setTags = useWorkspaceStore((state) => state.setTags)
+
+  const workspaces = useWorkspaceStore((state) => state.workspaces)
+
+  const setWorkspaces = useWorkspaceStore((state) => state.setWorkspaces)
+
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId)
+
+  // The store outlives this provider, so a later mount starts from nothing loaded,
+  // the same as its own state does.
+  useEffect(() => () => useWorkspaceStore.getState().reset(), [])
+
+  const setActiveWorkspaceId = useWorkspaceStore((state) => state.setActiveWorkspaceId)
 
   const fallbackTagId = getDefaultTagId(tags)
 
