@@ -22,7 +22,11 @@ import {
 } from "./openItems"
 
 type State = OpenItemsState & {
-  itemGroupDialog: { target: ItemGroupTarget; intent: "rename" | "delete"; label: string } | null
+  itemGroupDialog: {
+    target: ItemGroupTarget
+    intent: "rename" | "delete" | "move"
+    label: string
+  } | null
   backupOperation: "download" | "restore" | null
   /**
    * Whether the navigation drawer is open on mobile/tablet. Desktop keeps

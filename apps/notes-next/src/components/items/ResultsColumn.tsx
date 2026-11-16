@@ -9,6 +9,7 @@ import type {
   TagRecord,
 } from "@lib/db-items"
 import {
+  ArrowBendDownRight,
   ArrowsLeftRight,
   CaretRight,
   DotsThreeVertical,
@@ -501,6 +502,16 @@ export function ResultsColumn({
                               intent: "rename",
                             })
                           }
+                          onMove={
+                            category
+                              ? () =>
+                                  setItemGroupDialog({
+                                    target,
+                                    label: category.label,
+                                    intent: "move",
+                                  })
+                              : undefined
+                          }
                           onDelete={() =>
                             setItemGroupDialog({
                               target,
@@ -577,6 +588,13 @@ export function ResultsColumn({
                                       target: subTarget,
                                       label: subcategory.label,
                                       intent: "rename",
+                                    })
+                                  }
+                                  onMove={() =>
+                                    setItemGroupDialog({
+                                      target: subTarget,
+                                      label: subcategory.label,
+                                      intent: "move",
                                     })
                                   }
                                   onDelete={() =>
@@ -990,6 +1008,8 @@ interface SectionActionMenuProps {
   openActionMenuId: string | null
   onOpenActionMenuChange: (id: string | null) => void
   onEdit: () => void
+  /** Offered only for groups that have a place in the hierarchy to move from. */
+  onMove?: () => void
   onDelete: () => void
   deleteDisabled?: boolean
   deleteTitle?: string
@@ -1002,6 +1022,7 @@ function SectionActionMenu({
   openActionMenuId,
   onOpenActionMenuChange,
   onEdit,
+  onMove,
   onDelete,
   deleteDisabled = false,
   deleteTitle,
@@ -1050,6 +1071,20 @@ function SectionActionMenu({
             <PencilSimple size={14} weight="regular" />
             <span>{editLabel}</span>
           </button>
+          {onMove && (
+            <button
+              type="button"
+              className={styles.categoryActionMenuItem}
+              role="menuitem"
+              onClick={() => {
+                onOpenActionMenuChange(null)
+                onMove()
+              }}
+            >
+              <ArrowBendDownRight size={14} weight="regular" />
+              <span>Move</span>
+            </button>
+          )}
           <button
             type="button"
             className={`${styles.categoryActionMenuItem} ${styles.categoryActionMenuItemDanger}`}

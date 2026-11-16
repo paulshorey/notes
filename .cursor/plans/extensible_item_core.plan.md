@@ -9,7 +9,10 @@ todos:
     content: "S2. One category and one subcategory per item: workspace_subcategory_v1, category_id and subcategory_id on the item, item contract 2, backup version 3, nested sidebar and two-level picker."
     status: completed
   - id: taxonomy_reorganize
-    content: "S3. Reorganize actions (move a subcategory, nest a category, promote a subcategory) in the group engine; drop the category link table and its legacy view."
+    content: "S3. Reorganize actions in the group engine: move a subcategory to another category, make a subcategory a category, and move a category into another as its subcategory."
+    status: completed
+  - id: taxonomy_remove_links
+    content: "S3b. Drop the category link table, its legacy view, and the earlier item contract shapes, once every environment runs S2."
     status: pending
   - id: capability_safe_lifecycle
     content: "S4. Account merge and restore move item rows instead of copying them; backup and duplicate detection read the registry; db:verify fails on an item table no capability declares."
@@ -231,7 +234,7 @@ describes the result.
 - **Backfill.** Every existing category stays a category. An item in several categories
   keeps the oldest-created one; its other memberships are not carried over. The
   backfill leaves item modification times untouched. The link table is left in place
-  and unused until S3.
+  and unused until S3b.
 - **Deleting a category or subcategory** goes through the group engine
   (`sql/item-groups.ts`), which clears or deletes the member items in the same
   transaction before removing the row. The item foreign keys take no delete action, so
@@ -257,15 +260,28 @@ describes the result.
 - A subcategory label has no embedding. Category label embeddings have no reader, so
   the subcategory table does not add another write-only vector.
 
-### S3. Reorganize, and remove the link table
+### S3. Reorganize
 
-- Group engine actions: move a subcategory to another category, nest a category under
-  another (allowed when it has no subcategories; its items keep it as their
-  subcategory), and promote a subcategory to a category. Each runs in one transaction
-  with the existing preview and fingerprint, and reports a label conflict instead of
-  merging.
-- Drop `item_category_link_v1`, its legacy view, and the contract `1` array shape. This
-  is the contract half of S2 and ships one release after it.
+One group action, `move`, puts a category or subcategory somewhere else in the
+hierarchy and keeps its items in it:
+
+- A subcategory moves to another category. It stays the same row, so its items follow
+  through the item foreign key.
+- A subcategory moves to the top level and becomes a category with the same label.
+- A category moves into another and becomes its subcategory with the same label. This is
+  allowed only while it has no subcategories, because the hierarchy is two levels.
+
+Each runs in one transaction with the existing preview and fingerprint, and reports a
+label that already exists at the destination as a conflict instead of merging. The
+sidebar group menus offer Move, and the dialog names the destination and what the group
+becomes before it is sent. A draft that was being filed in a moved group follows it.
+
+### S3b. Remove the link table
+
+Drop `item_category_link_v1`, its legacy view, and the earlier item contract shapes
+(the `categories` list on responses and `categoryIds` on requests). This is the contract
+half of S2: it ships only after every environment, production included, runs S2, so no
+previous-release server that reads the link table is still serving during the deploy.
 
 ### S4. Capability-safe lifecycle
 
@@ -406,7 +422,9 @@ two, the previous release serves requests against the new schema. So:
 - A migration only adds. Anything the previous release reads or writes is dropped or
   renamed in a later release.
 - A change that cannot be made compatible in one release ships as two: expand, then
-  contract. S2 and S3 are that pair for the taxonomy.
+  contract. S2 and S3b are that pair for the taxonomy, and S3b waits until production
+  runs S2: promoting both to an environment in one release would drop the link table
+  under a server that still reads it.
 - During the S2 deploy, a category chosen through the previous release is written to the
   link table only and is not carried over, and the previous release cannot delete a
   category that files an item until the deploy finishes. Both are accepted because

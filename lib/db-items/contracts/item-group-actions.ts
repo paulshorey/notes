@@ -36,7 +36,19 @@ export interface DeleteItemGroupAction {
   deleteItems: boolean
 }
 
-export type ItemGroupAction = RenameItemGroupAction | DeleteItemGroupAction
+/**
+ * Put a group somewhere else in the hierarchy, keeping its items in it.
+ *
+ * A subcategory moves under `categoryId`, or with `null` becomes a category itself. A
+ * category moves under `categoryId` and becomes its subcategory, which is allowed only
+ * when it has no subcategories of its own, because the hierarchy is two levels deep.
+ */
+export interface MoveItemGroupAction {
+  kind: "move"
+  categoryId: number | null
+}
+
+export type ItemGroupAction = RenameItemGroupAction | DeleteItemGroupAction | MoveItemGroupAction
 
 export interface PreviewItemGroupRequest {
   userId: number

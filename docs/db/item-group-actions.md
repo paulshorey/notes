@@ -16,8 +16,8 @@ Targets are `{ kind: "category", categoryId }`,
 category group holds every item filed in the category, including those in its
 subcategories; a subcategory group holds only its own.
 
-Actions are `{ kind: "rename", label }` and
-`{ kind: "delete", deleteItems: boolean }`.
+Actions are `{ kind: "rename", label }`, `{ kind: "delete", deleteItems: boolean }`,
+and `{ kind: "move", categoryId: number | null }`.
 
 | Target        | Rename                                | Delete, keep items                                    | Delete with items                         |
 | ------------- | ------------------------------------- | ----------------------------------------------------- | ----------------------------------------- |
@@ -28,6 +28,22 @@ Actions are `{ kind: "rename", label }` and
 Renaming a category or subcategory to a label that already exists at that level is
 a conflict, not a merge. Deleting uncategorized items empties the current group; it
 can appear again after capture.
+
+Move puts a group somewhere else in the hierarchy and keeps its items in it:
+
+| Target      | `categoryId` | Result                                                                                     |
+| ----------- | ------------ | ------------------------------------------------------------------------------------------ |
+| Subcategory | a category   | The same subcategory row under that category; its items follow                             |
+| Subcategory | `null`       | A category with the subcategory's label; its items are filed in it with no subcategory     |
+| Category    | a category   | A subcategory of that category with the category's label; its items keep it as subcategory |
+
+A category can move into another only while it has no subcategories, because the
+hierarchy is two levels. A label that already exists at the destination, the
+subcategory's current category, and a category moved into itself are conflicts; a
+destination outside the workspace is not found. Unfiled items have no group to move:
+naming a category for them is the rename action. A move never deletes an item and
+needs no embedding provider; a category created by a move gets its label embedding
+from the next embedding maintenance run.
 
 Actions cover the whole group in one workspace, including non-text items and
 items hidden by presentation filters. The preview reports the item count, the text
@@ -41,11 +57,13 @@ execution use it under repeatable-read transactions. Execution locks item rows i
 ID order, then the target category or subcategory and, for a category, its
 subcategories. It rechecks the fingerprint, dispatches through the typed action
 registry, and returns the committed items and the affected category (for a
-subcategory, its refreshed parent). An ordinary item save locks its own row before
-its foreign keys touch a category, so the two never deadlock.
+subcategory, its refreshed parent; for a move, the destination). A move also locks
+its destination category, after the target. An ordinary item save locks its own row
+before its foreign keys touch a category, so the two never deadlock; two moves into
+each other's categories can, and that surfaces as the usual conflict.
 
-Unfiling is an update of the item row, so it moves the item's modification time; a
-label-only rename does not. The item foreign keys take no delete action, so the
+Unfiling or refiling is an update of the item row, so it moves the item's
+modification time; a label-only rename does not. The item foreign keys take no delete action, so the
 engine always unfiles or deletes the member items before removing a category or
 subcategory. Single and bulk deletion share `sql/item/delete.ts`. The category
 PATCH and keep-items DELETE routes delegate to the same engine.
@@ -78,7 +96,11 @@ The Zustand group dialog pauses autosave and exit PATCHes. It settles in-flight
 saves and flushes dirty persisted entries before preview; untouched/unsaved drafts
 are not silently persisted for the action. Deferred detached saves resume once on
 close. The result repairs open entries and caches immediately, removes deleted
-entries without detached saves, then refreshes counts/search. A refresh failure
+entries without detached saves, then refreshes counts/search. After a move, the
+response names only the destination category, so `applyItemGroupResultToCategories`
+takes the moved subcategory out of the category that still lists it, and
+`refileAfterGroupResult` points a draft that was being filed in the moved group at
+its new place, since no server item exists to carry that change. A refresh failure
 does not make a completed mutation available for replay. Session/workspace changes
 invalidate pending dialog responses.
 

@@ -52,8 +52,10 @@ cover every item filed in it, in a subcategory or not; a subcategory's cover its
 items.
 
 `POST /api/categories` creates a category, or, with a `categoryId`, finds or creates a
-subcategory of that category and returns it with the refreshed parent. Renaming and
-deleting either level goes through the group engine. A subcategory label has no
+subcategory of that category and returns it with the refreshed parent. Renaming,
+deleting, and moving either level goes through the group engine: a subcategory can
+move to another category or become a category, and a category without subcategories
+can become a subcategory of another. A subcategory label has no
 embedding.
 
 ## Account merge, backup, and duplicate detection
