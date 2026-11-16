@@ -14,8 +14,7 @@
   padding: 4px 12px;
 }
 
-.layoutTab,
-.back {
+.layoutTab {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -28,8 +27,7 @@
   cursor: pointer;
 }
 
-.layoutTab:hover,
-.back:hover {
+.layoutTab:hover {
   color: var(--g-color-text-primary);
 }
 
@@ -171,4 +169,12 @@
     width: 82vw;
     flex-basis: 82vw;
   }
+}
+
+.editorDialog {
+  display: flex;
+  width: min(92vw, 760px);
+  height: min(82vh, 640px);
+  flex-direction: column;
+  overflow: hidden;
 }

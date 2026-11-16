@@ -29,11 +29,19 @@ export interface ItemView {
    */
   alwaysShowsEditor: boolean
   /**
+   * The parts of an item this view is about. Its editor shows these in the toolbar;
+   * the other parts stay reachable in the More menu.
+   */
+  editorProminent: readonly EditorPart[]
+  /**
    * What a quick-add in this view puts on the new item besides the typed text, given
    * where in the view it was added.
    */
   quickAddDefaults?: (context: { statusId: number | null }) => Partial<ItemDraft>
 }
+
+/** A part of an item the editor has a control for, besides its text. */
+export type EditorPart = "filing" | "tags" | "status" | "schedule"
 
 /** The view an entry belongs to when nothing says otherwise. */
 export const DEFAULT_VIEW_KIND: ItemKindKey = "note"
@@ -46,6 +54,8 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     // Notes captures text, so a draft is worth saving once it has some.
     canSave: (draft) => hasText(draft.description),
     alwaysShowsEditor: true,
+    // A note is text that gets organized.
+    editorProminent: ["filing", "tags"],
   },
   {
     kind: "task",
@@ -54,6 +64,8 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     // A task may have no text: a status or a date alone is worth keeping.
     canSave: draftHoldsContent,
     alwaysShowsEditor: false,
+    // A task is tracked by where it stands and when it is due.
+    editorProminent: ["status", "schedule"],
     // A card added to a board column starts with that column's status.
     quickAddDefaults: ({ statusId }) => ({ selectedStatusId: statusId }),
   },

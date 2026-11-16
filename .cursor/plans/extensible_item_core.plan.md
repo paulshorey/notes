@@ -160,6 +160,10 @@ A hook is added in the step that has its first user, never ahead of one.
   Notes exactly like any other note: Notes changes its text and taxonomy and applies
   only the Notes rule. Logic that belongs to Tasks, media, or spend never runs for an
   edit made in Notes.
+- A view favors the parts of an item it is about. Its editor shows those parts up
+  front and keeps the others reachable in a menu, so opening one item from two views
+  gives two emphases over the same content: Notes favors filing and tags, Tasks
+  favors status and dates.
 - Content is additive. A save from a simpler view carries the item's other content
   through unchanged, and a view never has to understand a capability it does not show.
 - An edit is judged by the view it was made in. Edits pending under one view are saved
@@ -383,8 +387,9 @@ The second view. It adds no storage: `status` and `schedule` are already on ever
 - **List.** The same items sorted by due date, so overdue items come first.
 - **Quick-add** in a status column creates an item with the typed text and that
   column's status, through the view's `quickAddDefaults`.
-- A card opens the shared item editor in place of the board, so its text is the same
-  text the Notes view edits. An item with text and a status appears in both views.
+- A card opens the shared item editor in a dialog over the board, so its text is the
+  same text the Notes view edits. An item with text and a status appears in both
+  views. The dialog's toolbar shows status and dates; filing and tags are in its menu.
 - **Each entry is judged by the view it was opened in.** An open entry records that
   view, and its `canSave` decides whether the entry's unsaved edits are saved. Tasks
   saves an entry that holds any content; Notes saves one that has text. So clearing

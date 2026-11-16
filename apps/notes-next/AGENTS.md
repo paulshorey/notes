@@ -119,7 +119,10 @@ between views, so the session, the open-item ring, and pending saves carry acros
   `useItemLists` narrows the lists to the active view's kind with `isKind`, so an item
   that is several kinds appears in each of those views and opens as the same entry.
   Every view edits through `ItemEditor`, bound to the active entry. Notes always shows
-  it; Tasks shows it in place of the board once the user opens an item.
+  it; Tasks shows it in a dialog over the board once the user opens an item. Each view
+  names the parts of an item it is about in `editorProminent`: the editor puts those
+  in its toolbar and the rest in the More menu, so nothing becomes unreachable. Notes
+  favors filing and tags; Tasks favors status and dates.
 - **Tasks.** `views/tasks/taskLists.ts` builds the board (a column per status in
   position order, then a column for dated tasks with no status) and the due-date list.
   Dragging a card calls `handleSetItemStatus`; a column's quick-add calls
@@ -255,7 +258,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 `itemSaveStatus` in `itemsAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `WorkspaceHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
 
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
-- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/subcategory/status/tag selector. It owns the value-and-icon trigger (`triggerIcon` replaces the default caret), filtered popup, focused create input, and `multiple` vs single-select behavior (checkboxes and staying open only when `multiple`). Keep the status selector inside `TextCaptureForm`'s More menu; category, subcategory, and tags use the editor toolbar pickers. Do not replace these with native selects or prompt dialogs.
+- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/subcategory/status/tag selector. It owns the value-and-icon trigger (`triggerIcon` replaces the default caret), filtered popup, focused create input, and `multiple` vs single-select behavior (checkboxes and staying open only when `multiple`). `TextCaptureForm` places each picker by the view's `editorProminent`: in the toolbar as an inline picker, or in the More menu as a menu row. The same picker props serve both places. Do not replace these with native selects or prompt dialogs.
 - Routes are wired through `app/api/_lib/items-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
 - Backup routes use `_lib/backup-route-handlers.ts`. Before transfers, flush notes
   and pending preference writes. Restore is additive: refresh bootstrap/cache

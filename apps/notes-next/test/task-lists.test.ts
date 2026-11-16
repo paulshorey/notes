@@ -141,4 +141,6 @@ test("the Tasks view is registered beside Notes", () => {
   const tasks = viewForKind("task")
   assert.equal(tasks.alwaysShowsEditor, false)
   assert.deepEqual(tasks.quickAddDefaults?.({ statusId: 9 }), { selectedStatusId: 9 })
+  assert.deepEqual(tasks.editorProminent, ["status", "schedule"], "a task is status and dates")
+  assert.deepEqual(viewForKind("note").editorProminent, ["filing", "tags"])
 })
