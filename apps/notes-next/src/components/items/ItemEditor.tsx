@@ -9,10 +9,11 @@ import { EMPTY_PENDING_TAG_LABELS } from "@/workspace/shared"
  * Whichever view shows it, it edits the same entry, so an item opened from two views is
  * one draft.
  */
-export function ItemEditor() {
+export function ItemEditor({ onClose }: { onClose?: () => void }) {
   const {
     activeEntry,
     activeForm,
+    activeView,
     categories,
     createCategoryPending,
     createStatusPending,
@@ -36,6 +37,8 @@ export function ItemEditor() {
 
   return (
     <TextCaptureForm
+      prominent={activeView.editorProminent}
+      onClose={onClose}
       form={activeForm}
       setForm={setActiveForm}
       editingItemId={activeEntry?.itemId ?? null}

@@ -1,7 +1,7 @@
 "use client"
 
 import type { ItemRecord, StatusRecord } from "@lib/db-items"
-import { ArrowLeft } from "@phosphor-icons/react"
+import { Modal } from "@gravity-ui/uikit"
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react"
 import { itemListLabel } from "@/capabilities/draftParts"
 import { ItemEditor } from "@/components/items/ItemEditor"
@@ -16,8 +16,8 @@ const DRAG_TYPE = "application/x-item-id"
 
 /**
  * The Tasks view: the workspace's tasks as a board by status or a list by due date.
- * A card opens the shared editor in place of the board, so its text is the text the
- * Notes view edits.
+ * A card opens the shared editor in a dialog over the board, so its text is the text
+ * the Notes view edits.
  */
 export function TasksView() {
   const {
@@ -62,6 +62,7 @@ export function TasksView() {
   const list = useMemo(() => taskList(tasks), [tasks])
 
   const openTask = (task: ItemRecord) => handleOpenItemFromResults(task)
+  const closeEditor = () => setEditorKey(null)
 
   // Without a status, only a date keeps an item a task. Clearing the status of an
   // undated task would take it off the board, which a drag should never do. The rule
@@ -72,20 +73,6 @@ export function TasksView() {
         ? "Give this task a date before removing its status."
         : null,
     )
-
-  if (editorOpen && activeEntry) {
-    return (
-      <div className={styles.view}>
-        <div className={styles.toolbar}>
-          <button type="button" className={styles.back} onClick={() => setEditorKey(null)}>
-            <ArrowLeft size={14} weight="bold" aria-hidden />
-            Tasks
-          </button>
-        </div>
-        <ItemEditor />
-      </div>
-    )
-  }
 
   return (
     <div className={styles.view}>
@@ -134,6 +121,13 @@ export function TasksView() {
           ))}
         </div>
       )}
+
+      {/* A card opens over the board, so closing it returns to the same place. */}
+      <Modal open={editorOpen} onClose={closeEditor} aria-label="Task">
+        <div className={styles.editorDialog}>
+          {editorOpen && <ItemEditor onClose={closeEditor} />}
+        </div>
+      </Modal>
     </div>
   )
 }

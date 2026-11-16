@@ -1,14 +1,15 @@
 "use client"
 
 import { Button, Popup } from "@gravity-ui/uikit"
-import { FilterablePicker } from "@/components/ui/FilterablePicker"
+import { FilterablePicker, type FilterablePickerProps } from "@/components/ui/FilterablePicker"
 import { DotsThree, FolderOpen, FolderSimple, Plus, Tag, X } from "@phosphor-icons/react"
 import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-items"
 import type { TextCaptureFormState } from "@/types/items"
 import { normalizeLabel } from "@/lib/strings"
-import { ScheduleField } from "@/capabilities/schedule/ScheduleField"
+import { ScheduleField, isScheduleFieldExpanded } from "@/capabilities/schedule/ScheduleField"
+import type { EditorPart } from "@/views/registry"
 import { StatusPicker } from "@/capabilities/status/StatusPicker"
 import { TextEditorControl } from "@/capabilities/text/TextEditorControl"
 import styles from "./TextCaptureForm.module.css"
@@ -40,7 +41,28 @@ interface TextCaptureFormProps {
   onDeleteEditingItem: () => void
   onAddItem: () => void
   onAddItemInCategory: () => void
+  /**
+   * The parts the view on screen is about. They stand in the toolbar; the others are
+   * in the More menu. Defaults to what a note is about.
+   */
+  prominent?: readonly EditorPart[]
+  /**
+   * Set when the form is shown in something that closes, such as a dialog. The corner
+   * button then always shows and closes it, instead of clearing the form.
+   */
+  onClose?: () => void
 }
+
+const NOTE_PARTS: readonly EditorPart[] = ["filing", "tags"]
+
+const MENU_PICKER_PLACEMENT: FilterablePickerProps["placement"] = [
+  "left-start",
+  "right-start",
+  "top-start",
+  "bottom-start",
+]
+
+type MorePicker = "status" | "tag" | "category" | "subcategory"
 
 export function TextCaptureForm({
   form,
@@ -69,10 +91,13 @@ export function TextCaptureForm({
   onDeleteEditingItem,
   onAddItem,
   onAddItemInCategory,
+  prominent = NOTE_PARTS,
+  onClose,
 }: TextCaptureFormProps) {
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [morePickerOpen, setMorePickerOpen] = useState(false)
-  const [activeMorePicker, setActiveMorePicker] = useState<"status" | "tag" | null>(null)
+  const [activeMorePicker, setActiveMorePicker] = useState<MorePicker | null>(null)
+  const inToolbar = (part: EditorPart) => prominent.includes(part)
 
   const selectedCategory = categories.find((category) => category.id === form.selectedCategoryId)
   const selectedSubcategory = selectedCategory?.subcategories.find(
@@ -113,14 +138,16 @@ export function TextCaptureForm({
     form.timeDue !== null ||
     form.remindExpanded ||
     form.timeRemind !== null
-  const showCancelButton = editingItemId !== null || newItemHasUserInput
+  const showCancelButton = onClose !== undefined || editingItemId !== null || newItemHasUserInput
+  const cancelLabel =
+    onClose !== undefined ? "Close" : editingItemId !== null ? "Cancel editing" : "Cancel changes"
 
   const closeMoreDropdown = () => {
     setMorePickerOpen(false)
     setActiveMorePicker(null)
   }
 
-  const updateMorePicker = (picker: "status" | "tag", open: boolean) => {
+  const updateMorePicker = (picker: MorePicker, open: boolean) => {
     setActiveMorePicker((current) => (open ? picker : current === picker ? null : current))
   }
 
@@ -146,6 +173,48 @@ export function TextCaptureForm({
     addTagLabel(label)
   }
 
+  // What each picker offers is the same wherever the view places it.
+  const categoryPicker = {
+    triggerAriaLabel: "Categories",
+    listboxAriaLabel: "Category options",
+    options: [{ id: "", label: "uncategorized" }, ...categories],
+    selectedIds: [form.selectedCategoryId ?? ""],
+    disabled: !userPresent,
+    pending: createCategoryPending,
+    onSelectOption: (category: { id: number | string }) => onSelectCategoryId(String(category.id)),
+    onCreateOption: onCreateCategory,
+    validateInput: (label: string) =>
+      normalizeLabel(label) === "uncategorized" ? null : getCategoryNameError(label),
+    emptyWithoutQueryMessage: "No categories yet",
+    inputPlaceholder: "Enter new category...",
+  }
+  const subcategoryPicker = selectedCategory && {
+    triggerAriaLabel: "Subcategory",
+    listboxAriaLabel: "Subcategory options",
+    options: [{ id: "", label: "no subcategory" }, ...selectedCategory.subcategories],
+    selectedIds: [form.selectedSubcategoryId ?? ""],
+    disabled: !userPresent,
+    pending: createCategoryPending,
+    onSelectOption: (subcategory: { id: number | string }) =>
+      onSelectSubcategoryId(String(subcategory.id)),
+    onCreateOption: onCreateSubcategory,
+    validateInput: getCategoryNameError,
+    emptyWithoutQueryMessage: `No subcategories in ${selectedCategory.label} yet`,
+    inputPlaceholder: "Enter new subcategory...",
+  }
+  const tagPicker = {
+    triggerAriaLabel: "Tags",
+    listboxAriaLabel: "Tag options",
+    options: tags,
+    selectedIds: form.selectedTagIds,
+    pending: createTagPending,
+    multiple: true,
+    onSelectOption: (tag: { label: string }) => toggleTagLabel(tag.label),
+    onCreateOption: addTagLabel,
+    emptyWithoutQueryMessage: "No tags yet",
+    inputPlaceholder: "Enter new tag...",
+  }
+
   /** Each capability control changes its own slice of the form. */
   const patchForm = (patch: (current: TextCaptureFormState) => Partial<TextCaptureFormState>) =>
     setForm((current) => ({ ...current, ...patch(current) }))
@@ -162,8 +231,8 @@ export function TextCaptureForm({
               size="s"
               pin="round-round"
               type="button"
-              onClick={onCancelEdit}
-              aria-label={editingItemId !== null ? "Cancel editing" : "Cancel changes"}
+              onClick={onClose ?? onCancelEdit}
+              aria-label={cancelLabel}
               className={styles.formSideButton}
             >
               <X size={14} weight="regular" />
@@ -192,88 +261,84 @@ export function TextCaptureForm({
             <Plus size={16} weight="bold" aria-hidden />
             <span aria-hidden>__</span>
           </button>
-          <div className={styles.categoryControls}>
-            <button
-              type="button"
-              className={`${styles.addItemButton} ${styles.categoryAddButton}`}
-              onClick={onAddItemInCategory}
-              aria-label={addItemLabel}
-              title={addItemLabel}
-            >
-              <Plus size={16} weight="bold" aria-hidden />
-            </button>
-            <FilterablePicker
-              variant="inline"
-              value={selectedCategoryLabel}
-              triggerClassName={styles.categoryPickerTrigger}
-              triggerAriaLabel="Categories"
-              listboxAriaLabel="Category options"
-              triggerIcon={
-                <FolderOpen size={17} weight="regular" className={styles.propertyPickerIcon} />
-              }
-              options={[{ id: "", label: "uncategorized" }, ...categories]}
-              selectedIds={[form.selectedCategoryId ?? ""]}
-              disabled={!userPresent}
-              pending={createCategoryPending}
-              onOpenChange={(open) => {
-                if (open) closeMoreDropdown()
-              }}
-              onSelectOption={(category) => onSelectCategoryId(String(category.id))}
-              onCreateOption={onCreateCategory}
-              validateInput={(label) =>
-                normalizeLabel(label) === "uncategorized" ? null : getCategoryNameError(label)
-              }
-              emptyWithoutQueryMessage="No categories yet"
-              inputPlaceholder="Enter new category..."
-            />
-          </div>
+          {inToolbar("filing") && (
+            <div className={styles.categoryControls}>
+              <button
+                type="button"
+                className={`${styles.addItemButton} ${styles.categoryAddButton}`}
+                onClick={onAddItemInCategory}
+                aria-label={addItemLabel}
+                title={addItemLabel}
+              >
+                <Plus size={16} weight="bold" aria-hidden />
+              </button>
+              <FilterablePicker
+                variant="inline"
+                value={selectedCategoryLabel}
+                triggerClassName={styles.categoryPickerTrigger}
+                triggerIcon={
+                  <FolderOpen size={17} weight="regular" className={styles.propertyPickerIcon} />
+                }
+                onOpenChange={(open) => {
+                  if (open) closeMoreDropdown()
+                }}
+                {...categoryPicker}
+              />
+            </div>
+          )}
           {/* A subcategory belongs to the chosen category, so it is offered only then. */}
-          {selectedCategory && (
+          {inToolbar("filing") && subcategoryPicker && (
             <FilterablePicker
               variant="inline"
               value={selectedSubcategory?.label ?? "__"}
-              triggerAriaLabel="Subcategory"
-              listboxAriaLabel="Subcategory options"
               triggerIcon={
                 <FolderSimple size={16} weight="regular" className={styles.propertyPickerIcon} />
               }
-              options={[{ id: "", label: "no subcategory" }, ...selectedCategory.subcategories]}
-              selectedIds={[form.selectedSubcategoryId ?? ""]}
-              disabled={!userPresent}
-              pending={createCategoryPending}
               onOpenChange={(open) => {
                 if (open) closeMoreDropdown()
               }}
-              onSelectOption={(subcategory) => onSelectSubcategoryId(String(subcategory.id))}
-              onCreateOption={onCreateSubcategory}
-              validateInput={getCategoryNameError}
-              emptyWithoutQueryMessage={`No subcategories in ${selectedCategory.label} yet`}
-              inputPlaceholder="Enter new subcategory..."
+              {...subcategoryPicker}
             />
           )}
-          <FilterablePicker
-            variant="inline"
-            value={selectedTagLabels.join(", ") || ""}
-            triggerAriaLabel="Tags"
-            listboxAriaLabel="Tag options"
-            triggerIcon={<Tag size={16} weight="regular" className={styles.propertyPickerIcon} />}
-            options={tags}
-            selectedIds={form.selectedTagIds}
-            disabled={!userPresent}
-            pending={createTagPending}
-            multiple
-            onOpenChange={(open) => {
-              if (open) closeMoreDropdown()
-            }}
-            onSelectOption={(tag) => toggleTagLabel(tag.label)}
-            onCreateOption={addTagLabel}
-            emptyWithoutQueryMessage="No tags yet"
-            inputPlaceholder="Enter new tag..."
-          />
-          {/* An added date sits in the toolbar; until then it is offered in the More menu. */}
-          {form.dueExpanded && <ScheduleField field="due" draft={form} onChange={patchForm} />}
-          {form.remindExpanded && (
-            <ScheduleField field="remind" draft={form} onChange={patchForm} />
+          {inToolbar("status") && (
+            <StatusPicker
+              variant="inline"
+              draft={form}
+              statuses={statuses}
+              pending={createStatusPending}
+              disabled={!userPresent}
+              onOpenChange={(open) => {
+                if (open) closeMoreDropdown()
+              }}
+              onSelectStatusId={onSelectStatusId}
+              onCreateStatus={onCreateStatus}
+            />
+          )}
+          {inToolbar("tags") && (
+            <FilterablePicker
+              variant="inline"
+              value={selectedTagLabels.join(", ") || ""}
+              triggerIcon={<Tag size={16} weight="regular" className={styles.propertyPickerIcon} />}
+              disabled={!userPresent}
+              onOpenChange={(open) => {
+                if (open) closeMoreDropdown()
+              }}
+              {...tagPicker}
+            />
+          )}
+          {/* A date the item has stands in the toolbar. Where the view is about dates,
+              the missing ones are offered there too; elsewhere they are in the menu. */}
+          {(["due", "remind"] as const).map(
+            (field) =>
+              (isScheduleFieldExpanded(form, field) || inToolbar("schedule")) && (
+                <ScheduleField
+                  key={field}
+                  field={field}
+                  draft={form}
+                  onChange={patchForm}
+                  collapsedAs="button"
+                />
+              ),
           )}
 
           <div className={styles.morePicker}>
@@ -316,52 +381,67 @@ export function TextCaptureForm({
                   <span>Delete</span>
                 </button>
                 <div className={styles.moreMenuDivider} aria-hidden="true" />
-                {!form.dueExpanded && (
-                  <ScheduleField
-                    field="due"
+                {!inToolbar("schedule") &&
+                  (["due", "remind"] as const).map(
+                    (field) =>
+                      !isScheduleFieldExpanded(form, field) && (
+                        <ScheduleField
+                          key={field}
+                          field={field}
+                          draft={form}
+                          onChange={patchForm}
+                          onExpand={() => setMorePickerOpen(false)}
+                        />
+                      ),
+                  )}
+                {!inToolbar("status") && (
+                  <StatusPicker
+                    variant="menu"
                     draft={form}
-                    onChange={patchForm}
-                    onExpand={() => setMorePickerOpen(false)}
+                    statuses={statuses}
+                    pending={createStatusPending}
+                    open={activeMorePicker === "status"}
+                    onOpenChange={(open) => updateMorePicker("status", open)}
+                    onSelectStatusId={onSelectStatusId}
+                    onCreateStatus={onCreateStatus}
                   />
                 )}
-                {!form.remindExpanded && (
-                  <ScheduleField
-                    field="remind"
-                    draft={form}
-                    onChange={patchForm}
-                    onExpand={() => setMorePickerOpen(false)}
+                {!inToolbar("filing") && (
+                  <FilterablePicker
+                    variant="menu"
+                    triggerLabel="Category"
+                    triggerRole="menuitem"
+                    value={selectedCategory?.label ?? "None"}
+                    open={activeMorePicker === "category"}
+                    onOpenChange={(open) => updateMorePicker("category", open)}
+                    placement={MENU_PICKER_PLACEMENT}
+                    {...categoryPicker}
                   />
                 )}
-                <StatusPicker
-                  draft={form}
-                  statuses={statuses}
-                  pending={createStatusPending}
-                  open={activeMorePicker === "status"}
-                  onOpenChange={(open) => updateMorePicker("status", open)}
-                  onSelectStatusId={onSelectStatusId}
-                  onCreateStatus={onCreateStatus}
-                />
+                {!inToolbar("filing") && subcategoryPicker && (
+                  <FilterablePicker
+                    variant="menu"
+                    triggerLabel="Subcategory"
+                    triggerRole="menuitem"
+                    value={selectedSubcategory?.label ?? "None"}
+                    open={activeMorePicker === "subcategory"}
+                    onOpenChange={(open) => updateMorePicker("subcategory", open)}
+                    placement={MENU_PICKER_PLACEMENT}
+                    {...subcategoryPicker}
+                  />
+                )}
                 <FilterablePicker
                   variant="menu"
                   triggerLabel="Tag"
                   triggerRole="menuitem"
                   value={selectedTagLabels.join(", ") || "None"}
-                  triggerAriaLabel="Tags"
-                  listboxAriaLabel="Tag options"
                   triggerIcon={
                     <Tag size={14} weight="regular" className={styles.propertyPickerIcon} />
                   }
-                  options={tags}
-                  selectedIds={form.selectedTagIds}
-                  pending={createTagPending}
-                  multiple
                   open={activeMorePicker === "tag"}
                   onOpenChange={(open) => updateMorePicker("tag", open)}
-                  placement={["left-start", "right-start", "top-start", "bottom-start"]}
-                  onSelectOption={(tag) => toggleTagLabel(tag.label)}
-                  onCreateOption={addTagLabel}
-                  emptyWithoutQueryMessage="No tags yet"
-                  inputPlaceholder="Enter new tag..."
+                  placement={MENU_PICKER_PLACEMENT}
+                  {...tagPicker}
                 />
               </div>
             </Popup>

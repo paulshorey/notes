@@ -17,8 +17,10 @@ export const isScheduleFieldExpanded = (draft: ScheduleDraft, field: ScheduleFie
 
 interface ScheduleFieldProps extends DraftControlProps<ScheduleDraft> {
   field: ScheduleFieldKey
-  /** Called when the collapsed menu item is chosen, before the field expands. */
+  /** Called when the collapsed control is chosen, before the field expands. */
   onExpand?: () => void
+  /** How the field looks before it has a date: a menu row, or a toolbar button. */
+  collapsedAs?: "menuitem" | "button"
 }
 
 /**
@@ -26,14 +28,22 @@ interface ScheduleFieldProps extends DraftControlProps<ScheduleDraft> {
  * a default value; expanded, it is the date input. A form places the two states where
  * each belongs, using `isScheduleFieldExpanded`.
  */
-export function ScheduleField({ field, draft, onChange, onExpand }: ScheduleFieldProps) {
+export function ScheduleField({
+  field,
+  draft,
+  onChange,
+  onExpand,
+  collapsedAs = "menuitem",
+}: ScheduleFieldProps) {
   const { label, defaultValue } = FIELDS[field]
 
   if (!isScheduleFieldExpanded(draft, field)) {
+    const inMenu = collapsedAs === "menuitem"
     return (
       <button
         type="button"
-        className={styles.moreMenuItem}
+        className={inMenu ? styles.moreMenuItem : styles.dateAddButton}
+        aria-label={inMenu ? undefined : `Add ${label.toLowerCase()} date`}
         onClick={() => {
           onExpand?.()
           onChange((current) =>
@@ -42,7 +52,7 @@ export function ScheduleField({ field, draft, onChange, onExpand }: ScheduleFiel
               : { remindExpanded: true, timeRemind: current.timeRemind || defaultValue() },
           )
         }}
-        role="menuitem"
+        role={inMenu ? "menuitem" : undefined}
       >
         <span>{label}</span>
         <CalendarBlank size={14} weight="regular" />

@@ -172,6 +172,28 @@
   line-height: 1.25;
 }
 
+.dateAddButton {
+  box-sizing: border-box;
+  display: inline-flex;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--g-color-line-generic);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--g-color-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.dateAddButton:hover {
+  color: var(--g-color-text-primary);
+}
+
 .dateFieldLabel {
   color: var(--g-color-text-secondary);
 }
