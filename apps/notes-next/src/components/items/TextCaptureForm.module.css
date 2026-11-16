@@ -350,7 +350,9 @@
     padding: 0 8px;
   }
 
+  /* On a narrow screen the controls take a second row instead of overlapping. */
   .formToolbar {
+    flex-wrap: wrap;
     padding: 0 8px 6px;
     gap: 6px;
   }
