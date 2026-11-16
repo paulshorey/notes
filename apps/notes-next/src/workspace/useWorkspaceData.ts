@@ -1,0 +1,228 @@
+"use client"
+
+import { isTextItem } from "@lib/db-items/contracts/item-content"
+import {
+  type CategoriesResponse,
+  type ItemRecord,
+  type ItemsResponse,
+  type SearchResponse,
+  type TagsResponse,
+  type UserSummary,
+} from "@lib/db-items"
+import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
+import { useCallback } from "react"
+import { itemsFetch, readJson } from "@/lib/api"
+import { updateItemsCacheList, updateItemsCacheUser } from "@/lib/itemsCache"
+import { RESULTS_COLUMN_DEFAULT_WIDTH } from "@/lib/resultsColumn"
+import {
+  getMaxOpenItemsPreference,
+  getPasteUrlAsMarkdownPreference,
+  getStoredResultsColumnWidth,
+  normalizeUserPreferences,
+  serializeUserPreferences,
+  withPasteUrlAsMarkdownPreference,
+} from "@/lib/userPreferences"
+import { TAXONOMY_REFRESH_DEBOUNCE_MS } from "@/workspace/shared"
+import type { WorkspaceStateOutput } from "./useWorkspaceState"
+import type { ResultsColumnLayoutOutput } from "./useResultsColumnLayout"
+
+export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayoutOutput) {
+  const {
+    activeWorkspaceIdRef,
+    clampResultsColumnWidth,
+    itemsRef,
+    lastSavedPreferencesRef,
+    setCategories,
+    setItems,
+    setItemsLoading,
+    setPreferredResultsColumnWidth,
+    setResultsColumnWidth,
+    setSearchResults,
+    setStatuses,
+    setTags,
+    setUser,
+    setUserPreferences,
+    taxonomyRefreshTimeoutRef,
+    userPreferences,
+  } = ctx
+
+  const pasteUrlAsMarkdown = getPasteUrlAsMarkdownPreference(userPreferences)
+
+  const preferredMaxOpenItems = getMaxOpenItemsPreference(userPreferences)
+
+  const handlePasteUrlAsMarkdownChange = useCallback(
+    (enabled: boolean) => {
+      setUserPreferences((current) =>
+        getPasteUrlAsMarkdownPreference(current) === enabled
+          ? current
+          : withPasteUrlAsMarkdownPreference(current, enabled),
+      )
+    },
+    [setUserPreferences],
+  )
+
+  const applyLoadedUser = useCallback(
+    (nextUser: UserSummary) => {
+      const nextPreferences = normalizeUserPreferences(nextUser.preferences)
+      const nextPreferredResultsColumnWidth =
+        getStoredResultsColumnWidth(nextPreferences) ?? RESULTS_COLUMN_DEFAULT_WIDTH
+      const normalizedUser: UserSummary = { ...nextUser, preferences: nextPreferences }
+      lastSavedPreferencesRef.current = serializeUserPreferences(nextPreferences)
+      setUser(normalizedUser)
+      setUserPreferences(nextPreferences)
+      setPreferredResultsColumnWidth(nextPreferredResultsColumnWidth)
+      setResultsColumnWidth(clampResultsColumnWidth(nextPreferredResultsColumnWidth))
+      updateItemsCacheUser(normalizedUser.id, normalizedUser)
+    },
+    [
+      clampResultsColumnWidth,
+      lastSavedPreferencesRef,
+      setPreferredResultsColumnWidth,
+      setResultsColumnWidth,
+      setUser,
+      setUserPreferences,
+    ],
+  )
+
+  /**
+   * Send a dirty entry that has left the ring off to the server anyway. Used by
+   * eviction, explicit close, and a lowered cap — the three ways a draft can
+   * stop being visible while still holding unsaved text.
+   */
+
+  const loadItems = useCallback(
+    async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
+      if (workspaceId === null) return []
+      // Only show the blocking "Loading…" indicator on the cold path, when we
+      // have nothing to display yet. Background refreshes (post-CRUD and the
+      // stale-while-revalidate startup) should keep showing the existing data.
+      const showLoadingIndicator = itemsRef.current.length === 0
+      if (showLoadingIndicator) setItemsLoading(true)
+      try {
+        const response = await itemsFetch(`/api/items?workspaceId=${workspaceId}`, {
+          cache: "no-store",
+        })
+        const data = await readJson<ItemsResponse>(response)
+        if (activeWorkspaceIdRef.current !== workspaceId) return data.items
+        setItems(data.items.filter(isTextItem))
+        updateItemsCacheList(userId, workspaceId, "items", data.items)
+        return data.items
+      } finally {
+        if (showLoadingIndicator) setItemsLoading(false)
+      }
+    },
+    [activeWorkspaceIdRef, itemsRef, setItems, setItemsLoading],
+  )
+
+  const loadCategories = useCallback(
+    async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
+      if (workspaceId === null) return []
+      const response = await itemsFetch(`/api/categories?workspaceId=${workspaceId}`, {
+        cache: "no-store",
+      })
+      const data = await readJson<CategoriesResponse>(response)
+      if (activeWorkspaceIdRef.current !== workspaceId) return data.categories
+      setCategories(data.categories)
+      updateItemsCacheList(userId, workspaceId, "categories", data.categories)
+      return data.categories
+    },
+    [activeWorkspaceIdRef, setCategories],
+  )
+
+  const loadTags = useCallback(
+    async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
+      if (workspaceId === null) return []
+      const response = await itemsFetch(`/api/tags?workspaceId=${workspaceId}`, {
+        cache: "no-store",
+      })
+      const data = await readJson<TagsResponse>(response)
+      if (activeWorkspaceIdRef.current !== workspaceId) return data.tags
+      setTags(data.tags)
+      updateItemsCacheList(userId, workspaceId, "tags", data.tags)
+      return data.tags
+    },
+    [activeWorkspaceIdRef, setTags],
+  )
+
+  const runSearch = useCallback(
+    async (userId: number, query: string, limit: number) => {
+      const workspaceId = activeWorkspaceIdRef.current
+      if (workspaceId === null) return []
+      const response = await itemsFetch("/api/items/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          workspaceId,
+          query,
+          limit: Math.min(Math.max(limit, 1), ITEMS_APP_SEARCH_MAX_RESULTS),
+        }),
+      })
+      const data = await readJson<SearchResponse>(response)
+      if (activeWorkspaceIdRef.current !== workspaceId) return data.results
+      setSearchResults(data.results.filter(({ item }) => isTextItem(item)))
+      return data.results
+    },
+    [activeWorkspaceIdRef, setSearchResults],
+  )
+
+  const scheduleTaxonomyRefresh = useCallback(
+    (userId: number) => {
+      if (taxonomyRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(taxonomyRefreshTimeoutRef.current)
+      }
+      taxonomyRefreshTimeoutRef.current = window.setTimeout(() => {
+        taxonomyRefreshTimeoutRef.current = null
+        const workspaceId = activeWorkspaceIdRef.current
+        if (workspaceId !== null)
+          void Promise.all([
+            loadCategories(userId, workspaceId),
+            loadTags(userId, workspaceId),
+            itemsFetch(`/api/statuses?workspaceId=${workspaceId}`, { cache: "no-store" })
+              .then(readJson<import("@lib/db-items").StatusesResponse>)
+              .then((data) => {
+                if (activeWorkspaceIdRef.current !== workspaceId) return
+                setStatuses(data.statuses)
+                updateItemsCacheList(userId, workspaceId, "statuses", data.statuses)
+              }),
+          ]).catch(() => undefined)
+      }, TAXONOMY_REFRESH_DEBOUNCE_MS)
+    },
+    [activeWorkspaceIdRef, loadCategories, loadTags, setStatuses, taxonomyRefreshTimeoutRef],
+  )
+
+  /** Merge a saved record into the lists in place, instead of refetching them. */
+  const mergeSavedItem = useCallback(
+    (userId: number, item: ItemRecord) => {
+      if (activeWorkspaceIdRef.current !== item.workspaceId) return
+      setItems((prev) => {
+        const next = [...prev.filter((existing) => existing.id !== item.id), item]
+        updateItemsCacheList(userId, item.workspaceId, "items", next)
+        return next
+      })
+      // The search effect only re-runs when `items.length` changes, so an edit to
+      // an already-listed note would otherwise leave stale text in the results.
+      setSearchResults((prev) =>
+        prev.some((result) => result.item.id === item.id)
+          ? prev.map((result) => (result.item.id === item.id ? { ...result, item } : result))
+          : prev,
+      )
+    },
+    [activeWorkspaceIdRef, setItems, setSearchResults],
+  )
+
+  return {
+    pasteUrlAsMarkdown,
+    preferredMaxOpenItems,
+    handlePasteUrlAsMarkdownChange,
+    applyLoadedUser,
+    loadItems,
+    loadCategories,
+    loadTags,
+    runSearch,
+    scheduleTaxonomyRefresh,
+    mergeSavedItem,
+  }
+}
+
+export type WorkspaceDataOutput = ReturnType<typeof useWorkspaceData>
