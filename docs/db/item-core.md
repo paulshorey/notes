@@ -147,10 +147,13 @@ Compatibility never makes a client-supplied user ID authoritative.
 - Backup version 3 nests subcategories and stores one category per item. Import
   accepts version 2's category lists and version 1's `workspaces[].notes`, with the
   reserved-category conversion. Every client downloads version 3.
-- Browser cache and open-item storage use version 4. Readers upgrade note-named
-  and category-list snapshots, including serialized IDs and clean/dirty signatures.
-  Authored text and navigation keys are preserved. Legacy dirty snapshots are
-  not removed if the upgraded snapshot cannot be written.
+- Open-item storage uses version 4. Its reader upgrades note-named and category-list
+  snapshots, including serialized IDs and clean/dirty signatures. Authored text and
+  navigation keys are preserved. Legacy dirty snapshots are not removed if the upgraded
+  snapshot cannot be written.
+- The browser's copy of server data uses version 5 and requires a uid on every item.
+  It is never upgraded: a snapshot in another shape is ignored, and the next load
+  fetches a fresh one.
 - Existing encrypted cookies with `notesUserId` remain valid. Sessions expose
   both identity fields during the transition. The `notesApp` preference namespace
   and its `maxOpenNotes` setting intentionally remain text-client preferences.

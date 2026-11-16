@@ -63,6 +63,7 @@ import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
 import {
   createOrFindItemForUser,
   deleteItemForUser,
+  findItemByUidInWorkspace,
   findWorkspaceIdByItemUid,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
@@ -585,6 +586,13 @@ export const deleteStatusForItemsApp = async (
 // at all; it never requires text, which is a rule of the Notes screen alone.
 export const createItemForItemsApp = async (r: CreateItemRequest): Promise<CreateItemResponse> => {
   assertItemHasContent(r.item)
+  // A repeated create is answered before anything else is asked for. The text is not
+  // written again, so it needs no embedding, and the caller gets its item back even
+  // while the embedding provider is unavailable.
+  if (r.item.uid) {
+    const stored = await findItemByUidInWorkspace(r.userId, r.item.workspaceId, r.item.uid)
+    if (stored) return { item: stored, created: false }
+  }
   return createOrFindItemForUser(
     r.userId,
     r.item,

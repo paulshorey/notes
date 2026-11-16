@@ -7,7 +7,11 @@ import {
   PUBLIC_UID_TAKEN_ERROR,
 } from "../contracts/public-uid"
 import { getDb } from "../lib/db/postgres"
-import { getItemsAppErrorStatus, mergeAnonymousItemsAppSession } from "../services/items-app"
+import {
+  createItemForItemsApp,
+  getItemsAppErrorStatus,
+  mergeAnonymousItemsAppSession,
+} from "../services/items-app"
 import {
   createItemForUser,
   createOrFindItemForUser,
@@ -168,6 +172,33 @@ describe("public uid (DB)", { skip: !testDbUrl }, () => {
     )
     assert.equal(raced[0]!.id, raced[1]!.id)
     assert.equal(await count(workspaceId), 2)
+  })
+
+  test("a repeated create is answered without asking for an embedding", async () => {
+    const { userId, workspaceId } = await realUser()
+    const uid = randomUUID()
+    await createItemForUser(
+      userId,
+      input(workspaceId, "stored while embeddings worked", uid),
+      noEmbedding,
+    )
+    const savedKey = process.env.JINA_API_KEY
+    delete process.env.JINA_API_KEY
+    try {
+      // Without a key a new item with text cannot be created at all.
+      await assert.rejects(
+        createItemForItemsApp({ userId, item: input(workspaceId, "new text", randomUUID()) }),
+      )
+      const repeated = await createItemForItemsApp({
+        userId,
+        item: input(workspaceId, "sent again, with more", uid),
+      })
+      assert.equal(repeated.created, false)
+      assert.equal(repeated.item.description, "stored while embeddings worked")
+      assert.equal(await count(workspaceId), 1)
+    } finally {
+      if (savedKey !== undefined) process.env.JINA_API_KEY = savedKey
+    }
   })
 
   test("a uid another item holds elsewhere is refused and tells nothing about it", async () => {
