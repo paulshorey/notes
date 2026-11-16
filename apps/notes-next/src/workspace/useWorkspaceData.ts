@@ -1,6 +1,5 @@
 "use client"
 
-import { isTextItem } from "@lib/db-items/contracts/item-content"
 import {
   type CategoriesResponse,
   type ItemRecord,
@@ -104,7 +103,7 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
         })
         const data = await readJson<ItemsResponse>(response)
         if (activeWorkspaceIdRef.current !== workspaceId) return data.items
-        setItems(data.items.filter(isTextItem))
+        setItems(data.items)
         updateItemsCacheList(userId, workspaceId, "items", data.items)
         return data.items
       } finally {
@@ -160,7 +159,7 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
       })
       const data = await readJson<SearchResponse>(response)
       if (activeWorkspaceIdRef.current !== workspaceId) return data.results
-      setSearchResults(data.results.filter(({ item }) => isTextItem(item)))
+      setSearchResults(data.results)
       return data.results
     },
     [activeWorkspaceIdRef, setSearchResults],

@@ -1,6 +1,5 @@
 "use client"
 
-import { isTextItem } from "@lib/db-items/contracts/item-content"
 import {
   type BootstrapResponse,
   type EmbeddingMaintenanceResponse,
@@ -390,7 +389,7 @@ export function useAccountActions(
         if (data.user.id !== user.id) throw new Error("The active account changed.")
         applyLoadedUser(data.user)
         setWorkspaces(data.workspaces)
-        setItems(data.items.filter(isTextItem))
+        setItems(data.items)
         setCategories(data.categories)
         setStatuses(data.statuses)
         setTags(data.tags)
@@ -433,7 +432,7 @@ export function useAccountActions(
       const data = await readJson<BootstrapResponse>(response)
       setWorkspaces(data.workspaces)
       setActiveWorkspaceId(data.activeWorkspaceId)
-      setItems(data.items.filter(isTextItem))
+      setItems(data.items)
       setCategories(data.categories)
       setStatuses(data.statuses)
       setTags(data.tags)

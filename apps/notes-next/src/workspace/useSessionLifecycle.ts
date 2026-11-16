@@ -1,6 +1,5 @@
 "use client"
 
-import { isTextItem } from "@lib/db-items/contracts/item-content"
 import { type BootstrapResponse, type SessionResponse } from "@lib/db-items"
 import { useEffect } from "react"
 import { signIn, signOut } from "next-auth/react"
@@ -138,7 +137,7 @@ export function useSessionLifecycle(
         updateItemsCacheUser(sessionData.user.id, userForCache)
       }
 
-      const loadedItems = bootstrapData.items.filter(isTextItem)
+      const loadedItems = bootstrapData.items
       const loadedCategories = bootstrapData.categories
       const loadedStatuses = bootstrapData.statuses
       const loadedTags = bootstrapData.tags
@@ -276,7 +275,7 @@ export function useSessionLifecycle(
       // PWA homescreen launch when the user has opened the app before.
       if (cachedSnapshot) {
         applyLoadedUser(cachedSnapshot.user)
-        setItems(cachedSnapshot.items.filter(isTextItem))
+        setItems(cachedSnapshot.items)
         setCategories(cachedSnapshot.categories)
         setStatuses(cachedSnapshot.statuses)
         setTags(cachedSnapshot.tags)

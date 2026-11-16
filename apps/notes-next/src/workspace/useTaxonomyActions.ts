@@ -1,6 +1,5 @@
 "use client"
 
-import { isTextItem } from "@lib/db-items/contracts/item-content"
 import {
   type CategoryRecord,
   type CreateCategoryResponse,
@@ -678,7 +677,7 @@ export function useTaxonomyActions(
           groupDeferredSaveKeysRef.current.delete(key)
         }
       }
-      const latestItems = applyItemGroupResult(itemsRef.current, result).filter(isTextItem)
+      const latestItems = applyItemGroupResult(itemsRef.current, result)
       const previousCategories = categoriesRef.current
       const latestCategories = applyItemGroupResultToCategories(previousCategories, result)
       // An entry the server has not saved follows the group it was being filed in.

@@ -12,8 +12,10 @@ import {
 } from "@lib/db-items"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSession } from "next-auth/react"
+import { usePathname } from "next/navigation"
 import { type EmbeddingMaintenanceMode } from "@/types/items"
 import { useAutoDismissStatus } from "@/hooks/useAutoDismissStatus"
+import { viewForPath } from "@/views/registry"
 import { useSidebarDrawer } from "@/hooks/useSidebarDrawer"
 import { type OpenItemKey } from "@/stores/openItems"
 import { selectActiveEntry, useItemsAppStore } from "@/stores/itemsAppStore"
@@ -23,6 +25,8 @@ import { type DetachedSave, type ItemSaveMode, getDefaultTagId } from "@/workspa
 
 export function useWorkspaceState() {
   const { data: authSession, status: authStatus } = useSession()
+  // The view on screen decides which of the workspace's items the lists show.
+  const activeView = viewForPath(usePathname())
 
   const [identifier, setIdentifier] = useState("")
 
@@ -260,6 +264,7 @@ export function useWorkspaceState() {
   }, [])
 
   return {
+    activeView,
     authSession,
     authStatus,
     identifier,

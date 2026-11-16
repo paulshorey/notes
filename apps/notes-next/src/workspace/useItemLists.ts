@@ -1,6 +1,6 @@
 "use client"
 
-import { isTextItem } from "@lib/db-items/contracts/item-content"
+import { isKind } from "@lib/db-items/contracts/item-kinds"
 import { type ItemRecord, type SearchResponse } from "@lib/db-items"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
 import { useCallback, useEffect, useMemo } from "react"
@@ -22,6 +22,7 @@ export function useItemLists(
   ctx: WorkspaceStateOutput & WorkspaceDataOutput & OpenItemEntriesOutput,
 ) {
   const {
+    activeView,
     activeWorkspaceId,
     activeWorkspaceIdRef,
     categories,
@@ -77,7 +78,7 @@ export function useItemLists(
       })
         .then((response) => readJson<SearchResponse>(response))
         .then((data) => {
-          setSearchResults(data.results.filter(({ item }) => isTextItem(item)))
+          setSearchResults(data.results)
         })
         .catch((error: unknown) => {
           if (controller.signal.aborted) return
@@ -124,20 +125,26 @@ export function useItemLists(
     }
 
     return [...searchResults]
-      .filter((result) => matchesSelectedTag(result.item))
+      .filter((result) => isKind(result.item, activeView.kind) && matchesSelectedTag(result.item))
       .sort((left, right) => right.similarity - left.similarity)
       .map((result) => ({
         item: result.item,
         relevance: result.similarity,
       }))
-  }, [matchesSelectedTag, searchMode, searchResults])
+  }, [activeView.kind, matchesSelectedTag, searchMode, searchResults])
+
+  // The workspace holds every item; a view lists the ones of its kind.
+  const viewItems = useMemo(
+    () => items.filter((item) => isKind(item, activeView.kind)),
+    [activeView.kind, items],
+  )
 
   const allItemItems = useMemo<DisplayItemItem[]>(
     () =>
-      [...items]
+      [...viewItems]
         .sort((left, right) => getItemSortTime(right) - getItemSortTime(left))
         .map((item) => ({ item })),
-    [items],
+    [viewItems],
   )
 
   const allCategoryItems = useMemo<DisplayItemItem[]>(
@@ -240,6 +247,7 @@ export function useItemLists(
    */
 
   return {
+    viewItems,
     matchesSelectedTag,
     searchItems,
     allItemItems,
