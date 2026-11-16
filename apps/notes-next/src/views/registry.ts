@@ -22,7 +22,16 @@ export interface ItemView {
    * keeping; the save engine asks the active view and holds no rule of its own.
    */
   canSave: (draft: ItemDraft) => boolean
+  /**
+   * Whether the view always shows the editor for the active entry (Notes), or only
+   * once the user opens an item in it. A view that always shows the editor takes over
+   * whichever entry becomes active.
+   */
+  alwaysShowsEditor: boolean
 }
+
+/** The view an entry belongs to when nothing says otherwise. */
+export const DEFAULT_VIEW_KIND: ItemKindKey = "note"
 
 export const ITEM_VIEWS: readonly ItemView[] = [
   {
@@ -31,8 +40,20 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     label: "Notes",
     // Notes captures text, so a draft is worth saving once it has some.
     canSave: (draft) => hasText(draft.description),
+    alwaysShowsEditor: true,
   },
 ]
+
+export const viewForKind = (kind: ItemKindKey): ItemView =>
+  ITEM_VIEWS.find((view) => view.kind === kind) ?? ITEM_VIEWS[0]!
+
+/**
+ * Whether an entry's unsaved edits are saved. The entry carries the view it was last
+ * opened in, and that view's rule decides: an edit is judged by the view it was made
+ * in, whichever view is on screen when the save runs.
+ */
+export const canSaveEntry = (entry: { view: ItemKindKey; form: ItemDraft }): boolean =>
+  viewForKind(entry.view).canSave(entry.form)
 
 /** The view a path belongs to: the longest route that is the path or a parent of it. */
 export const viewForPath = (pathname: string): ItemView => {

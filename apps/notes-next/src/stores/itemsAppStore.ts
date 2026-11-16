@@ -1,9 +1,12 @@
 import { create } from "zustand"
 import type { ItemRecord } from "@lib/db-items"
 import type { ItemGroupTarget } from "@lib/db-items/contracts/item-group-actions"
+import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import type { TextCaptureFormState, ItemSaveStatus } from "@/types/items"
+import { DEFAULT_VIEW_KIND } from "@/views/registry"
 import {
   activate as activateEntryIn,
+  claimActiveEntry,
   clampMaxOpenItems,
   closeEntriesForItem as closeEntriesForItemIn,
   closeEntry as closeEntryIn,
@@ -48,12 +51,26 @@ type State = OpenItemsState & {
    * through every call site.
    */
   maxOpenItems: number
+  /**
+   * The view on screen and whether it always shows the editor. An entry the user
+   * opens is handed to this view; see `claimActiveEntry`.
+   */
+  activeViewKind: ItemKindKey
+  activeViewAlwaysShowsEditor: boolean
+  /**
+   * Called with the active entry just before another view takes it over, so the save
+   * engine can send edits still pending under the view they were made in.
+   */
+  beforeViewClaim: ((entry: OpenItemEntry) => void) | null
 }
 
 type Actions = {
   setItemGroupDialog: (dialog: State["itemGroupDialog"]) => void
   setBackupOperation: (operation: "download" | "restore" | null) => void
   resetDefaultState: () => void
+  setBeforeViewClaim: (handler: State["beforeViewClaim"]) => void
+  /** Set the view on screen. A view that always shows the editor takes the active entry. */
+  setActiveView: (kind: ItemKindKey, alwaysShowsEditor: boolean) => void
   setResultsListVisible: (visible: boolean | ((current: boolean) => boolean)) => void
   setSelectedTagId: (tagId: number | null) => void
   setSearchQuery: (query: string) => void
@@ -92,6 +109,23 @@ const defaultState: State = {
   selectedTagId: null,
   searchQuery: "",
   maxOpenItems: MAX_OPEN_ITEMS_DEFAULT,
+  activeViewKind: DEFAULT_VIEW_KIND,
+  activeViewAlwaysShowsEditor: true,
+  beforeViewClaim: null,
+}
+
+/**
+ * The ring with its active entry handed to the view on screen. `opened` says the user
+ * opened or activated the entry; otherwise only a view that always shows the editor
+ * takes it. Edits pending under the entry's previous view are sent first.
+ */
+const claimForActiveView = (state: State, opened = false): OpenItemsState => {
+  const ring = openItemsSlice(state)
+  if (!opened && !state.activeViewAlwaysShowsEditor) return ring
+  const active = getActiveEntry(ring)
+  if (!active || active.view === state.activeViewKind) return ring
+  state.beforeViewClaim?.(active)
+  return claimActiveEntry(ring, state.activeViewKind)
 }
 
 const openItemsSlice = (state: State): OpenItemsState => ({
@@ -105,8 +139,20 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
   ...defaultState,
   setItemGroupDialog: (itemGroupDialog) => set({ itemGroupDialog }),
   setBackupOperation: (backupOperation) => set({ backupOperation }),
+  // The view on screen and the engine's hook outlive a session reset.
   resetDefaultState: () => {
-    set({ ...defaultState, ...createEmptyOpenItemsState() })
+    set((current) => ({
+      ...defaultState,
+      ...createEmptyOpenItemsState(),
+      activeViewKind: current.activeViewKind,
+      activeViewAlwaysShowsEditor: current.activeViewAlwaysShowsEditor,
+      beforeViewClaim: current.beforeViewClaim,
+    }))
+  },
+  setBeforeViewClaim: (beforeViewClaim) => set({ beforeViewClaim }),
+  setActiveView: (kind, alwaysShowsEditor) => {
+    set({ activeViewKind: kind, activeViewAlwaysShowsEditor: alwaysShowsEditor })
+    if (alwaysShowsEditor) set(claimForActiveView(get()))
   },
   setResultsListVisible: (visible) => {
     set((current) => ({
@@ -126,22 +172,27 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
     set({ ...state, maxOpenItems })
     return removed
   },
+  // Opening or activating an entry is the user choosing to work on it here, so the
+  // view on screen takes it over. An entry that becomes active some other way (its
+  // neighbor closed, the ring was restored) is taken over only by a view that then
+  // shows it in its editor.
   openExistingItem: (item) => {
     const { state, removed } = openExistingItemIn(openItemsSlice(get()), item, get().maxOpenItems)
-    set(state)
+    set(claimForActiveView({ ...get(), ...state }, true))
     return removed
   },
   openNewDraft: (options = {}) => {
     const { state, removed } = openNewDraftIn(openItemsSlice(get()), options, get().maxOpenItems)
-    set(state)
+    set(claimForActiveView({ ...get(), ...state }, true))
     return removed
   },
   activateEntry: (key) => {
-    set(activateEntryIn(openItemsSlice(get()), key, get().maxOpenItems))
+    const state = activateEntryIn(openItemsSlice(get()), key, get().maxOpenItems)
+    set(claimForActiveView({ ...get(), ...state }, true))
   },
   closeEntry: (key) => {
     const { state, removed } = closeEntryIn(openItemsSlice(get()), key, get().maxOpenItems)
-    set(state)
+    set(claimForActiveView({ ...get(), ...state }))
     return removed
   },
   closeEntriesForItem: (itemId) => {
@@ -150,7 +201,7 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
       itemId,
       get().maxOpenItems,
     )
-    set(state)
+    set(claimForActiveView({ ...get(), ...state }))
     return removed
   },
   patchEntry: (key, patch) => {
@@ -165,7 +216,7 @@ export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
     }))
   },
   replaceOpenItems: (next) => {
-    set(next)
+    set(claimForActiveView({ ...get(), ...next }))
   },
 }))
 

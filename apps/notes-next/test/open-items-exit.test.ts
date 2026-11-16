@@ -31,6 +31,7 @@ const entry = (
   return {
     key,
     itemId,
+    view: "note",
     baseTimeModified: null,
     form,
     savedSignature: savedForm === null ? null : JSON.stringify({ d: savedDescription }),
@@ -48,7 +49,7 @@ const entry = (
 const isDirty = (item: OpenItemEntry) =>
   JSON.stringify({ d: item.form.description }) !== item.savedSignature
 
-const isSaveable = (form: TextCaptureFormState) => form.description.trim() !== ""
+const isSaveable = ({ form }: { form: TextCaptureFormState }) => form.description.trim() !== ""
 
 test("session flush ignores an untouched draft but keeps real work", () => {
   const untouchedDraft = entry("draft:0", null, "", null)
@@ -121,6 +122,7 @@ test("stateWithDetachedSaves appends evicted drafts the ring no longer holds", (
         itemId: 2,
         form: formWith("evicted unsaved text"),
         savedSignature: JSON.stringify({ d: "older" }),
+        view: "note",
       },
     ],
   ])
@@ -149,6 +151,7 @@ test("stateWithDetachedSaves does not duplicate a key still in the ring", () => 
         itemId: 1,
         form: formWith("stale detached copy"),
         savedSignature: live.savedSignature,
+        view: "note",
       },
     ],
   ])
@@ -173,6 +176,7 @@ test("selectKeepaliveExitItems skips never-saved drafts and already-sent keys", 
           itemId: 2,
           form: formWith("evicted"),
           savedSignature: JSON.stringify({ d: "older" }),
+          view: "note",
         },
       ],
     ]),

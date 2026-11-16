@@ -25,6 +25,7 @@ import { updateItemsCacheList } from "@/lib/itemsCache"
 import { type OpenItemKey, itemEntryKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { collectSessionFlushEntries } from "@/lib/openItemsExit"
+import { canSaveEntry } from "@/views/registry"
 import {
   type ItemFiling,
   existingFiling,
@@ -51,7 +52,6 @@ export function useTaxonomyActions(
     activeKey,
     activeWorkspaceId,
     activeWorkspaceIdRef,
-    canSaveDraftRef,
     applyServerItemToEntry,
     categories,
     categoriesRef,
@@ -647,7 +647,7 @@ export function useTaxonomyActions(
     const entries = collectSessionFlushEntries(
       useItemsAppStore.getState().openItems,
       isEntryDirty,
-      canSaveDraftRef.current,
+      canSaveEntry,
     ).filter((entry) => entry.itemId !== null)
     const detached = [...detachedSavesRef.current].filter(([, entry]) => entry.itemId !== null)
     const saved = await Promise.all([
@@ -659,7 +659,6 @@ export function useTaxonomyActions(
     persistOpenItemsRef.current()
   }, [
     activeWorkspaceIdRef,
-    canSaveDraftRef,
     detachedSavesRef,
     persistOpenItemsRef,
     saveEntry,

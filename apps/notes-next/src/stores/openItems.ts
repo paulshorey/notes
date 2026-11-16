@@ -1,4 +1,6 @@
+import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { isBlankItemDraft } from "@/capabilities/draftParts"
+import { DEFAULT_VIEW_KIND } from "@/views/registry"
 import type { ItemRecord } from "@lib/db-items"
 import { itemFilingLabel } from "@/lib/itemFiling"
 import {
@@ -34,6 +36,11 @@ export interface OpenItemEntry {
   baseTimeModified: string | null
   /** Live in-memory draft. */
   form: TextCaptureFormState
+  /**
+   * The view this entry was last opened in. That view's rules decide whether its
+   * unsaved edits are saved (`canSaveEntry`).
+   */
+  view: ItemKindKey
   /** Signature of what was last successfully persisted, for the dirty check. */
   savedSignature: string | null
   saveStatus: ItemSaveStatus
@@ -131,7 +138,18 @@ const createEntry = (
     autofocus: true,
     openedAt: now,
     lastActivatedAt: now,
+    view: DEFAULT_VIEW_KIND,
     ...values,
+  }
+}
+
+/** Hand the active entry to a view, so that view's rules apply to its edits. */
+export const claimActiveEntry = (state: OpenItemsState, view: ItemKindKey): OpenItemsState => {
+  const active = getActiveEntry(state)
+  if (!active || active.view === view) return state
+  return {
+    ...state,
+    openItems: state.openItems.map((entry) => (entry === active ? { ...entry, view } : entry)),
   }
 }
 

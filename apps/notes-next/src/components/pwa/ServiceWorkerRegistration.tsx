@@ -7,9 +7,7 @@ export function ServiceWorkerRegistration() {
     if (!("serviceWorker" in navigator)) return
 
     const configureServiceWorker = async () => {
-      const isLocalHost = ["localhost", "127.0.0.1", "[::1]"].includes(
-        window.location.hostname,
-      )
+      const isLocalHost = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname)
 
       if (isLocalHost) {
         // An older worker can keep controlling localhost even after registration

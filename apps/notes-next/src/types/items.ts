@@ -1,8 +1,4 @@
-import {
-  createEmptyItemDraft,
-  itemDraftFromItem,
-  type ItemDraft,
-} from "@/capabilities/draftParts"
+import { createEmptyItemDraft, itemDraftFromItem, type ItemDraft } from "@/capabilities/draftParts"
 
 /** The Notes form edits the whole item draft; each part comes from `capabilities/`. */
 export type TextCaptureFormState = ItemDraft

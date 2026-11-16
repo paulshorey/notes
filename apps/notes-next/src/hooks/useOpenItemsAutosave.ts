@@ -44,8 +44,8 @@ export function useOpenItemsAutosave({
 }: {
   entries: OpenItemEntry[]
   enabled: boolean
-  /** The active view's rule for which drafts are saved. */
-  canSave: (form: OpenItemEntry["form"]) => boolean
+  /** Whether the entry's view saves it in its current state. */
+  canSave: (entry: OpenItemEntry) => boolean
   saveEntry: (key: OpenItemKey, mode: "autosave") => boolean | Promise<boolean>
 }) {
   const timersRef = useRef(new Map<OpenItemKey, ArmedTimer>())
@@ -72,7 +72,7 @@ export function useOpenItemsAutosave({
     const dirtyKeys = new Set<OpenItemKey>()
 
     for (const entry of entries) {
-      if (!canSave(entry.form)) continue
+      if (!canSave(entry)) continue
 
       const signature = serializeItemDraft(entry.itemId, entry.form)
       if (signature === entry.savedSignature) continue
