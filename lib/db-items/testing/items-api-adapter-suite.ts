@@ -36,7 +36,8 @@ const sampleUser = {
 const sampleItem = {
   id: 41,
   workspaceId: 3,
-  categories: [{ id: 5, label: "work" }],
+  category: { id: 5, label: "work" },
+  subcategory: { id: 6, label: "api" },
   status: null,
   tags: [{ id: 12, label: "verify the http api contract" }],
   description: "The Notes API routes should follow the shared contract.",
@@ -59,12 +60,21 @@ const sampleTag = {
   lastUsedAt: null,
 }
 
+const sampleSubcategory = {
+  id: 6,
+  categoryId: 5,
+  label: "api",
+  itemCount: 1,
+  lastUsedAt: sampleItem.timeModified,
+}
+
 const sampleCategory = {
   id: 5,
   workspaceId: 3,
   label: "work",
   itemCount: 1,
   lastUsedAt: sampleItem.timeModified,
+  subcategories: [sampleSubcategory],
 }
 
 const sampleWorkspace = {
@@ -105,13 +115,14 @@ export const createFakeItemsAppService = (
     itemIds: [41],
     itemCount: 1,
     textItemCount: 1,
-    sharedItemCount: 0,
+    subcategoryCount: 0,
   }),
   executeItemGroupActionForItemsApp: async () => ({
     items: [],
     deletedItemIds: [],
     category: null,
     removedCategoryId: null,
+    removedSubcategoryId: null,
   }),
   exportUserBackup: async () => {
     throw new Error("Backup not configured in this test.")
@@ -531,7 +542,12 @@ export const registerItemsApiAdapterSuite = (
   })
 
   test(`${adapterName} lowercases category labels before create and update`, async (t) => {
-    const createRequests: Array<{ userId: number; workspaceId: number; label: string }> = []
+    const createRequests: Array<{
+      userId: number
+      workspaceId: number
+      label: string
+      categoryId?: number
+    }> = []
     const updateRequests: Array<{
       userId: number
       workspaceId: number
@@ -568,9 +584,21 @@ export const registerItemsApiAdapterSuite = (
       body: { userId: 7, workspaceId: 3, categoryId: 5, label: "  WORK  " },
     })
 
+    // A parent category turns the same request into a subcategory create.
+    const subcategoryResponse = await adapter.request({
+      method: "POST",
+      path: "/api/categories",
+      headers: authHeaders,
+      body: { userId: 7, workspaceId: 3, categoryId: "5", label: "  API  " },
+    })
+
     assert.equal(createResponse.status, 201)
     assert.equal(updateResponse.status, 200)
-    assert.deepEqual(createRequests, [{ userId: 7, workspaceId: 3, label: "work" }])
+    assert.equal(subcategoryResponse.status, 201)
+    assert.deepEqual(createRequests, [
+      { userId: 7, workspaceId: 3, label: "work" },
+      { userId: 7, workspaceId: 3, label: "api", categoryId: 5 },
+    ])
     assert.deepEqual(updateRequests, [{ userId: 7, workspaceId: 3, categoryId: 5, label: "work" }])
   })
 
@@ -708,7 +736,8 @@ export const registerItemsApiAdapterSuite = (
         userId: 7,
         item: {
           workspaceId: 3,
-          categoryIds: [5],
+          categoryId: 5,
+          subcategoryId: 6,
           statusId: null,
           tagIds: [12],
           description: "The Notes API routes should follow the shared contract.",
@@ -725,7 +754,8 @@ export const registerItemsApiAdapterSuite = (
         userId: 7,
         item: {
           workspaceId: 3,
-          categoryIds: [5],
+          categoryId: 5,
+          subcategoryId: 6,
           statusId: null,
           tagIds: [12],
           description: "The Notes API routes should follow the shared contract.",
@@ -774,12 +804,14 @@ export const registerItemsApiAdapterSuite = (
 
     assert.equal(response.status, 201)
     assert.deepEqual(response.body, { item: itemWithoutDates })
+    // A request that lists several categories files the item in the first one.
     assert.deepEqual(requests, [
       {
         userId: 7,
         item: {
           workspaceId: 3,
-          categoryIds: [5],
+          categoryId: 5,
+          subcategoryId: null,
           statusId: null,
           tagIds: [12],
           description: "No due or reminder dates selected.",

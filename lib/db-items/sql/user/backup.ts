@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import type { PoolClient } from "pg"
 import type {
+  BackupCategory,
   BackupItem,
   BackupVocabulary,
   BackupStatus,
@@ -59,6 +60,15 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
           [w.id],
         )
       ).rows
+      const subcategories = (
+        await client.query<DatedRow & { category_id: number }>(
+          `SELECT sc.id,sc.category_id,sc.label,sc.time_created,sc.time_modified
+           FROM public.workspace_subcategory_v1 sc
+           JOIN public.workspace_category_v1 c ON c.id=sc.category_id
+           WHERE c.workspace_id=$1 ORDER BY sc.label`,
+          [w.id],
+        )
+      ).rows
       const statuses = (
         await client.query<DatedRow & { position: number }>(
           `SELECT id,label,position,time_created,time_modified FROM public.workspace_status_v1 WHERE workspace_id=$1 ORDER BY position,label`,
@@ -74,7 +84,8 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
       const items = (
         await client.query<{
           description: string | null
-          categories: string[]
+          category: string | null
+          subcategory: string | null
           status: string | null
           tags: string[]
           time_due: Date | null
@@ -83,8 +94,8 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
           time_modified: Date
         }>(
           `SELECT n.description,n.time_due,n.time_remind,n.time_created,n.time_modified,s.label status,
-          ARRAY(SELECT c.label FROM public.item_category_link_v1 l
-            JOIN public.workspace_category_v1 c ON c.id=l.category_id WHERE l.item_id=n.id ORDER BY c.label) categories,
+          (SELECT c.label FROM public.workspace_category_v1 c WHERE c.id=n.category_id) category,
+          (SELECT sc.label FROM public.workspace_subcategory_v1 sc WHERE sc.id=n.subcategory_id) subcategory,
           ARRAY(SELECT t.label FROM public.item_tag_link_v1 l
             JOIN public.workspace_tag_v1 t ON t.id=l.tag_id WHERE l.item_id=n.id ORDER BY t.label) tags
          FROM public.workspace_item_v1 n LEFT JOIN public.workspace_status_v1 s ON s.id=n.status_id
@@ -94,12 +105,18 @@ export const exportUserBackup = async (userId: number): Promise<UserBackup> => {
       ).rows
       workspaces.push({
         ...dated(w),
-        categories: categories.map(dated),
+        categories: categories.map((category) => ({
+          ...dated(category),
+          subcategories: subcategories
+            .filter((subcategory) => subcategory.category_id === category.id)
+            .map(dated),
+        })),
         tags: tags.map(dated),
         statuses: statuses.map((s) => ({ ...dated(s), position: s.position })),
         items: items.map((n) => ({
           description: n.description,
-          categories: n.categories,
+          category: n.category,
+          subcategory: n.subcategory,
           status: n.status,
           tags: n.tags,
           timeDue: n.time_due?.toISOString() ?? null,
@@ -135,7 +152,7 @@ const insertVocabulary = async (
   client: PoolClient,
   workspaceId: number,
   table: "workspace_category_v1" | "workspace_status_v1" | "workspace_tag_v1",
-  values: BackupVocabulary[] | BackupStatus[],
+  values: BackupCategory[] | BackupVocabulary[] | BackupStatus[],
 ) => {
   const status = table === "workspace_status_v1"
   await client.query(
@@ -146,24 +163,41 @@ const insertVocabulary = async (
   )
 }
 
+const insertSubcategories = async (
+  client: PoolClient,
+  workspaceId: number,
+  categories: BackupCategory[],
+) => {
+  const values = categories.flatMap((category) =>
+    category.subcategories.map((subcategory) => ({ ...subcategory, category: category.label })),
+  )
+  if (values.length === 0) return
+  await client.query(
+    `INSERT INTO public.workspace_subcategory_v1(category_id,label,time_created,time_modified)
+     SELECT c.id,v.label,v."timeCreated",v."timeModified"
+     FROM jsonb_to_recordset($2::jsonb)
+       v(category text,label text,"timeCreated" timestamptz,"timeModified" timestamptz)
+     JOIN public.workspace_category_v1 c ON c.workspace_id=$1 AND c.label=v.category`,
+    [workspaceId, JSON.stringify(values)],
+  )
+}
+
 const insertItems = async (client: PoolClient, workspaceId: number, values: BackupItem[]) => {
-  // One statement stages every item and its relations. Link inserts depend on
+  // One statement stages every item and its tag links. Link inserts depend on
   // inserted ids, so foreign keys see the items written by the same statement.
   await client.query(
     `WITH items AS MATERIALIZED (
        SELECT nextval(pg_get_serial_sequence('public.workspace_item_v1','id'))::int id,v.* FROM jsonb_to_recordset($2::jsonb)
-         v(description text,status text,categories text[],tags text[],"timeDue" timestamptz,
+         v(description text,status text,category text,subcategory text,tags text[],"timeDue" timestamptz,
            "timeRemind" timestamptz,"timeCreated" timestamptz,"timeModified" timestamptz)
      ), inserted AS (
-       INSERT INTO public.workspace_item_v1(id,workspace_id,status_id,description,time_due,time_remind,time_created,time_modified)
-       SELECT n.id,$1,s.id,n.description,n."timeDue",n."timeRemind",n."timeCreated",n."timeModified"
+       INSERT INTO public.workspace_item_v1(id,workspace_id,category_id,subcategory_id,status_id,
+         description,time_due,time_remind,time_created,time_modified)
+       SELECT n.id,$1,c.id,sc.id,s.id,n.description,n."timeDue",n."timeRemind",n."timeCreated",n."timeModified"
        FROM items n LEFT JOIN public.workspace_status_v1 s ON s.workspace_id=$1 AND s.label=n.status
+       LEFT JOIN public.workspace_category_v1 c ON c.workspace_id=$1 AND c.label=n.category
+       LEFT JOIN public.workspace_subcategory_v1 sc ON sc.category_id=c.id AND sc.label=n.subcategory
        RETURNING id
-     ), category_links AS (
-       INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id)
-       SELECT n.id,c.id,$1 FROM items n JOIN inserted i ON i.id=n.id
-       CROSS JOIN LATERAL unnest(n.categories) labels(label)
-       JOIN public.workspace_category_v1 c ON c.workspace_id=$1 AND c.label=labels.label
      ), tag_links AS (
        INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
        SELECT n.id,t.id,$1 FROM items n JOIN inserted i ON i.id=n.id
@@ -209,6 +243,7 @@ export const restoreUserBackup = async (
         )
       ).rows[0]!.id
       await insertVocabulary(client, workspaceId, "workspace_category_v1", w.categories)
+      await insertSubcategories(client, workspaceId, w.categories)
       await insertVocabulary(client, workspaceId, "workspace_status_v1", w.statuses)
       await insertVocabulary(client, workspaceId, "workspace_tag_v1", w.tags)
       await insertItems(client, workspaceId, w.items)

@@ -44,11 +44,11 @@ export const readJson = async <T>(response: Response) => {
 
   return payload as T
 }
-/** Select the canonical item payload on routes also serving older web builds. */
+/** Select the current item contract on routes that also serve earlier web builds. */
 export const itemsFetch: typeof fetch = (input, init) => {
   const headers = new Headers(
     init?.headers ?? (input instanceof Request ? input.headers : undefined),
   )
-  headers.set("X-Items-Contract", "1")
+  headers.set("X-Items-Contract", "2")
   return fetch(input, { ...init, headers })
 }

@@ -1,7 +1,13 @@
 "use client"
 
 import { getCategoryNameError, UNCATEGORIZED_LABEL } from "@lib/db-items/contracts/category-name"
-import type { CategoryRecord, ItemRecord, StatusRecord, TagRecord } from "@lib/db-items"
+import type {
+  CategoryRecord,
+  ItemRecord,
+  StatusRecord,
+  SubcategoryRecord,
+  TagRecord,
+} from "@lib/db-items"
 import {
   ArrowsLeftRight,
   CaretRight,
@@ -89,10 +95,14 @@ interface ResultsColumnProps {
   /** Notes with an open entry, marked distinctly from the active one. */
   openItemIds: number[]
   activeKey: OpenItemKey | null
-  activeCategoryIds: number[]
+  activeCategoryId: number | null
+  activeSubcategoryId: number | null
   activeTagIds: number[]
   onEditItem: (item: ItemRecord) => void
-  onAddItemForCategory: (category: CategoryRecord | null) => void
+  onAddItemForCategory: (
+    category: CategoryRecord | null,
+    subcategory?: SubcategoryRecord | null,
+  ) => void
   onAddItemForTag: (tag: TagRecord) => void
   onMoveItemCategory: (item: ItemRecord, categoryLabel: string) => void | Promise<void>
   onMoveItemTag: (item: ItemRecord, fromTagId: number, tagLabel: string) => void | Promise<void>
@@ -122,7 +132,8 @@ export function ResultsColumn({
   activeItemId,
   openItemIds,
   activeKey,
-  activeCategoryIds,
+  activeCategoryId,
+  activeSubcategoryId,
   activeTagIds,
   onEditItem,
   onAddItemForCategory,
@@ -140,6 +151,7 @@ export function ResultsColumn({
   const setSearchQuery = useItemsAppStore((state) => state.setSearchQuery)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<number[]>([])
+  const [expandedSubcategoryIds, setExpandedSubcategoryIds] = useState<number[]>([])
   const [expandedTagIds, setExpandedTagIds] = useState<number[]>([])
   const [expandedStatusIds, setExpandedStatusIds] = useState<number[]>([])
   const [uncategorizedExpanded, setUncategorizedExpanded] = useState(false)
@@ -147,13 +159,17 @@ export function ResultsColumn({
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null)
   const [activeMovePicker, setActiveMovePicker] = useState<MovePickerState | null>(null)
   const prevActiveKeyRef = useRef<OpenItemKey | null | undefined>(undefined)
-  const prevCategoryIdsRef = useRef<number[]>([])
+  const prevFilingRef = useRef<string | undefined>(undefined)
   const prevStatusIdRef = useRef<number | null | undefined>(undefined)
   const prevTagIdsRef = useRef<number[]>([])
 
   useEffect(() => {
     const validIds = new Set(categories.map((category) => category.id))
     setExpandedCategoryIds((current) => retainValidIds(current, validIds))
+    const validSubcategoryIds = new Set(
+      categories.flatMap((category) => category.subcategories.map((entry) => entry.id)),
+    )
+    setExpandedSubcategoryIds((current) => retainValidIds(current, validSubcategoryIds))
   }, [categories])
 
   useEffect(() => {
@@ -168,13 +184,20 @@ export function ResultsColumn({
 
   useEffect(() => {
     const itemChanged = prevActiveKeyRef.current !== activeKey
+    // Reveal where the active note is filed: its category, and its subcategory inside it.
+    const filing = `${activeCategoryId ?? ""}/${activeSubcategoryId ?? ""}`
+    const revealFiling = () => {
+      if (activeCategoryId === null) {
+        setUncategorizedExpanded(true)
+        return
+      }
+      setExpandedCategoryIds((current) => addUniqueIds(current, [activeCategoryId]))
+      if (activeSubcategoryId !== null)
+        setExpandedSubcategoryIds((current) => addUniqueIds(current, [activeSubcategoryId]))
+    }
 
     if (itemChanged) {
-      if (activeCategoryIds.length === 0) {
-        setUncategorizedExpanded(true)
-      } else {
-        setExpandedCategoryIds((current) => addUniqueIds(current, activeCategoryIds))
-      }
+      revealFiling()
 
       if (activeStatusId === null) {
         setNoStatusExpanded(true)
@@ -186,12 +209,9 @@ export function ResultsColumn({
         setExpandedTagIds((current) => addUniqueIds(current, activeTagIds))
       }
     } else {
-      const addedCategoryIds = activeCategoryIds.filter(
-        (id) => !prevCategoryIdsRef.current.includes(id),
-      )
-      if (addedCategoryIds.length > 0) {
-        setExpandedCategoryIds((current) => addUniqueIds(current, addedCategoryIds))
-      }
+      // Refiling the open note reveals its new place; clearing its category does not
+      // force the uncategorized group open.
+      if (filing !== prevFilingRef.current && activeCategoryId !== null) revealFiling()
 
       if (activeStatusId !== prevStatusIdRef.current) {
         if (activeStatusId === null) {
@@ -208,10 +228,10 @@ export function ResultsColumn({
     }
 
     prevActiveKeyRef.current = activeKey
-    prevCategoryIdsRef.current = [...activeCategoryIds]
+    prevFilingRef.current = filing
     prevStatusIdRef.current = activeStatusId
     prevTagIdsRef.current = [...activeTagIds]
-  }, [activeCategoryIds, activeKey, activeStatusId, activeTagIds])
+  }, [activeCategoryId, activeSubcategoryId, activeKey, activeStatusId, activeTagIds])
 
   useEffect(() => {
     if (expandedSection !== "search") return
@@ -236,8 +256,9 @@ export function ResultsColumn({
     }
   }, [openActionMenuId])
 
-  const getFilteredItemCount = (category: CategoryRecord, items: DisplayItemItem[]) =>
-    selectedTag === null ? category.itemCount : items.length
+  /** Without a tag filter the server's count is exact even before every note has loaded. */
+  const getFilteredItemCount = (record: { itemCount: number }, visibleCount: number) =>
+    selectedTag === null ? record.itemCount : visibleCount
 
   const isCategoryExpanded = (categoryId: number) => expandedCategoryIds.includes(categoryId)
 
@@ -307,7 +328,7 @@ export function ResultsColumn({
         <ItemMovePicker
           mode="category"
           options={categories}
-          currentOptionIds={item.categories.map((category) => category.id)}
+          currentOptionIds={item.category ? [item.category.id] : []}
           inputPlaceholder="Enter new..."
           emptyMessage="No other categories."
           onClose={closeMovePicker}
@@ -436,14 +457,17 @@ export function ResultsColumn({
                 const key = category ? `category-${category.id}` : "uncategorized"
                 const expanded = category ? isCategoryExpanded(category.id) : uncategorizedExpanded
                 const selected = category
-                  ? activeCategoryIds.includes(category.id)
-                  : activeCategoryIds.length === 0
+                  ? activeCategoryId === category.id
+                  : activeCategoryId === null
+                const subgroups = group.kind === "category" ? group.subgroups : []
                 const panelId = category ? `category-items-${category.id}` : "uncategorized-items"
                 return (
                   <div className={styles.categoryGroup} key={key} role="listitem">
                     <div className={styles.categoryRow}>
                       <SectionTitle
-                        count={category ? getFilteredItemCount(category, items) : items.length}
+                        count={
+                          category ? getFilteredItemCount(category, group.itemCount) : items.length
+                        }
                         label={category?.label ?? UNCATEGORIZED_LABEL}
                         active={expanded}
                         selected={selected}
@@ -502,6 +526,87 @@ export function ResultsColumn({
                         />
                       </ScrollableItemsPanel>
                     )}
+                    {expanded &&
+                      category &&
+                      subgroups.map(({ subcategory, items: nestedItems }) => {
+                        const subKey = `subcategory-${subcategory.id}`
+                        const subPanelId = `subcategory-items-${subcategory.id}`
+                        const subExpanded = expandedSubcategoryIds.includes(subcategory.id)
+                        const subSelected = activeSubcategoryId === subcategory.id
+                        const subTarget = {
+                          kind: "subcategory" as const,
+                          subcategoryId: subcategory.id,
+                        }
+                        return (
+                          <div className={styles.subcategoryGroup} key={subKey}>
+                            <div className={styles.categoryRow}>
+                              <SectionTitle
+                                count={getFilteredItemCount(subcategory, nestedItems.length)}
+                                label={subcategory.label}
+                                active={subExpanded}
+                                selected={subSelected}
+                                expanded={subExpanded}
+                                panelId={subPanelId}
+                                onToggle={() => {
+                                  setOpenActionMenuId(null)
+                                  setActiveMovePicker(null)
+                                  setExpandedSubcategoryIds((current) =>
+                                    toggleId(current, subcategory.id),
+                                  )
+                                }}
+                              >
+                                <SectionAddItemButton
+                                  label={`Add note in ${category.label} › ${subcategory.label}`}
+                                  active={subExpanded}
+                                  selected={subSelected}
+                                  onClick={() => {
+                                    setExpandedSubcategoryIds((current) =>
+                                      addUniqueIds(current, [subcategory.id]),
+                                    )
+                                    onAddItemForCategory(category, subcategory)
+                                  }}
+                                />
+                                <SectionActionMenu
+                                  id={subKey}
+                                  label={subcategory.label}
+                                  editLabel="Rename"
+                                  openActionMenuId={openActionMenuId}
+                                  onOpenActionMenuChange={setOpenActionMenuId}
+                                  onEdit={() =>
+                                    setItemGroupDialog({
+                                      target: subTarget,
+                                      label: subcategory.label,
+                                      intent: "rename",
+                                    })
+                                  }
+                                  onDelete={() =>
+                                    setItemGroupDialog({
+                                      target: subTarget,
+                                      label: subcategory.label,
+                                      intent: "delete",
+                                    })
+                                  }
+                                />
+                              </SectionTitle>
+                            </div>
+                            {subExpanded && nestedItems.length > 0 && (
+                              <ScrollableItemsPanel id={subPanelId}>
+                                <ItemResultsList
+                                  items={nestedItems}
+                                  activeItemId={activeItemId}
+                                  openItemIds={openItemIds}
+                                  loading={false}
+                                  emptyMessage=""
+                                  onEdit={handleResultEdit}
+                                  renderAction={(item) =>
+                                    renderItemRowAction(item, `${subKey}-item-${item.id}`)
+                                  }
+                                />
+                              </ScrollableItemsPanel>
+                            )}
+                          </div>
+                        )
+                      })}
                   </div>
                 )
               })

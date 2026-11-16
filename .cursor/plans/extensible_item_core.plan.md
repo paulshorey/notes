@@ -7,7 +7,7 @@ todos:
     status: completed
   - id: taxonomy_single_category
     content: "S2. One category and one subcategory per item: workspace_subcategory_v1, category_id and subcategory_id on the item, item contract 2, backup version 3, nested sidebar and two-level picker."
-    status: pending
+    status: completed
   - id: taxonomy_reorganize
     content: "S3. Reorganize actions (move a subcategory, nest a category, promote a subcategory) in the group engine; drop the category link table and its legacy view."
     status: pending
@@ -211,7 +211,7 @@ Schema, added in one migration:
 ```sql
 CREATE TABLE workspace_subcategory_v1 (
   id, category_id NOT NULL REFERENCES workspace_category_v1(id) ON DELETE CASCADE,
-  label, label embedding columns, time_created, time_modified,
+  label, time_created, time_modified,
   UNIQUE (category_id, label), UNIQUE (id, category_id)
 );
 ALTER TABLE workspace_item_v1
@@ -225,32 +225,37 @@ ALTER TABLE workspace_item_v1
 
 The database guarantees at most one of each per item, that a subcategory belongs to the
 item's category, and that both belong to the item's workspace. Two tables make the
-depth exactly two by construction, with no triggers.
+depth exactly two by construction, with no triggers. `docs/db/item-taxonomy.md`
+describes the result.
 
 - **Backfill.** Every existing category stays a category. An item in several categories
-  keeps the oldest-created one; its other memberships are not carried over. The link
-  table is left in place and unused until S3.
+  keeps the oldest-created one; its other memberships are not carried over. The
+  backfill leaves item modification times untouched. The link table is left in place
+  and unused until S3.
 - **Deleting a category or subcategory** goes through the group engine
   (`sql/item-groups.ts`), which clears or deletes the member items in the same
   transaction before removing the row. The item foreign keys take no delete action, so
   a direct delete of a category in use fails instead of silently unfiling items.
   Deleting a workspace still cascades.
-- **Contracts.** `ItemRecord` gains `category` and `subcategory` (each a ref or null);
-  `ItemInput` gains `categoryId` and `subcategoryId`. Changing an item's category clears
-  a subcategory that does not belong to the new one. Category payloads nest their
-  subcategories. Group targets add `subcategory`.
-- **Compatibility.** The client sends `X-Items-Contract: 2`. Requests with contract `1`
-  or none keep the array shape for one release: `categories` holds zero or one entry,
-  and only the first of `categoryIds` is used.
+- **Contracts.** `ItemRecord` has `category` and `subcategory` (each a ref or null);
+  `ItemInput` has `categoryId` and `subcategoryId`. A subcategory that does not belong
+  to the chosen category is cleared. Category payloads nest their subcategories, and
+  `POST /api/categories` with a parent `categoryId` creates a subcategory. Group
+  targets add `subcategory`.
+- **Compatibility.** The client sends `X-Items-Contract: 2`. Any other request keeps
+  the array shape for one release: `categories` holds zero or one entry next to the
+  current fields, and only the first of `categoryIds` is used.
 - **Backup version 3** stores `category` and `subcategory` per item and nests
   subcategories under categories. The importer reads versions 1 and 2 and keeps the
   first listed category.
 - **Merge and duplicate detection** copy subcategories and remap `category_id` and
-  `subcategory_id` by label, as `status_id` is remapped today.
-- **Client.** One picker that chooses a category and then, optionally, a subcategory,
-  and can create either. The sidebar nests subcategories under their category, with
-  items filed directly in the category listed first. Open-item and cache snapshots move
-  to a new storage version that reads the array form.
+  `subcategory_id` by label, as `status_id` is remapped.
+- **Client.** A category picker and, once a category is chosen, a subcategory picker
+  beside it; each can create. The sidebar nests subcategories under their category,
+  with items filed directly in the category listed first. Open-item and cache snapshots
+  are schema version 4 and read the array form.
+- A subcategory label has no embedding. Category label embeddings have no reader, so
+  the subcategory table does not add another write-only vector.
 
 ### S3. Reorganize, and remove the link table
 
@@ -403,8 +408,9 @@ two, the previous release serves requests against the new schema. So:
 - A change that cannot be made compatible in one release ships as two: expand, then
   contract. S2 and S3 are that pair for the taxonomy.
 - During the S2 deploy, a category chosen through the previous release is written to the
-  link table only and is not carried over. This is accepted because existing category
-  data is disposable.
+  link table only and is not carried over, and the previous release cannot delete a
+  category that files an item until the deploy finishes. Both are accepted because
+  existing category data is disposable and the window is a minute or two.
 - Backups: the importer reads every earlier version and rejects a newer one with a clear
   message. A restore that reaches the previous release during a deploy fails cleanly and
   succeeds on retry.

@@ -1,6 +1,7 @@
 import type { ItemRecord } from "@lib/db-items"
 import { itemToFormState, type TextCaptureFormState } from "@/types/items"
 import { serializeItemDraft } from "@/lib/itemDraft"
+import { itemFilingLabel, type ItemFiling } from "@/lib/itemFiling"
 import {
   createEmptyOpenItemsState,
   isEmptyDraft,
@@ -47,7 +48,7 @@ interface PersistedEntry {
 }
 
 export interface OpenItemsSnapshot {
-  schemaVersion: 3
+  schemaVersion: 4
   userId: number
   workspaceId: number
   activeKey: OpenItemKey | null
@@ -80,14 +81,13 @@ const isPersistedEntry = (value: unknown): value is PersistedEntry => {
 }
 
 export type StoredOpenItemsSnapshot = Omit<OpenItemsSnapshot, "schemaVersion" | "workspaceId"> & {
-  schemaVersion: 1 | 2 | 3
+  schemaVersion: 1 | 2 | 3 | 4
   workspaceId?: number
 }
 
 const isSnapshot = (value: unknown): value is StoredOpenItemsSnapshot => {
   if (!isObject(value)) return false
-  if (value.schemaVersion !== 1 && value.schemaVersion !== 2 && value.schemaVersion !== 3)
-    return false
+  if (![1, 2, 3, 4].includes(Number(value.schemaVersion))) return false
   if (typeof value.userId !== "number" || !Number.isInteger(value.userId)) return false
   if (
     value.workspaceId !== undefined &&
@@ -149,7 +149,7 @@ export const toSnapshot = (
   workspaceId: number,
   state: OpenItemsState,
 ): OpenItemsSnapshot => ({
-  schemaVersion: 3,
+  schemaVersion: 4,
   userId,
   workspaceId,
   activeKey: state.activeKey,
@@ -273,27 +273,54 @@ export const upgradeOpenItemsSnapshot = (
   workspaceId: number,
 ): OpenItemsSnapshot => ({
   ...snapshot,
-  schemaVersion: 3,
+  schemaVersion: 4,
   userId,
   workspaceId,
   entries: snapshot.entries.map((entry) => {
-    const legacy = entry.form as TextCaptureFormState & { selectedCategoryId?: number | null }
-    if (Array.isArray(legacy.selectedCategoryIds)) return entry
-    const form: TextCaptureFormState = {
-      ...legacy,
-      selectedCategoryIds: legacy.selectedCategoryId == null ? [] : [legacy.selectedCategoryId],
-      selectedStatusId: null,
+    // Three stored form shapes exist: one category and one subcategory (current), a
+    // list of categories, and one category with no status. Each is read once here.
+    const stored = entry.form as Omit<
+      TextCaptureFormState,
+      "selectedCategoryId" | "selectedSubcategoryId"
+    > & {
+      selectedCategoryId?: number | null
+      selectedSubcategoryId?: number | null
+      selectedCategoryIds?: number[]
     }
-    const wasClean =
-      entry.savedSignature ===
-      JSON.stringify({
-        itemId: entry.itemId,
-        categoryId: legacy.selectedCategoryId ?? null,
-        tagIds: [...legacy.selectedTagIds].sort((a, b) => a - b),
-        description: legacy.description,
-        timeDue: legacy.dueExpanded ? legacy.timeDue : null,
-        timeRemind: legacy.remindExpanded ? legacy.timeRemind : null,
-      })
+    if (stored.selectedSubcategoryId !== undefined && !Array.isArray(stored.selectedCategoryIds))
+      return entry
+    const { selectedCategoryIds: listed, ...rest } = stored
+    const timeDue = stored.dueExpanded ? stored.timeDue : null
+    const timeRemind = stored.remindExpanded ? stored.timeRemind : null
+    const tagIds = [...stored.selectedTagIds].sort((a, b) => a - b)
+    const form: TextCaptureFormState = Array.isArray(listed)
+      ? { ...rest, selectedCategoryId: listed[0] ?? null, selectedSubcategoryId: null }
+      : {
+          ...rest,
+          selectedCategoryId: stored.selectedCategoryId ?? null,
+          selectedSubcategoryId: null,
+          selectedStatusId: null,
+        }
+    // The signature each earlier shape wrote for an unchanged entry.
+    const cleanSignature = Array.isArray(listed)
+      ? JSON.stringify({
+          itemId: entry.itemId,
+          categoryIds: [...listed].sort((a, b) => a - b),
+          statusId: stored.selectedStatusId,
+          tagIds,
+          description: stored.description,
+          timeDue,
+          timeRemind,
+        })
+      : JSON.stringify({
+          itemId: entry.itemId,
+          categoryId: stored.selectedCategoryId ?? null,
+          tagIds,
+          description: stored.description,
+          timeDue,
+          timeRemind,
+        })
+    const wasClean = entry.savedSignature === cleanSignature
     return {
       ...entry,
       form,
@@ -372,13 +399,14 @@ export const reconcileOpenItems = (
   lookupItem: (itemId: number) => ItemRecord | undefined,
   options: {
     now?: number
-    categoryExists?: (categoryId: number) => boolean
+    /** The part of a category and subcategory selection that still exists. */
+    existingFiling?: (filing: ItemFiling) => ItemFiling
     statusExists?: (statusId: number) => boolean
     tagExists?: (tagId: number) => boolean
   } = {},
 ): ReconcileResult => {
   const now = options.now ?? Date.now()
-  const categoryExists = options.categoryExists ?? (() => true)
+  const existingFiling = options.existingFiling ?? ((filing: ItemFiling) => filing)
   const statusExists = options.statusExists ?? (() => true)
   const tagExists = options.tagExists ?? (() => true)
 
@@ -444,7 +472,7 @@ export const reconcileOpenItems = (
         form,
         baseTimeModified: record.timeModified,
         savedSignature: serializeItemDraft(record.id, form),
-        categoryInputValue: record.categories.map((category) => category.label).join(", "),
+        categoryInputValue: itemFilingLabel(record),
       })
       continue
     }
@@ -455,7 +483,10 @@ export const reconcileOpenItems = (
   // Repair references to categories and tags that no longer exist. Same rule:
   // this is not a user edit, so the signature moves with the form.
   const repaired = entries.map((entry) => {
-    const validCategoryIds = entry.form.selectedCategoryIds.filter(categoryExists)
+    const filing = existingFiling({
+      categoryId: entry.form.selectedCategoryId,
+      subcategoryId: entry.form.selectedSubcategoryId,
+    })
     const validStatusId =
       entry.form.selectedStatusId === null || statusExists(entry.form.selectedStatusId)
         ? entry.form.selectedStatusId
@@ -463,7 +494,8 @@ export const reconcileOpenItems = (
     const validTagIds = entry.form.selectedTagIds.filter(tagExists)
 
     if (
-      validCategoryIds.length === entry.form.selectedCategoryIds.length &&
+      filing.categoryId === entry.form.selectedCategoryId &&
+      filing.subcategoryId === entry.form.selectedSubcategoryId &&
       validStatusId === entry.form.selectedStatusId &&
       validTagIds.length === entry.form.selectedTagIds.length
     ) {
@@ -472,7 +504,8 @@ export const reconcileOpenItems = (
 
     const form: TextCaptureFormState = {
       ...entry.form,
-      selectedCategoryIds: validCategoryIds,
+      selectedCategoryId: filing.categoryId,
+      selectedSubcategoryId: filing.subcategoryId,
       selectedStatusId: validStatusId,
       selectedTagIds: validTagIds,
     }

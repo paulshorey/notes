@@ -14,8 +14,19 @@ import { ItemGroupConflictError, ItemGroupNotFoundError } from "./item-group-err
 import { itemSelect, mapItem, resolveCategoryIdForWorkspace, type ItemRow } from "./item/shared"
 import { deleteItemsForUserWithClient } from "./item/delete"
 
+interface GroupRow {
+  id: number
+  label: string
+  revision: string
+}
+
 interface GroupState {
-  category: { id: number; label: string; revision: string } | null
+  /** The targeted category, or the parent of the targeted subcategory. */
+  category: GroupRow | null
+  /** The targeted subcategory. */
+  subcategory: GroupRow | null
+  /** Every subcategory a category target would remove with it. */
+  subcategories: GroupRow[]
   rows: (ItemRow & { revision: string })[]
 }
 
@@ -24,13 +35,12 @@ export interface GroupLabelEmbedding {
   embeddingModel: string | null
 }
 
-/** The only category/uncategorized membership predicate used by bulk actions. */
+/** The only group membership predicate used by bulk actions. */
 const groupPredicate = (selection: ItemGroupSelection, values: unknown[]) => {
   const target = selection.target
-  if (target.kind === "uncategorized")
-    return `NOT EXISTS (SELECT 1 FROM public.item_category_link_v1 l WHERE l.item_id=n.id)`
-  values.push(target.categoryId)
-  return `EXISTS (SELECT 1 FROM public.item_category_link_v1 l WHERE l.item_id=n.id AND l.category_id=$${values.length})`
+  if (target.kind === "uncategorized") return `n.category_id IS NULL`
+  values.push(target.kind === "category" ? target.categoryId : target.subcategoryId)
+  return `n.${target.kind === "category" ? "category_id" : "subcategory_id"}=$${values.length}`
 }
 
 const selectGroup = async (
@@ -46,8 +56,9 @@ const selectGroup = async (
   if (workspace.rowCount !== 1) throw new ItemGroupNotFoundError()
   const values: unknown[] = [selection.workspaceId]
   const predicate = groupPredicate(selection, values)
-  // Ordinary saves lock their item row before replacing memberships. Lock in
-  // item-id order here too; never lock a category first and deadlock its writers.
+  // An ordinary save locks its item row before its foreign keys touch the category
+  // and subcategory rows. Lock in item-id order here too, and only then the category
+  // and its subcategories; never lock a category first and deadlock its writers.
   if (lock)
     await client.query(
       `SELECT n.id FROM public.workspace_item_v1 n WHERE n.workspace_id=$1 AND ${predicate}
@@ -59,17 +70,47 @@ const selectGroup = async (
      WHERE n.workspace_id=$1 AND ${predicate} ORDER BY n.id`,
     values,
   )
-  let category: GroupState["category"] = null
-  if (selection.target.kind === "category") {
-    const result = await client.query<{ id: number; label: string; revision: string }>(
-      `SELECT id,label,xmin::text AS revision FROM public.workspace_category_v1
-       WHERE workspace_id=$1 AND id=$2 ${lock ? "FOR UPDATE" : ""}`,
-      [selection.workspaceId, selection.target.categoryId],
+  const target = selection.target
+  if (target.kind === "uncategorized")
+    return { category: null, subcategory: null, subcategories: [], rows }
+
+  const forUpdate = lock ? "FOR UPDATE" : ""
+  let categoryId: number
+  let subcategory: GroupRow | null = null
+  if (target.kind === "subcategory") {
+    const result = await client.query<GroupRow & { category_id: number }>(
+      `SELECT sc.id,sc.label,sc.xmin::text AS revision,sc.category_id
+       FROM public.workspace_subcategory_v1 sc
+       JOIN public.workspace_category_v1 c ON c.id=sc.category_id
+       WHERE c.workspace_id=$1 AND sc.id=$2 ${lock ? "FOR UPDATE OF sc" : ""}`,
+      [selection.workspaceId, target.subcategoryId],
     )
-    category = result.rows[0] ?? null
-    if (!category) throw new ItemGroupNotFoundError()
+    const found = result.rows[0]
+    if (!found) throw new ItemGroupNotFoundError()
+    categoryId = found.category_id
+    subcategory = { id: found.id, label: found.label, revision: found.revision }
+  } else {
+    categoryId = target.categoryId
   }
-  return { category, rows }
+  const category = (
+    await client.query<GroupRow>(
+      `SELECT id,label,xmin::text AS revision FROM public.workspace_category_v1
+       WHERE workspace_id=$1 AND id=$2 ${target.kind === "category" ? forUpdate : ""}`,
+      [selection.workspaceId, categoryId],
+    )
+  ).rows[0]
+  if (!category) throw new ItemGroupNotFoundError()
+  const subcategories =
+    target.kind === "category"
+      ? (
+          await client.query<GroupRow>(
+            `SELECT id,label,xmin::text AS revision FROM public.workspace_subcategory_v1
+             WHERE category_id=$1 ORDER BY id ${forUpdate}`,
+            [categoryId],
+          )
+        ).rows
+      : []
+  return { category, subcategory, subcategories, rows }
 }
 
 const previewOf = (
@@ -87,16 +128,29 @@ const previewOf = (
           userId,
           selection,
           category: state.category,
-          items: state.rows.map((row, index) => [row.id, row.revision, items[index]!.categories]),
+          subcategory: state.subcategory,
+          subcategories: state.subcategories,
+          items: state.rows.map((row, index) => [
+            row.id,
+            row.revision,
+            items[index]!.category,
+            items[index]!.subcategory,
+          ]),
         }),
       )
       .digest("hex"),
-    label: state.category?.label ?? UNCATEGORIZED_LABEL,
+    label: state.subcategory?.label ?? state.category?.label ?? UNCATEGORIZED_LABEL,
     itemIds: items.map((item) => item.id),
     itemCount: items.length,
     textItemCount: items.filter(isTextItem).length,
-    sharedItemCount: items.filter((item) => item.categories.length > 1).length,
+    subcategoryCount: state.subcategories.length,
   }
+}
+
+const LABEL_CONFLICTS: Record<string, string> = {
+  workspace_category_v1_workspace_id_label_key: "A category with that name already exists.",
+  workspace_subcategory_v1_category_id_label_key:
+    "A subcategory with that name already exists in this category.",
 }
 
 const withGroup = async <T>(
@@ -116,8 +170,12 @@ const withGroup = async <T>(
     await client.query("ROLLBACK")
     if (error && typeof error === "object" && "code" in error) {
       if (error.code === "40001" || error.code === "40P01") throw new ItemGroupConflictError()
-      if (error.code === "23505")
-        throw new ItemGroupConflictError("A category with that name already exists.")
+      if (error.code === "23505") {
+        const constraint = "constraint" in error ? String(error.constraint) : ""
+        throw new ItemGroupConflictError(
+          LABEL_CONFLICTS[constraint] ?? "A category with that name already exists.",
+        )
+      }
     }
     throw error
   } finally {
@@ -139,6 +197,7 @@ type ActionContext = {
 type ActionResult = {
   categoryId: number | null
   removedCategoryId: number | null
+  removedSubcategoryId: number | null
   deletedItemIds: number[]
 }
 
@@ -155,6 +214,14 @@ const actions: {
     assertCategoryNameAllowed(action.label)
     if (!action.label.trim()) throw new Error("label is required.")
     const label = action.label.trim().toLocaleLowerCase()
+    const unchanged = { removedCategoryId: null, removedSubcategoryId: null, deletedItemIds: [] }
+    if (state.subcategory) {
+      await client.query(`UPDATE public.workspace_subcategory_v1 SET label=$2 WHERE id=$1`, [
+        state.subcategory.id,
+        label,
+      ])
+      return { categoryId: state.category!.id, ...unchanged }
+    }
     const categoryId =
       state.category?.id ??
       (await resolveCategoryIdForWorkspace(client, selection.workspaceId, label))
@@ -174,40 +241,58 @@ const actions: {
         ],
       )
     }
-    if (!state.category && ids.length) {
+    // Naming the uncategorized group files its items in that category.
+    if (!state.category && ids.length)
       await client.query(
-        `INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id)
-         SELECT id,$2,$3 FROM unnest($1::int[]) id ON CONFLICT DO NOTHING`,
-        [ids, categoryId, selection.workspaceId],
+        `UPDATE public.workspace_item_v1 SET category_id=$2 WHERE id=ANY($1::int[])`,
+        [ids, categoryId],
       )
-      await touchItems(client, ids)
-    }
-    return { categoryId, removedCategoryId: null, deletedItemIds: [] }
+    return { categoryId, ...unchanged }
   },
   delete: async ({ client, userId, selection, state, ids }, action) => {
     if (!state.category && !action.deleteItems)
       throw new Error("Uncategorized items can only be deleted or assigned to a category.")
+    // Items are deleted or unfiled first: the item foreign keys take no delete action,
+    // so a category or subcategory that still files an item cannot be removed.
     if (action.deleteItems) {
       await deleteItemsForUserWithClient(client, userId, ids, selection.workspaceId)
+    } else if (state.subcategory) {
+      await client.query(
+        `UPDATE public.workspace_item_v1 SET subcategory_id=NULL WHERE id=ANY($1::int[])`,
+        [ids],
+      )
+    } else {
+      await client.query(
+        `UPDATE public.workspace_item_v1 SET category_id=NULL,subcategory_id=NULL
+         WHERE id=ANY($1::int[])`,
+        [ids],
+      )
+    }
+    const deletedItemIds = action.deleteItems ? ids : []
+    if (state.subcategory) {
+      await client.query(`DELETE FROM public.workspace_subcategory_v1 WHERE id=$1`, [
+        state.subcategory.id,
+      ])
+      return {
+        categoryId: state.category!.id,
+        removedCategoryId: null,
+        removedSubcategoryId: state.subcategory.id,
+        deletedItemIds,
+      }
     }
     if (state.category)
       await client.query(
         `DELETE FROM public.workspace_category_v1 WHERE workspace_id=$1 AND id=$2`,
         [selection.workspaceId, state.category.id],
       )
-    if (!action.deleteItems) await touchItems(client, ids)
     return {
       categoryId: null,
       removedCategoryId: state.category?.id ?? null,
-      deletedItemIds: action.deleteItems ? ids : [],
+      removedSubcategoryId: null,
+      deletedItemIds,
     }
   },
 }
-
-const touchItems = (client: PoolClient, ids: number[]) =>
-  client.query(`UPDATE public.workspace_item_v1 SET time_modified=now() WHERE id=ANY($1::int[])`, [
-    ids,
-  ])
 
 const dispatchAction = <K extends ItemGroupAction["kind"]>(
   context: ActionContext,
@@ -248,6 +333,7 @@ export const executeItemGroupAction = (
       items: updated.rows.map(mapItem),
       deletedItemIds: result.deletedItemIds,
       removedCategoryId: result.removedCategoryId,
+      removedSubcategoryId: result.removedSubcategoryId,
       category:
         result.categoryId === null
           ? null

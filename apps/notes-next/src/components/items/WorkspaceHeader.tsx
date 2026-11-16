@@ -22,7 +22,7 @@ import {
   useItemsAppStore,
 } from "@/stores/itemsAppStore"
 import type { OpenItemKey } from "@/stores/openItems"
-import type { EmbeddingMaintenanceMode, ItemSaveStatus } from "@/types/items"
+import type { EmbeddingMaintenanceMode, ItemSaveStatus, TextCaptureFormState } from "@/types/items"
 import styles from "./WorkspaceHeader.module.css"
 import { BackupControls, BackupRestoreModal } from "./BackupControls"
 import type { RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
@@ -62,11 +62,11 @@ function SaveStatusIndicator() {
 }
 
 function RecentItemsMenu({
-  categoryLabelById,
+  filingLabelFor,
   onSelect,
   onClose,
 }: {
-  categoryLabelById: (categoryId: number | null) => string
+  filingLabelFor: (form: TextCaptureFormState) => string
   onSelect: (key: OpenItemKey) => void
   onClose: (key: OpenItemKey) => void
 }) {
@@ -131,10 +131,7 @@ function RecentItemsMenu({
                     }}
                   >
                     <span className={styles.recentTitle}>{title}</span>
-                    <span className={styles.recentMeta}>
-                      {entry.form.selectedCategoryIds.map(categoryLabelById).join(", ") ||
-                        "uncategorized"}
-                    </span>
+                    <span className={styles.recentMeta}>{filingLabelFor(entry.form)}</span>
                   </button>
                   <span
                     className={styles.recentStatus}
@@ -188,7 +185,7 @@ interface WorkspaceHeaderProps {
   onLogout: () => void
   maxOpenItems: number
   onMaxOpenItemsChange: (value: number) => void
-  categoryLabelById: (categoryId: number | null) => string
+  filingLabelFor: (form: TextCaptureFormState) => string
   onSelectOpenItem: (key: OpenItemKey) => void
   onCloseOpenItem: (key: OpenItemKey) => void
   embeddingMaintenancePending: EmbeddingMaintenanceMode | null
@@ -220,7 +217,7 @@ export function WorkspaceHeader({
   onLogout,
   maxOpenItems,
   onMaxOpenItemsChange,
-  categoryLabelById,
+  filingLabelFor,
   onSelectOpenItem,
   onCloseOpenItem,
   embeddingMaintenancePending,
@@ -349,7 +346,7 @@ export function WorkspaceHeader({
         />
         <SaveStatusIndicator />
         <RecentItemsMenu
-          categoryLabelById={categoryLabelById}
+          filingLabelFor={filingLabelFor}
           onSelect={onSelectOpenItem}
           onClose={onCloseOpenItem}
         />

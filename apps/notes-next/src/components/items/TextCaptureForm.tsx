@@ -3,7 +3,15 @@
 import dynamic from "next/dynamic"
 import { Button, Popup } from "@gravity-ui/uikit"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
-import { CalendarBlank, DotsThree, FolderOpen, Plus, Tag, X } from "@phosphor-icons/react"
+import {
+  CalendarBlank,
+  DotsThree,
+  FolderOpen,
+  FolderSimple,
+  Plus,
+  Tag,
+  X,
+} from "@phosphor-icons/react"
 import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-items"
@@ -37,8 +45,10 @@ interface TextCaptureFormProps {
   createStatusPending: boolean
   createTagPending: boolean
   onSelectCategoryId: (rawId: string) => void
+  onSelectSubcategoryId: (rawId: string) => void
   onSelectStatusId: (rawId: string) => void
   onCreateCategory: (label: string) => void | Promise<void>
+  onCreateSubcategory: (label: string) => void | Promise<void>
   onCreateStatus: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
@@ -64,8 +74,10 @@ export function TextCaptureForm({
   createStatusPending,
   createTagPending,
   onSelectCategoryId,
+  onSelectSubcategoryId,
   onSelectStatusId,
   onCreateCategory,
+  onCreateSubcategory,
   onCreateStatus,
   onTagValuesChange,
   onCancelEdit,
@@ -77,12 +89,13 @@ export function TextCaptureForm({
   const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [activeMorePicker, setActiveMorePicker] = useState<"status" | "tag" | null>(null)
 
-  const selectedCategory = categories.find(
-    (category) => category.id === form.selectedCategoryIds[0],
+  const selectedCategory = categories.find((category) => category.id === form.selectedCategoryId)
+  const selectedSubcategory = selectedCategory?.subcategories.find(
+    (subcategory) => subcategory.id === form.selectedSubcategoryId,
   )
   const selectedCategoryLabel = selectedCategory?.label ?? "__"
   const addItemLabel = selectedCategory
-    ? `Add new note in current category ${selectedCategory.label}`
+    ? `Add new note in current category ${[selectedCategory.label, selectedSubcategory?.label].filter(Boolean).join(" › ")}`
     : "Add new note"
 
   const selectedTagLabels = useMemo(() => {
@@ -110,7 +123,7 @@ export function TextCaptureForm({
 
   const newItemHasUserInput =
     form.description !== "" ||
-    form.selectedCategoryIds.length > 0 ||
+    form.selectedCategoryId !== null ||
     form.selectedStatusId !== null ||
     form.selectedTagIds.length > 0 ||
     pendingTagLabels.length > 0 ||
@@ -269,7 +282,7 @@ export function TextCaptureForm({
                 <FolderOpen size={17} weight="regular" className={styles.propertyPickerIcon} />
               }
               options={[{ id: "", label: "uncategorized" }, ...categories]}
-              selectedIds={form.selectedCategoryIds.length ? form.selectedCategoryIds : [""]}
+              selectedIds={[form.selectedCategoryId ?? ""]}
               disabled={!userPresent}
               pending={createCategoryPending}
               onOpenChange={(open) => {
@@ -284,6 +297,30 @@ export function TextCaptureForm({
               inputPlaceholder="Enter new category..."
             />
           </div>
+          {/* A subcategory belongs to the chosen category, so it is offered only then. */}
+          {selectedCategory && (
+            <FilterablePicker
+              variant="inline"
+              value={selectedSubcategory?.label ?? "__"}
+              triggerAriaLabel="Subcategory"
+              listboxAriaLabel="Subcategory options"
+              triggerIcon={
+                <FolderSimple size={16} weight="regular" className={styles.propertyPickerIcon} />
+              }
+              options={[{ id: "", label: "no subcategory" }, ...selectedCategory.subcategories]}
+              selectedIds={[form.selectedSubcategoryId ?? ""]}
+              disabled={!userPresent}
+              pending={createCategoryPending}
+              onOpenChange={(open) => {
+                if (open) closeMoreDropdown()
+              }}
+              onSelectOption={(subcategory) => onSelectSubcategoryId(String(subcategory.id))}
+              onCreateOption={onCreateSubcategory}
+              validateInput={getCategoryNameError}
+              emptyWithoutQueryMessage={`No subcategories in ${selectedCategory.label} yet`}
+              inputPlaceholder="Enter new subcategory..."
+            />
+          )}
           <FilterablePicker
             variant="inline"
             value={selectedTagLabels.join(", ") || ""}

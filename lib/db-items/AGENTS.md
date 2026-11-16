@@ -10,9 +10,11 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 ## Workspace ownership model
 
 - `user_v1` owns `user_workspace_v1`; items and all item vocabulary are owned through a workspace.
-- Every item has one `workspace_id`, zero or more category links, one nullable `status_id`, and zero or more tag links.
-- Categories, statuses, and tags are independent flat vocabularies, unique by normalized label within a workspace. They are not a hierarchy.
-- Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for zero category links. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
+- Every item has one `workspace_id`, one nullable `category_id`, one nullable `subcategory_id`, one nullable `status_id`, and zero or more tag links. See `docs/db/item-taxonomy.md`.
+- A subcategory (`workspace_subcategory_v1`) belongs to one category and is unique by label within it. The hierarchy is exactly two levels. Categories, statuses, and tags are unique by normalized label within a workspace, and status and tags are not part of the hierarchy.
+- An item's subcategory always belongs to its category: composite foreign keys enforce it, and `resolveItemFiling` (`sql/item/shared.ts`) clears a subcategory that does not fit instead of failing the save. The item foreign keys take no delete action, so remove a category or subcategory only through the group engine, never with a bare `DELETE`.
+- `item_category_link_v1` is unused and kept only for a previous-release server during a deploy. Do not read or write it.
+- Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for an item with no category. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
 - Composite foreign keys enforce that every item relation comes from the item's own workspace.
 - `contracts/item-capabilities.ts` is the registry of what an item can hold (text,
   schedule, status). Declare new content there instead of branching on fields.
@@ -24,12 +26,12 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   with `isKind` instead of testing fields.
 - `contracts/item-group-actions.ts` defines group selection and tagged actions.
   `sql/item-groups.ts` owns the shared predicate, preview fingerprint, transaction,
-  and action registry; add future member actions there rather than new category
-  versus uncategorized loops. Fingerprints detect changes, not permissions: every
+  and action registry for category, subcategory, and uncategorized targets; add
+  future member actions there rather than new per-target loops. Fingerprints detect changes, not permissions: every
   execution reauthorizes the workspace and derives IDs on the server.
 - Both existing category mutation helpers and bulk routes use that engine.
-  Lock item rows in ID order before category rows, and touch items after changing
-  memberships. Single/bulk item deletion shares `sql/item/delete.ts`. Provider
+  Lock item rows in ID order before category and subcategory rows, and unfile or
+  delete items before removing the row that files them. Single/bulk item deletion shares `sql/item/delete.ts`. Provider
   requests finish before acquiring the transaction client. See
   `docs/db/item-group-actions.md` at the repository root for semantics and limits.
 

@@ -1,4 +1,5 @@
 import type { ItemRecord } from "@lib/db-items"
+import { itemFilingLabel } from "@/lib/itemFiling"
 import {
   createDefaultTextCaptureForm,
   itemToFormState,
@@ -253,7 +254,7 @@ export const openExistingItem = (
     itemId: item.id,
     baseTimeModified: item.timeModified,
     form,
-    categoryInputValue: item.categories.map((category) => category.label).join(", "),
+    categoryInputValue: itemFilingLabel(item),
   })
 
   return insertActivateEvict(state, entry, cap)
@@ -262,7 +263,8 @@ export const openExistingItem = (
 export const openNewDraft = (
   state: OpenItemsState,
   options: {
-    categoryIds?: number[]
+    categoryId?: number | null
+    subcategoryId?: number | null
     statusId?: number | null
     tagIds?: number[]
     categoryLabel?: string
@@ -278,7 +280,8 @@ export const openNewDraft = (
       ...active,
       form: {
         ...active.form,
-        selectedCategoryIds: options.categoryIds ?? [],
+        selectedCategoryId: options.categoryId ?? null,
+        selectedSubcategoryId: options.categoryId == null ? null : (options.subcategoryId ?? null),
         selectedStatusId:
           options.statusId === undefined ? active.form.selectedStatusId : options.statusId,
         selectedTagIds: options.tagIds ?? active.form.selectedTagIds,
@@ -299,7 +302,8 @@ export const openNewDraft = (
   const entry = createEntry(`draft:${state.nextDraftSequence}`, {
     form: {
       ...createDefaultTextCaptureForm(),
-      selectedCategoryIds: options.categoryIds ?? [],
+      selectedCategoryId: options.categoryId ?? null,
+      selectedSubcategoryId: options.categoryId == null ? null : (options.subcategoryId ?? null),
       selectedStatusId: options.statusId ?? null,
       selectedTagIds: options.tagIds ?? [],
     },

@@ -231,6 +231,16 @@
       "column": "time_modified",
       "nullable": false,
       "type": "Date"
+    },
+    {
+      "column": "category_id",
+      "nullable": true,
+      "type": "number"
+    },
+    {
+      "column": "subcategory_id",
+      "nullable": true,
+      "type": "number"
     }
   ],
   "workspace_status_v1": [
@@ -253,6 +263,33 @@
       "column": "position",
       "nullable": false,
       "type": "number"
+    },
+    {
+      "column": "time_created",
+      "nullable": false,
+      "type": "Date"
+    },
+    {
+      "column": "time_modified",
+      "nullable": false,
+      "type": "Date"
+    }
+  ],
+  "workspace_subcategory_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "category_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "label",
+      "nullable": false,
+      "type": "string"
     },
     {
       "column": "time_created",

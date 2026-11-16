@@ -1,11 +1,12 @@
 # Optional categories and the reserved uncategorized label
 
-Notes belong to one workspace and have zero or more real category links. General
-capture starts with no categories; explicit category-context actions select that
-category. Clearing the last selection or deleting the last category is supported.
+Notes belong to one workspace and are filed in at most one category
+([item taxonomy](../db/item-taxonomy.md)). General capture starts with no category;
+explicit category-context actions select that category. Clearing the selection or
+deleting the last category is supported.
 
 The web category picker shows only the folder icon when empty. The sidebar's
-`uncategorized` group is a computed view of notes without links, appears when it
+`uncategorized` group is a computed view of notes without a category, appears when it
 has matching notes, and has no category edit/delete menu. Real categories have no
 default identity, oldest-id semantics, protected row, or special sort order.
 

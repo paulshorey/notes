@@ -3,8 +3,10 @@ import { CURRENT_ITEM_EMBEDDING_MODEL } from "../services/item-embeddings"
 import {
   mapCategory as map,
   categorySelect as select,
+  readCategory,
   type CategoryRow as Row,
 } from "./category-shared"
+import { resolveSubcategoryIdForCategory } from "./item/shared"
 import { executeItemGroupAction } from "./item-groups"
 import { ItemGroupNotFoundError } from "./item-group-errors"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
@@ -31,6 +33,35 @@ export const getCategoryByIdForWorkspace = async (
     [userId, workspaceId, id],
   )
   return rows[0] ? map(rows[0]) : null
+}
+/** Find or create a subcategory, and return it with its refreshed parent category. */
+export const createSubcategoryForWorkspace = async (
+  userId: number,
+  workspaceId: number,
+  categoryId: number,
+  label: string,
+) => {
+  const client = await getDb().connect()
+  try {
+    await client.query("BEGIN")
+    const owned = await client.query(
+      `SELECT 1 FROM public.user_workspace_v1 WHERE id=$1 AND user_id=$2`,
+      [workspaceId, userId],
+    )
+    const subcategoryId =
+      owned.rowCount === 1
+        ? await resolveSubcategoryIdForCategory(client, workspaceId, categoryId, label)
+        : null
+    const category = subcategoryId ? await readCategory(client, workspaceId, categoryId) : null
+    await client.query("COMMIT")
+    const subcategory = category?.subcategories.find((entry) => entry.id === subcategoryId)
+    return category && subcategory ? { category, subcategory } : null
+  } catch (error) {
+    await client.query("ROLLBACK")
+    throw error
+  } finally {
+    client.release()
+  }
 }
 export const listCategoriesMissingEmbeddingsByUser = async (userId: number, limit: number) => {
   const { rows } = await getDb().query<CategoryEmbeddingBackfillRow>(

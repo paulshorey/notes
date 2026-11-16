@@ -17,7 +17,7 @@ import {
 const formWith = (description: string, categoryId: number | null = 7): TextCaptureFormState => ({
   ...createDefaultTextCaptureForm(),
   description,
-  selectedCategoryIds: categoryId === null ? [] : [categoryId],
+  selectedCategoryId: categoryId,
 })
 
 const entry = (

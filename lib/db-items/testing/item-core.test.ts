@@ -5,20 +5,17 @@ import { isTextItem } from "../contracts/item-content"
 import { parseItemInput, createItemForUser, listItemsByUser } from "../sql/item"
 import { createWorkspaceForUser } from "../sql/workspace"
 import { getDb } from "../lib/db/postgres"
-import { backupFixture } from "./user-backup-fixture"
+import { flatCategoryBackupFixture, upgradedFlatCategoryBackup } from "./user-backup-fixture"
 import { parseUserBackup } from "../contracts/user-backup"
 
 test("old note backups normalize into the item contract without changing content", () => {
-  const current = backupFixture()
+  const { workspaces, ...file } = flatCategoryBackupFixture()
   const legacy = {
-    ...current,
+    ...file,
     version: 1,
-    workspaces: current.workspaces.map(({ items, ...workspace }) => ({
-      ...workspace,
-      notes: items,
-    })),
+    workspaces: workspaces.map(({ items, ...workspace }) => ({ ...workspace, notes: items })),
   }
-  assert.deepEqual(parseUserBackup(legacy), current)
+  assert.deepEqual(parseUserBackup(legacy), upgradedFlatCategoryBackup())
 })
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL

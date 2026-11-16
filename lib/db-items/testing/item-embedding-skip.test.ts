@@ -43,9 +43,10 @@ describe("workspace note embedding reuse (DB)", { skip: !testDbUrl }, () => {
     }
   }
 
-  const input = (workspaceId: number, categoryIds: number[], description: string) => ({
+  const input = (workspaceId: number, categoryId: number | null, description: string) => ({
     workspaceId,
-    categoryIds,
+    categoryId,
+    subcategoryId: null,
     statusId: null,
     tagIds: [] as number[],
     description,
@@ -77,7 +78,7 @@ describe("workspace note embedding reuse (DB)", { skip: !testDbUrl }, () => {
       const result = await updateItemForItemsApp({
         userId: row.userId,
         itemId: row.itemId,
-        item: input(row.workspaceId, [row.categoryId], "unchanged"),
+        item: input(row.workspaceId, row.categoryId, "unchanged"),
       })
       assert.ok(result)
       assert.equal(
@@ -103,7 +104,7 @@ describe("workspace note embedding reuse (DB)", { skip: !testDbUrl }, () => {
           updateItemForItemsApp({
             userId: row.userId,
             itemId: row.itemId,
-            item: input(row.workspaceId, [row.categoryId], "unchanged"),
+            item: input(row.workspaceId, row.categoryId, "unchanged"),
           }),
         )
       } finally {
@@ -122,7 +123,7 @@ describe("workspace note embedding reuse (DB)", { skip: !testDbUrl }, () => {
         updateItemForItemsApp({
           userId: row.userId,
           itemId: row.itemId,
-          item: input(row.workspaceId, [row.categoryId], ""),
+          item: input(row.workspaceId, row.categoryId, ""),
         }),
         { message: ITEM_CONTENT_REQUIRED_ERROR },
       )
@@ -141,7 +142,7 @@ describe("workspace note embedding reuse (DB)", { skip: !testDbUrl }, () => {
     const savedKey = process.env.JINA_API_KEY
     delete process.env.JINA_API_KEY
     try {
-      const item = input(row.workspaceId, [row.categoryId], "")
+      const item = input(row.workspaceId, row.categoryId, "")
       await updateItemForUser(
         row.itemId,
         row.userId,
@@ -169,7 +170,7 @@ describe("workspace note embedding reuse (DB)", { skip: !testDbUrl }, () => {
       const stale = await updateItemForUser(
         row.itemId,
         row.userId,
-        input(row.workspaceId, [row.categoryId], "original"),
+        input(row.workspaceId, row.categoryId, "original"),
         null,
         "original",
       )

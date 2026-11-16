@@ -67,9 +67,9 @@ rows:
 | `is_anonymous` | `true`                      | `false`                   | `false`                          |
 | `preferences`  | UI settings on the anon row | **Kept** (same row)       | May differ from anon             |
 
-Owned content hangs from `user_workspace_v1`. Notes belong to one workspace;
-category and tag links are many-to-many, status is nullable, and every relation
-is constrained to the note's workspace. Anonymous creation seeds a `personal`
+Owned content hangs from `user_workspace_v1`. Notes belong to one workspace and
+are filed in at most one category and one subcategory; tag links are many-to-many,
+status is nullable, and every relation is constrained to the note's workspace. Anonymous creation seeds a `personal`
 workspace with no categories and the `backlog` status and `important` tag.
 
 ## Auth stack (NextAuth / Auth.js)
@@ -209,7 +209,8 @@ Merge SQL (simplified):
 - **Workspaces:** reparent when the label is new; merge when the real account
   already has the same label
 - **Categories / statuses / tags:** dedupe by `(workspace_id, label)` inside a
-  collided workspace
+  collided workspace; subcategories dedupe by label within the category of the
+  same label
 - **Notes and links:** clone into collided workspaces with vocabulary ids
   remapped; preserve ids when an entire workspace can be reparented
 - **Delete** the anonymous `user_v1` row after every workspace is transferred
@@ -251,7 +252,7 @@ Dependencies include `authSession.user.notesUserId` and
 | Route                           | Method | Caller session    | Purpose                           |
 | ------------------------------- | ------ | ----------------- | --------------------------------- |
 | `/api/auth/[...nextauth]`       | \*     | —                 | NextAuth sign-in/out              |
-| `/api/auth/token`               | POST   | —                 | Credentials → bearer      |
+| `/api/auth/token`               | POST   | —                 | Credentials → bearer              |
 | `/api/auth/token`               | DELETE | Bearer            | Revoke token                      |
 | `/api/session`                  | GET    | Any authenticated | Current user summary              |
 | `/api/session`                  | PATCH  | Any authenticated | Save UI preferences               |
@@ -429,11 +430,11 @@ Automated (follow-up): a component test that clicks the toggle and asserts
 
 ### Files to touch
 
-| File                                                   | Change                                                                                                           |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| File                                                       | Change                                                                                                           |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `apps/notes-next/src/components/items/WorkspaceHeader.tsx` | `type="button"` on toggles; popup close resets `authMode` + signup fields; defer menu close to parent on success |
-| `apps/notes-next/src/components/items/ItemsApp.tsx`    | Optional client validation in `handleSignup`; close popup only on success                                        |
-| `apps/notes-next/AGENTS.md`                            | Note the sign-in/signup toggle behavior once fixed                                                               |
+| `apps/notes-next/src/components/items/ItemsApp.tsx`        | Optional client validation in `handleSignup`; close popup only on success                                        |
+| `apps/notes-next/AGENTS.md`                                | Note the sign-in/signup toggle behavior once fixed                                                               |
 
 No server or schema changes are required for this fix — it is purely client-side
 form behavior.

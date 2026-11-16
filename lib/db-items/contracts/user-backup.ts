@@ -1,4 +1,5 @@
 import type {
+  BackupCategory,
   BackupItem,
   BackupStatus,
   BackupVocabulary,
@@ -9,7 +10,9 @@ import type {
 import { UNCATEGORIZED_LABEL } from "./category-name"
 
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
-export const USER_BACKUP_VERSION = 2
+export const USER_BACKUP_VERSION = 3
+/** Versions 1 and 2 list several categories per item and have no subcategories. */
+const FLAT_CATEGORY_VERSIONS = [1, 2]
 export const USER_BACKUP_MAX_BYTES = 50 * 1024 * 1024
 const MAX_RECORDS = 100_000
 
@@ -87,7 +90,8 @@ const preferences = (value: unknown, depth = 0): unknown => {
 /** Validate the entire file before opening a write transaction. Never trust ids from a file. */
 export const parseUserBackup = (value: unknown): UserBackup => {
   const b = object(value)
-  if (b.format !== USER_BACKUP_FORMAT || (b.version !== 1 && b.version !== USER_BACKUP_VERSION)) {
+  const flatCategories = FLAT_CATEGORY_VERSIONS.includes(b.version as number)
+  if (b.format !== USER_BACKUP_FORMAT || (!flatCategories && b.version !== USER_BACKUP_VERSION)) {
     fail("Unsupported backup format or version. Choose a jot.new backup file.")
   }
   let records = 0
@@ -100,7 +104,16 @@ export const parseUserBackup = (value: unknown): UserBackup => {
   const workspaces = unique(
     count(b.workspaces).map((value): BackupWorkspace => {
       const w = object(value)
-      const categories = unique(count(w.categories).map(vocabulary), (v) => v.label)
+      const categories = unique(
+        count(w.categories).map((value): BackupCategory => {
+          const category = vocabulary(value)
+          const subcategories = flatCategories
+            ? []
+            : unique(count(object(value).subcategories).map(vocabulary), (v) => v.label)
+          return { ...category, subcategories }
+        }),
+        (v) => v.label,
+      )
       const tags = unique(count(w.tags).map(vocabulary), (v) => v.label)
       const statuses = unique(
         count(w.statuses).map((value): BackupStatus => {
@@ -138,12 +151,29 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         const status = n.status === null ? null : label(n.status)
         if (status !== null && !statusLabels.has(status))
           fail("An item refers to an unknown status.")
+        // Validate every reference before converting the old fallback row. A file
+        // with several categories per item files the item in the first one listed.
+        const listed = flatCategories
+          ? refs(n.categories, categoryLabels)
+          : n.category === null
+            ? []
+            : refs([n.category], categoryLabels)
+        const category = listed.find((name) => name !== UNCATEGORIZED_LABEL) ?? null
+        const subcategory =
+          flatCategories || n.subcategory === null || n.subcategory === undefined
+            ? null
+            : label(n.subcategory)
+        if (
+          subcategory !== null &&
+          !categories
+            .find((entry) => entry.label === category)
+            ?.subcategories.some((entry) => entry.label === subcategory)
+        )
+          fail("An item refers to a subcategory outside its category.")
         return {
           description: n.description as string | null,
-          // Validate legacy references before converting the old fallback row.
-          categories: refs(n.categories, categoryLabels).filter(
-            (name) => name !== UNCATEGORIZED_LABEL,
-          ),
+          category,
+          subcategory,
           status,
           tags: refs(n.tags, tagLabels),
           timeDue: nullableTimestamp(n.timeDue),

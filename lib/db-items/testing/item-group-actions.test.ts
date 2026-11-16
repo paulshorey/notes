@@ -71,12 +71,24 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
           [workspace.id, label],
         )
       ).rows[0]!.id
-    const item = (description: string | null, categoryIds: number[] = []) =>
+    const subcategory = async (categoryId: number, label: string) =>
+      (
+        await getDb().query<{ id: number }>(
+          `INSERT INTO public.workspace_subcategory_v1(category_id,label) VALUES($1,$2) RETURNING id`,
+          [categoryId, label],
+        )
+      ).rows[0]!.id
+    const item = (
+      description: string | null,
+      categoryId: number | null = null,
+      subcategoryId: number | null = null,
+    ) =>
       createItemForUser(
         userId,
         {
           workspaceId: workspace.id,
-          categoryIds,
+          categoryId,
+          subcategoryId,
           description,
           statusId: null,
           tagIds: [],
@@ -97,6 +109,7 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
       workspace,
       selection,
       category,
+      subcategory,
       item,
       run,
       cleanup: () => getDb().query(`DELETE FROM public.user_v1 WHERE id=$1`, [userId]),
@@ -109,7 +122,7 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
       const destination = await f.category("receipts")
       const text = await f.item("a note")
       const other = await f.item(null)
-      const kept = await f.item("already organized", [destination])
+      const kept = await f.item("already organized", destination)
       const preview = await previewItemGroup(f.userId, f.selection)
       assert.equal(preview.itemCount, 2)
       assert.equal(preview.textItemCount, 1)
@@ -130,7 +143,8 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
       assert.equal(result.category!.itemCount, 3)
       for (const original of [text, other]) {
         const updated = result.items.find((row) => row.id === original.id)!
-        assert.deepEqual(updated.categories, [{ id: destination, label: "receipts" }])
+        assert.deepEqual(updated.category, { id: destination, label: "receipts" })
+        assert.equal(updated.subcategory, null)
         for (const key of [
           "description",
           "timeDue",
@@ -146,7 +160,7 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
           .timeModified,
         kept.timeModified,
       )
-      assert.deepEqual((await f.item("later capture")).categories, [])
+      assert.equal((await f.item("later capture")).category, null)
       await assert.rejects(
         executeItemGroupAction(
           f.userId,
@@ -184,7 +198,7 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
         ).rowCount,
         0,
       )
-      assert.deepEqual((await listItemsByUser(f.userId, f.workspace.id))[0]!.categories, [])
+      assert.equal((await listItemsByUser(f.userId, f.workspace.id))[0]!.category, null)
       const result = await f.run(f.selection, { kind: "rename", label: "new group" })
       assert.equal(result.category!.label, "new group")
       assert.equal(result.items[0]!.id, original.id)
@@ -194,19 +208,19 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
     }
   })
 
-  test("keep-items deletion preserves other memberships; legacy helpers use the same mutations", async () => {
+  test("keep-items deletion unfiles the category's items and leaves other categories alone", async () => {
     const f = await fixture()
     try {
       const a = await f.category("a")
       const b = await f.category("b")
-      const shared = await f.item("shared", [a, b])
-      const single = await f.item("single", [a])
+      const inA = await f.item("in a", a)
+      const inB = await f.item("in b", b)
       const selection: ItemGroupSelection = {
         workspaceId: f.workspace.id,
         target: { kind: "category", categoryId: a },
       }
       const preview = await previewItemGroup(f.userId, selection)
-      assert.equal(preview.sharedItemCount, 1)
+      assert.deepEqual(preview.itemIds, [inA.id])
       const renamed = await updateCategoryLabelForWorkspace(
         f.userId,
         f.workspace.id,
@@ -215,7 +229,7 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
         null,
         null,
       )
-      assert.equal(renamed!.itemCount, 2)
+      assert.equal(renamed!.itemCount, 1)
       await assert.rejects(
         executeItemGroupAction(
           f.userId,
@@ -227,60 +241,62 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
       )
       assert.equal(await deleteCategoryForWorkspace(f.userId, f.workspace.id, a), true)
       const rows = await listItemsByUser(f.userId, f.workspace.id)
-      assert.deepEqual(
-        rows.find((row) => row.id === shared.id)!.categories.map((category) => category.id),
-        [b],
-      )
-      assert.deepEqual(rows.find((row) => row.id === single.id)!.categories, [])
-      assert.notEqual(rows.find((row) => row.id === shared.id)!.timeModified, shared.timeModified)
+      const unfiled = rows.find((row) => row.id === inA.id)!
+      assert.equal(unfiled.category, null)
+      assert.equal(unfiled.description, "in a")
+      assert.notEqual(unfiled.timeModified, inA.timeModified)
+      const untouched = rows.find((row) => row.id === inB.id)!
+      assert.equal(untouched.category?.id, b)
+      assert.equal(untouched.timeModified, inB.timeModified)
     } finally {
       await f.cleanup()
     }
   })
 
-  test("keep-items deletion removes memberships before item-update observers run", async () => {
+  test("a category or subcategory that files an item cannot be deleted without unfiling it first", async () => {
     const f = await fixture()
-    const trigger = `bulk_membership_order_${f.workspace.id}`
     try {
-      const categoryId = await f.category("remove before touch")
-      const retained = await f.item("retain this", [categoryId])
-      // A test-only observer makes mutation ordering visible within the same
-      // transaction, as an item audit or timestamp trigger would see it.
-      await getDb().query(`
-        CREATE FUNCTION pg_temp.${trigger}() RETURNS trigger LANGUAGE plpgsql AS $$
-        BEGIN
-          IF NEW.id=${retained.id} AND EXISTS (
-            SELECT 1 FROM public.item_category_link_v1
-            WHERE item_id=NEW.id AND category_id=${categoryId}
-          ) THEN
-            RAISE EXCEPTION 'item observer saw removed membership';
-          END IF;
-          RETURN NEW;
-        END;
-        $$;
-        CREATE TRIGGER ${trigger} BEFORE UPDATE ON public.workspace_item_v1
-        FOR EACH ROW EXECUTE FUNCTION pg_temp.${trigger}();
-      `)
+      const categoryId = await f.category("in use")
+      const subcategoryId = await f.subcategory(categoryId, "also in use")
+      const retained = await f.item("retain this", categoryId, subcategoryId)
+      // The item foreign keys take no delete action, so a delete that skips the
+      // group engine fails instead of silently unfiling or orphaning the item.
+      await assert.rejects(
+        getDb().query(`DELETE FROM public.workspace_subcategory_v1 WHERE id=$1`, [subcategoryId]),
+        { code: "23503" },
+      )
+      await assert.rejects(
+        getDb().query(`DELETE FROM public.workspace_category_v1 WHERE id=$1`, [categoryId]),
+        { code: "23503" },
+      )
       assert.equal(await deleteCategoryForWorkspace(f.userId, f.workspace.id, categoryId), true)
       const rows = await listItemsByUser(f.userId, f.workspace.id)
       assert.equal(rows.length, 1)
       assert.equal(rows[0]!.id, retained.id)
-      assert.deepEqual(rows[0]!.categories, [])
+      assert.equal(rows[0]!.category, null)
+      assert.equal(rows[0]!.subcategory, null)
+      assert.equal(
+        (
+          await getDb().query(`SELECT 1 FROM public.workspace_subcategory_v1 WHERE id=$1`, [
+            subcategoryId,
+          ])
+        ).rowCount,
+        0,
+      )
     } finally {
-      await getDb().query(`DROP TRIGGER IF EXISTS ${trigger} ON public.workspace_item_v1`)
-      await getDb().query(`DROP FUNCTION IF EXISTS pg_temp.${trigger}()`)
       await f.cleanup()
     }
   })
 
-  test("destructive category and uncategorized actions delete only their members, including shared and non-text items", async () => {
+  test("destructive category and uncategorized actions delete only their members, including non-text items", async () => {
     const f = await fixture()
     try {
       const a = await f.category("a")
       const b = await f.category("b")
-      const shared = await f.item("shared", [a, b])
-      const other = await f.item(null, [a])
-      const kept = await f.item("keep", [b])
+      const nested = await f.subcategory(a, "nested")
+      const shared = await f.item("in a subcategory", a, nested)
+      const other = await f.item(null, a)
+      const kept = await f.item("keep", b)
       const free = await f.item("free")
       const deleted = await f.run(
         { workspaceId: f.workspace.id, target: { kind: "category", categoryId: a } },
@@ -298,7 +314,8 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
             item: {
               workspaceId: f.workspace.id,
               description: "stale editor text",
-              categoryIds: [],
+              categoryId: null,
+              subcategoryId: null,
               tagIds: [],
               statusId: null,
               timeDue: null,
@@ -314,8 +331,9 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
       assert.equal(
         (
           await getDb().query(
-            `SELECT 1 FROM public.item_category_link_v1 WHERE item_id=ANY($1::int[])`,
-            [[shared.id, other.id]],
+            `SELECT 1 FROM public.workspace_item_v1 WHERE id=ANY($1::int[])
+             UNION ALL SELECT 1 FROM public.workspace_subcategory_v1 WHERE id=$2`,
+            [[shared.id, other.id], nested],
           )
         ).rowCount,
         0,
@@ -328,7 +346,7 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
         (await listItemsByUser(f.userId, f.workspace.id)).map((row) => row.id),
         [kept.id],
       )
-      assert.deepEqual((await f.item("new free item")).categories, [])
+      assert.equal((await f.item("new free item")).category, null)
     } finally {
       await f.cleanup()
     }

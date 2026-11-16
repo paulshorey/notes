@@ -23,7 +23,8 @@ import {
 const makeItem = (id: number, description = `note ${id}`): ItemRecord => ({
   id,
   workspaceId: 1,
-  categories: [{ id: 7, label: "inbox" }],
+  category: { id: 7, label: "inbox" },
+  subcategory: null,
   status: null,
   tags: [],
   description,
@@ -182,7 +183,7 @@ test("deleting a note closes its entry wherever it sits", () => {
 })
 
 test("a draft keeps its key across the transition to a real note id", () => {
-  const { state: opened } = openNewDraft(createEmptyOpenItemsState(), { categoryIds: [7] })
+  const { state: opened } = openNewDraft(createEmptyOpenItemsState(), { categoryId: 7 })
   const draftKey = opened.activeKey!
   assert.ok(draftKey.startsWith("draft:"))
 
@@ -197,16 +198,16 @@ test("a draft keeps its key across the transition to a real note id", () => {
 })
 
 test("openNewDraft reuses an untouched draft instead of minting another", () => {
-  const { state: first } = openNewDraft(createEmptyOpenItemsState(), { categoryIds: [7] })
-  const { state: second } = openNewDraft(first, { categoryIds: [9] })
+  const { state: first } = openNewDraft(createEmptyOpenItemsState(), { categoryId: 7 })
+  const { state: second } = openNewDraft(first, { categoryId: 9 })
 
   assert.equal(second.openItems.length, 1)
   assert.equal(second.nextDraftSequence, first.nextDraftSequence)
-  assert.deepEqual(getActiveEntry(second)?.form.selectedCategoryIds, [9])
+  assert.equal(getActiveEntry(second)?.form.selectedCategoryId, 9)
 })
 
 test("openNewDraft mints a new entry once the active draft has content", () => {
-  const { state: first } = openNewDraft(createEmptyOpenItemsState(), { categoryIds: [7] })
+  const { state: first } = openNewDraft(createEmptyOpenItemsState(), { categoryId: 7 })
   const withText = patchEntry(first, first.activeKey!, (entry) => ({
     form: { ...entry.form, description: "started writing" },
   }))
@@ -267,27 +268,28 @@ test("the back stack stays bounded across a long session", () => {
 
 test("a general new-note action clears category context when reusing an empty draft", () => {
   const initial = openNewDraft(createEmptyOpenItemsState(), {
-    categoryIds: [7],
+    categoryId: 7,
     categoryLabel: "work",
   }).state
   const reused = openNewDraft(initial).state
   assert.equal(reused.openItems.length, 1)
-  assert.deepEqual(getActiveEntry(reused)?.form.selectedCategoryIds, [])
+  assert.equal(getActiveEntry(reused)?.form.selectedCategoryId, null)
   assert.equal(getActiveEntry(reused)?.categoryInputValue, "")
 })
 
 test("a blank new-note action clears an explicit status when reusing an untouched draft", () => {
   const initial = openNewDraft(createEmptyOpenItemsState(), {
-    categoryIds: [7],
+    categoryId: 7,
     categoryLabel: "work",
     statusId: 3,
   }).state
-  const reused = openNewDraft(initial, { categoryIds: [], statusId: null, tagIds: [] }).state
+  const reused = openNewDraft(initial, { categoryId: null, statusId: null, tagIds: [] }).state
 
   assert.equal(reused.activeKey, initial.activeKey)
   assert.equal(reused.nextDraftSequence, initial.nextDraftSequence)
   assert.deepEqual(getActiveEntry(reused)?.form, {
-    selectedCategoryIds: [],
+    selectedCategoryId: null,
+    selectedSubcategoryId: null,
     selectedStatusId: null,
     selectedTagIds: [],
     description: "",

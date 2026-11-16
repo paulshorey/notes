@@ -6,11 +6,20 @@ export interface CategoryItemGroupTarget {
   categoryId: number
 }
 
+/** The items filed in one subcategory. A category target includes them too. */
+export interface SubcategoryItemGroupTarget {
+  kind: "subcategory"
+  subcategoryId: number
+}
+
 export interface UncategorizedItemGroupTarget {
   kind: "uncategorized"
 }
 
-export type ItemGroupTarget = CategoryItemGroupTarget | UncategorizedItemGroupTarget
+export type ItemGroupTarget =
+  | CategoryItemGroupTarget
+  | SubcategoryItemGroupTarget
+  | UncategorizedItemGroupTarget
 
 export interface ItemGroupSelection {
   workspaceId: number
@@ -47,12 +56,15 @@ export interface ItemGroupPreview {
   itemIds: number[]
   itemCount: number
   textItemCount: number
-  sharedItemCount: number
+  /** Subcategories a category target removes with it. Zero for other targets. */
+  subcategoryCount: number
 }
 
+/** `category` is the affected category, or the parent of an affected subcategory. */
 export interface ItemGroupActionResponse {
   items: ItemRecord[]
   deletedItemIds: number[]
   category: CategoryRecord | null
   removedCategoryId: number | null
+  removedSubcategoryId: number | null
 }

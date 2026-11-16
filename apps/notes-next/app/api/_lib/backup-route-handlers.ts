@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { itemJson, legacyNotePayload } from "./legacy-note-contract"
+import { flatCategoryBackup, itemJson, legacyNotePayload } from "./legacy-note-contract"
 import {
   BackupAccountError,
   itemsAppService,
@@ -75,10 +75,15 @@ export const createBackupRouteHandlers = (
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
       if (userId === null) return json({ error: "Authentication required." }, 401)
       const exported = await service.exportUserBackup(userId)
+      // A client that names an item contract downloads the current version; any
+      // version restores here. One that names none still downloads version 1.
       const backup =
-        request.headers.get("x-items-contract") === "1"
-          ? exported
-          : { ...(legacyNotePayload(exported) as Record<string, unknown>), version: 1 }
+        request.headers.get("x-items-contract") === null
+          ? {
+              ...(legacyNotePayload(flatCategoryBackup(exported)) as Record<string, unknown>),
+              version: 1,
+            }
+          : exported
       const body = JSON.stringify(backup)
       // Never download a file that this restore endpoint cannot accept.
       if (Buffer.byteLength(body) > USER_BACKUP_MAX_BYTES)

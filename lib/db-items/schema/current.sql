@@ -138,7 +138,10 @@ CREATE TABLE public.workspace_item_v1 (
     embedding_model text,
     embedding_updated_at timestamp with time zone,
     time_created timestamp with time zone DEFAULT now() NOT NULL,
-    time_modified timestamp with time zone DEFAULT now() NOT NULL
+    time_modified timestamp with time zone DEFAULT now() NOT NULL,
+    category_id integer,
+    subcategory_id integer,
+    CONSTRAINT workspace_item_v1_subcategory_requires_category_check CHECK (((subcategory_id IS NULL) OR (category_id IS NOT NULL)))
 );
 
 
@@ -385,6 +388,40 @@ ALTER SEQUENCE public.workspace_status_v1_id_seq OWNED BY public.workspace_statu
 
 
 --
+-- Name: workspace_subcategory_v1; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.workspace_subcategory_v1 (
+    id integer NOT NULL,
+    category_id integer NOT NULL,
+    label text NOT NULL,
+    time_created timestamp with time zone DEFAULT now() NOT NULL,
+    time_modified timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT workspace_subcategory_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
+);
+
+
+--
+-- Name: workspace_subcategory_v1_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.workspace_subcategory_v1_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: workspace_subcategory_v1_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.workspace_subcategory_v1_id_seq OWNED BY public.workspace_subcategory_v1.id;
+
+
+--
 -- Name: workspace_tag_v1_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -430,6 +467,13 @@ ALTER TABLE ONLY public.workspace_item_v1 ALTER COLUMN id SET DEFAULT nextval('p
 --
 
 ALTER TABLE ONLY public.workspace_status_v1 ALTER COLUMN id SET DEFAULT nextval('public.workspace_status_v1_id_seq'::regclass);
+
+
+--
+-- Name: workspace_subcategory_v1 id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_subcategory_v1 ALTER COLUMN id SET DEFAULT nextval('public.workspace_subcategory_v1_id_seq'::regclass);
 
 
 --
@@ -576,6 +620,30 @@ ALTER TABLE ONLY public.workspace_status_v1
 
 
 --
+-- Name: workspace_subcategory_v1 workspace_subcategory_v1_category_id_label_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_subcategory_v1
+    ADD CONSTRAINT workspace_subcategory_v1_category_id_label_key UNIQUE (category_id, label);
+
+
+--
+-- Name: workspace_subcategory_v1 workspace_subcategory_v1_id_category_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_subcategory_v1
+    ADD CONSTRAINT workspace_subcategory_v1_id_category_id_key UNIQUE (id, category_id);
+
+
+--
+-- Name: workspace_subcategory_v1 workspace_subcategory_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_subcategory_v1
+    ADD CONSTRAINT workspace_subcategory_v1_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: workspace_tag_v1 workspace_tag_v1_id_workspace_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -649,6 +717,13 @@ CREATE INDEX workspace_category_v1_workspace_id_idx ON public.workspace_category
 
 
 --
+-- Name: workspace_item_v1_category_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX workspace_item_v1_category_id_idx ON public.workspace_item_v1 USING btree (category_id);
+
+
+--
 -- Name: workspace_item_v1_description_embedding_hnsw_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -660,6 +735,13 @@ CREATE INDEX workspace_item_v1_description_embedding_hnsw_idx ON public.workspac
 --
 
 CREATE INDEX workspace_item_v1_status_id_idx ON public.workspace_item_v1 USING btree (status_id);
+
+
+--
+-- Name: workspace_item_v1_subcategory_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX workspace_item_v1_subcategory_id_idx ON public.workspace_item_v1 USING btree (subcategory_id);
 
 
 --
@@ -726,6 +808,13 @@ CREATE TRIGGER workspace_status_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDA
 
 
 --
+-- Name: workspace_subcategory_v1 workspace_subcategory_v1_apply_row_timestamps_v1; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER workspace_subcategory_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDATE ON public.workspace_subcategory_v1 FOR EACH ROW EXECUTE FUNCTION public.apply_row_timestamps_v1();
+
+
+--
 -- Name: workspace_tag_v1 workspace_tag_v1_apply_row_timestamps_v1; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -789,11 +878,27 @@ ALTER TABLE ONLY public.workspace_category_v1
 
 
 --
+-- Name: workspace_item_v1 workspace_item_v1_category_workspace_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_item_v1
+    ADD CONSTRAINT workspace_item_v1_category_workspace_fkey FOREIGN KEY (category_id, workspace_id) REFERENCES public.workspace_category_v1(id, workspace_id);
+
+
+--
 -- Name: workspace_item_v1 workspace_item_v1_status_workspace_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.workspace_item_v1
     ADD CONSTRAINT workspace_item_v1_status_workspace_fkey FOREIGN KEY (status_id, workspace_id) REFERENCES public.workspace_status_v1(id, workspace_id) ON DELETE RESTRICT;
+
+
+--
+-- Name: workspace_item_v1 workspace_item_v1_subcategory_category_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_item_v1
+    ADD CONSTRAINT workspace_item_v1_subcategory_category_fkey FOREIGN KEY (subcategory_id, category_id) REFERENCES public.workspace_subcategory_v1(id, category_id) ON UPDATE CASCADE;
 
 
 --
@@ -810,6 +915,14 @@ ALTER TABLE ONLY public.workspace_item_v1
 
 ALTER TABLE ONLY public.workspace_status_v1
     ADD CONSTRAINT workspace_status_v1_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.user_workspace_v1(id) ON DELETE CASCADE;
+
+
+--
+-- Name: workspace_subcategory_v1 workspace_subcategory_v1_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.workspace_subcategory_v1
+    ADD CONSTRAINT workspace_subcategory_v1_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.workspace_category_v1(id) ON DELETE CASCADE;
 
 
 --

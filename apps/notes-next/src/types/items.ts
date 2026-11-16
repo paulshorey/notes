@@ -2,7 +2,9 @@ import type { ItemRecord } from "@lib/db-items"
 import { toDateTimeLocalValue } from "@/lib/dates"
 
 export interface TextCaptureFormState {
-  selectedCategoryIds: number[]
+  selectedCategoryId: number | null
+  /** Always a subcategory of `selectedCategoryId`; null when there is no category. */
+  selectedSubcategoryId: number | null
   selectedStatusId: number | null
   selectedTagIds: number[]
   description: string
@@ -40,7 +42,8 @@ export const createDefaultRemindValue = () => {
 
 export const createDefaultTextCaptureForm = (): TextCaptureFormState => {
   return {
-    selectedCategoryIds: [],
+    selectedCategoryId: null,
+    selectedSubcategoryId: null,
     selectedStatusId: null,
     selectedTagIds: [],
     description: "",
@@ -52,7 +55,8 @@ export const createDefaultTextCaptureForm = (): TextCaptureFormState => {
 }
 
 export const itemToFormState = (item: ItemRecord): TextCaptureFormState => ({
-  selectedCategoryIds: item.categories.map((category) => category.id),
+  selectedCategoryId: item.category?.id ?? null,
+  selectedSubcategoryId: item.subcategory?.id ?? null,
   selectedStatusId: item.status?.id ?? null,
   selectedTagIds: item.tags.map((tag) => tag.id),
   description: item.description ?? "",

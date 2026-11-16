@@ -88,21 +88,24 @@ visibility when resizing within a layout. Keep `SIDEBAR_OVERLAY_MEDIA_QUERY` in
 
 The root layout reads Auth.js once and seeds `SessionProvider`, so returning users do not need a client-side session round trip before startup. `ItemsApp` then calls `GET /api/bootstrap`, which authenticates once and loads the session, notes, categories, and tags in parallel. Keep this as the single cold-start data path; separate startup requests add auth and database work and can race one another.
 
-Every note belongs to exactly one active workspace, has zero or more category links and multiple tags, and may have one status. Category/status/tag ids must come from that same workspace. New notes start without categories unless an action explicitly specifies one. The uncategorized add button and the category trigger with an empty selection show `__` beside their icons. The category dropdown includes a display-only `uncategorized` option that clears all category links. The category add action and selector form a visual split button; the add action remains icon-only. The sidebar groups zero-category notes under the display-only `uncategorized` label; this is never a category record. All real categories, including the last one, can be deleted. Reserve the normalized category name `uncategorized` through `@lib/db-items/contracts/category-name` in both UI and service writes. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
+Every note belongs to exactly one active workspace, is filed in at most one category and one subcategory of that category, has multiple tags, and may have one status. Category/subcategory/status/tag ids must come from that same workspace. New notes start unfiled unless an action explicitly specifies a category. The uncategorized add button and the category and subcategory triggers with an empty selection show `__` beside their icons. The category dropdown includes a display-only `uncategorized` option that clears the category and its subcategory. The subcategory picker appears only once a category is chosen and lists that category's subcategories; choosing another category clears it. `src/lib/itemFiling.ts` holds the shared rules: `existingFiling` keeps only the part of a selection that still exists. The category add action and selector form a visual split button; the add action remains icon-only. The sidebar groups notes with no category under the display-only `uncategorized` label; this is never a category record. All real categories, including the last one, can be deleted. Reserve the normalized category name `uncategorized` through `@lib/db-items/contracts/category-name` in both UI and service writes. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
 
 `src/lib/itemGroups.ts` builds one sidebar list containing real categories and the
-computed `uncategorized` group. Sort every group by its newest visible note's
+computed `uncategorized` group. A category group lists the notes filed directly in
+it and one nested subgroup per subcategory; a note appears once, and the group's
+count and sort time cover both. Sort every group by its newest visible note's
 `timeModified`, with notes newest first inside it; apply tag filtering before
 building groups. Never append `uncategorized` after sorting. Stable group keys
 preserve expansion and note actions when saved edits reorder the list. Hide the
 computed group when empty, and keep empty real categories after groups with notes.
 
-Category and uncategorized group menus use `ItemGroupActionModal` and the shared
+Category, subcategory, and uncategorized group menus use `ItemGroupActionModal` and the shared
 `/api/item-groups` preview/action API. Group actions cover the whole workspace
 group, independent of tag/search filters, including non-text items disclosed in
 the server preview. Uncategorized rename assigns its current members to a new or
-existing category; it never changes future capture defaults. Regular deletion
-offers keep-items (preserve other memberships) or permanent deletion everywhere.
+existing category; it never changes future capture defaults. Deleting a category
+or subcategory offers keep-items (the notes become uncategorized, or stay in the
+category without a subcategory) or permanent deletion of its notes.
 Opening the dialog pauses autosave/exit PATCHes, settles saved entries before
 preview, and excludes unsaved drafts. Apply the committed response to entries and
 caches before refreshing; deleted entries must never become detached saves.
@@ -162,7 +165,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 `itemSaveStatus` in `itemsAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `WorkspaceHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
 
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
-- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/status/tag selector. It owns the value-and-icon trigger (`triggerIcon` replaces the default caret), filtered popup, focused create input, and `multiple` vs single-select behavior (checkboxes and staying open only when `multiple`). Keep the status selector inside `TextCaptureForm`'s More menu; category and tags use the editor toolbar pickers. Do not replace these with native selects or prompt dialogs.
+- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/subcategory/status/tag selector. It owns the value-and-icon trigger (`triggerIcon` replaces the default caret), filtered popup, focused create input, and `multiple` vs single-select behavior (checkboxes and staying open only when `multiple`). Keep the status selector inside `TextCaptureForm`'s More menu; category, subcategory, and tags use the editor toolbar pickers. Do not replace these with native selects or prompt dialogs.
 - Routes are wired through `app/api/_lib/items-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
 - Backup routes use `_lib/backup-route-handlers.ts`. Before transfers, flush notes
   and pending preference writes. Restore is additive: refresh bootstrap/cache
@@ -173,7 +176,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
   The Notes screen selects `isTextItem` records (the `note` kind) and saves an entry
   only when it has text (`isSaveableForm`). That rule belongs to this screen: the item
   service accepts an item holding any capability, with or without text.
-  Canonical requests use `/api/items` and `X-Items-Contract: 1`; the legacy Notes
+  Canonical requests use `/api/items` and `X-Items-Contract: 2`; the legacy Notes
   HTTP facade and persisted identity/storage names are rollout compatibility boundaries.
   See `docs/db/item-core.md`.
 

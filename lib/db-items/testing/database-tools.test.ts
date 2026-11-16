@@ -16,6 +16,7 @@ const tables = [
   "user_workspace_v1",
   "workspace_item_v1",
   "workspace_category_v1",
+  "workspace_subcategory_v1",
   "workspace_status_v1",
   "workspace_tag_v1",
   "item_category_link_v1",
@@ -61,10 +62,11 @@ const fixture = async (
       INSERT INTO user_v1(id,username,preferences) OVERRIDING SYSTEM VALUE VALUES(11,'backup fixture','{"notesApp":{"maxOpenNotes":5}}');
       INSERT INTO user_workspace_v1(id,user_id,label) VALUES(21,11,'personal'),(22,11,'work');
       INSERT INTO workspace_category_v1(id,workspace_id,label) VALUES(31,21,'project'),(32,21,'unused');
+      INSERT INTO workspace_subcategory_v1(id,category_id,label) VALUES(35,31,'phase one');
       INSERT INTO workspace_status_v1(id,workspace_id,label,position) VALUES(41,21,'todo',3);
       INSERT INTO workspace_tag_v1(id,workspace_id,label) VALUES(51,21,'important');
-      INSERT INTO workspace_item_v1(id,workspace_id,status_id,description,time_due,time_created,time_modified)
-      VALUES(61,21,41,'Unicode 日本語 and trailing space ','2027-02-03','2020-01-02','2021-02-03'),(62,22,NULL,NULL,'2028-01-02','2020-01-02','2021-02-03');
+      INSERT INTO workspace_item_v1(id,workspace_id,category_id,subcategory_id,status_id,description,time_due,time_created,time_modified)
+      VALUES(61,21,31,35,41,'Unicode 日本語 and trailing space ','2027-02-03','2020-01-02','2021-02-03'),(62,22,NULL,NULL,NULL,NULL,'2028-01-02','2020-01-02','2021-02-03');
       INSERT INTO item_category_link_v1(item_id,category_id,workspace_id) VALUES(61,31,21);
       INSERT INTO item_tag_link_v1(item_id,tag_id,workspace_id) VALUES(61,51,21);
       INSERT INTO user_api_token_v1(user_id,token_hash) VALUES(11,'fixture-only-hash');
@@ -74,7 +76,7 @@ const fixture = async (
       [JSON.stringify([1, ...Array(1023).fill(0)])],
     )
     // UPDATE intentionally runs the timestamp trigger; capture its exact stored result.
-    for (const table of tables.slice(0, 7))
+    for (const table of tables.slice(0, 8))
       await source.query("SELECT setval(pg_get_serial_sequence($1,'id'),90000,true)", [
         `public.${table}`,
       ])
