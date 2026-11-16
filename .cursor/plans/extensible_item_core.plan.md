@@ -151,6 +151,23 @@ Type-specific logic attaches to the registries instead of branching in the item 
 
 A hook is added in the step that has its first user, never ahead of one.
 
+### A view owns the rules for edits made in it
+
+- Logic specific to a kind (what is worth saving, quick-add defaults, checks beyond the
+  storage rule) lives in that kind's client view. The server validates and stores
+  capabilities and knows nothing about kinds or views.
+- The view the user is working in decides. An item that is also a task is edited in
+  Notes exactly like any other note: Notes changes its text and taxonomy and applies
+  only the Notes rule. Logic that belongs to Tasks, media, or spend never runs for an
+  edit made in Notes.
+- Content is additive. A save from a simpler view carries the item's other content
+  through unchanged, and a view never has to understand a capability it does not show.
+- An edit is judged by the view it was made in. Edits pending under one view are saved
+  under that view's rule before another view becomes active.
+- An entry a view does not save never blocks anything. Session changes, workspace
+  switches, backups, and group actions wait only for entries the active view would
+  save, and are refused only when one of those saves fails.
+
 ### Rules that keep this true
 
 - Never repurpose a column or give a stored value a second meaning.
@@ -369,9 +386,12 @@ item.
   status, through the view's `quickAddDefaults`.
 - A card opens the shared item editor, so its text is the same text the Notes view
   edits. An item with text and a status appears in both views.
-- Clearing the text of an item that still holds a status or date keeps the item: it
-  leaves Notes and stays in Tasks. An item is deleted from the editor only by the delete
-  action.
+- In the Tasks view, clearing the text of an item that still holds a status or date
+  saves it: the item leaves Notes and stays in Tasks. In the Notes view that edit is
+  not saved, because Notes saves an entry only when it has text. An item is deleted
+  from the editor only by the delete action.
+- Switching views first saves the entries pending under the outgoing view's rule, so
+  an edit made in Notes is never judged by the Tasks rule.
 
 Done when this step changes no save engine code and no Notes view code beyond what the
 kind filter requires. If it has to, the S5 boundary is wrong and is fixed here.

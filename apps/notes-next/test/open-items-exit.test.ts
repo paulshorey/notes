@@ -64,9 +64,47 @@ test("session flush ignores an untouched draft but keeps real work", () => {
     collectSessionFlushEntries(
       [untouchedDraft, dirtySavedItem, blockedDraft, cleanSavedItem],
       isDirty,
+      isSaveable,
     ).map((item) => item.key),
     ["note:1", "draft:2"],
     "started drafts stay guarded even when their missing workspace prevents a save",
+  )
+})
+
+test("session flush never waits for an entry its view does not save", () => {
+  const withForm = (base: OpenItemEntry, form: Partial<TextCaptureFormState>): OpenItemEntry => ({
+    ...base,
+    form: { ...base.form, ...form },
+  })
+  const tagOnlyDraft = withForm(entry("draft:0", null, "", null), { selectedTagIds: [5] })
+  const pendingTagDraft = { ...entry("draft:1", null, "", null), pendingTagLabels: ["later"] }
+  const dateOnlyDraft = withForm(entry("draft:2", null, "", null), {
+    dueExpanded: true,
+    timeDue: "2026-03-04T10:30",
+  })
+  const statusOnlyDraft = withForm(entry("draft:3", null, "", null), { selectedStatusId: 4 })
+  const clearedStoredItem = entry("note:4", 4, "", "had text")
+  const writtenDraft = withForm(entry("draft:5", null, "written", null), { selectedTagIds: [5] })
+
+  const entries = [
+    tagOnlyDraft,
+    pendingTagDraft,
+    dateOnlyDraft,
+    statusOnlyDraft,
+    clearedStoredItem,
+    writtenDraft,
+  ]
+  for (const item of entries) assert.equal(isDirty(item), true, `${item.key} reads as dirty`)
+
+  assert.deepEqual(
+    collectSessionFlushEntries(entries, isDirty, isSaveable).map((item) => item.key),
+    ["draft:5"],
+    "only the entry the view would save is flushed",
+  )
+  assert.deepEqual(
+    collectSessionFlushEntries(entries, isDirty, () => true).map((item) => item.key),
+    ["draft:0", "draft:1", "draft:2", "note:4", "draft:5"],
+    "a view that saves any content waits for every started entry",
   )
 })
 

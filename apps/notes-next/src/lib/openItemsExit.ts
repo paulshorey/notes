@@ -23,19 +23,25 @@ export interface ExitFlushItem {
 }
 
 /**
- * Dirty ring entries that must land before the acting session changes.
+ * Dirty ring entries that must land before the session, the workspace, or a group
+ * changes underneath them.
  *
- * A new draft starts with `savedSignature: null`, so the untouched editor can
- * be technically dirty even though it contains
- * nothing to persist. Trying to save that slot returns false and would block
- * sign-in, sign-up, and sign-out. Started drafts remain included — even when
- * they have no workspace and cannot save — so the caller still refuses to replace
- * the session rather than lose their content.
+ * Only an entry its view would save is worth waiting for. An untouched slot, a draft
+ * holding only tags, a date, or a status, and a stored item whose content was cleared
+ * are all dirty by signature, but the view never saves them, so a save attempt
+ * returns false. Waiting on one would block sign-in, sign-up, sign-out, a workspace
+ * switch, a backup, or a group action over nothing that can be lost.
+ *
+ * An entry the view would save stays included even when something else prevents the
+ * save, such as a missing workspace or a failed request, so the caller refuses to move
+ * on rather than lose what the user wrote.
  */
 export const collectSessionFlushEntries = (
   openItems: OpenItemEntry[],
   isDirty: (entry: OpenItemEntry) => boolean,
-): OpenItemEntry[] => openItems.filter((entry) => isDirty(entry) && !isEmptyDraft(entry))
+  canSave: (form: TextCaptureFormState) => boolean,
+): OpenItemEntry[] =>
+  openItems.filter((entry) => isDirty(entry) && !isEmptyDraft(entry) && canSave(entry.form))
 
 /**
  * Fold detached dirty notes back into ring state for a localStorage write.

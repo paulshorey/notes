@@ -238,15 +238,18 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
   saveEntryRef.current = saveEntry
 
   /**
-   * Persist every non-empty dirty entry and wait for all of them. Used only
-   * where the session itself is about to change — sign-in, sign-up, sign-out —
-   * since ordinary note switching no longer needs to block on a save. The
-   * savedSignature can leave an untouched new slot technically dirty, but there is
-   * no content to save and it must not block the session change.
+   * Persist every dirty entry the active view would save and wait for all of them.
+   * Used only where the session or the workspace is about to change, since ordinary
+   * note switching does not block on a save. An entry the view does not save, such
+   * as a draft holding only a tag, is skipped: it must never block the change.
    */
 
   const flushAllPendingSaves = useCallback(async () => {
-    const entries = collectSessionFlushEntries(useItemsAppStore.getState().openItems, isEntryDirty)
+    const entries = collectSessionFlushEntries(
+      useItemsAppStore.getState().openItems,
+      isEntryDirty,
+      canSaveDraftRef.current,
+    )
     // Detached work counts too: text that left the ring is exactly the text
     // nobody is looking at, so it is the easiest to lose in a session change.
     const detachedKeys = [...detachedSavesRef.current.keys()]
@@ -260,7 +263,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     // or replace the session, so proceeding past a failed save destroys the
     // draft it was carrying.
     return results.every((result) => result.status === "fulfilled" && result.value)
-  }, [detachedSavesRef, saveEntry])
+  }, [canSaveDraftRef, detachedSavesRef, saveEntry])
 
   flushAllPendingSavesRef.current = flushAllPendingSaves
 
