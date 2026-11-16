@@ -1,18 +1,11 @@
-import type { ItemRecord } from "@lib/db-items"
-import { toDateTimeLocalValue } from "@/lib/dates"
+import {
+  createEmptyItemDraft,
+  itemDraftFromItem,
+  type ItemDraft,
+} from "@/capabilities/draftParts"
 
-export interface TextCaptureFormState {
-  selectedCategoryId: number | null
-  /** Always a subcategory of `selectedCategoryId`; null when there is no category. */
-  selectedSubcategoryId: number | null
-  selectedStatusId: number | null
-  selectedTagIds: number[]
-  description: string
-  timeDue: string | null
-  timeRemind: string | null
-  dueExpanded: boolean
-  remindExpanded: boolean
-}
+/** The Notes form edits the whole item draft; each part comes from `capabilities/`. */
+export type TextCaptureFormState = ItemDraft
 
 export type EmbeddingMaintenanceMode = "missing" | "stale"
 
@@ -28,40 +21,8 @@ export type EmbeddingMaintenanceMode = "missing" | "stale"
  */
 export type ItemSaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error"
 
-export const createDefaultDueValue = () => {
-  const now = new Date()
-  const dueAt = new Date(now.getTime() + 24 * 60 * 60 * 1000)
-  return toDateTimeLocalValue(dueAt)
-}
+export { createDefaultDueValue, createDefaultRemindValue } from "@/capabilities/schedule/draft"
 
-export const createDefaultRemindValue = () => {
-  const now = new Date()
-  const remindAt = new Date(now.getTime() + 30 * 60 * 1000)
-  return toDateTimeLocalValue(remindAt)
-}
+export const createDefaultTextCaptureForm = createEmptyItemDraft
 
-export const createDefaultTextCaptureForm = (): TextCaptureFormState => {
-  return {
-    selectedCategoryId: null,
-    selectedSubcategoryId: null,
-    selectedStatusId: null,
-    selectedTagIds: [],
-    description: "",
-    timeDue: null,
-    timeRemind: null,
-    dueExpanded: false,
-    remindExpanded: false,
-  }
-}
-
-export const itemToFormState = (item: ItemRecord): TextCaptureFormState => ({
-  selectedCategoryId: item.category?.id ?? null,
-  selectedSubcategoryId: item.subcategory?.id ?? null,
-  selectedStatusId: item.status?.id ?? null,
-  selectedTagIds: item.tags.map((tag) => tag.id),
-  description: item.description ?? "",
-  timeDue: item.timeDue === null ? null : toDateTimeLocalValue(item.timeDue),
-  timeRemind: item.timeRemind === null ? null : toDateTimeLocalValue(item.timeRemind),
-  dueExpanded: item.timeDue !== null,
-  remindExpanded: item.timeRemind !== null,
-})
+export const itemToFormState = itemDraftFromItem
