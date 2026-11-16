@@ -28,8 +28,9 @@ export const findUndeclaredItemStorage = async (client: Pick<PoolClient, "query"
 
 /**
  * Owned tables whose rows point into the item's workspace but declare no `rehome`. A
- * table does when it has a `workspace_id` column or a foreign key to a table that has
- * one. Such rows cannot simply follow their item to another workspace: left alone they
+ * table does when it has a `workspace_id` column, or reaches a table that has one or the
+ * workspace itself through foreign keys (a subcategory reaches its workspace through its
+ * category). Such rows cannot simply follow their item to another workspace: left alone they
  * block the move through a composite foreign key or keep a reference across workspaces.
  * `owned` is the declaration to check; it defaults to the registry's.
  */
@@ -42,16 +43,18 @@ export const findUnrehomedTables = async (
     .map(([name]) => name)
   if (names.length === 0) return []
   const { rows } = await client.query<{ name: string }>(
-    `SELECT t.name FROM unnest($1::text[]) t(name)
-     WHERE EXISTS (
-         SELECT 1 FROM information_schema.columns c
-         WHERE c.table_schema='public' AND c.table_name=t.name AND c.column_name='workspace_id')
-       OR EXISTS (
-         SELECT 1 FROM pg_constraint k
-         JOIN pg_attribute a ON a.attrelid=k.confrelid AND a.attname='workspace_id' AND NOT a.attisdropped
-         WHERE k.contype='f' AND k.conrelid=('public.'||quote_ident(t.name))::regclass
-           AND k.confrelid<>'public.workspace_item_v1'::regclass)
-     ORDER BY t.name`,
+    `WITH RECURSIVE reach(origin, rel) AS (
+       SELECT t.name, ('public.'||quote_ident(t.name))::regclass FROM unnest($1::text[]) t(name)
+       UNION
+       SELECT r.origin, k.confrelid FROM reach r
+       JOIN pg_constraint k ON k.conrelid=r.rel AND k.contype='f'
+       WHERE k.confrelid<>'public.workspace_item_v1'::regclass
+     )
+     SELECT DISTINCT origin AS name FROM reach r
+     WHERE r.rel='public.user_workspace_v1'::regclass
+        OR EXISTS (SELECT 1 FROM pg_attribute a
+                   WHERE a.attrelid=r.rel AND a.attname='workspace_id' AND NOT a.attisdropped)
+     ORDER BY name`,
     [names],
   )
   return rows.map((row) => row.name)

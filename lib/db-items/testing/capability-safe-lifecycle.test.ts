@@ -386,6 +386,14 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
         linked,
       ])
       assert.deepEqual(await findUnrehomedTables(client, { [linked]: { rehomed: true } }), [])
+      // A subcategory reaches its workspace only through its category.
+      const filed = `${linked}_filed`
+      await client.query(
+        `CREATE TABLE public.${filed} (
+           item_id integer NOT NULL REFERENCES public.workspace_item_v1(id) ON DELETE CASCADE,
+           subcategory_id integer NOT NULL REFERENCES public.workspace_subcategory_v1(id))`,
+      )
+      assert.deepEqual(await findUnrehomedTables(client, { [filed]: { rehomed: false } }), [filed])
       // A table keyed only by the item follows it without help.
       assert.deepEqual(await findUnrehomedTables(client, { [probe]: { rehomed: false } }), [])
       // The registry's own tables all say how their rows move.
