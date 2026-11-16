@@ -55,6 +55,7 @@ export {
   parsePreviewItemGroupRequest,
 } from "./item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
+import { assertItemHasContent } from "../contracts/item-capabilities"
 import { rolloutLabelSpelling, trimLabel } from "../contracts/label"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
@@ -557,13 +558,18 @@ export const deleteStatusForItemsApp = async (
   r: DeleteStatusRequest,
 ): Promise<DeleteResponse | null> =>
   (await deleteStatusForWorkspace(r.userId, r.workspaceId, r.statusId)) ? { ok: true } : null
-export const createItemForItemsApp = async (r: CreateItemRequest): Promise<ItemResponse> => ({
-  item: await createItemForUser(
-    r.userId,
-    r.item,
-    await createItemEmbeddingInput({ description: r.item.description }),
-  ),
-})
+// Storage accepts a bare item; requiring content is product policy that follows the
+// capability registry, so it is enforced here and not by a database constraint.
+export const createItemForItemsApp = async (r: CreateItemRequest): Promise<ItemResponse> => {
+  assertItemHasContent(r.item)
+  return {
+    item: await createItemForUser(
+      r.userId,
+      r.item,
+      await createItemEmbeddingInput({ description: r.item.description }),
+    ),
+  }
+}
 const normalized = (v: string | null | undefined) => (v ?? "").trim()
 const canReuse = (
   s: { description: string | null; has_embedding: boolean; embedding_model: string | null } | null,
@@ -577,6 +583,7 @@ const canReuse = (
 export const updateItemForItemsApp = async (
   r: ReturnType<typeof parseUpdateItemRequest>,
 ): Promise<ItemResponse | null> => {
+  assertItemHasContent(r.item)
   const stored = await selectItemEmbeddingStateById(r.itemId, r.userId)
   // A stale editor must see the deletion immediately, before any provider call.
   if (!stored) return null

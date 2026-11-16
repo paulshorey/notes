@@ -1,3 +1,4 @@
+import { hasItemContent } from "@lib/db-items/contracts/item-capabilities"
 import type { TextCaptureFormState } from "@/types/items"
 import type { ItemRef } from "@/stores/openItems"
 
@@ -35,5 +36,14 @@ export const itemRequestBody = (form: TextCaptureFormState, workspaceId: number)
   timeRemind: form.remindExpanded ? form.timeRemind : null,
 })
 
-/** Whether an entry holds anything worth sending to the server. */
-export const isSaveableForm = (form: TextCaptureFormState) => form.description.trim() !== ""
+/**
+ * Whether an entry holds anything the server will store. The capability registry
+ * decides, so this follows it as new kinds of content are added.
+ */
+export const isSaveableForm = (form: TextCaptureFormState) =>
+  hasItemContent({
+    description: form.description,
+    statusId: form.selectedStatusId,
+    timeDue: form.dueExpanded ? form.timeDue : null,
+    timeRemind: form.remindExpanded ? form.timeRemind : null,
+  })

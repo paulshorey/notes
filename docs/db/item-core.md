@@ -5,6 +5,25 @@ nonblank authored text, presented by the current text-focused web client. Adding
 future dates, files, contacts, financial information, or task properties will
 extend an item without converting it into another exclusive type.
 
+## Capabilities
+
+`contracts/item-capabilities.ts` in `@lib/db-items` is the registry of what an item can
+hold beyond identity, workspace, and taxonomy:
+
+| Capability | Stored as                      | Counts as content |
+| ---------- | ------------------------------ | ----------------- |
+| `text`     | `description`                  | yes               |
+| `schedule` | `time_due`, `time_remind`      | no                |
+| `status`   | `status_id` → workspace status | no                |
+
+`itemCapabilities(item)` lists the capabilities an item holds. `hasItemContent(item)`
+is the save rule: an item needs at least one content capability, so categories, tags, a
+status, or dates alone do not make an item. The item service applies the rule on create
+and update and the web client applies the same function before saving. The tables
+accept a bare item; the rule is product policy that widens as content capabilities are
+added. A perceived type such as "note" or "task" is a name for a combination of
+capabilities and is not stored.
+
 ## This refactor
 
 The canonical package is `@lib/db-items` in `lib/db-items`. Shared records,
@@ -53,8 +72,8 @@ without changing the meaning of the item identity established here.
 
 New data routes are `/api/items`, `/api/items/search`, and
 `/api/items/maintenance/embeddings`. Payloads use `item`, `items`, `itemId`,
-`itemCount`, `itemsImported`, and `itemsSkipped`. The backend accepts nullable or
-omitted text. The current capture form still requires nonblank text.
+`itemCount`, `itemsImported`, and `itemsSkipped`. Item text is nullable in storage and
+in payloads; the item service refuses to save an item without content.
 
 The new web client sends `X-Items-Contract: 1` to select item-only payloads on
 shared routes such as bootstrap, vocabulary, and backup. Common routes without
