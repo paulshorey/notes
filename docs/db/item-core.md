@@ -107,11 +107,9 @@ New data routes are `/api/items`, `/api/items/search`, and
 `itemCount`, `itemsImported`, and `itemsSkipped`. Item text is nullable in storage and
 in payloads; the item service refuses to save only an item that holds no capability.
 
-The web client sends `X-Items-Contract: 2` to select the current item payloads on
-shared routes such as bootstrap, vocabulary, and backup. A request with contract `1`
-also receives the category list an earlier build reads, and a shared route with no
-contract also includes note-named field aliases
-([earlier clients](item-taxonomy.md#earlier-clients-and-files)). The
+The web client sends `X-Items-Contract: 2` on shared routes such as bootstrap,
+vocabulary, and backup. A request that names a contract gets the item payload; a
+shared route with no contract also includes note-named field aliases. The
 `/api/notes` compatibility facade translates old requests and responses at the
 HTTP boundary; it calls the same authenticated item service and database rows.
 Compatibility never makes a client-supplied user ID authoritative.
@@ -121,7 +119,7 @@ Compatibility never makes a client-supplied user ID authoritative.
 - Forward migration `202610201800__rename_notes_to_items.sql` renames physical
   tables, columns, constraints, indexes, vocabulary sequences, and triggers.
   Immutable earlier migration files are moved with the package unchanged.
-- Six simple, automatically updatable views retain the old SQL table names
+- Five simple, automatically updatable views retain the old SQL table names
   while old servers drain. They expose the same rows, including old `note_id`
   column names on link views. They are excluded from generated canonical types.
 - The single existing `user_note_v1_id_seq` keeps its name temporarily because
@@ -129,8 +127,7 @@ Compatibility never makes a client-supplied user ID authoritative.
   sequence with `pg_get_serial_sequence`; no competing allocator is created.
 - Backup version 3 nests subcategories and stores one category per item. Import
   accepts version 2's category lists and version 1's `workspaces[].notes`, with the
-  reserved-category conversion. A client that names no item contract downloads
-  version 1.
+  reserved-category conversion. Every client downloads version 3.
 - Browser cache and open-item storage use version 4. Readers upgrade note-named
   and category-list snapshots, including serialized IDs and clean/dirty signatures.
   Authored text and navigation keys are preserved. Legacy dirty snapshots are

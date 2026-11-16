@@ -27,7 +27,6 @@ export { listWorkspacesByUser } from "./sql/workspace"
 export { findUserByIdentifier, getUserById, updateUserPreferencesById } from "./sql/user"
 
 export type {
-  ItemCategoryLinkV1Row,
   PostgresDbSchema,
   ItemTagLinkV1Row,
   UserWorkspaceV1Row,

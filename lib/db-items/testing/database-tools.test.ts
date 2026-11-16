@@ -19,7 +19,6 @@ const tables = [
   "workspace_subcategory_v1",
   "workspace_status_v1",
   "workspace_tag_v1",
-  "item_category_link_v1",
   "item_tag_link_v1",
   "schema_migrations_cursor",
 ]
@@ -67,7 +66,6 @@ const fixture = async (
       INSERT INTO workspace_tag_v1(id,workspace_id,label) VALUES(51,21,'important');
       INSERT INTO workspace_item_v1(id,workspace_id,category_id,subcategory_id,status_id,description,time_due,time_created,time_modified)
       VALUES(61,21,31,35,41,'Unicode 日本語 and trailing space ','2027-02-03','2020-01-02','2021-02-03'),(62,22,NULL,NULL,NULL,NULL,'2028-01-02','2020-01-02','2021-02-03');
-      INSERT INTO item_category_link_v1(item_id,category_id,workspace_id) VALUES(61,31,21);
       INSERT INTO item_tag_link_v1(item_id,tag_id,workspace_id) VALUES(61,51,21);
       INSERT INTO user_api_token_v1(user_id,token_hash) VALUES(11,'fixture-only-hash');
     `)
@@ -139,7 +137,7 @@ test(
             "SELECT count(*)::int n FROM information_schema.views WHERE table_schema='public' AND is_updatable='YES'",
           )
         ).rows[0]!.n,
-        6,
+        5,
       )
       const created = (
         await target.query(
@@ -152,9 +150,7 @@ test(
       await target.query("UPDATE workspace_item_v1 SET description='changed' WHERE id=61")
       assert.equal((await target.query("SELECT count(*)::int n FROM user_note_v1")).rows[0]!.n, 3)
       await assert.rejects(
-        target.query(
-          "INSERT INTO item_category_link_v1(item_id,category_id,workspace_id) VALUES(62,31,22)",
-        ),
+        target.query("UPDATE workspace_item_v1 SET category_id=31 WHERE id=62"),
         /foreign key/,
       )
       // An already migrated destination must also replace/recreate its aliases.

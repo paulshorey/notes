@@ -57,17 +57,6 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- Name: item_category_link_v1; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.item_category_link_v1 (
-    item_id integer NOT NULL,
-    category_id integer NOT NULL,
-    workspace_id integer NOT NULL
-);
-
-
---
 -- Name: item_tag_link_v1; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -103,17 +92,6 @@ ALTER TABLE public.user_api_token_v1 ALTER COLUMN id ADD GENERATED ALWAYS AS IDE
     NO MAXVALUE
     CACHE 1
 );
-
-
---
--- Name: user_note_category_link_v1; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.user_note_category_link_v1 AS
- SELECT item_id AS note_id,
-    category_id,
-    workspace_id
-   FROM public.item_category_link_v1;
 
 
 --
@@ -488,14 +466,6 @@ ALTER TABLE ONLY public.workspace_tag_v1 ALTER COLUMN id SET DEFAULT nextval('pu
 
 
 --
--- Name: item_category_link_v1 item_category_link_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.item_category_link_v1
-    ADD CONSTRAINT item_category_link_v1_pkey PRIMARY KEY (item_id, category_id);
-
-
---
 -- Name: item_tag_link_v1 item_tag_link_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -672,13 +642,6 @@ ALTER TABLE ONLY public.workspace_tag_v1
 
 
 --
--- Name: item_category_link_v1_category_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX item_category_link_v1_category_id_idx ON public.item_category_link_v1 USING btree (category_id);
-
-
---
 -- Name: item_tag_link_v1_tag_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -823,22 +786,6 @@ CREATE TRIGGER workspace_subcategory_v1_apply_row_timestamps_v1 BEFORE INSERT OR
 --
 
 CREATE TRIGGER workspace_tag_v1_apply_row_timestamps_v1 BEFORE INSERT OR UPDATE ON public.workspace_tag_v1 FOR EACH ROW EXECUTE FUNCTION public.apply_row_timestamps_v1();
-
-
---
--- Name: item_category_link_v1 item_category_link_v1_category_workspace_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.item_category_link_v1
-    ADD CONSTRAINT item_category_link_v1_category_workspace_fkey FOREIGN KEY (category_id, workspace_id) REFERENCES public.workspace_category_v1(id, workspace_id) ON DELETE CASCADE;
-
-
---
--- Name: item_category_link_v1 item_category_link_v1_item_workspace_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.item_category_link_v1
-    ADD CONSTRAINT item_category_link_v1_item_workspace_fkey FOREIGN KEY (item_id, workspace_id) REFERENCES public.workspace_item_v1(id, workspace_id) ON DELETE CASCADE;
 
 
 --

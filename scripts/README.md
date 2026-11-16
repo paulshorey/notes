@@ -40,7 +40,7 @@ Defaults are defined in `scripts/db/common.sh`:
 - `workspace_item_v1`
 - `workspace_category_v1`, `workspace_subcategory_v1`, `workspace_status_v1`,
   `workspace_tag_v1`
-- `item_category_link_v1`, `item_tag_link_v1`
+- `item_tag_link_v1`
 - `schema_migrations_cursor`
 
 Schema backups include the selected tables' legacy SQL compatibility views and,

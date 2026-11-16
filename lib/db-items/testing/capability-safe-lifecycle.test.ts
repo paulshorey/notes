@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
-import { after, describe, test } from "node:test"
+import { after, before, describe, test } from "node:test"
 import { ITEM_CAPABILITIES } from "../contracts/item-capabilities"
 import { getDb } from "../lib/db/postgres"
 import { mergeAnonymousItemsAppSession } from "../services/items-app"
@@ -11,7 +11,6 @@ import {
   ITEM_CORE,
   ITEM_IDENTITY_FIELDS,
   ITEM_OWNED_TABLES,
-  ITEM_RETIRED_TABLES,
   ITEM_TAXONOMY,
   MOVE_ITEMS_SQL,
   STORED_ITEM_CAPABILITIES,
@@ -21,10 +20,10 @@ import {
 import { createAnonymousUser } from "../sql/user/anonymous"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 import { listWorkspacesByUser } from "../sql/workspace"
+import { createCurrentSchemaDatabase } from "./historical-migration"
 import { backupFixture } from "./user-backup-fixture"
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
-if (testDbUrl) process.env.DB_ITEMS_URL = testDbUrl
 
 test("both halves of the capability registry declare the same capabilities", () => {
   assert.deepEqual(
@@ -55,9 +54,6 @@ test("every table a part owns is carried by one of that part's backup fields", (
       assert.ok(IMPORT_ITEMS_SQL.includes(table.import), `${name} is not part of the import`)
       if (table.rehome) assert.ok(MOVE_ITEMS_SQL.includes(table.rehome.detach), name)
     }
-  // Rows of a retired table are dropped when their item moves, not left behind.
-  for (const name of ITEM_RETIRED_TABLES)
-    assert.match(MOVE_ITEMS_SQL, new RegExp(`DELETE FROM public\\.${name}\\b`), name)
 })
 
 test("a backup field with no restore path is reported", () => {
@@ -84,15 +80,20 @@ test("a backup field with no restore path is reported", () => {
 })
 
 describe("items keep their identity across accounts (DB)", { skip: !testDbUrl }, () => {
-  const userIds: number[] = []
   // A stand-in for a capability with its own table: rows keyed only by the item id.
   const probe = `item_probe_${randomUUID().replaceAll("-", "").slice(0, 12)}`
 
+  // These tests add a table and a column that reference items. They run in a database
+  // of their own so that schema change never locks tables other test files are using.
+  let database: Awaited<ReturnType<typeof createCurrentSchemaDatabase>> | undefined
+  before(async () => {
+    database = await createCurrentSchemaDatabase(testDbUrl!)
+    process.env.DB_ITEMS_URL = database.url
+  })
   after(async () => {
-    if (!testDbUrl) return
-    await getDb().query(`DROP TABLE IF EXISTS public.${probe}`)
-    await getDb().query(`DELETE FROM public.user_v1 WHERE id=ANY($1::int[])`, [userIds])
+    if (!database) return
     await getDb().end()
+    await database.drop()
   })
 
   const realUser = async () => {
@@ -100,7 +101,6 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
       `INSERT INTO public.user_v1(username,is_anonymous) VALUES($1,false) RETURNING id`,
       [`lifecycle-${randomUUID()}`],
     )
-    userIds.push(rows[0]!.id)
     return rows[0]!.id
   }
   const one = async <T>(sql: string, values: unknown[] = []) =>
@@ -123,7 +123,6 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
   /** A visitor's workspace holding one item with every capability, filed and tagged. */
   const visitor = async (workspaceLabel: string) => {
     const user = await createAnonymousUser()
-    userIds.push(user.id)
     const workspace = (await listWorkspacesByUser(user.id))[0]!
     await getDb().query(`UPDATE public.user_workspace_v1 SET label=$2 WHERE id=$1`, [
       workspace.id,
@@ -199,13 +198,6 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
       [realWorkspace.id],
     )
     const source = await visitor("shared name")
-    // An item filed before the single-category release still has a row in the retired
-    // link table, which pins it to its workspace through a composite foreign key.
-    await getDb().query(
-      `INSERT INTO public.item_category_link_v1(item_id,category_id,workspace_id)
-       SELECT n.id,n.category_id,n.workspace_id FROM public.workspace_item_v1 n WHERE n.id=$1`,
-      [source.item],
-    )
     const before = await stored(source.item)
 
     await mergeAnonymousItemsAppSession({ anonUserId: source.userId, realUserId })
@@ -240,14 +232,6 @@ describe("items keep their identity across accounts (DB)", { skip: !testDbUrl },
     assert.ok(tagIds.every((link) => link.workspace_id === realWorkspace.id))
     // Rows keyed by the item id came along without the merge knowing the table.
     assert.deepEqual(await probeRows(source.item), ["a", "b"])
-    assert.equal(
-      (
-        await getDb().query(`SELECT 1 FROM public.item_category_link_v1 WHERE item_id=$1`, [
-          source.item,
-        ])
-      ).rowCount,
-      0,
-    )
     // The account's status keeps its own position; the visitor's workspace is gone.
     assert.equal(
       (

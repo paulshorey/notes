@@ -53,11 +53,10 @@ manage the corresponding workspace-owned structures.
 returns `{ category, subcategory }`, where `category` is the refreshed parent. Category
 records nest their `subcategories`.
 
-The client sends `X-Items-Contract: 2` on shared routes. Any other request also
-receives `categories` (zero or one entry) on each item, and an item request may list
-`categoryIds`, of which the first is used. A shared route with no contract header also
-includes legacy field aliases (`notes`, `noteCount`, and import counts) for older
-loaded clients. `/api/notes`, `/api/notes/search`, and
+The client sends `X-Items-Contract: 2` on shared routes. A shared route with no
+contract header also includes legacy field aliases (`notes`, `noteCount`, and import
+counts) for older loaded clients. An item request that lists `categoryIds` without
+`categoryId` returns `400` with a message to reload the page. `/api/notes`, `/api/notes/search`, and
 `/api/notes/maintenance/embeddings` remain thin authenticated facades that translate
 old `note`/`noteId` payloads into the same item service and return old field names.
 Preferences and authored text are never mechanically rewritten.
@@ -65,8 +64,7 @@ Preferences and authored text are never mechanically rewritten.
 ## Portable backup and restore
 
 Both methods use `/api/backup`, authenticated by the same cookie or bearer token.
-GET downloads `jot-new-backup-YYYY-MM-DD.json`. Callers that send an item contract
-header receive version 3; a caller that sends none receives version 1. POST takes
+GET downloads `jot-new-backup-YYYY-MM-DD.json`, always in the current version. POST takes
 the entire JSON file, without another wrapper, and requires a permanent account.
 Success returns `{ itemsImported, itemsSkipped }` with legacy aliases when needed.
 

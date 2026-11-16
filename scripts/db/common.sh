@@ -40,7 +40,6 @@ readonly ITEMS_DB_DEFAULT_TABLES=(
   workspace_subcategory_v1
   workspace_status_v1
   workspace_tag_v1
-  item_category_link_v1
   item_tag_link_v1
   schema_migrations_cursor
 )
@@ -62,7 +61,6 @@ items_db_compatibility_view() {
     workspace_category_v1) printf '%s' workspace_note_category_v1 ;;
     workspace_status_v1) printf '%s' workspace_note_status_v1 ;;
     workspace_tag_v1) printf '%s' workspace_note_tag_v1 ;;
-    item_category_link_v1) printf '%s' user_note_category_link_v1 ;;
     item_tag_link_v1) printf '%s' user_note_tag_link_v1 ;;
   esac
 }

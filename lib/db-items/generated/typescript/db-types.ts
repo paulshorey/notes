@@ -1,12 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Run: pnpm --filter @lib/db-items db:types:generate
 
-export interface ItemCategoryLinkV1Row {
-  item_id: number
-  category_id: number
-  workspace_id: number
-}
-
 export interface ItemTagLinkV1Row {
   item_id: number
   tag_id: number
@@ -97,7 +91,6 @@ export interface WorkspaceTagV1Row {
 }
 
 export interface PostgresDbSchema {
-  item_category_link_v1: ItemCategoryLinkV1Row
   item_tag_link_v1: ItemTagLinkV1Row
   user_api_token_v1: UserApiTokenV1Row
   user_v1: UserV1Row

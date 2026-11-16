@@ -1,40 +1,17 @@
 import assert from "node:assert/strict"
-import { spawnSync } from "node:child_process"
-import { randomUUID } from "node:crypto"
-import { readFile } from "node:fs/promises"
 import test from "node:test"
-import { fileURLToPath } from "node:url"
-import { Client } from "pg"
+import { withSchemaBefore } from "./historical-migration"
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
-const packageDir = fileURLToPath(new URL("../", import.meta.url))
 const MIGRATION = "202611160300__single_category_and_subcategory.sql"
 
 /** The migration runs against a populated database shaped as it was before it. */
 test(
   "the single-category migration keeps one category per item and changes nothing else",
   { skip: !testDbUrl },
-  async () => {
-    const admin = new Client({ connectionString: testDbUrl })
-    await admin.connect()
-    const name = `single_category_${randomUUID().replaceAll("-", "")}`
-    const url = new URL(testDbUrl!)
-    url.pathname = `/${name}`
-    const db = new Client({ connectionString: url.toString() })
-    try {
-      await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0 ENCODING 'UTF8'`)
-      await db.connect()
-      const migrated = spawnSync(process.execPath, ["scripts/migrate.mjs"], {
-        cwd: packageDir,
-        encoding: "utf8",
-        env: { ...process.env, DB_ITEMS_URL: url.toString() },
-      })
-      assert.equal(migrated.status, 0, migrated.stderr)
-
-      // Return the schema to its shape before this migration, then populate it.
+  () =>
+    withSchemaBefore(testDbUrl!, MIGRATION, async (db, apply) => {
       await db.query(`
-        ALTER TABLE public.workspace_item_v1 DROP COLUMN subcategory_id, DROP COLUMN category_id;
-        DROP TABLE public.workspace_subcategory_v1;
         INSERT INTO public.user_v1(id,username) OVERRIDING SYSTEM VALUE VALUES(1,'migration');
         INSERT INTO public.user_workspace_v1(id,user_id,label) VALUES(10,1,'personal'),(11,1,'work');
         INSERT INTO public.workspace_category_v1(id,workspace_id,label,time_created,time_modified)
@@ -59,7 +36,7 @@ test(
       const itemsBefore = (
         await db.query(
           `SELECT id,workspace_id,status_id,description,time_due,time_remind,time_created,time_modified
-           FROM public.workspace_item_v1 ORDER BY id`,
+         FROM public.workspace_item_v1 ORDER BY id`,
         )
       ).rows
       const linksBefore = (
@@ -67,9 +44,7 @@ test(
       ).rows
       const tagLinksBefore = (await db.query(`SELECT * FROM public.item_tag_link_v1`)).rows
 
-      await db.query("BEGIN")
-      await db.query(await readFile(new URL(`../migrations/${MIGRATION}`, import.meta.url), "utf8"))
-      await db.query("COMMIT")
+      await apply()
 
       const filed = (
         await db.query<{ id: number; category_id: number | null; subcategory_id: number | null }>(
@@ -90,7 +65,7 @@ test(
         (
           await db.query(
             `SELECT id,workspace_id,status_id,description,time_due,time_remind,time_created,time_modified
-             FROM public.workspace_item_v1 ORDER BY id`,
+           FROM public.workspace_item_v1 ORDER BY id`,
           )
         ).rows,
         itemsBefore,
@@ -156,16 +131,11 @@ test(
         (
           await db.query(
             `SELECT (SELECT COUNT(*)::int FROM public.workspace_item_v1) items,
-                    (SELECT COUNT(*)::int FROM public.workspace_category_v1) categories,
-                    (SELECT COUNT(*)::int FROM public.workspace_subcategory_v1) subcategories`,
+                  (SELECT COUNT(*)::int FROM public.workspace_category_v1) categories,
+                  (SELECT COUNT(*)::int FROM public.workspace_subcategory_v1) subcategories`,
           )
         ).rows[0],
         { items: 1, categories: 1, subcategories: 0 },
       )
-    } finally {
-      await db.end().catch(() => undefined)
-      await admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`)
-      await admin.end()
-    }
-  },
+    }),
 )
