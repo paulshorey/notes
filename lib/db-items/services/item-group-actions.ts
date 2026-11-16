@@ -60,6 +60,17 @@ export const parseExecuteItemGroupActionRequest = (
       action: { kind: "delete", deleteItems: action.deleteItems },
     }
   }
+  if (action.kind === "move") {
+    const target = request.selection.target
+    if (target.kind === "uncategorized")
+      throw new Error("Uncategorized items are filed by naming a category for them.")
+    const categoryId = action.categoryId === null ? null : id(action.categoryId)
+    if (target.kind === "category" && categoryId === null)
+      throw new Error("This group is already a category.")
+    if (target.kind === "category" && categoryId === target.categoryId)
+      throw new Error("A category cannot be moved into itself.")
+    return { ...request, snapshot: input.snapshot, action: { kind: "move", categoryId } }
+  }
   throw new Error("Unknown item group action.")
 }
 export const previewItemGroupForItemsApp = (request: PreviewItemGroupRequest) =>

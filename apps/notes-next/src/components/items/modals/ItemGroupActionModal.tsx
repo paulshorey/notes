@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Button, Modal, Text, TextInput } from "@gravity-ui/uikit"
+import { Button, Modal, Select, Text, TextInput } from "@gravity-ui/uikit"
+import type { CategoryRecord } from "@lib/db-items"
 import type {
   ItemGroupAction,
   ItemGroupActionResponse,
@@ -9,24 +10,28 @@ import type {
 } from "@lib/db-items/contracts/item-group-actions"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import { itemsFetch, readJson, getErrorMessage, RequestError } from "@/lib/api"
-import { describeItemGroupContents } from "@/lib/itemGroupActions"
+import { describeItemGroupContents, planGroupMove } from "@/lib/itemGroupActions"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import styles from "./ItemGroupActionModal.module.css"
 
 interface Props {
   userId: number
   workspaceId: number
-  categories: { id: number; label: string }[]
+  categories: CategoryRecord[]
   prepare: () => Promise<void>
   applied: (result: ItemGroupActionResponse) => void
 }
 
-/** Both group kinds share preparation, preview, confirmation and execution. */
+/** A move destination as a select value; the top level has no category id. */
+const TOP_LEVEL = "top"
+
+/** Every group kind shares preparation, preview, confirmation and execution. */
 export function ItemGroupActionModal({ userId, workspaceId, categories, prepare, applied }: Props) {
   const dialog = useItemsAppStore((state) => state.itemGroupDialog)
   const setDialog = useItemsAppStore((state) => state.setItemGroupDialog)
   const [preview, setPreview] = useState<ItemGroupPreview | null>(null)
   const [label, setLabel] = useState("")
+  const [destination, setDestination] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -39,6 +44,7 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
 
   useEffect(() => {
     setLabel(dialog && dialog.target.kind !== "uncategorized" ? dialog.label : "")
+    setDestination(null)
   }, [dialog])
 
   useEffect(() => {
@@ -73,6 +79,13 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
   const uncategorized = dialog.target.kind === "uncategorized"
   const noun = dialog.target.kind === "subcategory" ? "subcategory" : "category"
   const renaming = dialog.intent === "rename"
+  const moving = dialog.intent === "move"
+  const movePlan = moving ? planGroupMove(categories, dialog.target) : null
+  const moveOption =
+    movePlan?.options.find(
+      (option) =>
+        (option.categoryId === null ? TOP_LEVEL : String(option.categoryId)) === destination,
+    ) ?? null
   const normalizedLabel = label.trim().toLocaleLowerCase()
   const nameError = getCategoryNameError(label)
   const existing = categories.find((category) => category.label === normalizedLabel)
@@ -119,9 +132,11 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
         <Text variant="subheader-2">
           {renaming
             ? `Rename ${dialog.label}`
-            : uncategorized
-              ? "Delete uncategorized items?"
-              : `Delete ${dialog.label}?`}
+            : moving
+              ? `Move ${dialog.label}`
+              : uncategorized
+                ? "Delete uncategorized items?"
+                : `Delete ${dialog.label}?`}
         </Text>
         {preview && (
           <Text variant="body-1">
@@ -151,7 +166,39 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
             )}
           </>
         )}
-        {!renaming && preview && (
+        {moving && movePlan && (
+          <>
+            {movePlan.blocked ? (
+              <Text variant="body-1" color="secondary">
+                {movePlan.blocked}
+              </Text>
+            ) : (
+              <Select
+                size="m"
+                width="max"
+                placeholder="Choose where it goes"
+                disabled={pending}
+                value={destination === null ? [] : [destination]}
+                onUpdate={(values) => setDestination(values[0] ?? null)}
+                options={movePlan.options.map((option) => ({
+                  value: option.categoryId === null ? TOP_LEVEL : String(option.categoryId),
+                  content: option.label,
+                }))}
+              />
+            )}
+            {moveOption && (
+              <Text variant="body-1" color={moveOption.conflict ? "danger" : "secondary"}>
+                {moveOption.conflict ??
+                  (moveOption.categoryId === null
+                    ? `“${dialog.label}” becomes a category. Its items keep it as their category.`
+                    : noun === "subcategory"
+                      ? `“${dialog.label}” becomes a subcategory of “${moveOption.label}”, and its items move with it.`
+                      : `“${dialog.label}” becomes a subcategory of “${moveOption.label}”. Its items keep it as their subcategory.`)}
+              </Text>
+            )}
+          </>
+        )}
+        {!renaming && !moving && preview && (
           <>
             {!uncategorized && (
               <Text variant="body-1" color="secondary">
@@ -177,7 +224,18 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
           {!preview && !pending && (
             <Button onClick={() => setRetry((value) => value + 1)}>Refresh preview</Button>
           )}
-          {renaming ? (
+          {moving ? (
+            <Button
+              view="action"
+              loading={pending}
+              disabled={!preview || !moveOption || Boolean(moveOption.conflict)}
+              onClick={() =>
+                moveOption && void execute({ kind: "move", categoryId: moveOption.categoryId })
+              }
+            >
+              Move {noun}
+            </Button>
+          ) : renaming ? (
             <Button
               view="action"
               loading={pending}

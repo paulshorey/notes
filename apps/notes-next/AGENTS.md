@@ -105,7 +105,12 @@ group, independent of tag/search filters, including non-text items disclosed in
 the server preview. Uncategorized rename assigns its current members to a new or
 existing category; it never changes future capture defaults. Deleting a category
 or subcategory offers keep-items (the notes become uncategorized, or stay in the
-category without a subcategory) or permanent deletion of its notes.
+category without a subcategory) or permanent deletion of its notes. Category and
+subcategory menus also offer Move; `planGroupMove` in `src/lib/itemGroupActions.ts`
+lists the destinations and why one would be refused, so the dialog says so before
+sending. A category list after any group action comes from
+`applyItemGroupResultToCategories`, and unsaved drafts follow a moved group through
+`refileAfterGroupResult`.
 Opening the dialog pauses autosave/exit PATCHes, settles saved entries before
 preview, and excludes unsaved drafts. Apply the committed response to entries and
 caches before refreshing; deleted entries must never become detached saves.

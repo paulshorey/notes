@@ -26,7 +26,11 @@ import type {
 import type { RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import type { ItemGroupActionResponse } from "@lib/db-items/contracts/item-group-actions"
-import { applyItemGroupResult } from "@/lib/itemGroupActions"
+import {
+  applyItemGroupResult,
+  applyItemGroupResultToCategories,
+  refileAfterGroupResult,
+} from "@/lib/itemGroupActions"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
 import {
   type CSSProperties,
@@ -3069,26 +3073,35 @@ export default function ItemsApp() {
         }
       }
       const latestItems = applyItemGroupResult(itemsRef.current, result).filter(isTextItem)
-      const latestCategories = categoriesRef.current
-        .filter(
-          (category) =>
-            category.id !== result.removedCategoryId && category.id !== result.category?.id,
+      const previousCategories = categoriesRef.current
+      const latestCategories = applyItemGroupResultToCategories(previousCategories, result)
+      // An entry the server has not saved follows the group it was being filed in.
+      const refile = (form: TextCaptureFormState): TextCaptureFormState => {
+        const filing = existingFiling(
+          latestCategories,
+          refileAfterGroupResult(previousCategories, result, {
+            categoryId: form.selectedCategoryId,
+            subcategoryId: form.selectedSubcategoryId,
+          }),
         )
-        .concat(result.category ? [result.category] : [])
-      for (const [key, entry] of detachedSavesRef.current) {
-        const filing = existingFiling(latestCategories, {
-          categoryId: entry.form.selectedCategoryId,
-          subcategoryId: entry.form.selectedSubcategoryId,
+        return isSameFiling(filing, {
+          categoryId: form.selectedCategoryId,
+          subcategoryId: form.selectedSubcategoryId,
         })
-        detachedSavesRef.current.set(key, {
-          ...entry,
-          form: {
-            ...entry.form,
-            selectedCategoryId: filing.categoryId,
-            selectedSubcategoryId: filing.subcategoryId,
-          },
-        })
+          ? form
+          : {
+              ...form,
+              selectedCategoryId: filing.categoryId,
+              selectedSubcategoryId: filing.subcategoryId,
+            }
       }
+      for (const [key, entry] of detachedSavesRef.current)
+        detachedSavesRef.current.set(key, { ...entry, form: refile(entry.form) })
+      patchEveryEntry((entry) => {
+        if (entry.itemId !== null) return {}
+        const form = refile(entry.form)
+        return form === entry.form ? {} : { form }
+      })
       setItems(latestItems)
       setCategories(latestCategories)
       updateItemsCacheList(currentUser.id, workspaceId, "items", latestItems)
@@ -3106,7 +3119,7 @@ export default function ItemsApp() {
       setStatusMessage(
         result.deletedItemIds.length
           ? `Deleted ${result.deletedItemIds.length} items.`
-          : "Category updated.",
+          : "Categories updated.",
       )
       // The committed result is already applied. A failed count/search refresh
       // must never leave a completed destructive action available to replay.
@@ -3114,7 +3127,13 @@ export default function ItemsApp() {
         setErrorMessage(`The change was saved. ${getErrorMessage(error)}`),
       )
     },
-    [closeEntriesForItemInStore, refreshResults, remapEntriesAfterCategoryChange, statuses],
+    [
+      closeEntriesForItemInStore,
+      patchEveryEntry,
+      refreshResults,
+      remapEntriesAfterCategoryChange,
+      statuses,
+    ],
   )
 
   const openEditTag = (tag: TagRecord) => {

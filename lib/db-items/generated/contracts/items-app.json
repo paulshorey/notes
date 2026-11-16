@@ -1857,6 +1857,24 @@
         }
       ]
     },
+    "MoveItemGroupAction": {
+      "fields": [
+        {
+          "name": "kind",
+          "optional": false,
+          "kind": "literal",
+          "value": "move",
+          "nullable": false
+        },
+        {
+          "name": "categoryId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        }
+      ]
+    },
     "PreviewItemGroupRequest": {
       "fields": [
         {
@@ -2029,6 +2047,10 @@
         {
           "kind": "model",
           "type": "DeleteItemGroupAction"
+        },
+        {
+          "kind": "model",
+          "type": "MoveItemGroupAction"
         }
       ],
       "nullable": false
