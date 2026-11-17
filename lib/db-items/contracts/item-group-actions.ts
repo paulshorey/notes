@@ -16,10 +16,16 @@ export interface UncategorizedItemGroupTarget {
   kind: "uncategorized"
 }
 
+export interface SingleItemGroupTarget {
+  kind: "item"
+  itemId: number
+}
+
 export type ItemGroupTarget =
   | CategoryItemGroupTarget
   | SubcategoryItemGroupTarget
   | UncategorizedItemGroupTarget
+  | SingleItemGroupTarget
 
 export interface ItemGroupSelection {
   workspaceId: number
@@ -48,7 +54,16 @@ export interface MoveItemGroupAction {
   categoryId: number | null
 }
 
-export type ItemGroupAction = RenameItemGroupAction | DeleteItemGroupAction | MoveItemGroupAction
+export interface MoveToWorkspaceAction {
+  kind: "move-to-workspace"
+  destinationWorkspaceId: number
+}
+
+export type ItemGroupAction =
+  | RenameItemGroupAction
+  | DeleteItemGroupAction
+  | MoveItemGroupAction
+  | MoveToWorkspaceAction
 
 export interface PreviewItemGroupRequest {
   userId: number
@@ -76,6 +91,8 @@ export interface ItemGroupPreview {
 export interface ItemGroupActionResponse {
   items: ItemRecord[]
   deletedItemIds: number[]
+  workspaceMove?: { destinationWorkspaceId: number; itemIds: number[] }
+  cleanup?: { workspaceRemoved: boolean }
   category: CategoryRecord | null
   removedCategoryId: number | null
   removedSubcategoryId: number | null

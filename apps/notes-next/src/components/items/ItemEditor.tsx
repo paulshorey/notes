@@ -2,6 +2,7 @@
 
 import { TextCaptureForm } from "@/components/items/TextCaptureForm"
 import { useItemsWorkspace } from "@/workspace/ItemsWorkspaceProvider"
+import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { EMPTY_PENDING_TAG_LABELS } from "@/workspace/shared"
 
 /**
@@ -67,6 +68,14 @@ export function ItemEditor({ onClose }: { onClose?: () => void }) {
       onCancelEdit={handleCancelEdit}
       onAddItem={handleCancelEdit}
       onAddItemInCategory={handleAddItemInCategory}
+      onMoveEditingItem={() => {
+        if (activeEntry?.itemId == null) return
+        useItemsAppStore.getState().setItemGroupDialog({
+          target: { kind: "item", itemId: activeEntry.itemId },
+          label: "item",
+          intent: "move-to-workspace",
+        })
+      }}
       onDeleteEditingItem={() => {
         if (activeEntry?.itemId != null) {
           void handleDeleteItem(activeEntry.itemId)

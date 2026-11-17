@@ -13,6 +13,9 @@ import { readCategory } from "./category-shared"
 import { ItemGroupConflictError, ItemGroupNotFoundError } from "./item-group-errors"
 import { itemSelect, mapItem, resolveCategoryIdForWorkspace, type ItemRow } from "./item/shared"
 import { deleteItemsForUserWithClient } from "./item/delete"
+import { moveWorkspaceItems } from "./item/workspace-move"
+import { lockUserWorkspaces } from "./workspace"
+import { pruneEmptyWorkspaceTaxonomy } from "./workspace-cleanup"
 
 interface GroupRow {
   id: number
@@ -39,6 +42,10 @@ export interface GroupLabelEmbedding {
 const groupPredicate = (selection: ItemGroupSelection, values: unknown[]) => {
   const target = selection.target
   if (target.kind === "uncategorized") return `n.category_id IS NULL`
+  if (target.kind === "item") {
+    values.push(target.itemId)
+    return `n.id=$${values.length}`
+  }
   values.push(target.kind === "category" ? target.categoryId : target.subcategoryId)
   return `n.${target.kind === "category" ? "category_id" : "subcategory_id"}=$${values.length}`
 }
@@ -71,7 +78,8 @@ const selectGroup = async (
     values,
   )
   const target = selection.target
-  if (target.kind === "uncategorized")
+  if (target.kind === "item" && rows.length === 0) throw new ItemGroupNotFoundError()
+  if (target.kind === "uncategorized" || target.kind === "item")
     return { category: null, subcategory: null, subcategories: [], rows }
 
   const forUpdate = lock ? "FOR UPDATE" : ""
@@ -139,7 +147,10 @@ const previewOf = (
         }),
       )
       .digest("hex"),
-    label: state.subcategory?.label ?? state.category?.label ?? UNCATEGORIZED_LABEL,
+    label:
+      selection.target.kind === "item"
+        ? "item"
+        : (state.subcategory?.label ?? state.category?.label ?? UNCATEGORIZED_LABEL),
     itemIds: items.map((item) => item.id),
     itemCount: items.length,
     textItemCount: items.filter(isTextItem).length,
@@ -167,10 +178,20 @@ const withGroup = async <T>(
   selection: ItemGroupSelection,
   lock: boolean,
   work: (client: PoolClient, state: GroupState, preview: ItemGroupPreview) => Promise<T>,
+  action?: ItemGroupAction,
 ) => {
   const client = await getDb().connect()
   try {
     await client.query(`BEGIN ISOLATION LEVEL REPEATABLE READ ${lock ? "" : "READ ONLY"}`)
+    if (action?.kind === "delete" || action?.kind === "move-to-workspace") {
+      const workspaceIds = await lockUserWorkspaces(client, userId)
+      if (!workspaceIds.has(selection.workspaceId)) throw new ItemGroupNotFoundError()
+      if (action.kind === "move-to-workspace") {
+        if (selection.workspaceId === action.destinationWorkspaceId)
+          throw new Error("Choose a different workspace.")
+        if (!workspaceIds.has(action.destinationWorkspaceId)) throw new ItemGroupNotFoundError()
+      }
+    }
     const state = await selectGroup(client, userId, selection, lock)
     const result = await work(client, state, previewOf(userId, selection, state))
     await client.query("COMMIT")
@@ -214,6 +235,7 @@ type ActionResult = {
   removedCategoryId: number | null
   removedSubcategoryId: number | null
   deletedItemIds: number[]
+  workspaceMove?: ItemGroupActionResponse["workspaceMove"]
 }
 
 /** Adding an action does not add another selector, transaction or preview path. */
@@ -305,6 +327,24 @@ const actions: {
       removedCategoryId: state.category?.id ?? null,
       removedSubcategoryId: null,
       deletedItemIds,
+    }
+  },
+  "move-to-workspace": async ({ client, selection, ids }, { destinationWorkspaceId }) => {
+    if (ids.length === 0) throw new ItemGroupConflictError("There are no items to move.")
+    const itemIds = await moveWorkspaceItems(
+      client,
+      selection.workspaceId,
+      destinationWorkspaceId,
+      {
+        itemIds: ids,
+      },
+    )
+    return {
+      categoryId: null,
+      removedCategoryId: null,
+      removedSubcategoryId: null,
+      deletedItemIds: [],
+      workspaceMove: { destinationWorkspaceId, itemIds },
     }
   },
   move: async ({ client, selection, state, ids }, action) => {
@@ -425,29 +465,48 @@ export const executeItemGroupAction = (
   snapshot?: string,
   embedding?: GroupLabelEmbedding,
 ): Promise<ItemGroupActionResponse> =>
-  withGroup(userId, selection, true, async (client, state, preview) => {
-    if (snapshot !== undefined && snapshot !== preview.snapshot) throw new ItemGroupConflictError()
-    const context: ActionContext = {
-      client,
-      userId,
-      selection,
-      state,
-      ids: preview.itemIds,
-      embedding,
-    }
-    const result = await dispatchAction(context, action)
-    const updated = await client.query<ItemRow>(
-      `${itemSelect} WHERE n.workspace_id=$1 AND n.id=ANY($2::int[]) ORDER BY n.id`,
-      [selection.workspaceId, preview.itemIds],
-    )
-    return {
-      items: updated.rows.map(mapItem),
-      deletedItemIds: result.deletedItemIds,
-      removedCategoryId: result.removedCategoryId,
-      removedSubcategoryId: result.removedSubcategoryId,
-      category:
-        result.categoryId === null
-          ? null
-          : await readCategory(client, selection.workspaceId, result.categoryId),
-    }
-  })
+  withGroup(
+    userId,
+    selection,
+    true,
+    async (client, state, preview) => {
+      if (snapshot !== undefined && snapshot !== preview.snapshot)
+        throw new ItemGroupConflictError()
+      const context: ActionContext = {
+        client,
+        userId,
+        selection,
+        state,
+        ids: preview.itemIds,
+        embedding,
+      }
+      const result = await dispatchAction(context, action)
+      const cleanup =
+        action.kind === "delete" || action.kind === "move-to-workspace"
+          ? {
+              workspaceRemoved: await pruneEmptyWorkspaceTaxonomy(
+                client,
+                userId,
+                selection.workspaceId,
+              ),
+            }
+          : undefined
+      const updated = await client.query<ItemRow>(
+        `${itemSelect} WHERE n.workspace_id=$1 AND n.id=ANY($2::int[]) ORDER BY n.id`,
+        [selection.workspaceId, preview.itemIds],
+      )
+      return {
+        items: updated.rows.map(mapItem),
+        deletedItemIds: result.deletedItemIds,
+        ...(result.workspaceMove && { workspaceMove: result.workspaceMove }),
+        ...(cleanup && { cleanup }),
+        removedCategoryId: result.removedCategoryId,
+        removedSubcategoryId: result.removedSubcategoryId,
+        category:
+          result.categoryId === null
+            ? null
+            : await readCategory(client, selection.workspaceId, result.categoryId),
+      }
+    },
+    action,
+  )

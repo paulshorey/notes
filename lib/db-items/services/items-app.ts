@@ -326,6 +326,9 @@ export const parseDeleteItemRequest = (v: unknown): DeleteItemRequest => {
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     itemId: parsePositiveInteger(b.itemId, "itemId"),
+    ...(b.workspaceId === undefined
+      ? {}
+      : { workspaceId: parsePositiveInteger(b.workspaceId, "workspaceId") }),
   }
 }
 export const parseSearchRequest = (v: unknown): SearchRequest => {
@@ -616,6 +619,10 @@ export const updateItemForItemsApp = async (
   const stored = await selectItemEmbeddingStateById(r.itemId, r.userId)
   // A stale editor must see the deletion immediately, before any provider call.
   if (!stored) return null
+  if (stored.workspace_id !== r.item.workspaceId)
+    throw new ItemGroupConflictError(
+      "This item is in a different workspace. Open it there to edit it.",
+    )
   if (canReuse(stored, r.item.description)) {
     const item = await updateItemForUser(
       r.itemId,
@@ -637,7 +644,7 @@ export const updateItemForItemsApp = async (
 export const deleteItemForItemsApp = async (
   r: DeleteItemRequest,
 ): Promise<DeleteResponse | null> =>
-  (await deleteItemForUser(r.itemId, r.userId)) ? { ok: true } : null
+  (await deleteItemForUser(r.itemId, r.userId, r.workspaceId)) ? { ok: true } : null
 export const searchItemsForItemsApp = async (r: SearchRequest): Promise<SearchResponse> => ({
   results: await searchItemsByEmbedding(
     r.userId,

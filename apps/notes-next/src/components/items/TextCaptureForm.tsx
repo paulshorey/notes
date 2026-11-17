@@ -38,6 +38,7 @@ interface TextCaptureFormProps {
   onCreateStatus: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
+  onMoveEditingItem: () => void
   onDeleteEditingItem: () => void
   onAddItem: () => void
   onAddItemInCategory: () => void
@@ -88,6 +89,7 @@ export function TextCaptureForm({
   onCreateStatus,
   onTagValuesChange,
   onCancelEdit,
+  onMoveEditingItem,
   onDeleteEditingItem,
   onAddItem,
   onAddItemInCategory,
@@ -368,6 +370,19 @@ export function TextCaptureForm({
               role="menu"
             >
               <div className={styles.morePanel} aria-label="More note settings">
+                {editingItemId !== null && (
+                  <button
+                    type="button"
+                    className={styles.moreMenuItem}
+                    role="menuitem"
+                    onClick={() => {
+                      closeMoreDropdown()
+                      onMoveEditingItem()
+                    }}
+                  >
+                    <span>Move to workspace</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className={`${styles.moreMenuItem} ${styles.moreMenuDeleteItem}`}

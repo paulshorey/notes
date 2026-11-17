@@ -311,6 +311,13 @@ export function ResultsColumn({
               setActiveMovePicker({ kind: "tag", item, fromTagId, id })
             }
       }
+      onMoveToWorkspace={() =>
+        setItemGroupDialog({
+          target: { kind: "item", itemId: item.id },
+          label: "item",
+          intent: "move-to-workspace",
+        })
+      }
       onDelete={() => onDeleteItem(item.id)}
       deletePending={deletingItemId === item.id}
       movePickerActive={activeMovePicker?.id === id}
@@ -512,6 +519,13 @@ export function ResultsColumn({
                                   })
                               : undefined
                           }
+                          onMoveToWorkspace={() =>
+                            setItemGroupDialog({
+                              target,
+                              label: category?.label ?? UNCATEGORIZED_LABEL,
+                              intent: "move-to-workspace",
+                            })
+                          }
                           onDelete={() =>
                             setItemGroupDialog({
                               target,
@@ -595,6 +609,13 @@ export function ResultsColumn({
                                       target: subTarget,
                                       label: subcategory.label,
                                       intent: "move",
+                                    })
+                                  }
+                                  onMoveToWorkspace={() =>
+                                    setItemGroupDialog({
+                                      target: subTarget,
+                                      label: subcategory.label,
+                                      intent: "move-to-workspace",
                                     })
                                   }
                                   onDelete={() =>
@@ -1010,6 +1031,7 @@ interface SectionActionMenuProps {
   onEdit: () => void
   /** Offered only for groups that have a place in the hierarchy to move from. */
   onMove?: () => void
+  onMoveToWorkspace?: () => void
   onDelete: () => void
   deleteDisabled?: boolean
   deleteTitle?: string
@@ -1023,6 +1045,7 @@ function SectionActionMenu({
   onOpenActionMenuChange,
   onEdit,
   onMove,
+  onMoveToWorkspace,
   onDelete,
   deleteDisabled = false,
   deleteTitle,
@@ -1085,6 +1108,20 @@ function SectionActionMenu({
               <span>Move</span>
             </button>
           )}
+          {onMoveToWorkspace && (
+            <button
+              type="button"
+              className={styles.categoryActionMenuItem}
+              role="menuitem"
+              onClick={() => {
+                onOpenActionMenuChange(null)
+                onMoveToWorkspace()
+              }}
+            >
+              <ArrowsLeftRight size={14} weight="regular" />
+              <span>Move to workspace</span>
+            </button>
+          )}
           <button
             type="button"
             className={`${styles.categoryActionMenuItem} ${styles.categoryActionMenuItemDanger}`}
@@ -1112,6 +1149,7 @@ interface ItemActionMenuProps {
   onOpenActionMenuChange: (id: string | null) => void
   onAssignCategory: () => void
   onChangeTag?: () => void
+  onMoveToWorkspace: () => void
   onDelete: () => void
   deletePending?: boolean
   movePickerActive: boolean
@@ -1126,6 +1164,7 @@ function ItemActionMenu({
   onOpenActionMenuChange,
   onAssignCategory,
   onChangeTag,
+  onMoveToWorkspace,
   onDelete,
   deletePending = false,
   movePickerActive,
@@ -1189,6 +1228,18 @@ function ItemActionMenu({
               <span>Change tag</span>
             </button>
           )}
+          <button
+            type="button"
+            className={styles.categoryActionMenuItem}
+            role="menuitem"
+            onClick={() => {
+              onOpenActionMenuChange(null)
+              onMoveToWorkspace()
+            }}
+          >
+            <ArrowsLeftRight size={14} weight="regular" />
+            <span>Move to workspace</span>
+          </button>
           <button
             type="button"
             className={`${styles.categoryActionMenuItem} ${styles.categoryActionMenuItemDanger}`}

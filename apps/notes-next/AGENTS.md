@@ -196,9 +196,11 @@ or subcategory offers keep-items (the notes become uncategorized, or stay in the
 category without a subcategory) or permanent deletion of its notes. Category and
 subcategory menus also offer Move; `planGroupMove` in `src/lib/itemGroupActions.ts`
 lists the destinations and why one would be refused, so the dialog says so before
-sending. A category list after any group action comes from
-`applyItemGroupResultToCategories`, and unsaved drafts follow a moved group through
-`refileAfterGroupResult`.
+sending. The item editor and sidebar item and group menus offer Move to workspace
+through the same modal. Apply within-workspace filing changes through
+`applyItemGroupResultToCategories` and `refileAfterGroupResult`. A deletion or
+workspace move refreshes workspace and vocabulary lists after cleanup. When the
+active workspace is removed, carry open unsaved drafts into the fallback workspace.
 Opening the dialog pauses autosave/exit PATCHes, settles saved entries before
 preview, and excludes unsaved drafts. Apply the committed response to entries and
 caches before refreshing; deleted entries must never become detached saves.

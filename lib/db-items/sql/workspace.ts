@@ -30,7 +30,8 @@ export const ensureDefaultWorkspaceForUser = async (client: PoolClient, userId: 
    ON CONFLICT(user_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
     [userId, DEFAULT_WORKSPACE_LABEL],
   )
-  let id = rows[0]?.id
+  const createdId = rows[0]?.id
+  let id = createdId
   if (!id) {
     const existing = await client.query<{ id: number }>(
       `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 ORDER BY id LIMIT 1`,
@@ -39,7 +40,7 @@ export const ensureDefaultWorkspaceForUser = async (client: PoolClient, userId: 
     id = existing.rows[0]?.id
   }
   if (!id) throw new Error("Failed to ensure a workspace.")
-  await seedWorkspaceDefaults(client, id)
+  if (createdId) await seedWorkspaceDefaults(client, createdId)
   return id
 }
 export const listWorkspacesByUser = async (userId: number) => {
@@ -80,11 +81,33 @@ export const updateWorkspaceForUser = async (userId: number, id: number, label: 
   )
   return r.rowCount === 1 ? getWorkspaceByIdForUser(userId, id) : null
 }
-export const deleteWorkspaceForUser = async (userId: number, id: number) => {
-  const r = await getDb().query(
-    `DELETE FROM public.user_workspace_v1 WHERE id=$2 AND user_id=$1
- AND (SELECT COUNT(*) FROM public.user_workspace_v1 WHERE user_id=$1)>1`,
-    [userId, id],
+
+/** Serialize removals within an account, while allowing ordinary item FK checks. */
+export const lockUserWorkspaces = async (client: PoolClient, userId: number) => {
+  const { rows } = await client.query<{ id: number }>(
+    `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 ORDER BY id FOR NO KEY UPDATE`,
+    [userId],
   )
-  return r.rowCount === 1
+  return new Set(rows.map(({ id }) => id))
+}
+
+export const deleteWorkspaceForUser = async (userId: number, id: number) => {
+  const client = await getDb().connect()
+  try {
+    await client.query("BEGIN")
+    await lockUserWorkspaces(client, userId)
+    // Recount after waiting for cleanup, in a fresh read-committed snapshot.
+    const result = await client.query(
+      `DELETE FROM public.user_workspace_v1 WHERE id=$2 AND user_id=$1
+       AND (SELECT COUNT(*) FROM public.user_workspace_v1 WHERE user_id=$1)>1`,
+      [userId, id],
+    )
+    await client.query("COMMIT")
+    return result.rowCount === 1
+  } catch (error) {
+    await client.query("ROLLBACK")
+    throw error
+  } finally {
+    client.release()
+  }
 }

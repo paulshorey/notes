@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  type BootstrapResponse,
   type CategoryRecord,
   type CreateCategoryResponse,
   type CreateTagResponse,
@@ -21,8 +22,13 @@ import { useCallback, useRef } from "react"
 import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import { type TextCaptureFormState } from "@/types/items"
-import { updateItemsCacheList } from "@/lib/itemsCache"
-import { type OpenItemKey, itemEntryKey } from "@/stores/openItems"
+import { updateItemsCacheList, writeItemsCache } from "@/lib/itemsCache"
+import {
+  type OpenItemKey,
+  createEmptyOpenItemsState,
+  isEmptyDraft,
+  itemEntryKey,
+} from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { useWorkspaceStore } from "@/stores/workspaceStore"
 import { createEmptyItemDraft } from "@/capabilities/draftParts"
@@ -36,7 +42,8 @@ import {
   draftAfterListWrite,
   storedItemFields,
 } from "@/lib/listWrites"
-import { collectSessionFlushEntries } from "@/lib/openItemsExit"
+import { collectSessionFlushEntries, stateWithDetachedSaves } from "@/lib/openItemsExit"
+import { isPreferencesObject } from "@/lib/userPreferences"
 import { canSaveEntry } from "@/views/registry"
 import { existingFiling, filingLabel, isSameFiling, upsertCategory } from "@/lib/itemFiling"
 import { isResultsDrawerLayout } from "@/lib/resultsColumn"
@@ -56,6 +63,7 @@ export function useTaxonomyActions(
 ) {
   // The last list write for each item, so the next one for that item waits its turn.
   const listWritesByItemRef = useRef(new Map<number, Promise<void>>())
+  const latestCleanupRefreshRef = useRef(0)
 
   const {
     activeKey,
@@ -87,12 +95,14 @@ export function useTaxonomyActions(
     persistOpenItemsRef,
     queuedAutosaveKeysRef,
     refreshResults,
+    rehydrateOpenItems,
     remapEntriesAfterCategoryChange,
     saveEntry,
     scheduleTaxonomyRefresh,
     saveInFlightRef,
     searchMode,
     selectedTagId,
+    setActiveWorkspaceId,
     setCategories,
     setCreateCategoryPending,
     setCreateStatusPending,
@@ -110,6 +120,8 @@ export function useTaxonomyActions(
     setStatusMessage,
     setStatuses,
     setTags,
+    setUserPreferences,
+    setWorkspaces,
     statuses,
     tags,
     tagsRef,
@@ -782,6 +794,15 @@ export function useTaxonomyActions(
     )
   }
 
+  const settlePendingItemWrites = useCallback(async () => {
+    const settled = await Promise.allSettled([
+      ...saveInFlightRef.current.values(),
+      ...directWritesRef.current,
+    ])
+    if (settled.some((result) => result.status === "rejected" || result.value === false))
+      throw new Error("An item could not be saved. Resolve the save error and try again.")
+  }, [directWritesRef, saveInFlightRef])
+
   const prepareItemGroupAction = useCallback(async () => {
     const userId = userRef.current?.id
     const workspaceId = activeWorkspaceIdRef.current
@@ -789,14 +810,9 @@ export function useTaxonomyActions(
       window.clearTimeout(taxonomyRefreshTimeoutRef.current)
       taxonomyRefreshTimeoutRef.current = null
     }
-    // Opening the modal synchronously pauses autosave and exit PATCHes. Settle
-    // existing requests, then save the dirty stored entries their view would save;
-    // new drafts are not members of a server-side group.
-    const settled = await Promise.allSettled([...saveInFlightRef.current.values()])
-    if (settled.some((result) => result.status === "rejected"))
-      throw new Error(
-        "A note could not be saved. Resolve the save error before changing this group.",
-      )
+    // The modal pauses autosave and exit PATCHes. Flush dirty stored items so
+    // the preview includes their latest edits. New drafts stay local.
+    await settlePendingItemWrites()
     if (userRef.current?.id !== userId || activeWorkspaceIdRef.current !== workspaceId)
       throw new Error("The active workspace changed. Reopen the group action.")
     const entries = collectSessionFlushEntries(
@@ -817,20 +833,103 @@ export function useTaxonomyActions(
     detachedSavesRef,
     persistOpenItemsRef,
     saveEntry,
-    saveInFlightRef,
+    settlePendingItemWrites,
     taxonomyRefreshTimeoutRef,
     userRef,
   ])
 
+  const refreshAfterWorkspaceCleanup = useCallback(
+    async (userId: number, workspaceId: number, destinationId?: number) => {
+      const requestId = ++latestCleanupRefreshRef.current
+      const isCurrent = () =>
+        requestId === latestCleanupRefreshRef.current &&
+        userRef.current?.id === userId &&
+        activeWorkspaceIdRef.current === workspaceId
+      let data: BootstrapResponse
+      try {
+        data = await readJson<BootstrapResponse>(
+          await itemsFetch(`/api/bootstrap?workspaceId=${destinationId ?? workspaceId}`, {
+            cache: "no-store",
+          }),
+        )
+      } catch (error) {
+        if (isCurrent()) throw error
+        return
+      }
+      if (!isCurrent() || data.user.id !== userId) return
+
+      const store = useItemsAppStore.getState()
+      if (!data.tags.some(({ id }) => id === store.selectedTagId)) store.setSelectedTagId(null)
+      setWorkspaces(data.workspaces)
+      setItems(data.items)
+      setCategories(data.categories)
+      setTags(data.tags)
+      setStatuses(data.statuses)
+      if (data.activeWorkspaceId !== workspaceId) {
+        const drafts = stateWithDetachedSaves(store, detachedSavesRef.current).openItems.filter(
+          (entry) => entry.itemId === null && !isEmptyDraft(entry),
+        )
+        detachedSavesRef.current.clear()
+        groupDeferredSaveKeysRef.current.clear()
+        queuedAutosaveKeysRef.current.clear()
+        activeWorkspaceIdRef.current = data.activeWorkspaceId
+        setActiveWorkspaceId(data.activeWorkspaceId)
+        store.setSearchQuery("")
+        setSearchResults([])
+        store.replaceOpenItems(createEmptyOpenItemsState())
+        rehydrateOpenItems(userId, {
+          workspaceId: data.activeWorkspaceId,
+          itemList: data.items,
+          categoryList: data.categories,
+          statusList: data.statuses,
+          tagList: data.tags,
+          pendingMerge: false,
+          force: true,
+          carriedDrafts: drafts,
+        })
+        if (useItemsAppStore.getState().openItems.length === 0) openDraftEntry()
+        setUserPreferences((previous) => ({
+          ...previous,
+          notesApp: {
+            ...(isPreferencesObject(previous.notesApp) ? previous.notesApp : {}),
+            currentWorkspaceId: data.activeWorkspaceId,
+          },
+        }))
+      }
+      remapEntriesAfterCategoryChange(data.items, data.categories, data.statuses, data.tags)
+      persistOpenItemsRef.current()
+      writeItemsCache({ userId, ...data })
+    },
+    [
+      activeWorkspaceIdRef,
+      detachedSavesRef,
+      groupDeferredSaveKeysRef,
+      openDraftEntry,
+      persistOpenItemsRef,
+      queuedAutosaveKeysRef,
+      rehydrateOpenItems,
+      remapEntriesAfterCategoryChange,
+      setActiveWorkspaceId,
+      setCategories,
+      setItems,
+      setSearchResults,
+      setStatuses,
+      setTags,
+      setUserPreferences,
+      setWorkspaces,
+      userRef,
+    ],
+  )
+
   const applyItemGroupAction = useCallback(
-    (result: ItemGroupActionResponse) => {
+    async (result: ItemGroupActionResponse) => {
       const currentUser = userRef.current
       const workspaceId = activeWorkspaceIdRef.current
       if (!currentUser || workspaceId === null) return
-      const deleted = new Set(result.deletedItemIds)
-      for (const id of deleted) closeEntriesForItemInStore(id)
+      const departed = new Set([...result.deletedItemIds, ...(result.workspaceMove?.itemIds ?? [])])
+      for (const id of departed) closeEntriesForItemInStore(id)
       for (const [key, entry] of detachedSavesRef.current) {
-        if (entry.itemId !== null && deleted.has(entry.itemId)) {
+        if (entry.itemId !== null && departed.has(entry.itemId)) {
           detachedSavesRef.current.delete(key)
           queuedAutosaveKeysRef.current.delete(key)
           groupDeferredSaveKeysRef.current.delete(key)
@@ -872,7 +971,7 @@ export function useTaxonomyActions(
       updateItemsCacheList(currentUser.id, workspaceId, "categories", latestCategories)
       setSearchResults((previous) =>
         previous
-          .filter(({ item }) => !deleted.has(item.id))
+          .filter(({ item }) => !departed.has(item.id))
           .map((entry) => ({
             ...entry,
             item: result.items.find((item) => item.id === entry.item.id) ?? entry.item,
@@ -881,15 +980,29 @@ export function useTaxonomyActions(
       remapEntriesAfterCategoryChange(latestItems, latestCategories, statuses, tagsRef.current)
       persistOpenItemsRef.current()
       setStatusMessage(
-        result.deletedItemIds.length
-          ? `Deleted ${result.deletedItemIds.length} items.`
-          : "Categories updated.",
+        result.workspaceMove
+          ? `Moved ${result.workspaceMove.itemIds.length === 1 ? "1 item" : `${result.workspaceMove.itemIds.length} items`} to another workspace.`
+          : result.deletedItemIds.length
+            ? `Deleted ${result.deletedItemIds.length} items.`
+            : "Categories updated.",
       )
       // The committed result is already applied. A failed count/search refresh
       // must never leave a completed destructive action available to replay.
-      void refreshResults(currentUser.id).catch((error) =>
-        setErrorMessage(`The change was saved. ${getErrorMessage(error)}`),
-      )
+      try {
+        if (result.cleanup) {
+          await refreshAfterWorkspaceCleanup(
+            currentUser.id,
+            workspaceId,
+            result.cleanup.workspaceRemoved
+              ? result.workspaceMove?.destinationWorkspaceId
+              : undefined,
+          )
+        } else {
+          await refreshResults(currentUser.id)
+        }
+      } catch (error) {
+        setErrorMessage(`The change was saved. ${getErrorMessage(error)}`)
+      }
     },
     [
       activeWorkspaceIdRef,
@@ -901,6 +1014,7 @@ export function useTaxonomyActions(
       patchEveryEntry,
       persistOpenItemsRef,
       queuedAutosaveKeysRef,
+      refreshAfterWorkspaceCleanup,
       refreshResults,
       remapEntriesAfterCategoryChange,
       setCategories,
@@ -1019,23 +1133,36 @@ export function useTaxonomyActions(
   }
 
   const handleDeleteItem = async (itemId: number) => {
-    if (!user) return
+    const workspaceId = activeWorkspaceId
+    if (!user || workspaceId === null) return
     clearMessages()
     setDeletingItemId(itemId)
     try {
+      await settlePendingItemWrites()
+      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
       const response = await itemsFetch("/api/items", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, itemId }),
+        body: JSON.stringify({ userId: user.id, itemId, workspaceId }),
       })
       await readJson<{ ok: true }>(response)
-      await refreshResults(user.id)
-      // Close the entry wherever it sits, not only when it happens to be the
-      // one on screen — otherwise a deleted note lingers in the recent list.
-      // Its text is gone by the user's own request, so this removal is the one
-      // that does not route through a detached save.
+      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
       closeEntriesForItemInStore(itemId)
-      setStatusMessage("Note deleted.")
+      for (const [key, entry] of detachedSavesRef.current) {
+        if (entry.itemId !== itemId) continue
+        detachedSavesRef.current.delete(key)
+        queuedAutosaveKeysRef.current.delete(key)
+        groupDeferredSaveKeysRef.current.delete(key)
+      }
+      const latestItems = itemsRef.current.filter(({ id }) => id !== itemId)
+      setItems(latestItems)
+      updateItemsCacheList(user.id, workspaceId, "items", latestItems)
+      setSearchResults((previous) => previous.filter(({ item }) => item.id !== itemId))
+      persistOpenItemsRef.current()
+      setStatusMessage("Item deleted.")
+      await refreshAfterWorkspaceCleanup(user.id, workspaceId).catch((error) =>
+        setErrorMessage(`The item was deleted. ${getErrorMessage(error)}`),
+      )
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {

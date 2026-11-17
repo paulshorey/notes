@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto"
 import type { PoolClient } from "pg"
 import type { RestoreBackupResponse } from "../../contracts/items-app"
-import { MOVE_ITEMS_SQL } from "../item/stored-capabilities"
+import { moveWorkspaceItems, withStoredTimeModified } from "../item/workspace-move"
 import { itemMergeIdentities } from "./item-merge-identity"
 import type { UserV1Row } from "../../generated/typescript/db-types"
 import { getDb } from "../../lib/db/postgres"
@@ -178,20 +178,6 @@ export const MERGE_TABLE_STRATEGIES: Record<string, "dedup-remap" | "reparent" |
   user_api_token_v1: "drop",
 }
 
-/**
- * Changing who owns a row is not an edit. The timestamp trigger keeps a row's stored
- * modification time while this transaction-scoped setting is on.
- */
-const withStoredTimeModified = async <T>(client: PoolClient, work: () => Promise<T>) => {
-  await client.query(`SELECT set_config('app.keep_time_modified','on',true)`)
-  try {
-    return await work()
-  } finally {
-    // A failed statement has already aborted the transaction; there is nothing to reset.
-    await client.query(`SELECT set_config('app.keep_time_modified','off',true)`).catch(() => {})
-  }
-}
-
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
@@ -310,33 +296,6 @@ export const mergeAnonymousUserIntoWithClient = async (
         existingCounts.set(signature, (existingCounts.get(signature) ?? 0) + 1)
       }
     }
-    await client.query(
-      `INSERT INTO public.workspace_category_v1(workspace_id,label,category_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
-      SELECT $1,label,category_embedding,embedding_model,embedding_updated_at,time_created,time_modified FROM public.workspace_category_v1 WHERE workspace_id=$2
-      ON CONFLICT(workspace_id,label) DO NOTHING`,
-      [destinationId, source.id],
-    )
-    // A subcategory is matched by its label within the category of the same label.
-    await client.query(
-      `INSERT INTO public.workspace_subcategory_v1(category_id,label,time_created,time_modified)
-      SELECT dc.id,ss.label,ss.time_created,ss.time_modified FROM public.workspace_subcategory_v1 ss
-      JOIN public.workspace_category_v1 sc ON sc.id=ss.category_id AND sc.workspace_id=$2
-      JOIN public.workspace_category_v1 dc ON dc.workspace_id=$1 AND dc.label=sc.label
-      ON CONFLICT(category_id,label) DO NOTHING`,
-      [destinationId, source.id],
-    )
-    await client.query(
-      `INSERT INTO public.workspace_status_v1(workspace_id,label,position,time_created,time_modified)
-      SELECT $1,label,position,time_created,time_modified FROM public.workspace_status_v1 WHERE workspace_id=$2
-      ON CONFLICT(workspace_id,label) DO NOTHING`,
-      [destinationId, source.id],
-    )
-    await client.query(
-      `INSERT INTO public.workspace_tag_v1(workspace_id,label,tag_embedding,embedding_model,embedding_updated_at,time_created,time_modified)
-      SELECT $1,label,tag_embedding,embedding_model,embedding_updated_at,time_created,time_modified FROM public.workspace_tag_v1 WHERE workspace_id=$2
-      ON CONFLICT(workspace_id,label) DO NOTHING`,
-      [destinationId, source.id],
-    )
     const skippedIds: number[] = []
     for (const [id, signature] of sourceIdentities) {
       const copies = existingCounts.get(signature) ?? 0
@@ -345,12 +304,10 @@ export const mergeAnonymousUserIntoWithClient = async (
         skippedIds.push(id)
       }
     }
-    // The items move instead of being copied: each keeps its id, so its embeddings and
-    // every row keyed by item id stay attached without being listed here.
-    const moved = await withStoredTimeModified(client, () =>
-      client.query<{ id: number }>(MOVE_ITEMS_SQL, [destinationId, source.id, skippedIds]),
-    )
-    result.itemsImported += moved.rows.length
+    const moved = await moveWorkspaceItems(client, source.id, destinationId, {
+      excludeItemIds: skippedIds,
+    })
+    result.itemsImported += moved.length
     result.itemsSkipped += skippedIds.length
     await client.query(`DELETE FROM public.user_workspace_v1 WHERE id=$1`, [source.id])
   }

@@ -30,13 +30,14 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   with `isKind` instead of testing fields.
 - `contracts/item-group-actions.ts` defines group selection and tagged actions.
   `sql/item-groups.ts` owns the shared predicate, preview fingerprint, transaction,
-  and action registry (rename, delete, move) for category, subcategory, and
-  uncategorized targets; add future member actions there rather than new per-target
-  loops. Fingerprints detect changes, not permissions: every
-  execution reauthorizes the workspace and derives IDs on the server.
+  and action registry for category, subcategory, and uncategorized targets.
+  Workspace moves also support a single item. Add future member actions to the
+  registry. Execution reauthorizes workspaces and derives IDs on the server.
 - Both existing category mutation helpers and bulk routes use that engine.
   Lock item rows in ID order before category and subcategory rows, and unfile or
-  delete items before removing the row that files them. Single/bulk item deletion shares `sql/item/delete.ts`. Provider
+  delete items before removing the row that files them. Single and bulk item
+  deletion share `sql/item/delete.ts`. Deletions and workspace moves run
+  `sql/workspace-cleanup.ts` in the same transaction. Provider
   requests finish before acquiring the transaction client. See
   `docs/db/item-group-actions.md` at the repository root for semantics and limits.
 

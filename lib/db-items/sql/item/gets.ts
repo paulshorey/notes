@@ -43,11 +43,12 @@ export const findWorkspaceIdByItemUid = async (userId: number, uid: string) => {
 }
 export const selectItemEmbeddingStateById = async (itemId: number, userId: number) => {
   const { rows } = await getDb().query<{
+    workspace_id: number
     description: string | null
     has_embedding: boolean
     embedding_model: string | null
   }>(
-    `SELECT n.description,(n.description_embedding IS NOT NULL) has_embedding,n.embedding_model
+    `SELECT n.workspace_id,n.description,(n.description_embedding IS NOT NULL) has_embedding,n.embedding_model
      FROM public.workspace_item_v1 n JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
      WHERE n.id=$1 AND w.user_id=$2`,
     [itemId, userId],
