@@ -269,7 +269,7 @@ const rehomedTables = ownedTables.flatMap(([name, table]) =>
 )
 
 /**
- * Move the items of workspace `$2` to workspace `$1`, except the ids in `$3`. The rows
+ * Move selected items (`$3`, null for all) from workspace `$2` to `$1`, except the ids in `$4`. The rows
  * keep their ids, so everything keyed only by item id comes along untouched. Columns
  * that point into the old workspace are re-pointed by label, and tables whose rows do
  * the same are detached and attached again. It is one statement, so the composite
@@ -277,7 +277,7 @@ const rehomedTables = ownedTables.flatMap(([name, table]) =>
  */
 export const MOVE_ITEMS_SQL = `WITH moved AS MATERIALIZED (
     SELECT n.id FROM public.workspace_item_v1 n
-    WHERE n.workspace_id=$2 AND n.id<>ALL($3::int[])
+    WHERE n.workspace_id=$2 AND ($3::int[] IS NULL OR n.id=ANY($3)) AND n.id<>ALL($4::int[])
   )${rehomedTables.map(({ name, detach }) => `, ${quoted(`${name}_detached`)} AS (\n    ${detach}\n  )`).join("")}, updated AS (
     UPDATE public.workspace_item_v1 n SET workspace_id=$1,
       ${rehomed.map(([column, value]) => `${column}=${value}`).join(",\n      ")}

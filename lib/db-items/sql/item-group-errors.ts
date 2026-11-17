@@ -1,6 +1,6 @@
 export class ItemGroupNotFoundError extends Error {
   constructor() {
-    super("Workspace or category not found.")
+    super("Workspace or item group not found.")
   }
 }
 

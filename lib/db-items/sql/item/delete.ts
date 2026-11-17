@@ -1,7 +1,9 @@
 import { getDb } from "../../lib/db/postgres"
 import type { PoolClient } from "pg"
+import { lockWorkspacesForCleanup, pruneEmptyWorkspaceTaxonomy } from "../workspace-cleanup"
+import { ItemGroupConflictError } from "../item-group-errors"
 
-/** Single and bulk deletion share ownership checks and future lifecycle work. */
+/** Single and bulk deletion share ownership checks. */
 export const deleteItemsForUserWithClient = async (
   client: Pick<PoolClient, "query">,
   userId: number,
@@ -17,6 +19,39 @@ export const deleteItemsForUserWithClient = async (
   return result.rows.map((row) => row.id).sort((a, b) => a - b)
 }
 
-export const deleteItemForUser = async (itemId: number, userId: number) => {
-  return (await deleteItemsForUserWithClient(getDb(), userId, [itemId])).length > 0
+export const deleteItemForUser = async (
+  itemId: number,
+  userId: number,
+  expectedWorkspaceId: number | null = null,
+) => {
+  const client = await getDb().connect()
+  try {
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ")
+    await lockWorkspacesForCleanup(client, userId)
+    const { rows } = await client.query<{ workspace_id: number }>(
+      `SELECT n.workspace_id FROM public.workspace_item_v1 n
+       JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
+       WHERE n.id=$1 AND w.user_id=$2 AND ($3::int IS NULL OR w.id=$3)`,
+      [itemId, userId, expectedWorkspaceId],
+    )
+    const workspaceId = rows[0]?.workspace_id
+    const deleted =
+      workspaceId !== undefined &&
+      (await deleteItemsForUserWithClient(client, userId, [itemId], workspaceId)).length > 0
+    if (deleted) await pruneEmptyWorkspaceTaxonomy(client, userId, workspaceId)
+    await client.query("COMMIT")
+    return deleted
+  } catch (error) {
+    await client.query("ROLLBACK")
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error.code === "40001" || error.code === "40P01")
+    )
+      throw new ItemGroupConflictError("The workspace changed. Try deleting the item again.")
+    throw error
+  } finally {
+    client.release()
+  }
 }

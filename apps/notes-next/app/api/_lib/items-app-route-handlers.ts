@@ -291,7 +291,7 @@ export const createItemsRouteHandlers = (
 
       return itemJson(request, result)
     } catch (error) {
-      return toErrorResponse(error)
+      return toErrorResponse(error, service.getItemsAppErrorStatus(error))
     }
   },
 })

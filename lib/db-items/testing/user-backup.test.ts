@@ -303,7 +303,10 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
     // Force a real SQL error after staging and after destination preferences,
     // categories, and statuses have already been merged.
     const queryMock = mock.method(client, "query", async (sql: string, values?: unknown[]) => {
-      if (sql.includes("SELECT $1,label,tag_embedding")) {
+      if (
+        sql.includes("INSERT INTO public.workspace_tag_v1") &&
+        sql.includes("FROM public.workspace_tag_v1 t")
+      ) {
         return originalQuery("SELECT 1/0")
       }
       return originalQuery(sql, values)

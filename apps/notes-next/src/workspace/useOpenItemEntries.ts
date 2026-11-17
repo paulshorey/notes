@@ -14,7 +14,13 @@ import {
   readOpenItemsSnapshotForAnyUser,
   reconcileOpenItems,
 } from "@/lib/openItemsStorage"
-import { type OpenItemKey, clampMaxOpenItems, itemEntryKey } from "@/stores/openItems"
+import {
+  type OpenItemEntry,
+  type OpenItemKey,
+  clampMaxOpenItems,
+  createEmptyOpenItemsState,
+  itemEntryKey,
+} from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { existingFiling, filingLabel, isSameFiling, itemFilingLabel } from "@/lib/itemFiling"
 import { readItemsUrlSelection, writeItemsUrlSelection } from "@/lib/itemsUrlSelection"
@@ -108,6 +114,7 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
         tagList,
         pendingMerge,
         force = false,
+        carriedDrafts = [],
       }: {
         workspaceId: number
         itemList: ItemRecord[]
@@ -116,6 +123,7 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
         tagList: TagRecord[]
         pendingMerge: boolean
         force?: boolean
+        carriedDrafts?: OpenItemEntry[]
       },
     ) => {
       if (didRehydrateOpenItemsRef.current && !force) return
@@ -132,22 +140,30 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
 
       didRehydrateOpenItemsRef.current = true
 
-      if (!usable) return
+      if (!usable && carriedDrafts.length === 0) return
 
       const itemsById = new Map(itemList.map((item) => [item.id, item]))
       const statusIds = new Set(statusList.map((status) => status.id))
       const tagIds = new Set(tagList.map((tag) => tag.id))
 
-      const { state, orphanedDraftCount } = reconcileOpenItems(
-        usable,
-        (itemId) => itemsById.get(itemId),
-        {
-          existingFiling: (filing) => existingFiling(categoryList, filing),
-          statusExists: (statusId) => statusIds.has(statusId),
-          tagExists: (tagId) => tagIds.has(tagId),
-        },
-      )
+      const { state, orphanedDraftCount } = usable
+        ? reconcileOpenItems(usable, (itemId) => itemsById.get(itemId), {
+            existingFiling: (filing) => existingFiling(categoryList, filing),
+            statusExists: (statusId) => statusIds.has(statusId),
+            tagExists: (tagId) => tagIds.has(tagId),
+          })
+        : { state: createEmptyOpenItemsState(), orphanedDraftCount: 0 }
 
+      // A workspace removed by cleanup has nowhere to keep its open drafts.
+      // Carry them into the fallback workspace alongside its persisted ring.
+      const knownUids = new Set(state.openItems.map((entry) => entry.uid))
+      const incoming = carriedDrafts
+        .filter((entry) => !knownUids.has(entry.uid))
+        .map((entry) => ({ ...entry, key: `draft:${state.nextDraftSequence++}` }))
+      if (incoming.length > 0) {
+        state.openItems = [...incoming, ...state.openItems]
+        state.activeKey = incoming[0]!.key
+      }
       if (state.openItems.length === 0) return
 
       replaceOpenItems(state)

@@ -15,9 +15,9 @@ export const describeItemGroupContents = (preview: ItemGroupPreview) => {
 
 /** Apply a successful server response before any fallible background refresh. */
 export const applyItemGroupResult = (items: ItemRecord[], result: ItemGroupActionResponse) => {
-  const deleted = new Set(result.deletedItemIds)
+  const departed = new Set([...result.deletedItemIds, ...(result.workspaceMove?.itemIds ?? [])])
   const updated = new Map(result.items.map((item) => [item.id, item]))
-  return items.filter((item) => !deleted.has(item.id)).map((item) => updated.get(item.id) ?? item)
+  return items.filter((item) => !departed.has(item.id)).map((item) => updated.get(item.id) ?? item)
 }
 
 /**
@@ -72,6 +72,7 @@ export const planGroupMove = (
   categories: readonly CategoryRecord[],
   target: ItemGroupTarget,
 ): GroupMovePlan => {
+  if (target.kind === "item") return { blocked: "Choose a destination workspace.", options: [] }
   if (target.kind === "uncategorized")
     return { blocked: "Uncategorized notes are filed by naming a category.", options: [] }
 

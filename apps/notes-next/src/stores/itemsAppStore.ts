@@ -27,7 +27,7 @@ import {
 type State = OpenItemsState & {
   itemGroupDialog: {
     target: ItemGroupTarget
-    intent: "rename" | "delete" | "move"
+    intent: "rename" | "delete" | "move" | "move-to-workspace"
     label: string
   } | null
   backupOperation: "download" | "restore" | null

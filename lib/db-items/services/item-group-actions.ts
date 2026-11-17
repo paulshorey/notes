@@ -24,6 +24,8 @@ const selection = (value: unknown): ItemGroupSelection => {
   const target = object(input.target)
   const workspaceId = id(input.workspaceId)
   if (target.kind === "uncategorized") return { workspaceId, target: { kind: "uncategorized" } }
+  if (target.kind === "item")
+    return { workspaceId, target: { kind: "item", itemId: id(target.itemId) } }
   if (target.kind === "category")
     return { workspaceId, target: { kind: "category", categoryId: id(target.categoryId) } }
   if (target.kind === "subcategory")
@@ -45,6 +47,17 @@ export const parseExecuteItemGroupActionRequest = (
   const action = object(input.action)
   if (typeof input.snapshot !== "string" || !/^[a-f0-9]{64}$/.test(input.snapshot))
     throw new Error("A current group preview is required.")
+  if (action.kind === "move-to-workspace") {
+    const destinationWorkspaceId = id(action.destinationWorkspaceId)
+    if (destinationWorkspaceId === request.selection.workspaceId)
+      throw new Error("Choose a different workspace.")
+    return {
+      ...request,
+      snapshot: input.snapshot,
+      action: { kind: "move-to-workspace", destinationWorkspaceId },
+    }
+  }
+  if (request.selection.target.kind === "item") throw new Error("Choose a workspace for this item.")
   if (action.kind === "rename") {
     const label = typeof action.label === "string" ? action.label.trim().toLocaleLowerCase() : ""
     if (!label) throw new Error("label is required.")

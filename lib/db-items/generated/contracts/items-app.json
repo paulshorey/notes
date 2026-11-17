@@ -875,6 +875,13 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
+        },
+        {
+          "name": "workspaceId",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
         }
       ]
     },
@@ -1856,6 +1863,24 @@
         }
       ]
     },
+    "SingleItemGroupTarget": {
+      "fields": [
+        {
+          "name": "kind",
+          "optional": false,
+          "kind": "literal",
+          "value": "item",
+          "nullable": false
+        },
+        {
+          "name": "itemId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
     "ItemGroupSelection": {
       "fields": [
         {
@@ -1925,6 +1950,24 @@
           "kind": "scalar",
           "type": "number",
           "nullable": true
+        }
+      ]
+    },
+    "MoveToWorkspaceAction": {
+      "fields": [
+        {
+          "name": "kind",
+          "optional": false,
+          "kind": "literal",
+          "value": "move-to-workspace",
+          "nullable": false
+        },
+        {
+          "name": "destinationWorkspaceId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
         }
       ]
     },
@@ -2050,6 +2093,20 @@
           "nullable": false
         },
         {
+          "name": "workspaceMove",
+          "optional": true,
+          "kind": "model",
+          "type": "{ destinationWorkspaceId: number; itemIds: number[] }",
+          "nullable": false
+        },
+        {
+          "name": "cleanup",
+          "optional": true,
+          "kind": "model",
+          "type": "{ workspaceRemoved: boolean }",
+          "nullable": false
+        },
+        {
           "name": "category",
           "optional": false,
           "kind": "model",
@@ -2086,6 +2143,10 @@
         {
           "kind": "model",
           "type": "UncategorizedItemGroupTarget"
+        },
+        {
+          "kind": "model",
+          "type": "SingleItemGroupTarget"
         }
       ],
       "nullable": false
@@ -2104,6 +2165,10 @@
         {
           "kind": "model",
           "type": "MoveItemGroupAction"
+        },
+        {
+          "kind": "model",
+          "type": "MoveToWorkspaceAction"
         }
       ],
       "nullable": false

@@ -255,6 +255,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           userId={user.id}
           workspaceId={activeWorkspaceId}
           categories={categories}
+          workspaces={workspaces}
           prepare={prepareItemGroupAction}
           applied={applyItemGroupAction}
         />

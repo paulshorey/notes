@@ -30,7 +30,8 @@ export const ensureDefaultWorkspaceForUser = async (client: PoolClient, userId: 
    ON CONFLICT(user_id,label) DO UPDATE SET label=EXCLUDED.label RETURNING id`,
     [userId, DEFAULT_WORKSPACE_LABEL],
   )
-  let id = rows[0]?.id
+  const createdId = rows[0]?.id
+  let id = createdId
   if (!id) {
     const existing = await client.query<{ id: number }>(
       `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 ORDER BY id LIMIT 1`,
@@ -39,7 +40,7 @@ export const ensureDefaultWorkspaceForUser = async (client: PoolClient, userId: 
     id = existing.rows[0]?.id
   }
   if (!id) throw new Error("Failed to ensure a workspace.")
-  await seedWorkspaceDefaults(client, id)
+  if (createdId) await seedWorkspaceDefaults(client, createdId)
   return id
 }
 export const listWorkspacesByUser = async (userId: number) => {

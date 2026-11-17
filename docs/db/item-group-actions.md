@@ -12,12 +12,14 @@ contract. `POST /api/item-groups` previews `{ selection: { workspaceId, target }
 the cookie session or bearer token; body user IDs and member ID lists are ignored.
 
 Targets are `{ kind: "category", categoryId }`,
-`{ kind: "subcategory", subcategoryId }`, and `{ kind: "uncategorized" }`. A
-category group holds every item filed in the category, including those in its
-subcategories; a subcategory group holds only its own.
+`{ kind: "subcategory", subcategoryId }`, `{ kind: "uncategorized" }`, and
+`{ kind: "item", itemId }`. A category group holds every item filed in the
+category, including those in its subcategories. A subcategory group holds its own
+items. The single-item selector is available for workspace moves.
 
-Actions are `{ kind: "rename", label }`, `{ kind: "delete", deleteItems: boolean }`,
-and `{ kind: "move", categoryId: number | null }`.
+Actions include `{ kind: "rename", label }`, `{ kind: "delete", deleteItems: boolean }`,
+`{ kind: "move", categoryId: number | null }`, and
+`{ kind: "move-to-workspace", destinationWorkspaceId }`.
 
 | Target        | Rename                                | Delete, keep items                                    | Delete with items                         |
 | ------------- | ------------------------------------- | ----------------------------------------------------- | ----------------------------------------- |
@@ -45,6 +47,20 @@ naming a category for them is the rename action. A move never deletes an item an
 needs no embedding provider; a category created by a move gets its label embedding
 from the next embedding maintenance run.
 
+## Moving between workspaces
+
+The item editor and the sidebar item and group menus offer **Move to workspace**.
+Both workspaces must belong to the authenticated account, including visitor accounts.
+The items keep their IDs, public links, timestamps, content, and embeddings. The
+destination reuses categories, subcategories, tags, and statuses with the same
+label. A subcategory match is scoped to its parent category. The move creates missing
+labels from the source, preserving taxonomy metadata for those new rows.
+
+An item or group deletion and a workspace move prune unreferenced categories,
+subcategories, tags, and statuses in the affected source workspace, inside the
+same transaction. If it has no items left, cleanup removes the workspace. The
+account gets a fresh starter workspace when it has no other workspace for capture.
+
 Actions cover the whole group in one workspace, including non-text items and
 items hidden by presentation filters. The preview reports the item count, the text
 item count, and for a category the number of subcategories removed with it. The
@@ -53,14 +69,15 @@ Notes dialog discloses non-text items and those subcategories before deletion.
 ## Shared execution
 
 `sql/item-groups.ts` implements the membership predicate once. Preview and
-execution use it under repeatable-read transactions. Execution locks item rows in
-ID order, then the target category or subcategory and, for a category, its
-subcategories. It rechecks the fingerprint, dispatches through the typed action
+execution use it under repeatable-read transactions. A cleanup operation first locks the account's workspaces in ID order. Group
+execution locks selected item rows in ID order, then the target category or
+subcategory and, for a category, its subcategories. It rechecks the fingerprint, dispatches through the typed action
 registry, and returns the committed items and the affected category (for a
-subcategory, its refreshed parent; for a move, the destination). A move also locks
-its destination category, after the target. An ordinary item save locks its own row
-before its foreign keys touch a category, so the two never deadlock; two moves into
-each other's categories can, and that surfaces as the usual conflict.
+subcategory, its refreshed parent; for a move within the workspace, the destination).
+A workspace move returns the IDs removed from the source view and the destination
+workspace ID. A move within the workspace also locks its destination category
+after the target. An ordinary item save locks its item row before its foreign
+keys touch a category.
 
 Unfiling or refiling is an update of the item row, so it moves the item's
 modification time; a label-only rename does not. The item foreign keys take no delete action, so the
@@ -95,8 +112,10 @@ tables must also participate in canonical item deletion.
 The Zustand group dialog pauses autosave and exit PATCHes. It settles in-flight
 saves and flushes dirty persisted entries before preview; untouched/unsaved drafts
 are not silently persisted for the action. Deferred detached saves resume once on
-close. The result repairs open entries and caches immediately, removes deleted
-entries without detached saves, then refreshes counts/search. After a move, the
+close. The result repairs open entries and caches immediately and closes deleted
+or moved entries without detached saves. After cleanup the client refreshes workspace
+and taxonomy lists and carries any unsaved drafts into the fallback workspace if the
+source was removed. After a move within the workspace, the
 response names only the destination category, so `applyItemGroupResultToCategories`
 takes the moved subcategory out of the category that still lists it, and
 `refileAfterGroupResult` points a draft that was being filed in the moved group at
@@ -104,6 +123,6 @@ its new place, since no server item exists to carry that change. A refresh failu
 does not make a completed mutation available for replay. Session/workspace changes
 invalidate pending dialog responses.
 
-There are no general item revision checks. A stale item PATCH receives 404 after
-deletion, and a client holding an older copy of an item can still save its previous
-category over a group action, as any item update can.
+A stale item PATCH receives 404 after deletion and 409 when the item is now in
+another workspace. A client holding an older copy can still save its previous
+category after group actions within the same workspace.

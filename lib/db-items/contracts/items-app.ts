@@ -203,6 +203,7 @@ export interface UpdateItemRequest {
 export interface DeleteItemRequest {
   userId: number
   itemId: number
+  workspaceId?: number
 }
 
 export interface SearchRequest {

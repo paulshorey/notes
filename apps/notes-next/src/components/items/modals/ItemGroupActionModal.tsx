@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Button, Modal, Select, Text, TextInput } from "@gravity-ui/uikit"
-import type { CategoryRecord } from "@lib/db-items"
+import type { CategoryRecord, WorkspaceRecord } from "@lib/db-items"
 import type {
   ItemGroupAction,
   ItemGroupActionResponse,
@@ -18,15 +18,23 @@ interface Props {
   userId: number
   workspaceId: number
   categories: CategoryRecord[]
+  workspaces: WorkspaceRecord[]
   prepare: () => Promise<void>
-  applied: (result: ItemGroupActionResponse) => void
+  applied: (result: ItemGroupActionResponse) => Promise<void>
 }
 
 /** A move destination as a select value; the top level has no category id. */
 const TOP_LEVEL = "top"
 
 /** Every group kind shares preparation, preview, confirmation and execution. */
-export function ItemGroupActionModal({ userId, workspaceId, categories, prepare, applied }: Props) {
+export function ItemGroupActionModal({
+  userId,
+  workspaceId,
+  categories,
+  workspaces,
+  prepare,
+  applied,
+}: Props) {
   const dialog = useItemsAppStore((state) => state.itemGroupDialog)
   const setDialog = useItemsAppStore((state) => state.setItemGroupDialog)
   const [preview, setPreview] = useState<ItemGroupPreview | null>(null)
@@ -80,6 +88,8 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
   const noun = dialog.target.kind === "subcategory" ? "subcategory" : "category"
   const renaming = dialog.intent === "rename"
   const moving = dialog.intent === "move"
+  const movingWorkspace = dialog.intent === "move-to-workspace"
+  const workspaceOptions = workspaces.filter((workspace) => workspace.id !== workspaceId)
   const movePlan = moving ? planGroupMove(categories, dialog.target) : null
   const moveOption =
     movePlan?.options.find(
@@ -113,8 +123,8 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
       })
       const result = await readJson<ItemGroupActionResponse>(response)
       if (!isCurrent()) return
-      appliedRef.current(result)
-      setDialog(null)
+      await appliedRef.current(result)
+      if (useItemsAppStore.getState().itemGroupDialog === dialog) setDialog(null)
     } catch (cause) {
       if (!isCurrent()) return
       setError(getErrorMessage(cause))
@@ -132,13 +142,15 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
         <Text variant="subheader-2">
           {renaming
             ? `Rename ${dialog.label}`
-            : moving
-              ? `Move ${dialog.label}`
-              : uncategorized
-                ? "Delete uncategorized items?"
-                : `Delete ${dialog.label}?`}
+            : movingWorkspace
+              ? `Move ${dialog.label} to another workspace`
+              : moving
+                ? `Move ${dialog.label}`
+                : uncategorized
+                  ? "Delete uncategorized items?"
+                  : `Delete ${dialog.label}?`}
         </Text>
-        {preview && (
+        {preview && dialog.target.kind !== "item" && (
           <Text variant="body-1">
             {describeItemGroupContents(preview)} in this group across the whole workspace. Display
             filters do not limit this action.
@@ -198,7 +210,32 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
             )}
           </>
         )}
-        {!renaming && !moving && preview && (
+        {movingWorkspace && (
+          <>
+            {workspaceOptions.length ? (
+              <Select
+                size="m"
+                width="max"
+                aria-label="Destination workspace"
+                placeholder="Choose a workspace"
+                disabled={pending}
+                value={destination === null ? [] : [destination]}
+                onUpdate={(values) => setDestination(values[0] ?? null)}
+                options={workspaceOptions.map(({ id, label }) => ({
+                  value: String(id),
+                  content: label,
+                }))}
+              />
+            ) : (
+              <Text variant="body-1">Create another workspace to move items there.</Text>
+            )}
+            <Text variant="body-1" color="secondary">
+              Items keep their category, subcategory, tags, and status. Matching names are reused in
+              the destination. Empty groups and vocabulary are removed from the source.
+            </Text>
+          </>
+        )}
+        {!renaming && !moving && !movingWorkspace && preview && (
           <>
             {!uncategorized && (
               <Text variant="body-1" color="secondary">
@@ -211,7 +248,7 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
               </Text>
             )}
             <Text variant="body-1" color="secondary">
-              Deleting items is permanent.
+              Deleting items is permanent. Empty taxonomy and an empty source workspace are removed.
             </Text>
           </>
         )}
@@ -224,7 +261,22 @@ export function ItemGroupActionModal({ userId, workspaceId, categories, prepare,
           {!preview && !pending && (
             <Button onClick={() => setRetry((value) => value + 1)}>Refresh preview</Button>
           )}
-          {moving ? (
+          {movingWorkspace ? (
+            <Button
+              view="action"
+              loading={pending}
+              disabled={!preview?.itemCount || destination === null}
+              onClick={() =>
+                destination !== null &&
+                void execute({
+                  kind: "move-to-workspace",
+                  destinationWorkspaceId: Number(destination),
+                })
+              }
+            >
+              Move to workspace
+            </Button>
+          ) : moving ? (
             <Button
               view="action"
               loading={pending}
