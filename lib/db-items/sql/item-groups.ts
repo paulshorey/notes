@@ -14,7 +14,8 @@ import { ItemGroupConflictError, ItemGroupNotFoundError } from "./item-group-err
 import { itemSelect, mapItem, resolveCategoryIdForWorkspace, type ItemRow } from "./item/shared"
 import { deleteItemsForUserWithClient } from "./item/delete"
 import { moveWorkspaceItems } from "./item/workspace-move"
-import { lockWorkspacesForCleanup, pruneEmptyWorkspaceTaxonomy } from "./workspace-cleanup"
+import { lockUserWorkspaces } from "./workspace"
+import { pruneEmptyWorkspaceTaxonomy } from "./workspace-cleanup"
 
 interface GroupRow {
   id: number
@@ -183,7 +184,7 @@ const withGroup = async <T>(
   try {
     await client.query(`BEGIN ISOLATION LEVEL REPEATABLE READ ${lock ? "" : "READ ONLY"}`)
     if (action?.kind === "delete" || action?.kind === "move-to-workspace") {
-      const workspaceIds = await lockWorkspacesForCleanup(client, userId)
+      const workspaceIds = await lockUserWorkspaces(client, userId)
       if (!workspaceIds.has(selection.workspaceId)) throw new ItemGroupNotFoundError()
       if (action.kind === "move-to-workspace") {
         if (selection.workspaceId === action.destinationWorkspaceId)

@@ -1,6 +1,7 @@
 import { getDb } from "../../lib/db/postgres"
 import type { PoolClient } from "pg"
-import { lockWorkspacesForCleanup, pruneEmptyWorkspaceTaxonomy } from "../workspace-cleanup"
+import { lockUserWorkspaces } from "../workspace"
+import { pruneEmptyWorkspaceTaxonomy } from "../workspace-cleanup"
 import { ItemGroupConflictError } from "../item-group-errors"
 
 /** Single and bulk deletion share ownership checks. */
@@ -27,7 +28,7 @@ export const deleteItemForUser = async (
   const client = await getDb().connect()
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ")
-    await lockWorkspacesForCleanup(client, userId)
+    await lockUserWorkspaces(client, userId)
     const { rows } = await client.query<{ workspace_id: number }>(
       `SELECT n.workspace_id FROM public.workspace_item_v1 n
        JOIN public.user_workspace_v1 w ON w.id=n.workspace_id

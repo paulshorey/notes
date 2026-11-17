@@ -63,6 +63,7 @@ export function useTaxonomyActions(
 ) {
   // The last list write for each item, so the next one for that item waits its turn.
   const listWritesByItemRef = useRef(new Map<number, Promise<void>>())
+  const latestCleanupRefreshRef = useRef(0)
 
   const {
     activeKey,
@@ -793,6 +794,15 @@ export function useTaxonomyActions(
     )
   }
 
+  const settlePendingItemWrites = useCallback(async () => {
+    const settled = await Promise.allSettled([
+      ...saveInFlightRef.current.values(),
+      ...directWritesRef.current,
+    ])
+    if (settled.some((result) => result.status === "rejected" || result.value === false))
+      throw new Error("An item could not be saved. Resolve the save error and try again.")
+  }, [directWritesRef, saveInFlightRef])
+
   const prepareItemGroupAction = useCallback(async () => {
     const userId = userRef.current?.id
     const workspaceId = activeWorkspaceIdRef.current
@@ -800,17 +810,9 @@ export function useTaxonomyActions(
       window.clearTimeout(taxonomyRefreshTimeoutRef.current)
       taxonomyRefreshTimeoutRef.current = null
     }
-    // Opening the modal synchronously pauses autosave and exit PATCHes. Settle
-    // existing requests, then save the dirty stored entries their view would save;
-    // new drafts are not members of a server-side group.
-    const settled = await Promise.allSettled([
-      ...saveInFlightRef.current.values(),
-      ...directWritesRef.current,
-    ])
-    if (settled.some((result) => result.status === "rejected"))
-      throw new Error(
-        "A note could not be saved. Resolve the save error before changing this group.",
-      )
+    // The modal pauses autosave and exit PATCHes. Flush dirty stored items so
+    // the preview includes their latest edits. New drafts stay local.
+    await settlePendingItemWrites()
     if (userRef.current?.id !== userId || activeWorkspaceIdRef.current !== workspaceId)
       throw new Error("The active workspace changed. Reopen the group action.")
     const entries = collectSessionFlushEntries(
@@ -829,24 +831,32 @@ export function useTaxonomyActions(
   }, [
     activeWorkspaceIdRef,
     detachedSavesRef,
-    directWritesRef,
     persistOpenItemsRef,
     saveEntry,
-    saveInFlightRef,
+    settlePendingItemWrites,
     taxonomyRefreshTimeoutRef,
     userRef,
   ])
 
   const refreshAfterWorkspaceCleanup = useCallback(
     async (userId: number, workspaceId: number, destinationId?: number) => {
-      const response = await itemsFetch(
-        `/api/bootstrap?workspaceId=${destinationId ?? workspaceId}`,
-        {
-          cache: "no-store",
-        },
-      )
-      const data = await readJson<BootstrapResponse>(response)
-      if (userRef.current?.id !== userId || activeWorkspaceIdRef.current !== workspaceId) return
+      const requestId = ++latestCleanupRefreshRef.current
+      const isCurrent = () =>
+        requestId === latestCleanupRefreshRef.current &&
+        userRef.current?.id === userId &&
+        activeWorkspaceIdRef.current === workspaceId
+      let data: BootstrapResponse
+      try {
+        data = await readJson<BootstrapResponse>(
+          await itemsFetch(`/api/bootstrap?workspaceId=${destinationId ?? workspaceId}`, {
+            cache: "no-store",
+          }),
+        )
+      } catch (error) {
+        if (isCurrent()) throw error
+        return
+      }
+      if (!isCurrent() || data.user.id !== userId) return
 
       const store = useItemsAppStore.getState()
       if (!data.tags.some(({ id }) => id === store.selectedTagId)) store.setSelectedTagId(null)
@@ -1128,17 +1138,27 @@ export function useTaxonomyActions(
     clearMessages()
     setDeletingItemId(itemId)
     try {
+      await settlePendingItemWrites()
+      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
       const response = await itemsFetch("/api/items", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, itemId, workspaceId }),
       })
       await readJson<{ ok: true }>(response)
-      // Close the entry wherever it sits, not only when it happens to be the
-      // one on screen — otherwise a deleted note lingers in the recent list.
-      // Its text is gone by the user's own request, so this removal is the one
-      // that does not route through a detached save.
+      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
       closeEntriesForItemInStore(itemId)
+      for (const [key, entry] of detachedSavesRef.current) {
+        if (entry.itemId !== itemId) continue
+        detachedSavesRef.current.delete(key)
+        queuedAutosaveKeysRef.current.delete(key)
+        groupDeferredSaveKeysRef.current.delete(key)
+      }
+      const latestItems = itemsRef.current.filter(({ id }) => id !== itemId)
+      setItems(latestItems)
+      updateItemsCacheList(user.id, workspaceId, "items", latestItems)
+      setSearchResults((previous) => previous.filter(({ item }) => item.id !== itemId))
+      persistOpenItemsRef.current()
       setStatusMessage("Item deleted.")
       await refreshAfterWorkspaceCleanup(user.id, workspaceId).catch((error) =>
         setErrorMessage(`The item was deleted. ${getErrorMessage(error)}`),

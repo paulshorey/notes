@@ -1,15 +1,6 @@
 import type { PoolClient } from "pg"
 import { ensureDefaultWorkspaceForUser } from "./workspace"
 
-/** Serialize removals within an account, while allowing ordinary item FK checks. */
-export const lockWorkspacesForCleanup = async (client: PoolClient, userId: number) => {
-  const { rows } = await client.query<{ id: number }>(
-    `SELECT id FROM public.user_workspace_v1 WHERE user_id=$1 ORDER BY id FOR NO KEY UPDATE`,
-    [userId],
-  )
-  return new Set(rows.map(({ id }) => id))
-}
-
 /**
  * Prune an affected workspace after moving, deleting, or unfiling its items.
  * Run in a repeatable-read transaction. PostgreSQL rejects a cascading delete

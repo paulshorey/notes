@@ -1,12 +1,13 @@
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
-import { Client } from "pg"
+import { setTimeout } from "node:timers/promises"
+import { Client, Pool } from "pg"
 import type { ItemGroupSelection } from "../contracts/item-group-actions"
 import { getDb } from "../lib/db/postgres"
 import { executeItemGroupActionForItemsApp } from "../services/item-group-actions"
 import { listWorkspacesForItemsApp, updateItemForItemsApp } from "../services/items-app"
-import { listCategoriesByWorkspace } from "../sql/category"
+import { deleteCategoryForWorkspace, listCategoriesByWorkspace } from "../sql/category"
 import {
   createItemForUser,
   deleteItemForUser,
@@ -17,8 +18,13 @@ import { ItemGroupConflictError, ItemGroupNotFoundError } from "../sql/item-grou
 import { previewItemGroup } from "../sql/item-groups"
 import { createStatusForWorkspace, listStatusesByWorkspace } from "../sql/status"
 import { listTagsByWorkspace } from "../sql/tag"
-import { createWorkspaceForUser, listWorkspacesByUser } from "../sql/workspace"
-import { lockWorkspacesForCleanup, pruneEmptyWorkspaceTaxonomy } from "../sql/workspace-cleanup"
+import {
+  createWorkspaceForUser,
+  deleteWorkspaceForUser,
+  listWorkspacesByUser,
+  lockUserWorkspaces,
+} from "../sql/workspace"
+import { pruneEmptyWorkspaceTaxonomy } from "../sql/workspace-cleanup"
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
 if (testDbUrl) process.env.DB_ITEMS_URL = testDbUrl
@@ -304,6 +310,56 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       assert.notEqual(workspaces[0]?.id, source.id)
     }))
 
+  test("explicit workspace deletion preserves the last workspace after concurrent cleanup", () =>
+    withUser(async (userId) => {
+      const retained = await createWorkspaceForUser(userId, "other workspace")
+      const removed = await createWorkspaceForUser(userId, "source")
+      const pool = new Pool({ connectionString: testDbUrl })
+      const cleanup = await pool.connect()
+      try {
+        await cleanup.query("BEGIN ISOLATION LEVEL REPEATABLE READ")
+        await lockUserWorkspaces(cleanup, userId)
+        const deletion = deleteWorkspaceForUser(userId, retained.id)
+        try {
+          let waiting = false
+          for (let attempt = 0; attempt < 300 && !waiting; attempt++) {
+            const { rows } = await cleanup.query<{ waiting: boolean }>(
+              `SELECT EXISTS (
+                SELECT 1 FROM pg_stat_activity WHERE pg_backend_pid()=ANY(pg_blocking_pids(pid))
+              ) AS waiting`,
+            )
+            waiting = rows[0]!.waiting
+            if (!waiting) await setTimeout(10)
+          }
+          assert.ok(waiting, "explicit deletion should wait for cleanup's workspace locks")
+          assert.equal(await pruneEmptyWorkspaceTaxonomy(cleanup, userId, removed.id), true)
+          await cleanup.query("COMMIT")
+        } finally {
+          await cleanup.query("ROLLBACK")
+        }
+        assert.equal(await deletion, false)
+        assert.deepEqual(
+          (await listWorkspacesByUser(userId)).map(({ id }) => id),
+          [retained.id],
+        )
+      } finally {
+        cleanup.release()
+        await pool.end()
+      }
+    }))
+
+  test("deleting an empty category cleans its source workspace and preserves other workspaces", () =>
+    withUser(async (userId) => {
+      const source = await createWorkspaceForUser(userId, "source")
+      const retained = await createWorkspaceForUser(userId, "other workspace")
+      const empty = await category(source.id, "unused")
+      assert.equal(await deleteCategoryForWorkspace(userId, source.id, empty), true)
+      assert.deepEqual(
+        (await listWorkspacesByUser(userId)).map(({ id }) => id),
+        [retained.id],
+      )
+    }))
+
   test("cleanup rolls back when a tag gained an item outside its snapshot", () =>
     withUser(async (userId) => {
       const workspace = await createWorkspaceForUser(userId, "source")
@@ -315,7 +371,7 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       const cleanup = await getDb().connect()
       try {
         await cleanup.query("BEGIN ISOLATION LEVEL REPEATABLE READ")
-        await lockWorkspacesForCleanup(cleanup, userId)
+        await lockUserWorkspaces(cleanup, userId)
         await writer.query(
           "INSERT INTO public.item_tag_link_v1(workspace_id,item_id,tag_id) VALUES ($1,$2,$3)",
           [workspace.id, retained.id, tagId],

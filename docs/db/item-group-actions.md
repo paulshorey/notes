@@ -109,13 +109,14 @@ tables must also participate in canonical item deletion.
 
 ## Client coordination
 
-The Zustand group dialog pauses autosave and exit PATCHes. It settles in-flight
-saves and flushes dirty persisted entries before preview; untouched/unsaved drafts
-are not silently persisted for the action. Deferred detached saves resume once on
-close. The result repairs open entries and caches immediately and closes deleted
-or moved entries without detached saves. After cleanup the client refreshes workspace
-and taxonomy lists and carries any unsaved drafts into the fallback workspace if the
-source was removed. After a move within the workspace, the
+The Zustand group dialog pauses autosave and exit PATCHes. It waits for in-flight
+writes, flushes dirty persisted entries before preview, and stops if a write fails.
+New drafts stay local. Deferred detached saves resume once on close. Deleting an
+individual item also waits for in-flight writes. A committed result repairs open entries
+and caches immediately and closes deleted or moved entries without detached saves.
+After cleanup the client refreshes workspace and taxonomy lists and carries any
+unsaved drafts into the fallback workspace if the source was removed. After a move
+within the workspace, the
 response names only the destination category, so `applyItemGroupResultToCategories`
 takes the moved subcategory out of the category that still lists it, and
 `refileAfterGroupResult` points a draft that was being filed in the moved group at

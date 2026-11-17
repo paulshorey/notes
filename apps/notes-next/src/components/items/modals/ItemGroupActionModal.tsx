@@ -124,7 +124,11 @@ export function ItemGroupActionModal({
       const result = await readJson<ItemGroupActionResponse>(response)
       if (!isCurrent()) return
       await appliedRef.current(result)
-      if (useItemsAppStore.getState().itemGroupDialog === dialog) setDialog(null)
+      if (
+        contextRef.current.userId === userId &&
+        useItemsAppStore.getState().itemGroupDialog === dialog
+      )
+        setDialog(null)
     } catch (cause) {
       if (!isCurrent()) return
       setError(getErrorMessage(cause))
@@ -231,7 +235,8 @@ export function ItemGroupActionModal({
             )}
             <Text variant="body-1" color="secondary">
               Items keep their category, subcategory, tags, and status. Matching names are reused in
-              the destination. Empty groups and vocabulary are removed from the source.
+              the destination. Cleanup removes unused categories, subcategories, tags, and statuses,
+              and removes the source workspace if it has no items left.
             </Text>
           </>
         )}
