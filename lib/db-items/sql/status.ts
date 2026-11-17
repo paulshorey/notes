@@ -1,3 +1,4 @@
+import { deleteItemsForUserWithClient } from "./item/delete"
 import { ITEM_HAS_CONTENT_SQL } from "./item/stored-capabilities"
 import type { PoolClient } from "pg"
 import type { StatusRecord } from "../contracts/items-app"
@@ -94,10 +95,16 @@ export const deleteStatusForWorkspace = async (userId: number, workspaceId: numb
     )
     // An item whose only content was this status now holds nothing, and an item
     // without content is not kept.
-    await client.query(
-      `DELETE FROM public.workspace_item_v1 n
+    const emptied = await client.query<{ id: number }>(
+      `SELECT n.id FROM public.workspace_item_v1 n
        WHERE n.workspace_id=$1 AND n.id=ANY($2::int[]) AND NOT ${ITEM_HAS_CONTENT_SQL}`,
       [workspaceId, unset.rows.map((row) => row.id)],
+    )
+    await deleteItemsForUserWithClient(
+      client,
+      userId,
+      emptied.rows.map((row) => row.id),
+      workspaceId,
     )
     await client.query(`DELETE FROM public.workspace_status_v1 WHERE id=$1 AND workspace_id=$2`, [
       id,

@@ -3,6 +3,7 @@
 import { type ItemRecord } from "@lib/db-items"
 import { useCallback, useEffect, useRef } from "react"
 import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { wasItemDeletedByUser } from "@/lib/userDeletedItems"
 import { useOpenItemsAutosave } from "@/hooks/useOpenItemsAutosave"
 import {
   itemRequestBody,
@@ -226,6 +227,8 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         // The item was deleted somewhere else while this entry was open. What the user
         // is writing is kept: it is created again under the entry's uid.
         if (!creating && response.status === 404) {
+          // Not when the user deleted it here: the entry is about to close.
+          if (itemId !== null && wasItemDeletedByUser(itemId)) return
           creating = true
           response = await create()
         }

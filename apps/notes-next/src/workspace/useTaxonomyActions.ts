@@ -1,5 +1,6 @@
 "use client"
 
+import { markItemDeletedByUser, unmarkItemDeletedByUser } from "@/lib/userDeletedItems"
 import {
   type CategoryRecord,
   type CreateCategoryResponse,
@@ -1027,6 +1028,9 @@ export function useTaxonomyActions(
     if (!user) return
     clearMessages()
     setDeletingItemId(itemId)
+    // Marked before the request: a save of the open entry that is answered 404 must not
+    // create the note again.
+    markItemDeletedByUser(itemId)
     try {
       const response = await itemsFetch("/api/items", {
         method: "DELETE",
@@ -1042,6 +1046,7 @@ export function useTaxonomyActions(
       closeEntriesForItemInStore(itemId)
       setStatusMessage("Note deleted.")
     } catch (error) {
+      unmarkItemDeletedByUser(itemId)
       setErrorMessage(getErrorMessage(error))
     } finally {
       setDeletingItemId(null)
