@@ -179,9 +179,9 @@ between views, so the session, the open-item ring, and pending saves carry acros
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
 
 The workspace picker row sits above Search in the right sidebar and shares the main
-header's height. A divider separates it from the accordions. Up to 720px, navigation is
-a collapsed right drawer toggled by the top-right header button, and the picker caret
-and accordion titles share a leading inset. Above 720px navigation is a visible,
+header's height. Up to 720px, navigation is a collapsed right drawer toggled by the
+top-right header button, and the picker caret and accordion titles share a leading
+inset. Above 720px navigation is a visible,
 resizable right column. There is no bottom trigger or swipe gesture.
 `useSidebarDrawer` synchronizes the store when crossing this boundary and preserves
 visibility when resizing within a layout. Keep `SIDEBAR_OVERLAY_MEDIA_QUERY` in
