@@ -321,7 +321,7 @@ export function WorkspaceHeader({
         >
           jot.new
         </span>
-        <ViewSwitcher />
+        <ViewSwitcher triggerClassName={styles.viewPickerTrigger} />
         <SaveStatusIndicator />
         <RecentItemsMenu
           filingLabelFor={filingLabelFor}

@@ -15,9 +15,9 @@ import styles from "./TasksView.module.css"
 const DRAG_TYPE = "application/x-item-id"
 
 /**
- * The Tasks view: the workspace's tasks as a board by status or a list by due date.
+ * The `task` view shows the workspace's tasks in a board by status or a list by due date.
  * A card opens the shared editor in a dialog over the board, so its text is the text
- * the Notes view edits.
+ * the `note` view edits.
  */
 export function TasksView() {
   const {
@@ -131,7 +131,7 @@ export function TasksView() {
         onClose={closeEditor}
         disableOutsideClick={workspaceMoveOpen}
         disableEscapeKeyDown={workspaceMoveOpen}
-        aria-label="Task"
+        aria-label="task"
       >
         <div className={styles.editorDialog} inert={workspaceMoveOpen}>
           {editorOpen && <ItemEditor onClose={closeEditor} />}

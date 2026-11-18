@@ -31,10 +31,13 @@ const record = (values: Partial<ItemRecord> = {}): ItemRecord => ({
 
 const due = "2027-01-02T03:04:05.000Z"
 
-test("kind keys are unique and every kind has a label", () => {
+test("kind keys are unique and are also the lowercase display names", () => {
   const keys = ITEM_KINDS.map((kind) => kind.key)
   assert.equal(new Set(keys).size, keys.length)
-  for (const kind of ITEM_KINDS) assert.ok(kind.label.trim())
+  for (const kind of ITEM_KINDS) {
+    assert.equal(kind.label, kind.key)
+    assert.equal(kind.key, kind.key.toLowerCase())
+  }
 })
 
 test("a kind follows what the item holds", () => {
@@ -67,7 +70,7 @@ test("taxonomy gives an item no kind", () => {
   assert.deepEqual(itemKinds(filed), [])
 })
 
-test("the Notes selection rule is the note kind", () => {
+test("the note view uses the note kind's selection rule", () => {
   const items = [
     record({ description: "A note" }),
     record({ description: "A task with text", timeDue: due }),

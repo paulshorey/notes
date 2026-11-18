@@ -19,6 +19,7 @@ export interface FilterablePickerProps {
   triggerRole?: "menuitem"
   /** Replaces the default caret. Parents can pass any styled icon markup. */
   triggerIcon?: ReactNode
+  caretPosition?: "start" | "end"
   variant?: "inline" | "prominent" | "menu"
   placement?: ComponentProps<typeof FilterablePickerPopup>["placement"]
   disabled?: boolean
@@ -47,6 +48,7 @@ export function FilterablePicker({
   triggerLabel,
   triggerRole,
   triggerIcon,
+  caretPosition = "start",
   variant = "inline",
   placement,
   disabled = false,
@@ -155,6 +157,7 @@ export function FilterablePicker({
         ref={triggerRef}
         type="button"
         className={[styles.trigger, triggerClassName].filter(Boolean).join(" ")}
+        data-caret-position={caretPosition}
         onClick={() => setOpen(!open)}
         disabled={disabled || pending}
         aria-label={triggerAriaLabel}

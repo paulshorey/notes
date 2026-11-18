@@ -23,7 +23,7 @@ if (testDbUrl) process.env.DB_ITEMS_URL = testDbUrl
 
 const due = "2027-01-02T03:04:05.000Z"
 
-/** No layer below the Notes screen may require text. Each test runs without an
+/** No layer below the `note` view may require text. Each test runs without an
  * embedding provider key, so a textless save that asked for an embedding would fail. */
 describe("items without text (DB)", { skip: !testDbUrl }, () => {
   const userIds: number[] = []

@@ -132,9 +132,6 @@
 }
 
 .addUncategorizedItemButton {
-  width: auto;
-  gap: 3px;
-  padding: 0 6px;
   margin-inline-end: auto;
 }
 
