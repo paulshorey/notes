@@ -217,6 +217,20 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
     [activeWorkspaceIdRef, setItems, setSearchResults],
   )
 
+  /** Drop a deleted record from the lists in place, instead of refetching them. */
+  const forgetDeletedItem = useCallback(
+    (userId: number, workspaceId: number, itemId: number) => {
+      if (activeWorkspaceIdRef.current !== workspaceId) return
+      setItems((prev) => {
+        const next = prev.filter((existing) => existing.id !== itemId)
+        updateItemsCacheList(userId, workspaceId, "items", next)
+        return next
+      })
+      setSearchResults((prev) => prev.filter((result) => result.item.id !== itemId))
+    },
+    [activeWorkspaceIdRef, setItems, setSearchResults],
+  )
+
   return {
     pasteUrlAsMarkdown,
     preferredMaxOpenItems,
@@ -228,6 +242,7 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
     runSearch,
     scheduleTaxonomyRefresh,
     mergeSavedItem,
+    forgetDeletedItem,
   }
 }
 

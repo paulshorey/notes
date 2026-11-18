@@ -1,5 +1,6 @@
 "use client"
 
+import { markItemDeletedByUser, unmarkItemDeletedByUser } from "@/lib/userDeletedItems"
 import {
   type BootstrapResponse,
   type CategoryRecord,
@@ -552,16 +553,17 @@ export function useTaxonomyActions(
   }
 
   /**
-   * The stored item a list action should start from. If the item is open with unsaved
-   * edits its view would save, those are saved first, so a change made from a list
-   * never overwrites what the user typed.
+   * The stored item a list action should start from, or null when there is none left.
+   * If the item is open with unsaved edits, those are saved first, so a change made
+   * from a list never overwrites what the user typed. That save deletes the item when
+   * the edit had emptied it, and then there is nothing for the list action to change.
    */
-  const settleOpenEntryFor = async (item: ItemRecord): Promise<ItemRecord> => {
+  const settleOpenEntryFor = async (item: ItemRecord): Promise<ItemRecord | null> => {
     const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
     if (!entry || !isEntryDirty(entry) || !canSaveEntry(entry)) return item
     if (!(await saveEntry(entry.key, "flush")))
       throw new Error("Couldn't save your changes to this item first. Try again.")
-    return useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? item
+    return useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? null
   }
 
   /**
@@ -596,6 +598,7 @@ export function useTaxonomyActions(
     const latest =
       useWorkspaceStore.getState().items.find((stored) => stored.id === listedItem.id) ?? listedItem
     const item = await settleOpenEntryFor(latest)
+    if (!item) return null
     // Decided against the item as it is now, not as the list showed it when the
     // action started: an earlier write or a saved edit may have changed it since.
     const changed = change(item)
@@ -686,8 +689,11 @@ export function useTaxonomyActions(
       if (item.category?.id === category.id) return
 
       // A subcategory belongs to the category the note is leaving.
-      await patchItemFromSidebar(item, () => ({ categoryId: category.id, subcategoryId: null }))
-      setStatusMessage(`Note moved to “${category.label}”.`)
+      const moved = await patchItemFromSidebar(item, () => ({
+        categoryId: category.id,
+        subcategoryId: null,
+      }))
+      if (moved) setStatusMessage(`Note moved to “${category.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
@@ -700,7 +706,7 @@ export function useTaxonomyActions(
       const tag = await resolveTagForSidebarMove(tagLabel)
       if (!tag) return
 
-      await patchItemFromSidebar(item, (current) => ({
+      const retagged = await patchItemFromSidebar(item, (current) => ({
         tagIds: [
           ...current.tags
             .filter((itemTag) => itemTag.id !== fromTagId && itemTag.id !== tag.id)
@@ -708,7 +714,7 @@ export function useTaxonomyActions(
           tag.id,
         ],
       }))
-      setStatusMessage(`Note tag changed to “${tag.label}”.`)
+      if (retagged) setStatusMessage(`Note tag changed to “${tag.label}”.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
@@ -765,7 +771,7 @@ export function useTaxonomyActions(
       ...activeView.quickAddDefaults?.(context),
       description,
     }
-    if (!activeView.canSave(draft)) return Promise.resolve(false)
+    if (!activeView.canCreate(draft)) return Promise.resolve(false)
     clearMessages()
     return trackDirectWrite(
       (async () => {
@@ -1137,6 +1143,9 @@ export function useTaxonomyActions(
     if (!user || workspaceId === null) return
     clearMessages()
     setDeletingItemId(itemId)
+    // Marked before the request: a save of the open entry that is answered 404 must not
+    // create the note again.
+    markItemDeletedByUser(itemId)
     try {
       await settlePendingItemWrites()
       if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
@@ -1164,6 +1173,7 @@ export function useTaxonomyActions(
         setErrorMessage(`The item was deleted. ${getErrorMessage(error)}`),
       )
     } catch (error) {
+      unmarkItemDeletedByUser(itemId)
       setErrorMessage(getErrorMessage(error))
     } finally {
       setDeletingItemId(null)

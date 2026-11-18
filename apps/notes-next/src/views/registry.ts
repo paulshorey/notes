@@ -17,11 +17,12 @@ export interface ItemView {
   /** Plural name shown in navigation. */
   label: string
   /**
-   * Whether this view saves a draft in its current state. The item service accepts an
-   * item holding any capability, so this is the view's own rule about what is worth
-   * keeping; the save engine asks the active view and holds no rule of its own.
+   * Whether this view makes a new item out of a draft. The item service accepts an
+   * item holding any content, so this is the view's own rule about what is worth
+   * starting. It applies to creating only: once an item is stored, its edits are saved
+   * from every view.
    */
-  canSave: (draft: ItemDraft) => boolean
+  canCreate: (draft: ItemDraft) => boolean
   /**
    * Whether the view always shows the editor for the active entry (Notes), or only
    * once the user opens an item in it. A view that always shows the editor takes over
@@ -51,8 +52,8 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     kind: "note",
     route: "/",
     label: "Notes",
-    // Notes captures text, so a draft is worth saving once it has some.
-    canSave: (draft) => hasText(draft.description),
+    // Notes captures text, so a note starts once it has some.
+    canCreate: (draft) => hasText(draft.description),
     alwaysShowsEditor: true,
     // A note is text that gets organized.
     editorProminent: ["filing", "tags"],
@@ -61,8 +62,8 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     kind: "task",
     route: "/tasks",
     label: "Tasks",
-    // A task may have no text: a status or a date alone is worth keeping.
-    canSave: draftHoldsContent,
+    // A task may have no text: a date alone is worth starting one.
+    canCreate: draftHoldsContent,
     alwaysShowsEditor: false,
     // A task is tracked by where it stands and when it is due.
     editorProminent: ["status", "schedule"],
@@ -74,22 +75,33 @@ export const ITEM_VIEWS: readonly ItemView[] = [
 export const viewForKind = (kind: ItemKindKey): ItemView =>
   ITEM_VIEWS.find((view) => view.kind === kind) ?? ITEM_VIEWS[0]!
 
+/** What saving an entry does to the stored item, or null when there is nothing to do. */
+export type EntrySaveAction = "create" | "update" | "delete"
+
 /**
- * Whether an entry's unsaved edits are saved. The entry carries the view it was last
- * opened in, and that view's rule decides: an edit is judged by the view it was made
- * in, whichever view is on screen when the save runs.
+ * What a save of this entry does.
+ *
+ * A never-saved draft is created when the view it was opened in would start an item
+ * from it. A preset alone, such as the status of the column it was opened from, starts
+ * nothing in any view.
+ *
+ * A stored item's edits are always saved, whichever view made them. If the edit
+ * leaves the item holding no content at all, saving it deletes the item: an item
+ * without content is not kept.
  */
-export const canSaveEntry = (entry: {
+export const entrySaveAction = (entry: {
   view: ItemKindKey
   form: ItemDraft
   itemId: number | null
-}): boolean => {
-  // A never-saved draft becomes an item only once the user has put something into it.
-  // A preset alone, such as the status of the column it was opened from, creates
-  // nothing in any view.
-  if (entry.itemId === null && isBlankItemDraft(entry.form)) return false
-  return viewForKind(entry.view).canSave(entry.form)
+}): EntrySaveAction | null => {
+  if (entry.itemId !== null) return draftHoldsContent(entry.form) ? "update" : "delete"
+  if (isBlankItemDraft(entry.form)) return null
+  return viewForKind(entry.view).canCreate(entry.form) ? "create" : null
 }
+
+/** Whether a save of this entry would send anything. */
+export const canSaveEntry = (entry: Parameters<typeof entrySaveAction>[0]): boolean =>
+  entrySaveAction(entry) !== null
 
 /** The view a path belongs to: the longest route that is the path or a parent of it. */
 export const viewForPath = (pathname: string): ItemView => {

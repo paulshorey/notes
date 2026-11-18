@@ -2,12 +2,19 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import type { ItemRecord } from "@lib/db-items"
 import { serializeItemDraft } from "../src/lib/itemDraft"
+import {
+  createEmptyOpenItemsState,
+  openExistingItem,
+  type OpenItemEntry,
+} from "../src/stores/openItems"
+import { entrySaveAction } from "../src/views/registry"
 import { NO_FILING } from "../src/lib/itemFiling"
 import { itemToFormState, createDefaultTextCaptureForm } from "../src/types/items"
 import {
   readOpenItemsSnapshot,
   reconcileOpenItems,
   toSnapshot,
+  writeOpenItemsSnapshot,
   upgradeOpenItemsSnapshot,
   type OpenItemsSnapshot,
   type StoredOpenItemsSnapshot,
@@ -541,4 +548,61 @@ test("a server cache is used for the first paint only when its items have uids",
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow)
     else Reflect.deleteProperty(globalThis, "window")
   }
+})
+
+test("a clean entry stored without its text for lack of space reloads as the stored note", async () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window")
+  const storage = new MemoryStorage()
+  const item = makeItem(41, "stored text that does not fit in what storage is left")
+  const state = openExistingItem(createEmptyOpenItemsState(), item).state
+  const isDirty = (entry: OpenItemEntry) =>
+    serializeItemDraft(entry.itemId, entry.form) !== entry.savedSignature
+  assert.equal(isDirty(state.openItems[0]!), false, "an opened item starts clean")
+
+  // Only the reduced write fits: the full snapshot, with the text, is refused.
+  const setItem = storage.setItem.bind(storage)
+  storage.setItem = (key: string, value: string) => {
+    if (value.includes("stored text that does not fit")) {
+      throw new DOMException("Quota exceeded", "QuotaExceededError")
+    }
+    setItem(key, value)
+  }
+  Object.defineProperty(globalThis, "window", {
+    value: { localStorage: storage },
+    configurable: true,
+  })
+  try {
+    assert.equal(writeOpenItemsSnapshot(1, 1, state, isDirty), true)
+    const snapshot = readOpenItemsSnapshot(1, 1)!
+    assert.equal(snapshot.entries[0]?.form.description, "", "the text was left out")
+
+    // The server still has the note. It must come back as stored, not as an edit
+    // that removed its text, which a save would turn into a deletion.
+    const restored = reconcileOpenItems(snapshot, (id) => (id === 41 ? item : undefined))
+    const entry = restored.state.openItems[0]!
+    assert.equal(entry.form.description, item.description)
+    assert.equal(isDirty(entry), false)
+    assert.equal(entrySaveAction(entry), "update", "and it still holds its content")
+
+    // And if the note is gone, a clean entry is dropped, not revived.
+    assert.equal(reconcileOpenItems(snapshot, () => undefined).state.openItems.length, 0)
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow)
+    else Reflect.deleteProperty(globalThis, "window")
+  }
+})
+
+test("an emptied entry whose item is gone is dropped even when it still has tags", () => {
+  const item = { ...makeItem(41, "had text"), tags: [{ id: 5, label: "kept" }] }
+  const entry = cleanEntry(item)
+  const emptied = { ...entry, form: { ...entry.form, description: "" } }
+  const result = reconcileOpenItems(snapshotOf([emptied]), () => undefined)
+  assert.equal(result.state.openItems.length, 0, "tags alone could never be created as an item")
+  assert.equal(result.orphanedDraftCount, 0)
+
+  // Text the user typed still survives the loss of its item.
+  const typed = { ...entry, form: { ...entry.form, description: "typed and not saved" } }
+  const kept = reconcileOpenItems(snapshotOf([typed]), () => undefined)
+  assert.equal(kept.state.openItems[0]?.form.description, "typed and not saved")
+  assert.equal(kept.orphanedDraftCount, 1)
 })

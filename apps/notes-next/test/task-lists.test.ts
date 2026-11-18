@@ -3,7 +3,13 @@ import test from "node:test"
 import type { ItemRecord, StatusRecord } from "@lib/db-items"
 import { createEmptyItemDraft, draftHoldsContent } from "../src/capabilities/draftParts"
 import { isOverdue, taskBoardColumns, taskList } from "../src/views/tasks/taskLists"
-import { ITEM_VIEWS, canSaveEntry, viewForKind, viewForPath } from "../src/views/registry"
+import {
+  ITEM_VIEWS,
+  canSaveEntry,
+  entrySaveAction,
+  viewForKind,
+  viewForPath,
+} from "../src/views/registry"
 
 const status = (id: number, label: string, position: number): StatusRecord => ({
   id,
@@ -101,31 +107,57 @@ test("a draft holds content when a save would store a capability", () => {
   )
 })
 
-test("the same stored item is judged by the view its entry belongs to", () => {
-  const statusOnly = { ...createEmptyItemDraft(), selectedStatusId: 4 }
-  assert.equal(canSaveEntry({ view: "note", itemId: 9, form: statusOnly }), false)
-  assert.equal(canSaveEntry({ view: "task", itemId: 9, form: statusOnly }), true)
-  assert.equal(canSaveEntry({ view: "task", itemId: 9, form: createEmptyItemDraft() }), false)
+test("a stored item's edits are saved from every view, and an emptied one is deleted", () => {
+  const empty = createEmptyItemDraft()
+  const withText = { ...empty, description: "text" }
+  const statusOnly = { ...empty, selectedStatusId: 4 }
+  const dated = { ...empty, dueExpanded: true, timeDue: "2026-03-04T10:30" }
+  for (const view of ["note", "task"] as const) {
+    assert.equal(entrySaveAction({ view, itemId: 9, form: withText }), "update")
+    // Text removed from an item that still has a status or a date: it stays, as a task.
+    assert.equal(entrySaveAction({ view, itemId: 9, form: statusOnly }), "update")
+    assert.equal(entrySaveAction({ view, itemId: 9, form: dated }), "update")
+    // Nothing left: an item without content is not kept.
+    assert.equal(entrySaveAction({ view, itemId: 9, form: empty }), "delete")
+    assert.equal(
+      entrySaveAction({
+        view,
+        itemId: 9,
+        form: { ...empty, selectedCategoryId: 7, selectedTagIds: [5], description: "  " },
+      }),
+      "delete",
+      "filing and tags organize content and are not content",
+    )
+    assert.equal(
+      entrySaveAction({ view, itemId: 9, form: { ...dated, dueExpanded: false } }),
+      "delete",
+      "a date that was removed is not content",
+    )
+    assert.equal(canSaveEntry({ view, itemId: 9, form: empty }), true, "a deletion is a save")
+  }
 })
 
-test("a blank draft creates nothing in any view", () => {
+test("a view decides what it creates, and a blank draft creates nothing in any view", () => {
   const empty = createEmptyItemDraft()
   const preset = { ...empty, selectedStatusId: 4, selectedCategoryId: 7 }
-  assert.equal(canSaveEntry({ view: "task", itemId: null, form: preset }), false)
-  assert.equal(canSaveEntry({ view: "note", itemId: null, form: preset }), false)
+  const dated = { ...preset, dueExpanded: true, timeDue: "2026-03-04T10:30" }
+  const written = { ...preset, description: "x" }
+  for (const view of ["note", "task"] as const) {
+    assert.equal(entrySaveAction({ view, itemId: null, form: empty }), null)
+    assert.equal(entrySaveAction({ view, itemId: null, form: preset }), null)
+    assert.equal(entrySaveAction({ view, itemId: null, form: written }), "create")
+  }
   assert.equal(
-    canSaveEntry({
-      view: "task",
-      itemId: null,
-      form: { ...preset, dueExpanded: true, timeDue: "2026-03-04T10:30" },
-    }),
-    true,
-    "a date the user added makes a task worth creating",
+    entrySaveAction({ view: "task", itemId: null, form: dated }),
+    "create",
+    "a date the user added starts a task",
   )
   assert.equal(
-    canSaveEntry({ view: "task", itemId: null, form: { ...preset, description: "x" } }),
-    true,
+    entrySaveAction({ view: "note", itemId: null, form: dated }),
+    null,
+    "Notes starts a note only from text",
   )
+  assert.equal(canSaveEntry({ view: "note", itemId: null, form: dated }), false)
 })
 
 test("the Tasks view is registered beside Notes", () => {

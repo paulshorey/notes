@@ -334,7 +334,9 @@ export function TextCaptureForm({
             (field) =>
               (isScheduleFieldExpanded(form, field) || inToolbar("schedule")) && (
                 <ScheduleField
-                  key={field}
+                  // A date being retyped belongs to one entry: the field starts over
+                  // when another entry takes the form.
+                  key={`${field}:${descriptionEditorSessionId}`}
                   field={field}
                   draft={form}
                   onChange={patchForm}

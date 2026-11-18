@@ -128,14 +128,14 @@ test("a draft is blank until the user puts something in; presets do not count", 
   assert.equal(isBlankItemDraft({ ...empty, timeRemind: "2026-03-04T09:00" }), false)
 })
 
-test("the Notes view saves a draft only once it has text", () => {
+test("the Notes view starts a note only once it has text", () => {
   const notes = viewForPath("/")
   assert.equal(notes.kind, "note")
   const empty = createEmptyItemDraft()
-  assert.equal(notes.canSave({ ...empty, description: "x" }), true)
-  assert.equal(notes.canSave({ ...empty, description: "  " }), false)
+  assert.equal(notes.canCreate({ ...empty, description: "x" }), true)
+  assert.equal(notes.canCreate({ ...empty, description: "  " }), false)
   assert.equal(
-    notes.canSave({ ...empty, selectedStatusId: 4, selectedTagIds: [5], dueExpanded: true }),
+    notes.canCreate({ ...empty, selectedStatusId: 4, selectedTagIds: [5], dueExpanded: true }),
     false,
   )
 })
