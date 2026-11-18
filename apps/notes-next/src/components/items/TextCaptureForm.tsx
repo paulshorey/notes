@@ -104,6 +104,7 @@ export function TextCaptureForm({
 }: TextCaptureFormProps) {
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [morePickerOpen, setMorePickerOpen] = useState(false)
+  const [toolbarTagPickerOpen, setToolbarTagPickerOpen] = useState(false)
   const [activeMorePicker, setActiveMorePicker] = useState<MorePicker | null>(null)
   const inToolbar = (part: EditorPart) => prominent.includes(part)
 
@@ -320,13 +321,16 @@ export function TextCaptureForm({
               onCreateStatus={onCreateStatus}
             />
           )}
-          {inToolbar("tags") && selectedTagLabels.length > 0 && (
+          {/* Keep the multi-select open after removing the last tag. */}
+          {inToolbar("tags") && (selectedTagLabels.length > 0 || toolbarTagPickerOpen) && (
             <FilterablePicker
               variant="inline"
               value={selectedTagLabels.join(", ")}
               triggerIcon={<Tag size={16} weight="regular" className={styles.propertyPickerIcon} />}
               disabled={!userPresent}
+              open={toolbarTagPickerOpen}
               onOpenChange={(open) => {
+                setToolbarTagPickerOpen(open)
                 if (open) closeMoreDropdown()
               }}
               {...tagPicker}
