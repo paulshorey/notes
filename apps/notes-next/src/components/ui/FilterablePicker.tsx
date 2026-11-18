@@ -12,13 +12,14 @@ export interface FilterablePickerProps {
   triggerAriaLabel: string
   listboxAriaLabel: string
   onSelectOption: (option: FilterablePickerOption) => void | Promise<void>
-  onCreateOption: (label: string) => void | Promise<void>
+  /** Omit for a picker with a fixed list of options and no text field. */
+  onCreateOption?: (label: string) => void | Promise<void>
   triggerClassName?: string
   triggerLabel?: string
   triggerRole?: "menuitem"
   /** Replaces the default caret. Parents can pass any styled icon markup. */
   triggerIcon?: ReactNode
-  variant?: "inline" | "header" | "menu"
+  variant?: "inline" | "prominent" | "menu"
   placement?: ComponentProps<typeof FilterablePickerPopup>["placement"]
   disabled?: boolean
   pending?: boolean
@@ -115,7 +116,7 @@ export function FilterablePicker({
 
   const submitInput = () => {
     const label = inputValue.trim()
-    if (label === "" || interactionDisabled || inputError) return
+    if (!onCreateOption || label === "" || interactionDisabled || inputError) return
     const normalized = label.toLocaleLowerCase()
     const matchingOption = filteredOptions.find(
       (option) => option.label.trim().toLocaleLowerCase() === normalized,
@@ -175,24 +176,28 @@ export function FilterablePicker({
         placement={placement}
         listboxAriaLabel={listboxAriaLabel}
         options={filteredOptions}
-        inputValue={inputValue}
-        inputPlaceholder={inputPlaceholder}
-        inputRef={inputRef}
-        inputDisabled={interactionDisabled}
-        inputError={inputError}
-        onInputChange={(nextValue) => setInputValue(nextValue.toLocaleLowerCase())}
-        onInputKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault()
-            setOpen(false)
-            return
-          }
-          if (event.key === "Enter") {
-            event.preventDefault()
-            submitInput()
-          }
-        }}
-        onInputSubmit={submitInput}
+        disabled={interactionDisabled}
+        input={
+          onCreateOption
+            ? {
+                value: inputValue,
+                placeholder: inputPlaceholder,
+                ref: inputRef,
+                error: inputError,
+                onChange: (nextValue) => setInputValue(nextValue.toLocaleLowerCase()),
+                onKeyDown: (event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault()
+                    setOpen(false)
+                  } else if (event.key === "Enter") {
+                    event.preventDefault()
+                    submitInput()
+                  }
+                },
+                onSubmit: submitInput,
+              }
+            : undefined
+        }
         onSelectOption={selectOption}
         showOptionCheckboxes={multiple}
         isOptionActive={(option) => selectedIdSet.has(String(option.id))}

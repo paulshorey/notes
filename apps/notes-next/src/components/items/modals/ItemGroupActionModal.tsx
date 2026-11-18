@@ -183,23 +183,25 @@ export function ItemGroupActionModal({
             : undefined
         }
         options={options}
-        inputRef={pickerInputRef}
-        inputValue={label}
-        inputPlaceholder="Find or create workspace"
-        inputDisabled={pending && preview !== null}
-        submitDisabled={!preview}
-        inputError={inputError}
-        onInputChange={setLabel}
-        onInputKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault()
-            closePicker()
-          } else if (event.key === "Enter") {
-            event.preventDefault()
-            submit()
-          }
+        disabled={pending && preview !== null}
+        input={{
+          ref: pickerInputRef,
+          value: label,
+          placeholder: "Find or create workspace",
+          submitDisabled: !preview,
+          error: inputError,
+          onChange: setLabel,
+          onKeyDown: (event) => {
+            if (event.key === "Escape") {
+              event.preventDefault()
+              closePicker()
+            } else if (event.key === "Enter") {
+              event.preventDefault()
+              submit()
+            }
+          },
+          onSubmit: submit,
         }}
-        onInputSubmit={submit}
         onSelectOption={({ id }) => {
           if (id === CREATE_WORKSPACE) submit()
           else void execute({ kind: "move-to-workspace", destinationWorkspaceId: Number(id) })

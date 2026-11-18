@@ -13,8 +13,7 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react"
-import type { UserSummary, WorkspaceRecord } from "@lib/db-items"
-import { FilterablePicker } from "@/components/ui/FilterablePicker"
+import type { UserSummary } from "@lib/db-items"
 import { ViewSwitcher } from "@/components/shell/ViewSwitcher"
 import { itemHeadline } from "@/lib/strings"
 import {
@@ -179,10 +178,6 @@ interface WorkspaceHeaderProps {
   pasteUrlAsMarkdown: boolean
   onPasteUrlAsMarkdownChange: (enabled: boolean) => void
   onAddItem: () => void
-  workspaces: WorkspaceRecord[]
-  activeWorkspaceId: number
-  onWorkspaceChange: (id: number) => void | Promise<void>
-  onCreateWorkspace: (label: string) => void | Promise<void>
   onLogout: () => void
   maxOpenItems: number
   onMaxOpenItemsChange: (value: number) => void
@@ -211,10 +206,6 @@ export function WorkspaceHeader({
   pasteUrlAsMarkdown,
   onPasteUrlAsMarkdownChange,
   onAddItem,
-  workspaces,
-  activeWorkspaceId,
-  onWorkspaceChange,
-  onCreateWorkspace,
   onLogout,
   maxOpenItems,
   onMaxOpenItemsChange,
@@ -242,8 +233,6 @@ export function WorkspaceHeader({
   const [signupPassword, setSignupPassword] = useState("")
   const setResultsListVisible = useItemsAppStore((state) => state.setResultsListVisible)
   const transferPending = useItemsAppStore((state) => state.backupOperation !== null)
-  const activeWorkspaceLabel =
-    workspaces.find((workspace) => workspace.id === activeWorkspaceId)?.label ?? "Workspace"
 
   const resetAuthPopupState = () => {
     setAuthMode("signin")
@@ -332,19 +321,6 @@ export function WorkspaceHeader({
         >
           jot.new
         </span>
-        <FilterablePicker
-          variant="header"
-          value={activeWorkspaceLabel}
-          triggerAriaLabel="Current workspace"
-          listboxAriaLabel="Workspace options"
-          options={workspaces}
-          selectedIds={[activeWorkspaceId]}
-          onSelectOption={(workspace) => onWorkspaceChange(Number(workspace.id))}
-          onCreateOption={onCreateWorkspace}
-          emptyWithoutQueryMessage="No workspaces yet"
-          inputPlaceholder="Enter new workspace..."
-          placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
-        />
         <ViewSwitcher />
         <SaveStatusIndicator />
         <RecentItemsMenu

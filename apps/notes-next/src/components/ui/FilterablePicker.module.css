@@ -81,12 +81,12 @@
   color: var(--g-color-text-link-hover, #7abaff);
 }
 
-.header {
+.prominent {
   flex: 0 1 auto;
 }
 
-.header .trigger {
-  max-width: min(200px, 24vw);
+.prominent .trigger {
+  max-width: min(200px, 100%);
   height: 32px;
   padding: 0 9px;
   font-size: 1rem;
@@ -132,9 +132,5 @@
 
   .inline .trigger {
     max-width: min(280px, 40vw);
-  }
-
-  .header .trigger {
-    max-width: min(160px, 28vw);
   }
 }

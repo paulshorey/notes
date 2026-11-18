@@ -38,6 +38,12 @@
   overflow: hidden;
 }
 
+.workspacePicker {
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding-inline: 4px;
+}
+
 .accordionSection {
   display: flex;
   flex: 0 0 auto;

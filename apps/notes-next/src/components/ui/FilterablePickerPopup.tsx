@@ -25,15 +25,17 @@ export interface FilterablePickerPopupProps {
   listboxAriaLabel: string
   description?: string
   options: FilterablePickerOption[]
-  inputValue: string
-  inputPlaceholder?: string
-  inputDisabled?: boolean
-  submitDisabled?: boolean
-  inputError?: string | null
-  inputRef?: RefObject<HTMLInputElement | null>
-  onInputChange: (value: string) => void
-  onInputKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
-  onInputSubmit: () => void
+  disabled?: boolean
+  input?: {
+    value: string
+    placeholder: string
+    submitDisabled?: boolean
+    error?: string | null
+    ref: RefObject<HTMLInputElement | null>
+    onChange: (value: string) => void
+    onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
+    onSubmit: () => void
+  }
   onSelectOption: (option: FilterablePickerOption) => void
   showOptionCheckboxes?: boolean
   isOptionActive?: (option: FilterablePickerOption) => boolean
@@ -50,15 +52,8 @@ export function FilterablePickerPopup({
   listboxAriaLabel,
   description,
   options,
-  inputValue,
-  inputPlaceholder = "Enter new...",
-  inputDisabled = false,
-  submitDisabled = false,
-  inputError = null,
-  inputRef,
-  onInputChange,
-  onInputKeyDown,
-  onInputSubmit,
+  disabled = false,
+  input,
   onSelectOption,
   showOptionCheckboxes = false,
   isOptionActive,
@@ -66,11 +61,14 @@ export function FilterablePickerPopup({
   emptyWithQueryMessage,
   emptyWithoutQueryMessage = null,
 }: FilterablePickerPopupProps) {
-  const trimmedInputValue = inputValue.trim()
-  const optionsDisabled = inputDisabled || submitDisabled
+  const inputRef = input?.ref
+  const inputError = input?.error
+  const trimmedInputValue = input?.value.trim() ?? ""
+  const optionsDisabled = disabled || input?.submitDisabled
   const canSubmit = trimmedInputValue !== "" && !optionsDisabled && !inputError
   const descriptionId = useId()
   const errorId = useId()
+  const selectedIndex = isOptionSelected ? options.findIndex(isOptionSelected) : -1
 
   useEffect(() => {
     if (!open) {
@@ -86,9 +84,9 @@ export function FilterablePickerPopup({
       onClose={onClose}
       placement={placement}
       offset={6}
-      role="dialog"
+      initialFocus={input ? undefined : Math.max(0, selectedIndex)}
     >
-      <div className={styles.panel}>
+      <div className={styles.panel} role="dialog" aria-label={listboxAriaLabel}>
         {description && (
           <div className={styles.description} id={descriptionId}>
             {description}
@@ -99,6 +97,7 @@ export function FilterablePickerPopup({
           role="listbox"
           aria-label={listboxAriaLabel}
           aria-describedby={description ? descriptionId : undefined}
+          onKeyDown={input ? undefined : moveOptionFocus}
         >
           {inputError ? (
             <div className={styles.empty} id={errorId} role="alert">
@@ -144,32 +143,44 @@ export function FilterablePickerPopup({
             <div className={styles.empty}>{emptyWithoutQueryMessage}</div>
           ) : null}
         </div>
-        <div className={styles.inputRow}>
-          <input
-            ref={inputRef}
-            type="text"
-            className={styles.input}
-            placeholder={inputPlaceholder}
-            value={inputValue}
-            aria-invalid={Boolean(inputError)}
-            aria-describedby={inputError ? errorId : undefined}
-            disabled={inputDisabled}
-            onChange={(event) => {
-              onInputChange(event.currentTarget.value)
-            }}
-            onKeyDown={onInputKeyDown}
-          />
-          <button
-            type="button"
-            className={styles.submitButton}
-            onClick={onInputSubmit}
-            disabled={!canSubmit}
-            aria-label="Submit"
-          >
-            <ArrowRight size={14} weight="regular" />
-          </button>
-        </div>
+        {input && (
+          <div className={styles.inputRow}>
+            <input
+              ref={input.ref}
+              type="text"
+              className={styles.input}
+              placeholder={input.placeholder}
+              value={input.value}
+              aria-invalid={Boolean(inputError)}
+              aria-describedby={inputError ? errorId : undefined}
+              disabled={disabled}
+              onChange={(event) => input.onChange(event.currentTarget.value)}
+              onKeyDown={input.onKeyDown}
+            />
+            <button
+              type="button"
+              className={styles.submitButton}
+              onClick={input.onSubmit}
+              disabled={!canSubmit}
+              aria-label="Submit"
+            >
+              <ArrowRight size={14} weight="regular" />
+            </button>
+          </div>
+        )}
       </div>
     </Popup>
   )
+}
+
+function moveOptionFocus(event: KeyboardEvent<HTMLDivElement>) {
+  if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+  const options = Array.from(
+    event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="option"]:enabled'),
+  )
+  const currentIndex = options.findIndex((option) => option === event.target)
+  if (currentIndex < 0) return
+  const offset = event.key === "ArrowDown" ? 1 : -1
+  event.preventDefault()
+  options[(currentIndex + offset + options.length) % options.length]?.focus()
 }
