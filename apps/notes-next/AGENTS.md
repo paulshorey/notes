@@ -9,8 +9,8 @@ app/                        — Next.js App Router: pages, layouts, API routes o
   layout.tsx                — root layout with ThemeProvider (Gravity UI) + MantineProvider
   (workspace)/              — route group for every view of the workspace's items
     layout.tsx              — ItemsWorkspaceProvider + AppShell around the view's page
-    page.tsx                — `/`, the Notes view
-    tasks/page.tsx          — `/tasks`, the Tasks view
+    page.tsx                — `/`, the `note` view
+    tasks/page.tsx          — `/tasks`, the `task` view
   providers.tsx             — client-side providers
   globals.css
   embeddings/               — debug page for testing Jina embeddings
@@ -56,9 +56,9 @@ src/                        — non-route code (import with "@/..." alias)
     useAccountActions.ts    — login, signup, logout, workspace switching, backup
     useTaxonomyActions.ts   — category, subcategory, status, tag, and group actions
   views/
-    registry.ts             — `ITEM_VIEWS`: each view's kind, route, and label
-    notes/NotesView.tsx     — the Notes view: the editor for the active entry
-    tasks/TasksView.tsx     — the Tasks view: board by status, list by due date
+    registry.ts             — `ITEM_VIEWS`: each view's kind and route
+    notes/NotesView.tsx     — the `note` view: the editor for the active entry
+    tasks/TasksView.tsx     — the `task` view: board by status, list by due date
     tasks/taskLists.ts      — pure column and ordering rules for the board and list
   capabilities/             — one module per thing an item can hold
     types.ts                — `ItemDraftPart` and `DraftControlProps`
@@ -113,16 +113,15 @@ between views, so the session, the open-item ring, and pending saves carry acros
   on hooks earlier in the controller. `workspaceStore` holds everything loaded from the
   server; the workspace hooks are its only writers.
 - **Views.** A view is a screen over the items of one kind (`@lib/db-items/contracts/item-kinds`).
-  `src/views/registry.ts` lists them: Notes at `/` and Tasks at `/tasks`. To add one,
-  add its entry and a page under `app/(workspace)/`; `ViewSwitcher` in the header
-  lists each registered view. The workspace keeps every item of the active workspace;
+  `src/views/registry.ts` lists them: `note` at `/` and `task` at `/tasks`. To add one,
+  give the kind a lowercase, singular name, register its view, and add a page under
+  `app/(workspace)/`. The header picker displays each view's kind key. The workspace keeps every item of the active workspace;
   `useItemLists` narrows the lists to the active view's kind with `isKind`, so an item
   that is several kinds appears in each of those views and opens as the same entry.
-  Every view edits through `ItemEditor`, bound to the active entry. Notes always shows
-  it; Tasks shows it in a dialog over the board once the user opens an item. Each view
-  names the parts of an item it is about in `editorProminent`: the editor puts those
-  in its toolbar and the rest in the More menu, so nothing becomes unreachable. Notes
-  favors filing and tags; Tasks favors status and dates.
+  Every view edits through `ItemEditor`, bound to the active entry. The `note` view
+  always shows it. The `task` view opens it in a dialog over the board when the user
+  opens an item. Each view names the parts it prioritizes in `editorProminent`.
+  The `note` view prioritizes filing and tags, and the `task` view prioritizes status and dates.
 - **Tasks.** `views/tasks/taskLists.ts` builds the board (a column per status in
   position order, then a column for dated tasks with no status) and the due-date list.
   Dragging a card calls `handleSetItemStatus`; a column's quick-add calls
@@ -179,7 +178,7 @@ between views, so the session, the open-item ring, and pending saves carry acros
 - All database access and embedding logic is in `@lib/db-items`. API routes call `itemsAppService` from `@lib/db-items/services/items-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
 
-Navigation stays on the right at every screen size: up to 720px it is a collapsed
+The workspace picker sits above Search in the right sidebar. Up to 720px, navigation is a collapsed
 right drawer toggled by the top-right header button; above 720px it is a visible,
 resizable right column. There is no bottom trigger or swipe gesture.
 `useSidebarDrawer` synchronizes the store when crossing this boundary and preserves
@@ -190,7 +189,7 @@ visibility when resizing within a layout. Keep `SIDEBAR_OVERLAY_MEDIA_QUERY` in
 
 The root layout reads Auth.js once and seeds `SessionProvider`, so returning users do not need a client-side session round trip before startup. `useSessionLifecycle` then calls `GET /api/bootstrap`, which authenticates once and loads the session, notes, categories, and tags in parallel. Keep this as the single cold-start data path; separate startup requests add auth and database work and can race one another.
 
-Every note belongs to exactly one active workspace, is filed in at most one category and one subcategory of that category, has multiple tags, and may have one status. Category/subcategory/status/tag ids must come from that same workspace. New notes start unfiled unless an action explicitly specifies a category. The uncategorized add button and the category and subcategory triggers with an empty selection show `__` beside their icons. The category dropdown includes a display-only `uncategorized` option that clears the category and its subcategory. The subcategory picker appears only once a category is chosen and lists that category's subcategories; choosing another category clears it. `src/lib/itemFiling.ts` holds the shared rules: `existingFiling` keeps only the part of a selection that still exists. The category add action and selector form a visual split button; the add action remains icon-only. The sidebar groups notes with no category under the display-only `uncategorized` label; this is never a category record. All real categories, including the last one, can be deleted. Reserve the normalized category name `uncategorized` through `@lib/db-items/contracts/category-name` in both UI and service writes. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
+Every note belongs to exactly one active workspace, is filed in at most one category and one subcategory of that category, has multiple tags, and may have one status. Category/subcategory/status/tag ids must come from that same workspace. New notes start unfiled unless an action explicitly specifies a category. The uncategorized add button and an empty category trigger show only their icons. The category dropdown includes a display-only `uncategorized` option that clears the category and its subcategory. The subcategory picker lists the chosen category's subcategories and is disabled until a category is selected. Choosing another category clears the subcategory. `src/lib/itemFiling.ts` holds the shared rules: `existingFiling` keeps only the part of a selection that still exists. The category add action and selector form a visual split button. The sidebar groups notes with no category under the display-only `uncategorized` label; this is never a category record. All real categories, including the last one, can be deleted. Reserve the normalized category name `uncategorized` through `@lib/db-items/contracts/category-name` in both UI and service writes. Switching workspaces flushes dirty entries before loading the destination; failed saves keep the current workspace active.
 
 `src/lib/itemGroups.ts` builds one sidebar list containing real categories and the
 computed `uncategorized` group. A category group lists the notes filed directly in
@@ -279,7 +278,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 `itemSaveStatus` in `itemsAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `WorkspaceHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
 
 - UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
-- `src/components/ui/FilterablePicker.tsx` is the standard workspace/category/subcategory/status/tag selector. It owns the value-and-icon trigger (`triggerIcon` replaces the default caret), filtered popup, focused create input, and `multiple` vs single-select behavior (checkboxes and staying open only when `multiple`). `TextCaptureForm` places each picker by the view's `editorProminent`: in the toolbar as an inline picker, or in the More menu as a menu row. The same picker props serve both places. Do not replace these with native selects or prompt dialogs.
+- `src/components/ui/FilterablePicker.tsx` is the standard content type, workspace, category, subcategory, status, and tag selector. It owns the value-and-icon trigger, popup, optional create input, and selection behavior. `TextCaptureForm` always offers category, subcategory, and tag pickers in More. In the `note` view, the toolbar also shows category and only shows subcategory and tags when selected. The same picker props serve both places. Do not replace these with native selects or prompt dialogs.
 - Routes are wired through `app/api/_lib/items-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
 - Backup routes use `_lib/backup-route-handlers.ts`. Before transfers, flush notes
   and pending preference writes. Restore is additive: refresh bootstrap/cache
@@ -287,7 +286,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
   Popup so outside-click handling cannot unmount the portaled modal.
 - **API auth**: every data route derives the acting user server-side — from the NextAuth session cookie (web) or an `Authorization: Bearer <token>` header (tokens issued by `POST /api/auth/token`). Client-supplied `userId` values are ignored; unauthenticated requests get `401`. Route files pass `resolveSessionUserId` from `_lib/authenticated-user.ts` into the handler factories; tests omit it and authenticate with bearer tokens against the fake service.
 - This package consumes item contracts; `@lib/db-items` owns migrations.
-  The Notes view lists items of the `note` kind and starts a note only from text (its
+  The `note` view lists items of the `note` kind and starts a note only from text (its
   `canCreate` in `src/views/registry.ts`). That rule belongs to this view: the item
   service accepts an item holding any capability, with or without text.
   Canonical requests use `/api/items` and `X-Items-Contract: 2`; the legacy Notes

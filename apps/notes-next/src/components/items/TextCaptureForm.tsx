@@ -50,8 +50,7 @@ interface TextCaptureFormProps {
   onAddItem: () => void
   onAddItemInCategory: () => void
   /**
-   * The parts the view on screen is about. They stand in the toolbar; the others are
-   * in the More menu. Defaults to what a note is about.
+   * The parts the view prioritizes in the toolbar. Defaults to what a note is about.
    */
   prominent?: readonly EditorPart[]
   /**
@@ -112,7 +111,8 @@ export function TextCaptureForm({
   const selectedSubcategory = selectedCategory?.subcategories.find(
     (subcategory) => subcategory.id === form.selectedSubcategoryId,
   )
-  const selectedCategoryLabel = selectedCategory?.label ?? "__"
+  const selectedCategoryLabel = selectedCategory?.label ?? ""
+  const selectedSubcategoryLabel = selectedSubcategory?.label ?? ""
   const addItemLabel = selectedCategory
     ? `Add new note in current category ${[selectedCategory.label, selectedSubcategory?.label].filter(Boolean).join(" › ")}`
     : "Add new note"
@@ -197,18 +197,17 @@ export function TextCaptureForm({
     emptyWithoutQueryMessage: "No categories yet",
     inputPlaceholder: "Enter new category...",
   }
-  const subcategoryPicker = selectedCategory && {
+  const subcategoryPicker = {
     triggerAriaLabel: "Subcategory",
     listboxAriaLabel: "Subcategory options",
-    options: [{ id: "", label: "no subcategory" }, ...selectedCategory.subcategories],
+    options: [{ id: "", label: "no subcategory" }, ...(selectedCategory?.subcategories ?? [])],
     selectedIds: [form.selectedSubcategoryId ?? ""],
-    disabled: !userPresent,
+    disabled: !userPresent || !selectedCategory,
     pending: createCategoryPending,
     onSelectOption: (subcategory: { id: number | string }) =>
       onSelectSubcategoryId(String(subcategory.id)),
     onCreateOption: onCreateSubcategory,
     validateInput: getCategoryNameError,
-    emptyWithoutQueryMessage: `No subcategories in ${selectedCategory.label} yet`,
     inputPlaceholder: "Enter new subcategory...",
   }
   const tagPicker = {
@@ -268,7 +267,6 @@ export function TextCaptureForm({
             title="Add new uncategorized note"
           >
             <Plus size={16} weight="bold" aria-hidden />
-            <span aria-hidden>__</span>
           </button>
           {inToolbar("filing") && (
             <div className={styles.categoryControls}>
@@ -295,11 +293,10 @@ export function TextCaptureForm({
               />
             </div>
           )}
-          {/* A subcategory belongs to the chosen category, so it is offered only then. */}
-          {inToolbar("filing") && subcategoryPicker && (
+          {inToolbar("filing") && selectedSubcategory && (
             <FilterablePicker
               variant="inline"
-              value={selectedSubcategory?.label ?? "__"}
+              value={selectedSubcategoryLabel}
               triggerIcon={
                 <FolderSimple size={16} weight="regular" className={styles.propertyPickerIcon} />
               }
@@ -323,10 +320,10 @@ export function TextCaptureForm({
               onCreateStatus={onCreateStatus}
             />
           )}
-          {inToolbar("tags") && (
+          {inToolbar("tags") && selectedTagLabels.length > 0 && (
             <FilterablePicker
               variant="inline"
-              value={selectedTagLabels.join(", ") || ""}
+              value={selectedTagLabels.join(", ")}
               triggerIcon={<Tag size={16} weight="regular" className={styles.propertyPickerIcon} />}
               disabled={!userPresent}
               onOpenChange={(open) => {
@@ -430,42 +427,40 @@ export function TextCaptureForm({
                     onCreateStatus={onCreateStatus}
                   />
                 )}
-                {!inToolbar("filing") && (
-                  <FilterablePicker
-                    variant="menu"
-                    triggerLabel="Category"
-                    triggerRole="menuitem"
-                    value={selectedCategory?.label ?? "None"}
-                    open={activeMorePicker === "category"}
-                    onOpenChange={(open) => updateMorePicker("category", open)}
-                    placement={MENU_PICKER_PLACEMENT}
-                    {...categoryPicker}
-                  />
-                )}
-                {!inToolbar("filing") && subcategoryPicker && (
-                  <FilterablePicker
-                    variant="menu"
-                    triggerLabel="Subcategory"
-                    triggerRole="menuitem"
-                    value={selectedSubcategory?.label ?? "None"}
-                    open={activeMorePicker === "subcategory"}
-                    onOpenChange={(open) => updateMorePicker("subcategory", open)}
-                    placement={MENU_PICKER_PLACEMENT}
-                    {...subcategoryPicker}
-                  />
-                )}
                 <FilterablePicker
+                  {...categoryPicker}
+                  variant="menu"
+                  triggerLabel="Category"
+                  triggerAriaLabel="Category"
+                  triggerRole="menuitem"
+                  value={selectedCategoryLabel}
+                  open={activeMorePicker === "category"}
+                  onOpenChange={(open) => updateMorePicker("category", open)}
+                  placement={MENU_PICKER_PLACEMENT}
+                />
+                <FilterablePicker
+                  {...subcategoryPicker}
+                  variant="menu"
+                  triggerLabel="Subcategory"
+                  triggerRole="menuitem"
+                  value={selectedSubcategoryLabel}
+                  open={activeMorePicker === "subcategory"}
+                  onOpenChange={(open) => updateMorePicker("subcategory", open)}
+                  placement={MENU_PICKER_PLACEMENT}
+                />
+                <FilterablePicker
+                  {...tagPicker}
                   variant="menu"
                   triggerLabel="Tag"
+                  triggerAriaLabel="Tag"
                   triggerRole="menuitem"
-                  value={selectedTagLabels.join(", ") || "None"}
+                  value={selectedTagLabels.join(", ")}
                   triggerIcon={
                     <Tag size={14} weight="regular" className={styles.propertyPickerIcon} />
                   }
                   open={activeMorePicker === "tag"}
                   onOpenChange={(open) => updateMorePicker("tag", open)}
                   placement={MENU_PICKER_PLACEMENT}
-                  {...tagPicker}
                 />
               </div>
             </Popup>

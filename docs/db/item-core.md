@@ -40,15 +40,19 @@ at least one capability, so a date or a status alone makes an item, and categori
 tags alone do not, because taxonomy organizes content and is not content. The item
 service applies the rule on create and update. The tables accept a bare item.
 
-No layer below the Notes screen requires text. Listing, group actions, backup, restore,
+No layer below the `note` view requires text. Listing, group actions, backup, restore,
 and account merge carry an item without text; text search and embeddings skip it.
-Requiring text to start a note is a rule of the Notes view alone (its `canCreate` in the
+Requiring text to start a note is a rule of the `note` view alone (its `canCreate` in the
 `notes-next` view registry), because that view captures nothing else.
 
 An item without content is not kept. The service refuses to store one, and the web
 client deletes a stored item when an edit removes the last of its content: emptying a
 note deletes it, unless it still has a status or a date, in which case it stays as a
 task. Deleting a status deletes the items whose only content it was.
+
+Content types use lowercase, singular names. `note` and `task` are computed from
+the capabilities an item holds. An item can match both types. The type names
+live in the shared kind registry and are used as the view labels.
 
 ### Stored capabilities
 

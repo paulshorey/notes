@@ -39,9 +39,13 @@
 }
 
 .workspacePicker {
+  --picker-padding-inline: 0px;
   min-height: 32px;
   flex: 0 0 auto;
-  padding-inline: 4px;
+}
+
+.workspacePicker button:focus-visible {
+  outline-offset: -2px;
 }
 
 .accordionSection {
@@ -506,9 +510,12 @@
     width: 100% !important;
     max-width: none !important;
     flex: 1 1 0 !important;
-    border-left: solid 10px var(--g-color-line-generic);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     transition: none;
+  }
+
+  .accordionSection {
+    margin-inline-start: 10px;
   }
 
   .resultsColumnShellOpen {

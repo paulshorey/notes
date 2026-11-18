@@ -155,12 +155,12 @@ test("a view decides what it creates, and a blank draft creates nothing in any v
   assert.equal(
     entrySaveAction({ view: "note", itemId: null, form: dated }),
     null,
-    "Notes starts a note only from text",
+    "the note view starts a note only from text",
   )
   assert.equal(canSaveEntry({ view: "note", itemId: null, form: dated }), false)
 })
 
-test("the Tasks view is registered beside Notes", () => {
+test("the task view is registered beside note", () => {
   assert.deepEqual(
     ITEM_VIEWS.map((view) => [view.kind, view.route]),
     [

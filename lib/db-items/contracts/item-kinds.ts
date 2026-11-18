@@ -5,23 +5,23 @@ import { hasItemCapability, type ItemCapabilitySource } from "./item-capabilitie
  * never stored, so it cannot disagree with the content. An item can be several kinds at
  * once, and it stops being a kind when the content that made it one is removed.
  *
- * Each kind is the selection rule of one view: Notes lists the items of kind "note",
- * Tasks the items of kind "task". Add a kind here once and give it a view.
+ * Each kind is the selection rule of one view. Use a lowercase, singular name for
+ * both the kind key and its display label, such as "note" or "task".
  */
 export type ItemKindKey = "note" | "task"
 
 export interface ItemKind {
   key: ItemKindKey
-  /** Singular display name. */
-  label: string
+  /** The kind's lowercase, singular display name matches its key. */
+  label: ItemKindKey
   matches: (item: ItemCapabilitySource) => boolean
 }
 
 export const ITEM_KINDS: readonly ItemKind[] = [
-  { key: "note", label: "Note", matches: (item) => hasItemCapability(item, "text") },
+  { key: "note", label: "note", matches: (item) => hasItemCapability(item, "text") },
   {
     key: "task",
-    label: "Task",
+    label: "task",
     matches: (item) => hasItemCapability(item, "status") || hasItemCapability(item, "schedule"),
   },
 ]

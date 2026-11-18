@@ -14,8 +14,6 @@ export interface ItemView {
   kind: ItemKindKey
   /** Path of the view's page. */
   route: string
-  /** Plural name shown in navigation. */
-  label: string
   /**
    * Whether this view makes a new item out of a draft. The item service accepts an
    * item holding any content, so this is the view's own rule about what is worth
@@ -24,14 +22,13 @@ export interface ItemView {
    */
   canCreate: (draft: ItemDraft) => boolean
   /**
-   * Whether the view always shows the editor for the active entry (Notes), or only
+   * Whether the view always shows the editor for the active entry (`note`), or only
    * once the user opens an item in it. A view that always shows the editor takes over
    * whichever entry becomes active.
    */
   alwaysShowsEditor: boolean
   /**
-   * The parts of an item this view is about. Its editor shows these in the toolbar;
-   * the other parts stay reachable in the More menu.
+   * The parts of an item this view prioritizes in the editor toolbar.
    */
   editorProminent: readonly EditorPart[]
   /**
@@ -51,8 +48,7 @@ export const ITEM_VIEWS: readonly ItemView[] = [
   {
     kind: "note",
     route: "/",
-    label: "Notes",
-    // Notes captures text, so a note starts once it has some.
+    // A note starts once the draft has text.
     canCreate: (draft) => hasText(draft.description),
     alwaysShowsEditor: true,
     // A note is text that gets organized.
@@ -61,7 +57,6 @@ export const ITEM_VIEWS: readonly ItemView[] = [
   {
     kind: "task",
     route: "/tasks",
-    label: "Tasks",
     // A task may have no text: a date alone is worth starting one.
     canCreate: draftHoldsContent,
     alwaysShowsEditor: false,

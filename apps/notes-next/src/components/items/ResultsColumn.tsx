@@ -372,6 +372,7 @@ export function ResultsColumn({
         inert={!visible}
       >
         <div className={styles.itemResults}>
+          <div className={styles.workspacePicker}>{visible && workspacePicker}</div>
           <AccordionSection
             id="search"
             title="Search"
@@ -435,7 +436,6 @@ export function ResultsColumn({
               </div>
             )}
           </AccordionSection>
-          <div className={styles.workspacePicker}>{visible && workspacePicker}</div>
           <AccordionSection
             id="categories"
             title="Categories"

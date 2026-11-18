@@ -20,33 +20,14 @@
   flex: 0 0 auto;
   padding-left: 12px;
   color: var(--g-color-text-secondary);
-  font-size: 1.0625rem;
+  font-size: 1rem;
+  line-height: 1.25;
   cursor: pointer;
   text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
 }
 
-/* .headerLogo::before {
-  content: "//";
-  opacity: 0.33;
-  margin-right: 0.15rem;
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
-}
-@media (min-width: 721px) {
-  .headerLogo::before {
-    content: "";
-  }
-} */
-
-.headerLogo::after {
-  content: "/";
-  opacity: 0.33;
-  margin-left: 0.125rem;
-  text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
-}
-@media (min-width: 721px) {
-  .headerLogo::after {
-    content: "/";
-  }
+.viewPickerTrigger {
+  --picker-padding-inline: 4px;
 }
 
 .saveIndicator {

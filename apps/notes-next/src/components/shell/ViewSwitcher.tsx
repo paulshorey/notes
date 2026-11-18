@@ -4,17 +4,19 @@ import { usePathname, useRouter } from "next/navigation"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { ITEM_VIEWS, viewForPath } from "@/views/registry"
 
-const viewOptions = ITEM_VIEWS.map(({ route, label }) => ({ id: route, label }))
+const viewOptions = ITEM_VIEWS.map(({ route, kind }) => ({ id: route, label: kind }))
 
-export function ViewSwitcher() {
+export function ViewSwitcher({ triggerClassName }: { triggerClassName?: string }) {
   const active = viewForPath(usePathname())
   const router = useRouter()
 
   return (
     <FilterablePicker
       variant="prominent"
-      value={active.label}
-      triggerAriaLabel={`Content type, ${active.label}`}
+      value={active.kind}
+      triggerClassName={triggerClassName}
+      caretPosition="end"
+      triggerAriaLabel={`Content type, ${active.kind}`}
       listboxAriaLabel="Content types"
       options={viewOptions}
       selectedIds={[active.route]}
