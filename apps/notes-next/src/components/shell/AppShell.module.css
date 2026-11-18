@@ -20,16 +20,17 @@
 
 .header {
   display: flex;
-  flex: 0 0 47px;
+  flex: 0 0 var(--notes-header-height);
   align-items: center;
   justify-content: flex-start;
-  height: 47px;
+  height: var(--notes-header-height);
   gap: 0;
   overflow: hidden;
   background: var(--g-color-line-generic);
 }
 
 .content {
+  --notes-header-height: 47px;
   position: relative;
   display: flex;
   gap: 0;
@@ -83,7 +84,7 @@
   .resultsOverlay {
     position: absolute;
     z-index: 20;
-    top: 47px;
+    top: var(--notes-header-height);
     right: 0;
     bottom: 0;
     left: 0;
