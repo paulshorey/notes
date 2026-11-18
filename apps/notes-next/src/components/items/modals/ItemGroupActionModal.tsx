@@ -10,6 +10,11 @@ import type {
 } from "@lib/db-items/contracts/item-group-actions"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import { itemsFetch, readJson, getErrorMessage, RequestError } from "@/lib/api"
+import {
+  FilterablePickerPopup,
+  type FilterablePickerOption,
+} from "@/components/ui/FilterablePickerPopup"
+import { normalizeLabel } from "@/lib/strings"
 import { describeItemGroupContents, planGroupMove } from "@/lib/itemGroupActions"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import styles from "./ItemGroupActionModal.module.css"
@@ -21,12 +26,14 @@ interface Props {
   workspaces: WorkspaceRecord[]
   prepare: () => Promise<void>
   applied: (result: ItemGroupActionResponse) => Promise<void>
+  onError: (message: string) => void
 }
 
 /** A move destination as a select value; the top level has no category id. */
 const TOP_LEVEL = "top"
+const CREATE_WORKSPACE = "create-workspace"
 
-/** Every group kind shares preparation, preview, confirmation and execution. */
+/** The destination picker and group modals share preparation, preview, and execution. */
 export function ItemGroupActionModal({
   userId,
   workspaceId,
@@ -34,24 +41,32 @@ export function ItemGroupActionModal({
   workspaces,
   prepare,
   applied,
+  onError,
 }: Props) {
   const dialog = useItemsAppStore((state) => state.itemGroupDialog)
   const setDialog = useItemsAppStore((state) => state.setItemGroupDialog)
   const [preview, setPreview] = useState<ItemGroupPreview | null>(null)
   const [label, setLabel] = useState("")
+  const pickerInputRef = useRef<HTMLInputElement>(null)
   const [destination, setDestination] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const prepareRef = useRef(prepare)
   const appliedRef = useRef(applied)
+  const onErrorRef = useRef(onError)
   prepareRef.current = prepare
   appliedRef.current = applied
-  const contextRef = useRef({ userId, workspaceId, dialog })
-  contextRef.current = { userId, workspaceId, dialog }
+  onErrorRef.current = onError
+  const contextRef = useRef({ userId, workspaceId })
+  contextRef.current = { userId, workspaceId }
 
   useEffect(() => {
-    setLabel(dialog && dialog.target.kind !== "uncategorized" ? dialog.label : "")
+    setLabel(
+      dialog && dialog.intent !== "move-to-workspace" && dialog.target.kind !== "uncategorized"
+        ? dialog.label
+        : "",
+    )
     setDestination(null)
   }, [dialog])
 
@@ -70,10 +85,17 @@ export function ItemGroupActionModal({
         body: JSON.stringify({ selection: { workspaceId, target: dialog.target } }),
       })
       const next = await readJson<ItemGroupPreview>(response)
-      if (active) setPreview(next)
+      if (!active) return
+      if (dialog.intent === "move-to-workspace" && next.itemCount === 0)
+        throw new Error("There are no items to move.")
+      setPreview(next)
     })()
       .catch((cause) => {
-        if (active) setError(getErrorMessage(cause))
+        if (!active || useItemsAppStore.getState().itemGroupDialog !== dialog) return
+        if (dialog.intent === "move-to-workspace") {
+          onErrorRef.current(getErrorMessage(cause))
+          setDialog(null)
+        } else setError(getErrorMessage(cause))
       })
       .finally(() => {
         if (active) setPending(false)
@@ -81,28 +103,9 @@ export function ItemGroupActionModal({
     return () => {
       active = false
     }
-  }, [dialog, userId, workspaceId, retry])
+  }, [dialog, userId, workspaceId, retry, setDialog])
 
   if (!dialog) return null
-  const uncategorized = dialog.target.kind === "uncategorized"
-  const noun = dialog.target.kind === "subcategory" ? "subcategory" : "category"
-  const renaming = dialog.intent === "rename"
-  const moving = dialog.intent === "move"
-  const movingWorkspace = dialog.intent === "move-to-workspace"
-  const workspaceOptions = workspaces.filter((workspace) => workspace.id !== workspaceId)
-  const movePlan = moving ? planGroupMove(categories, dialog.target) : null
-  const moveOption =
-    movePlan?.options.find(
-      (option) =>
-        (option.categoryId === null ? TOP_LEVEL : String(option.categoryId)) === destination,
-    ) ?? null
-  const normalizedLabel = label.trim().toLocaleLowerCase()
-  const nameError = getCategoryNameError(label)
-  const existing = categories.find((category) => category.label === normalizedLabel)
-  const sameName = !uncategorized && normalizedLabel === dialog.label
-  const close = () => {
-    if (!pending) setDialog(null)
-  }
   const execute = async (action: ItemGroupAction) => {
     if (!preview || pending) return
     setPending(true)
@@ -110,7 +113,7 @@ export function ItemGroupActionModal({
     const isCurrent = () =>
       contextRef.current.userId === userId &&
       contextRef.current.workspaceId === workspaceId &&
-      contextRef.current.dialog === dialog
+      useItemsAppStore.getState().itemGroupDialog === dialog
     try {
       const response = await itemsFetch("/api/item-groups", {
         method: "PATCH",
@@ -131,6 +134,11 @@ export function ItemGroupActionModal({
         setDialog(null)
     } catch (cause) {
       if (!isCurrent()) return
+      if (dialog.intent === "move-to-workspace") {
+        onError(getErrorMessage(cause))
+        setDialog(null)
+        return
+      }
       setError(getErrorMessage(cause))
       // Never replay a broad selector after a timeout or conflict. The next
       // attempt requires another preview and an explicit confirmation.
@@ -140,19 +148,89 @@ export function ItemGroupActionModal({
     }
   }
 
+  if (dialog.intent === "move-to-workspace") {
+    const query = normalizeLabel(label)
+    const exact = workspaces.find((workspace) => normalizeLabel(workspace.label) === query)
+    const inputError = exact?.id === workspaceId ? "Choose a different workspace." : null
+    const options: FilterablePickerOption[] = workspaces.filter(
+      (workspace) =>
+        workspace.id !== workspaceId && normalizeLabel(workspace.label).includes(query),
+    )
+    if (query && !exact) options.push({ id: CREATE_WORKSPACE, label: `Create “${query}”` })
+    const closePicker = () => {
+      if ((!pending || !preview) && useItemsAppStore.getState().itemGroupDialog === dialog) {
+        setDialog(null)
+      }
+    }
+    const submit = () => {
+      if (!query || inputError) return
+      void execute(
+        exact
+          ? { kind: "move-to-workspace", destinationWorkspaceId: exact.id }
+          : { kind: "move-to-workspace", destinationWorkspaceLabel: query },
+      )
+    }
+    return (
+      <FilterablePickerPopup
+        anchorRef={dialog.anchorRef}
+        open
+        onClose={closePicker}
+        placement={["bottom-end", "top-end", "bottom-start", "top-start"]}
+        listboxAriaLabel="Destination workspaces"
+        options={options}
+        inputRef={pickerInputRef}
+        inputValue={label}
+        inputPlaceholder="Find or create workspace"
+        inputDisabled={pending && preview !== null}
+        submitDisabled={!preview}
+        inputError={inputError}
+        onInputChange={setLabel}
+        onInputKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault()
+            closePicker()
+          } else if (event.key === "Enter") {
+            event.preventDefault()
+            submit()
+          }
+        }}
+        onInputSubmit={submit}
+        onSelectOption={({ id }) => {
+          if (id === CREATE_WORKSPACE) submit()
+          else void execute({ kind: "move-to-workspace", destinationWorkspaceId: Number(id) })
+        }}
+      />
+    )
+  }
+
+  const uncategorized = dialog.target.kind === "uncategorized"
+  const noun = dialog.target.kind === "subcategory" ? "subcategory" : "category"
+  const renaming = dialog.intent === "rename"
+  const moving = dialog.intent === "move"
+  const movePlan = moving ? planGroupMove(categories, dialog.target) : null
+  const moveOption =
+    movePlan?.options.find(
+      (option) =>
+        (option.categoryId === null ? TOP_LEVEL : String(option.categoryId)) === destination,
+    ) ?? null
+  const normalizedLabel = label.trim().toLocaleLowerCase()
+  const nameError = getCategoryNameError(label)
+  const existing = categories.find((category) => category.label === normalizedLabel)
+  const sameName = !uncategorized && normalizedLabel === dialog.label
+  const close = () => {
+    if (!pending) setDialog(null)
+  }
   return (
     <Modal open onClose={close}>
       <div className={styles.modalBody} style={{ maxWidth: 440 }}>
         <Text variant="subheader-2">
           {renaming
             ? `Rename ${dialog.label}`
-            : movingWorkspace
-              ? `Move ${dialog.label} to another workspace`
-              : moving
-                ? `Move ${dialog.label}`
-                : uncategorized
-                  ? "Delete uncategorized items?"
-                  : `Delete ${dialog.label}?`}
+            : moving
+              ? `Move ${dialog.label}`
+              : uncategorized
+                ? "Delete uncategorized items?"
+                : `Delete ${dialog.label}?`}
         </Text>
         {preview && dialog.target.kind !== "item" && (
           <Text variant="body-1">
@@ -214,33 +292,7 @@ export function ItemGroupActionModal({
             )}
           </>
         )}
-        {movingWorkspace && (
-          <>
-            {workspaceOptions.length ? (
-              <Select
-                size="m"
-                width="max"
-                aria-label="Destination workspace"
-                placeholder="Choose a workspace"
-                disabled={pending}
-                value={destination === null ? [] : [destination]}
-                onUpdate={(values) => setDestination(values[0] ?? null)}
-                options={workspaceOptions.map(({ id, label }) => ({
-                  value: String(id),
-                  content: label,
-                }))}
-              />
-            ) : (
-              <Text variant="body-1">Create another workspace to move items there.</Text>
-            )}
-            <Text variant="body-1" color="secondary">
-              Items keep their category, subcategory, tags, and status. Matching names are reused in
-              the destination. Cleanup removes unused categories, subcategories, tags, and statuses,
-              and removes the source workspace if it has no items left.
-            </Text>
-          </>
-        )}
-        {!renaming && !moving && !movingWorkspace && preview && (
+        {!renaming && !moving && preview && (
           <>
             {!uncategorized && (
               <Text variant="body-1" color="secondary">
@@ -266,22 +318,7 @@ export function ItemGroupActionModal({
           {!preview && !pending && (
             <Button onClick={() => setRetry((value) => value + 1)}>Refresh preview</Button>
           )}
-          {movingWorkspace ? (
-            <Button
-              view="action"
-              loading={pending}
-              disabled={!preview?.itemCount || destination === null}
-              onClick={() =>
-                destination !== null &&
-                void execute({
-                  kind: "move-to-workspace",
-                  destinationWorkspaceId: Number(destination),
-                })
-              }
-            >
-              Move to workspace
-            </Button>
-          ) : moving ? (
+          {moving ? (
             <Button
               view="action"
               loading={pending}

@@ -14,7 +14,7 @@ import { ItemGroupConflictError, ItemGroupNotFoundError } from "./item-group-err
 import { itemSelect, mapItem, resolveCategoryIdForWorkspace, type ItemRow } from "./item/shared"
 import { deleteItemsForUserWithClient } from "./item/delete"
 import { moveWorkspaceItems } from "./item/workspace-move"
-import { lockUserWorkspaces } from "./workspace"
+import { createWorkspaceForUserWithClient, lockUserWorkspaces } from "./workspace"
 import { pruneEmptyWorkspaceTaxonomy } from "./workspace-cleanup"
 
 interface GroupRow {
@@ -159,6 +159,7 @@ const previewOf = (
 }
 
 const LABEL_CONFLICTS: Record<string, string> = {
+  user_workspace_v1_user_id_label_key: "A workspace with that name already exists.",
   workspace_category_v1_workspace_id_label_key: "A category with that name already exists.",
   workspace_subcategory_v1_category_id_label_key:
     "A subcategory with that name already exists in this category.",
@@ -186,7 +187,7 @@ const withGroup = async <T>(
     if (action?.kind === "delete" || action?.kind === "move-to-workspace") {
       const workspaceIds = await lockUserWorkspaces(client, userId)
       if (!workspaceIds.has(selection.workspaceId)) throw new ItemGroupNotFoundError()
-      if (action.kind === "move-to-workspace") {
+      if (action.kind === "move-to-workspace" && action.destinationWorkspaceId !== undefined) {
         if (selection.workspaceId === action.destinationWorkspaceId)
           throw new Error("Choose a different workspace.")
         if (!workspaceIds.has(action.destinationWorkspaceId)) throw new ItemGroupNotFoundError()
@@ -329,8 +330,14 @@ const actions: {
       deletedItemIds,
     }
   },
-  "move-to-workspace": async ({ client, selection, ids }, { destinationWorkspaceId }) => {
+  "move-to-workspace": async ({ client, userId, selection, ids }, action) => {
     if (ids.length === 0) throw new ItemGroupConflictError("There are no items to move.")
+    const destinationWorkspaceId =
+      action.destinationWorkspaceId ??
+      (action.destinationWorkspaceLabel
+        ? await createWorkspaceForUserWithClient(client, userId, action.destinationWorkspaceLabel)
+        : undefined)
+    if (destinationWorkspaceId === undefined) throw new Error("Choose a destination workspace.")
     const itemIds = await moveWorkspaceItems(
       client,
       selection.workspaceId,

@@ -1964,9 +1964,16 @@
         },
         {
           "name": "destinationWorkspaceId",
-          "optional": false,
+          "optional": true,
           "kind": "scalar",
           "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "destinationWorkspaceLabel",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
           "nullable": false
         }
       ]

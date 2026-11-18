@@ -54,17 +54,25 @@ export const getWorkspaceByIdForUser = async (userId: number, id: number) => {
   ])
   return rows[0] ? map(rows[0]) : null
 }
+export const createWorkspaceForUserWithClient = async (
+  client: PoolClient,
+  userId: number,
+  label: string,
+) => {
+  const { rows } = await client.query<{ id: number }>(
+    `INSERT INTO public.user_workspace_v1(user_id,label) VALUES($1,$2) RETURNING id`,
+    [userId, label],
+  )
+  const workspaceId = rows[0]!.id
+  await seedWorkspaceDefaults(client, workspaceId)
+  return workspaceId
+}
 export const createWorkspaceForUser = async (userId: number, label: string) => {
   const client = await getDb().connect()
   let workspaceId: number
   try {
     await client.query("BEGIN")
-    const { rows } = await client.query<{ id: number }>(
-      `INSERT INTO public.user_workspace_v1(user_id,label) VALUES($1,$2) RETURNING id`,
-      [userId, label],
-    )
-    workspaceId = rows[0]!.id
-    await seedWorkspaceDefaults(client, workspaceId)
+    workspaceId = await createWorkspaceForUserWithClient(client, userId, label)
     await client.query("COMMIT")
   } catch (e) {
     await client.query("ROLLBACK")

@@ -3,7 +3,14 @@
 import { Button, Popup } from "@gravity-ui/uikit"
 import { FilterablePicker, type FilterablePickerProps } from "@/components/ui/FilterablePicker"
 import { DotsThree, FolderOpen, FolderSimple, Plus, Tag, X } from "@phosphor-icons/react"
-import { type Dispatch, type SetStateAction, useMemo, useRef, useState } from "react"
+import {
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-items"
 import type { TextCaptureFormState } from "@/types/items"
@@ -38,7 +45,7 @@ interface TextCaptureFormProps {
   onCreateStatus: (label: string) => void | Promise<void>
   onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
-  onMoveEditingItem: () => void
+  onMoveEditingItem: (anchorRef: RefObject<HTMLElement | null>) => void
   onDeleteEditingItem: () => void
   onAddItem: () => void
   onAddItemInCategory: () => void
@@ -379,7 +386,7 @@ export function TextCaptureForm({
                     role="menuitem"
                     onClick={() => {
                       closeMoreDropdown()
-                      onMoveEditingItem()
+                      onMoveEditingItem(moreTriggerRef)
                     }}
                   >
                     <span>Move to workspace</span>

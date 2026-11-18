@@ -48,6 +48,20 @@ export const parseExecuteItemGroupActionRequest = (
   if (typeof input.snapshot !== "string" || !/^[a-f0-9]{64}$/.test(input.snapshot))
     throw new Error("A current group preview is required.")
   if (action.kind === "move-to-workspace") {
+    if (action.destinationWorkspaceLabel !== undefined) {
+      if (action.destinationWorkspaceId !== undefined)
+        throw new Error("Choose one destination workspace.")
+      const destinationWorkspaceLabel =
+        typeof action.destinationWorkspaceLabel === "string"
+          ? action.destinationWorkspaceLabel.trim().toLocaleLowerCase()
+          : ""
+      if (!destinationWorkspaceLabel) throw new Error("Enter a workspace name.")
+      return {
+        ...request,
+        snapshot: input.snapshot,
+        action: { kind: "move-to-workspace", destinationWorkspaceLabel },
+      }
+    }
     const destinationWorkspaceId = id(action.destinationWorkspaceId)
     if (destinationWorkspaceId === request.selection.workspaceId)
       throw new Error("Choose a different workspace.")

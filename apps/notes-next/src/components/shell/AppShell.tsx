@@ -258,6 +258,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           workspaces={workspaces}
           prepare={prepareItemGroupAction}
           applied={applyItemGroupAction}
+          onError={setErrorMessage}
         />
       )}
 

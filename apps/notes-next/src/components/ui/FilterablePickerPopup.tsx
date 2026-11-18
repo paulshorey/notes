@@ -27,6 +27,7 @@ export interface FilterablePickerPopupProps {
   inputValue: string
   inputPlaceholder?: string
   inputDisabled?: boolean
+  submitDisabled?: boolean
   inputError?: string | null
   inputRef?: RefObject<HTMLInputElement | null>
   onInputChange: (value: string) => void
@@ -50,6 +51,7 @@ export function FilterablePickerPopup({
   inputValue,
   inputPlaceholder = "Enter new...",
   inputDisabled = false,
+  submitDisabled = false,
   inputError = null,
   inputRef,
   onInputChange,
@@ -63,7 +65,8 @@ export function FilterablePickerPopup({
   emptyWithoutQueryMessage = null,
 }: FilterablePickerPopupProps) {
   const trimmedInputValue = inputValue.trim()
-  const canSubmit = trimmedInputValue !== "" && !inputDisabled && !inputError
+  const optionsDisabled = inputDisabled || submitDisabled
+  const canSubmit = trimmedInputValue !== "" && !optionsDisabled && !inputError
   const errorId = useId()
 
   useEffect(() => {
@@ -104,6 +107,7 @@ export function FilterablePickerPopup({
                   className={styles.option}
                   data-active={isOptionActive?.(option) || undefined}
                   data-checked={selected || undefined}
+                  disabled={optionsDisabled}
                   onClick={() => onSelectOption(option)}
                   role="option"
                   aria-selected={selected}
