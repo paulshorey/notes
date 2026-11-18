@@ -13,10 +13,11 @@
   align-items: center;
   gap: 0;
   min-width: 0;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
 
 .headerLogo {
+  flex: 0 0 auto;
   padding-left: 12px;
   color: var(--g-color-text-secondary);
   font-size: 1.0625rem;

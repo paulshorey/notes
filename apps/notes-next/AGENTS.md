@@ -69,7 +69,7 @@ src/                        — non-route code (import with "@/..." alias)
     shell/
       AppShell.tsx          — header, sidebar, dialogs, and notifications around a view
       AppShell.module.css   — shell layout CSS module
-      ViewSwitcher.tsx      — header links to each registered view
+      ViewSwitcher.tsx      — header picker for the registered views
     items/                  — components shared by the shell and the views
       WorkspaceHeader.tsx       — app-wide header (logo, save status, recent notes, user menu, sidebar toggle)
       FeedbackNotifications.tsx
@@ -115,7 +115,7 @@ between views, so the session, the open-item ring, and pending saves carry acros
 - **Views.** A view is a screen over the items of one kind (`@lib/db-items/contracts/item-kinds`).
   `src/views/registry.ts` lists them: Notes at `/` and Tasks at `/tasks`. To add one,
   add its entry and a page under `app/(workspace)/`; `ViewSwitcher` in the header
-  links to each. The workspace keeps every item of the active workspace;
+  lists each registered view. The workspace keeps every item of the active workspace;
   `useItemLists` narrows the lists to the active view's kind with `isKind`, so an item
   that is several kinds appears in each of those views and opens as the same entry.
   Every view edits through `ItemEditor`, bound to the active entry. Notes always shows

@@ -1,29 +1,27 @@
 "use client"
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { ITEM_VIEWS, viewForPath } from "@/views/registry"
-import styles from "./ViewSwitcher.module.css"
 
-/**
- * Links to each view of the workspace's items. Moving between views keeps the
- * workspace, the open items, and any pending saves: only the main column changes.
- */
+const viewOptions = ITEM_VIEWS.map(({ route, label }) => ({ id: route, label }))
+
 export function ViewSwitcher() {
   const active = viewForPath(usePathname())
+  const router = useRouter()
 
   return (
-    <nav className={styles.switcher} aria-label="Views">
-      {ITEM_VIEWS.map((view) => (
-        <Link
-          key={view.kind}
-          href={view.route}
-          className={`${styles.link} ${view === active ? styles.linkActive : ""}`}
-          aria-current={view === active ? "page" : undefined}
-        >
-          {view.label}
-        </Link>
-      ))}
-    </nav>
+    <FilterablePicker
+      variant="prominent"
+      value={active.label}
+      triggerAriaLabel={`Content type, ${active.label}`}
+      listboxAriaLabel="Content types"
+      options={viewOptions}
+      selectedIds={[active.route]}
+      onSelectOption={({ id }) => {
+        if (id !== active.route) router.push(String(id))
+      }}
+      placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
+    />
   )
 }

@@ -8,6 +8,7 @@ import { WorkspaceHeader } from "@/components/items/WorkspaceHeader"
 import { DeleteTagModal } from "@/components/items/modals/DeleteTagModal"
 import { EditTagModal } from "@/components/items/modals/EditTagModal"
 import { ItemGroupActionModal } from "@/components/items/modals/ItemGroupActionModal"
+import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { useItemsWorkspace } from "@/workspace/ItemsWorkspaceProvider"
 import styles from "./AppShell.module.css"
@@ -140,6 +141,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     )
   }
 
+  const activeWorkspace = workspaces.find(
+    (workspace) => workspace.id === (activeWorkspaceId ?? workspaces[0]?.id),
+  )
+  const workspaceLabel = activeWorkspace?.label ?? "Workspace"
+
   return (
     <div className={styles.page}>
       <FeedbackNotifications
@@ -167,10 +173,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               pasteUrlAsMarkdown={pasteUrlAsMarkdown}
               onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
               onAddItem={handleCancelEdit}
-              workspaces={workspaces}
-              activeWorkspaceId={activeWorkspaceId ?? workspaces[0]!.id}
-              onWorkspaceChange={handleSwitchWorkspace}
-              onCreateWorkspace={handleCreateWorkspace}
               onLogout={handleLogout}
               maxOpenItems={maxOpenItems}
               onMaxOpenItemsChange={handleMaxOpenItemsChange}
@@ -227,6 +229,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ResultsColumn
           visible={resultsListVisible}
           columnStyle={resultsColumnStyle}
+          workspacePicker={
+            <FilterablePicker
+              variant="prominent"
+              value={workspaceLabel}
+              triggerAriaLabel={`Current workspace, ${workspaceLabel}`}
+              listboxAriaLabel="Workspace options"
+              options={workspaces}
+              selectedIds={activeWorkspace ? [activeWorkspace.id] : []}
+              onSelectOption={(workspace) => handleSwitchWorkspace(Number(workspace.id))}
+              onCreateOption={handleCreateWorkspace}
+              emptyWithoutQueryMessage="No workspaces yet"
+              inputPlaceholder="Enter new workspace..."
+              placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
+            />
+          }
           tags={tags}
           itemsLoading={itemsLoading}
           categories={categories}

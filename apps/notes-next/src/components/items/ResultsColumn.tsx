@@ -79,6 +79,7 @@ export interface StatusItemGroup {
 interface ResultsColumnProps {
   visible: boolean
   columnStyle: CSSProperties
+  workspacePicker: ReactNode
   tags: TagRecord[]
   itemsLoading: boolean
   categories: CategoryRecord[]
@@ -117,6 +118,7 @@ interface ResultsColumnProps {
 export function ResultsColumn({
   visible,
   columnStyle,
+  workspacePicker,
   tags,
   itemsLoading,
   categories,
@@ -433,6 +435,7 @@ export function ResultsColumn({
               </div>
             )}
           </AccordionSection>
+          <div className={styles.workspacePicker}>{visible && workspacePicker}</div>
           <AccordionSection
             id="categories"
             title="Categories"
