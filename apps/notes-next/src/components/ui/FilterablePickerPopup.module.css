@@ -12,6 +12,12 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
 }
 
+.description {
+  padding: 2px 8px;
+  color: var(--g-color-text-secondary, rgba(255, 255, 255, 0.62));
+  font-size: 13px;
+}
+
 .inputRow {
   display: flex;
   align-items: stretch;

@@ -212,7 +212,9 @@ subcategory menus also offer Move; `planGroupMove` in `src/lib/itemGroupActions.
 lists the destinations and why one would be refused, so the dialog says so before
 sending. The item editor and sidebar item and group menus anchor the shared
 workspace picker to their menu trigger. Choosing a workspace applies the move.
-Submitting a new name creates the workspace in the move transaction. Apply within-workspace filing changes through
+Submitting a new name creates the workspace in the move transaction. The picker
+blocks background edits while open so the move cannot discard edits made after
+its preview. Apply within-workspace filing changes through
 `applyItemGroupResultToCategories` and `refileAfterGroupResult`. A deletion or
 workspace move refreshes workspace and vocabulary lists after cleanup. When the
 active workspace is removed, carry open unsaved drafts into the fallback workspace.

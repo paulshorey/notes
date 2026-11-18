@@ -135,7 +135,7 @@ export function ItemGroupActionModal({
     } catch (cause) {
       if (!isCurrent()) return
       if (dialog.intent === "move-to-workspace") {
-        onError(getErrorMessage(cause))
+        onErrorRef.current(getErrorMessage(cause))
         setDialog(null)
         return
       }
@@ -177,6 +177,11 @@ export function ItemGroupActionModal({
         onClose={closePicker}
         placement={["bottom-end", "top-end", "bottom-start", "top-start"]}
         listboxAriaLabel="Destination workspaces"
+        description={
+          preview && dialog.target.kind !== "item"
+            ? `Move the whole group (${describeItemGroupContents(preview)}).`
+            : undefined
+        }
         options={options}
         inputRef={pickerInputRef}
         inputValue={label}

@@ -31,6 +31,9 @@ export function TasksView() {
     viewItems,
   } = useItemsWorkspace()
 
+  const workspaceMoveOpen = useItemsAppStore(
+    (state) => state.itemGroupDialog?.intent === "move-to-workspace",
+  )
   const [layout, setLayout] = useState<"board" | "list">("board")
 
   // The editor shows the entry the user last opened here, from a card, the sidebar,
@@ -123,8 +126,14 @@ export function TasksView() {
       )}
 
       {/* A card opens over the board, so closing it returns to the same place. */}
-      <Modal open={editorOpen} onClose={closeEditor} aria-label="Task">
-        <div className={styles.editorDialog}>
+      <Modal
+        open={editorOpen}
+        onClose={closeEditor}
+        disableOutsideClick={workspaceMoveOpen}
+        disableEscapeKeyDown={workspaceMoveOpen}
+        aria-label="Task"
+      >
+        <div className={styles.editorDialog} inert={workspaceMoveOpen}>
           {editorOpen && <ItemEditor onClose={closeEditor} />}
         </div>
       </Modal>

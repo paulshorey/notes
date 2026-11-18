@@ -23,6 +23,7 @@ export interface FilterablePickerPopupProps {
   onClose: () => void
   placement?: ComponentProps<typeof Popup>["placement"]
   listboxAriaLabel: string
+  description?: string
   options: FilterablePickerOption[]
   inputValue: string
   inputPlaceholder?: string
@@ -47,6 +48,7 @@ export function FilterablePickerPopup({
   onClose,
   placement = ["top-start", "top-end", "bottom-start", "bottom-end"],
   listboxAriaLabel,
+  description,
   options,
   inputValue,
   inputPlaceholder = "Enter new...",
@@ -67,6 +69,7 @@ export function FilterablePickerPopup({
   const trimmedInputValue = inputValue.trim()
   const optionsDisabled = inputDisabled || submitDisabled
   const canSubmit = trimmedInputValue !== "" && !optionsDisabled && !inputError
+  const descriptionId = useId()
   const errorId = useId()
 
   useEffect(() => {
@@ -86,7 +89,17 @@ export function FilterablePickerPopup({
       role="dialog"
     >
       <div className={styles.panel}>
-        <div className={styles.options} role="listbox" aria-label={listboxAriaLabel}>
+        {description && (
+          <div className={styles.description} id={descriptionId}>
+            {description}
+          </div>
+        )}
+        <div
+          className={styles.options}
+          role="listbox"
+          aria-label={listboxAriaLabel}
+          aria-describedby={description ? descriptionId : undefined}
+        >
           {inputError ? (
             <div className={styles.empty} id={errorId} role="alert">
               {inputError}
