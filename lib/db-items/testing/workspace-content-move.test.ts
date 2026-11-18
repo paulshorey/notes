@@ -282,6 +282,73 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       )
     }))
 
+  test("creates a destination from its name and moves a group into it", () =>
+    withUser(async (userId) => {
+      const source = await createWorkspaceForUser(userId, "source")
+      const parent = await category(source.id, "parent")
+      const child = await subcategory(parent, "child")
+      const original = await item(userId, source.id, { categoryId: parent, subcategoryId: child })
+      const selection: ItemGroupSelection = {
+        workspaceId: source.id,
+        target: { kind: "category", categoryId: parent },
+      }
+      const action = {
+        kind: "move-to-workspace",
+        destinationWorkspaceLabel: "  New Destination ",
+      } as const
+      const initial = await previewItemGroup(userId, selection)
+      const late = await item(userId, source.id, { categoryId: parent })
+      await assert.rejects(
+        executeItemGroupActionForItemsApp({
+          userId,
+          selection,
+          action,
+          snapshot: initial.snapshot,
+        }),
+        ItemGroupConflictError,
+      )
+      assert.deepEqual(
+        (await listWorkspacesByUser(userId)).map(({ label }) => label),
+        ["source"],
+      )
+
+      const { snapshot } = await previewItemGroup(userId, selection)
+      await assert.rejects(
+        executeItemGroupActionForItemsApp({
+          userId,
+          selection,
+          snapshot,
+          action: { ...action, destinationWorkspaceId: source.id },
+        }),
+        /Choose one destination workspace/,
+      )
+      await assert.rejects(
+        executeItemGroupActionForItemsApp({
+          userId,
+          selection,
+          snapshot,
+          action: { ...action, destinationWorkspaceLabel: "source" },
+        }),
+        /A workspace with that name already exists/,
+      )
+      const result = await executeItemGroupActionForItemsApp({
+        userId,
+        selection,
+        action,
+        snapshot,
+      })
+
+      const [destination] = await listWorkspacesByUser(userId)
+      assert.equal(destination?.label, "new destination")
+      assert.deepEqual(result.workspaceMove, {
+        destinationWorkspaceId: destination.id,
+        itemIds: [original.id, late.id],
+      })
+      assert.equal(result.cleanup?.workspaceRemoved, true)
+      const items = await listItemsByUser(userId, destination.id)
+      assert.equal(items.find(({ uid }) => uid === original.uid)?.subcategory?.label, "child")
+    }))
+
   test("individual deletion prunes only empty taxonomy and removes an empty workspace", () =>
     withUser(async (userId) => {
       const source = await createWorkspaceForUser(userId, "source")

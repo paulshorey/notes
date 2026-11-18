@@ -23,10 +23,12 @@ export interface FilterablePickerPopupProps {
   onClose: () => void
   placement?: ComponentProps<typeof Popup>["placement"]
   listboxAriaLabel: string
+  description?: string
   options: FilterablePickerOption[]
   inputValue: string
   inputPlaceholder?: string
   inputDisabled?: boolean
+  submitDisabled?: boolean
   inputError?: string | null
   inputRef?: RefObject<HTMLInputElement | null>
   onInputChange: (value: string) => void
@@ -46,10 +48,12 @@ export function FilterablePickerPopup({
   onClose,
   placement = ["top-start", "top-end", "bottom-start", "bottom-end"],
   listboxAriaLabel,
+  description,
   options,
   inputValue,
   inputPlaceholder = "Enter new...",
   inputDisabled = false,
+  submitDisabled = false,
   inputError = null,
   inputRef,
   onInputChange,
@@ -63,7 +67,9 @@ export function FilterablePickerPopup({
   emptyWithoutQueryMessage = null,
 }: FilterablePickerPopupProps) {
   const trimmedInputValue = inputValue.trim()
-  const canSubmit = trimmedInputValue !== "" && !inputDisabled && !inputError
+  const optionsDisabled = inputDisabled || submitDisabled
+  const canSubmit = trimmedInputValue !== "" && !optionsDisabled && !inputError
+  const descriptionId = useId()
   const errorId = useId()
 
   useEffect(() => {
@@ -83,7 +89,17 @@ export function FilterablePickerPopup({
       role="dialog"
     >
       <div className={styles.panel}>
-        <div className={styles.options} role="listbox" aria-label={listboxAriaLabel}>
+        {description && (
+          <div className={styles.description} id={descriptionId}>
+            {description}
+          </div>
+        )}
+        <div
+          className={styles.options}
+          role="listbox"
+          aria-label={listboxAriaLabel}
+          aria-describedby={description ? descriptionId : undefined}
+        >
           {inputError ? (
             <div className={styles.empty} id={errorId} role="alert">
               {inputError}
@@ -104,6 +120,7 @@ export function FilterablePickerPopup({
                   className={styles.option}
                   data-active={isOptionActive?.(option) || undefined}
                   data-checked={selected || undefined}
+                  disabled={optionsDisabled}
                   onClick={() => onSelectOption(option)}
                   role="option"
                   aria-selected={selected}

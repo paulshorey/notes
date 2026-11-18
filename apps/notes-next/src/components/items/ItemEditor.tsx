@@ -68,13 +68,11 @@ export function ItemEditor({ onClose }: { onClose?: () => void }) {
       onCancelEdit={handleCancelEdit}
       onAddItem={handleCancelEdit}
       onAddItemInCategory={handleAddItemInCategory}
-      onMoveEditingItem={() => {
+      onMoveEditingItem={(anchorRef) => {
         if (activeEntry?.itemId == null) return
-        useItemsAppStore.getState().setItemGroupDialog({
-          target: { kind: "item", itemId: activeEntry.itemId },
-          label: "item",
-          intent: "move-to-workspace",
-        })
+        useItemsAppStore
+          .getState()
+          .openWorkspaceMovePicker({ kind: "item", itemId: activeEntry.itemId }, anchorRef)
       }}
       onDeleteEditingItem={() => {
         if (activeEntry?.itemId != null) {

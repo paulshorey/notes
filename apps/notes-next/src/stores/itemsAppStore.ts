@@ -1,3 +1,4 @@
+import type { RefObject } from "react"
 import { create } from "zustand"
 import type { ItemRecord } from "@lib/db-items"
 import type { ItemGroupTarget } from "@lib/db-items/contracts/item-group-actions"
@@ -25,11 +26,14 @@ import {
 } from "./openItems"
 
 type State = OpenItemsState & {
-  itemGroupDialog: {
-    target: ItemGroupTarget
-    intent: "rename" | "delete" | "move" | "move-to-workspace"
-    label: string
-  } | null
+  itemGroupDialog:
+    | { target: ItemGroupTarget; intent: "rename" | "delete" | "move"; label: string }
+    | {
+        target: ItemGroupTarget
+        intent: "move-to-workspace"
+        anchorRef: RefObject<HTMLElement | null>
+      }
+    | null
   backupOperation: "download" | "restore" | null
   /**
    * Whether the navigation drawer is open on mobile/tablet. Desktop keeps
@@ -86,6 +90,10 @@ export interface ViewClaimPlan {
 
 type Actions = {
   setItemGroupDialog: (dialog: State["itemGroupDialog"]) => void
+  openWorkspaceMovePicker: (
+    target: ItemGroupTarget,
+    anchorRef: RefObject<HTMLElement | null>,
+  ) => void
   setBackupOperation: (operation: "download" | "restore" | null) => void
   resetDefaultState: () => void
   setBeforeViewClaim: (handler: State["beforeViewClaim"]) => void
@@ -183,6 +191,8 @@ const openItemsSlice = (state: State): OpenItemsState => ({
 export const useItemsAppStore = create<ItemsAppStore>((set, get) => ({
   ...defaultState,
   setItemGroupDialog: (itemGroupDialog) => set({ itemGroupDialog }),
+  openWorkspaceMovePicker: (target, anchorRef) =>
+    set({ itemGroupDialog: { target, anchorRef, intent: "move-to-workspace" } }),
   setBackupOperation: (backupOperation) => set({ backupOperation }),
   // The view on screen and the engine's hook outlive a session reset.
   resetDefaultState: () => {

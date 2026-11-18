@@ -19,7 +19,8 @@ items. The single-item selector is available for workspace moves.
 
 Actions include `{ kind: "rename", label }`, `{ kind: "delete", deleteItems: boolean }`,
 `{ kind: "move", categoryId: number | null }`, and
-`{ kind: "move-to-workspace", destinationWorkspaceId }`.
+`{ kind: "move-to-workspace", destinationWorkspaceId }`. To create the destination,
+send `destinationWorkspaceLabel` in place of `destinationWorkspaceId`.
 
 | Target        | Rename                                | Delete, keep items                                    | Delete with items                         |
 | ------------- | ------------------------------------- | ----------------------------------------------------- | ----------------------------------------- |
@@ -50,6 +51,8 @@ from the next embedding maintenance run.
 ## Moving between workspaces
 
 The item editor and the sidebar item and group menus offer **Move to workspace**.
+Selecting a workspace in the picker moves the items there. Entering a new name
+creates the destination and moves the items in one transaction.
 Both workspaces must belong to the authenticated account, including visitor accounts.
 The items keep their IDs, public links, timestamps, content, and embeddings. The
 destination reuses categories, subcategories, tags, and statuses with the same

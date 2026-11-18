@@ -8,6 +8,7 @@ import { WorkspaceHeader } from "@/components/items/WorkspaceHeader"
 import { DeleteTagModal } from "@/components/items/modals/DeleteTagModal"
 import { EditTagModal } from "@/components/items/modals/EditTagModal"
 import { ItemGroupActionModal } from "@/components/items/modals/ItemGroupActionModal"
+import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { useItemsWorkspace } from "@/workspace/ItemsWorkspaceProvider"
 import styles from "./AppShell.module.css"
 
@@ -107,6 +108,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     workspaces,
   } = useItemsWorkspace()
 
+  const workspaceMoveOpen = useItemsAppStore(
+    (state) => state.itemGroupDialog?.intent === "move-to-workspace",
+  )
+
   if (authStatus === "loading" || sessionLoading || !user) {
     return (
       <div className={styles.page}>
@@ -146,7 +151,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         onDismissSearchError={() => setSearchErrorMessage(null)}
       />
 
-      <div className={styles.content} ref={contentRef} inert={backupOperation !== null}>
+      <div
+        className={styles.content}
+        ref={contentRef}
+        inert={backupOperation !== null || workspaceMoveOpen}
+      >
         <div className={styles.editorColumn}>
           <div className={styles.header}>
             <WorkspaceHeader
@@ -258,6 +267,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           workspaces={workspaces}
           prepare={prepareItemGroupAction}
           applied={applyItemGroupAction}
+          onError={setErrorMessage}
         />
       )}
 

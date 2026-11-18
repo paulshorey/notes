@@ -56,7 +56,9 @@ export interface MoveItemGroupAction {
 
 export interface MoveToWorkspaceAction {
   kind: "move-to-workspace"
-  destinationWorkspaceId: number
+  /** Provide exactly one destination. A label creates the workspace as part of the move. */
+  destinationWorkspaceId?: number
+  destinationWorkspaceLabel?: string
 }
 
 export type ItemGroupAction =

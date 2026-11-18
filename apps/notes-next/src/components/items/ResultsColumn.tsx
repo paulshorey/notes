@@ -27,6 +27,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
+  type RefObject,
   useEffect,
   useMemo,
   useRef,
@@ -147,6 +148,7 @@ export function ResultsColumn({
   onDeleteTag,
 }: ResultsColumnProps) {
   const setItemGroupDialog = useItemsAppStore((state) => state.setItemGroupDialog)
+  const openWorkspaceMovePicker = useItemsAppStore((state) => state.openWorkspaceMovePicker)
   const [expandedSection, setExpandedSection] = useState<ResultsAccordionId>("categories")
   const searchQuery = useItemsAppStore((state) => state.searchQuery)
   const setSearchQuery = useItemsAppStore((state) => state.setSearchQuery)
@@ -311,12 +313,8 @@ export function ResultsColumn({
               setActiveMovePicker({ kind: "tag", item, fromTagId, id })
             }
       }
-      onMoveToWorkspace={() =>
-        setItemGroupDialog({
-          target: { kind: "item", itemId: item.id },
-          label: "item",
-          intent: "move-to-workspace",
-        })
+      onMoveToWorkspace={(anchorRef) =>
+        openWorkspaceMovePicker({ kind: "item", itemId: item.id }, anchorRef)
       }
       onDelete={() => onDeleteItem(item.id)}
       deletePending={deletingItemId === item.id}
@@ -519,12 +517,8 @@ export function ResultsColumn({
                                   })
                               : undefined
                           }
-                          onMoveToWorkspace={() =>
-                            setItemGroupDialog({
-                              target,
-                              label: category?.label ?? UNCATEGORIZED_LABEL,
-                              intent: "move-to-workspace",
-                            })
+                          onMoveToWorkspace={(anchorRef) =>
+                            openWorkspaceMovePicker(target, anchorRef)
                           }
                           onDelete={() =>
                             setItemGroupDialog({
@@ -611,12 +605,8 @@ export function ResultsColumn({
                                       intent: "move",
                                     })
                                   }
-                                  onMoveToWorkspace={() =>
-                                    setItemGroupDialog({
-                                      target: subTarget,
-                                      label: subcategory.label,
-                                      intent: "move-to-workspace",
-                                    })
+                                  onMoveToWorkspace={(anchorRef) =>
+                                    openWorkspaceMovePicker(subTarget, anchorRef)
                                   }
                                   onDelete={() =>
                                     setItemGroupDialog({
@@ -1031,7 +1021,7 @@ interface SectionActionMenuProps {
   onEdit: () => void
   /** Offered only for groups that have a place in the hierarchy to move from. */
   onMove?: () => void
-  onMoveToWorkspace?: () => void
+  onMoveToWorkspace?: (anchorRef: RefObject<HTMLElement | null>) => void
   onDelete: () => void
   deleteDisabled?: boolean
   deleteTitle?: string
@@ -1115,7 +1105,7 @@ function SectionActionMenu({
               role="menuitem"
               onClick={() => {
                 onOpenActionMenuChange(null)
-                onMoveToWorkspace()
+                onMoveToWorkspace(buttonRef)
               }}
             >
               <ArrowsLeftRight size={14} weight="regular" />
@@ -1149,7 +1139,7 @@ interface ItemActionMenuProps {
   onOpenActionMenuChange: (id: string | null) => void
   onAssignCategory: () => void
   onChangeTag?: () => void
-  onMoveToWorkspace: () => void
+  onMoveToWorkspace: (anchorRef: RefObject<HTMLElement | null>) => void
   onDelete: () => void
   deletePending?: boolean
   movePickerActive: boolean
@@ -1234,7 +1224,7 @@ function ItemActionMenu({
             role="menuitem"
             onClick={() => {
               onOpenActionMenuChange(null)
-              onMoveToWorkspace()
+              onMoveToWorkspace(buttonRef)
             }}
           >
             <ArrowsLeftRight size={14} weight="regular" />
