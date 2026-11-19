@@ -223,8 +223,11 @@ active workspace is removed, carry open unsaved drafts into the fallback workspa
 Opening the dialog pauses autosave/exit PATCHes, settles saved entries before
 preview, and excludes unsaved drafts. Apply the committed response to entries and
 caches before refreshing; deleted entries must never become detached saves.
-A conflict or uncertain response requires a fresh preview. Retry an automatic
-empty category deletion from the sidebar. Retry a confirmed action in the dialog.
+An automatic category deletion has a deadline so saves can resume after a stalled
+preview, deletion, or workspace refresh. A slow preview can be canceled before the
+delete request starts. A conflict or uncertain response requires a fresh preview.
+Retry an automatic empty category deletion from the sidebar. Retry a confirmed
+action in the dialog.
 
 The local server-data snapshot may paint immediately for a returning user, but a failed refresh must not clear workspace-scoped open-note storage or other draft state. A first visit with no usable snapshot must finish in a visible, retryable error state; startup must never retry automatically in a loop.
 

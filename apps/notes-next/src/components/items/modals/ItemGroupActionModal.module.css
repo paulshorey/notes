@@ -11,3 +11,12 @@
   gap: 8px;
   margin-top: 6px;
 }
+
+.categoryDeleteProgress {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 12px;
+}

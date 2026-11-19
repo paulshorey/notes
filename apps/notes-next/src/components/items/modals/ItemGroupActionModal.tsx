@@ -26,24 +26,28 @@ interface Props {
   workspaceId: number
   categories: CategoryRecord[]
   workspaces: WorkspaceRecord[]
-  prepare: () => Promise<void>
-  applied: (result: ItemGroupActionResponse) => Promise<void>
+  prepare: (signal?: AbortSignal) => Promise<void>
+  applied: (result: ItemGroupActionResponse, signal?: AbortSignal) => Promise<void>
   onError: (message: string) => void
 }
 
 /** A move destination as a select value; the top level has no category id. */
 const TOP_LEVEL = "top"
 const CREATE_WORKSPACE = "create-workspace"
+const CATEGORY_DELETE_TIMEOUT_MS = 10_000
+const CATEGORY_DELETE_PROGRESS_DELAY_MS = 1_000
 
 async function submitItemGroupAction(
   selection: ItemGroupSelection,
   snapshot: string,
   action: ItemGroupAction,
+  signal?: AbortSignal,
 ) {
   const response = await itemsFetch("/api/item-groups", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ selection, snapshot, action }),
+    signal,
   })
   return readJson<ItemGroupActionResponse>(response)
 }
@@ -62,6 +66,10 @@ export function ItemGroupActionModal({
   const setDialog = useItemsAppStore((state) => state.setItemGroupDialog)
   const [preview, setPreview] = useState<ItemGroupPreview | null>(null)
   const [categoryDeleteConfirmation, setCategoryDeleteConfirmation] = useState<typeof dialog>(null)
+  const [categoryDeleteProgress, setCategoryDeleteProgress] = useState<{
+    dialog: NonNullable<typeof dialog>
+    cancel?: () => void
+  } | null>(null)
   const [label, setLabel] = useState("")
   const pickerInputRef = useRef<HTMLInputElement>(null)
   const [destination, setDestination] = useState<string | null>(null)
@@ -93,16 +101,44 @@ export function ItemGroupActionModal({
     const skipPromptIfEmpty =
       dialog.intent === "delete" && dialog.target.kind === "category" && retry?.dialog !== dialog
     const isCurrent = () => active && useItemsAppStore.getState().itemGroupDialog === dialog
+    const controller = skipPromptIfEmpty ? new AbortController() : undefined
+    let phase: "checking" | "deleting" | "refreshing" = "checking"
+    const cancel = () => {
+      if (!isCurrent() || phase !== "checking") return
+      controller?.abort()
+      setDialog(null)
+    }
+    const progressTimer =
+      controller &&
+      window.setTimeout(() => {
+        if (isCurrent())
+          setCategoryDeleteProgress({ dialog, cancel: phase === "checking" ? cancel : undefined })
+      }, CATEGORY_DELETE_PROGRESS_DELAY_MS)
+    const deadline =
+      controller &&
+      window.setTimeout(() => {
+        controller.abort()
+        if (!isCurrent()) return
+        onErrorRef.current(
+          phase === "checking"
+            ? "Checking the category timed out. Try Delete again."
+            : phase === "deleting"
+              ? "The delete request timed out. Reload Notes to check whether the category was deleted."
+              : "The category was deleted. Reload Notes to refresh the workspace.",
+        )
+        setDialog(null)
+      }, CATEGORY_DELETE_TIMEOUT_MS)
     setPreview(null)
     setError(null)
     setPending(true)
     void (async () => {
-      await prepareRef.current()
+      await prepareRef.current(controller?.signal)
       if (!isCurrent()) return
       const response = await itemsFetch("/api/item-groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ selection }),
+        signal: controller?.signal,
       })
       const next = await readJson<ItemGroupPreview>(response)
       if (!isCurrent()) return
@@ -110,14 +146,21 @@ export function ItemGroupActionModal({
         throw new Error("There are no items to move.")
       if (skipPromptIfEmpty) {
         if (next.itemCount === 0) {
+          phase = "deleting"
+          setCategoryDeleteProgress((current) =>
+            current?.dialog === dialog ? { dialog } : current,
+          )
           // The server checks this snapshot again before changing the category.
-          const result = await submitItemGroupAction(selection, next.snapshot, {
-            kind: "delete",
-            deleteItems: false,
-          })
+          const result = await submitItemGroupAction(
+            selection,
+            next.snapshot,
+            { kind: "delete", deleteItems: false },
+            controller?.signal,
+          )
+          phase = "refreshing"
           const workspace = useWorkspaceStore.getState()
           if (workspace.user?.id === userId && workspace.activeWorkspaceId === workspaceId)
-            await appliedRef.current(result)
+            await appliedRef.current(result, controller?.signal)
           if (isCurrent()) setDialog(null)
           return
         }
@@ -133,10 +176,21 @@ export function ItemGroupActionModal({
         } else setError(getErrorMessage(cause))
       })
       .finally(() => {
+        window.clearTimeout(progressTimer)
+        window.clearTimeout(deadline)
+        if (controller)
+          setCategoryDeleteProgress((current) => (current?.dialog === dialog ? null : current))
         if (active) setPending(false)
       })
     return () => {
       active = false
+      window.clearTimeout(progressTimer)
+      // A delete that was already sent can commit after another group action opens.
+      // Let it reconcile the workspace before its deadline.
+      if (phase === "checking") {
+        window.clearTimeout(deadline)
+        controller?.abort()
+      }
     }
   }, [dialog, userId, workspaceId, retry, setDialog])
 
@@ -145,8 +199,16 @@ export function ItemGroupActionModal({
     dialog.intent === "delete" &&
     dialog.target.kind === "category" &&
     categoryDeleteConfirmation !== dialog
-  )
-    return null
+  ) {
+    if (categoryDeleteProgress?.dialog !== dialog) return null
+    const { cancel } = categoryDeleteProgress
+    return (
+      <div className={styles.categoryDeleteProgress}>
+        <Text role="status">{cancel ? "Checking category…" : "Deleting category…"}</Text>
+        {cancel && <Button onClick={cancel}>Cancel</Button>}
+      </div>
+    )
+  }
   const execute = async (action: ItemGroupAction) => {
     if (!preview || pending) return
     setPending(true)
