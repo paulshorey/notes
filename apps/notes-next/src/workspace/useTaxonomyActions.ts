@@ -65,6 +65,7 @@ export function useTaxonomyActions(
   // The last list write for each item, so the next one for that item waits its turn.
   const listWritesByItemRef = useRef(new Map<number, Promise<void>>())
   const latestCleanupRefreshRef = useRef(0)
+  const categoryCreatesRef = useRef(new Map<string, Promise<CategoryRecord | null>>())
 
   const {
     activeKey,
@@ -363,63 +364,71 @@ export function useTaxonomyActions(
     }
   }
 
+  const createWorkspaceCategory = async (rawLabel: string): Promise<CategoryRecord | null> => {
+    const workspaceId = activeWorkspaceId
+    if (!user || workspaceId === null) throw new Error("Open a workspace before adding categories.")
+    const label = rawLabel.trim()
+    const nameError = getCategoryNameError(label)
+    if (nameError) throw new Error(nameError)
+    if (label === "") return null
+    const workspace = useWorkspaceStore.getState()
+    if (workspace.user?.id !== user.id || workspace.activeWorkspaceId !== workspaceId) return null
+    const normalizedLabel = normalizeLabel(label)
+    const existingCategory = workspace.categories.find(
+      (category) => normalizeLabel(category.label) === normalizedLabel,
+    )
+    if (existingCategory) return existingCategory
+
+    const pendingCreates = categoryCreatesRef.current
+    const requestKey = JSON.stringify([user.id, workspaceId, normalizedLabel])
+    const pendingCreate = pendingCreates.get(requestKey)
+    if (pendingCreate) return pendingCreate
+
+    clearMessages()
+    setCreateCategoryPending(true)
+    const request = (async () => {
+      const response = await itemsFetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, workspaceId, label }),
+      })
+      const data = await readJson<CreateCategoryResponse>(response)
+      if (
+        useWorkspaceStore.getState().user?.id !== user.id ||
+        useWorkspaceStore.getState().activeWorkspaceId !== workspaceId
+      ) {
+        return null
+      }
+      setCategories((prev) => upsertCategory(prev, data.category))
+      setStatusMessage(`Category “${data.category.label}” added.`)
+      return data.category
+    })().finally(() => {
+      pendingCreates.delete(requestKey)
+      setCreateCategoryPending(pendingCreates.size > 0)
+    })
+    pendingCreates.set(requestKey, request)
+    return request
+  }
+
   const handleCreateCategory = async (
     rawLabel: string,
     targetKey: OpenItemKey | null = activeKey,
   ) => {
-    if (!user) {
-      setErrorMessage("Sign in before adding categories.")
-      return
-    }
-    const label = rawLabel.trim()
-    const nameError = getCategoryNameError(label)
-    if (nameError) {
-      setErrorMessage(nameError)
-      return
-    }
-    if (label === "" || targetKey === null) {
-      return
-    }
-    const existingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
-    )
-    if (existingCategory) {
-      patchEntry(targetKey, (entry) => ({
-        form: {
-          ...entry.form,
-          selectedCategoryId: existingCategory.id,
-          selectedSubcategoryId:
-            entry.form.selectedCategoryId === existingCategory.id
-              ? entry.form.selectedSubcategoryId
-              : null,
-        },
-        categoryInputValue: existingCategory.label,
-      }))
-      return
-    }
-    clearMessages()
-    setCreateCategoryPending(true)
+    if (targetKey === null) return
     try {
-      const response = await itemsFetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
-      })
-      const data = await readJson<CreateCategoryResponse>(response)
-      setCategories((prev) => upsertCategory(prev, data.category))
+      const category = await createWorkspaceCategory(rawLabel)
+      if (!category) return
       patchEntry(targetKey, (entry) => ({
         form: {
           ...entry.form,
-          selectedCategoryId: data.category.id,
-          selectedSubcategoryId: null,
+          selectedCategoryId: category.id,
+          selectedSubcategoryId:
+            entry.form.selectedCategoryId === category.id ? entry.form.selectedSubcategoryId : null,
         },
-        categoryInputValue: data.category.label,
+        categoryInputValue: category.label,
       }))
-      setStatusMessage(`Category “${data.category.label}” added.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
-    } finally {
-      setCreateCategoryPending(false)
     }
   }
 
@@ -1190,6 +1199,7 @@ export function useTaxonomyActions(
     handleSelectSubcategory,
     handleSelectStatus,
     handleCreateTag,
+    createWorkspaceCategory,
     handleCreateCategory,
     handleCreateSubcategory,
     resolveCategoryForSidebarMove,

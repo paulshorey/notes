@@ -20,6 +20,8 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
+import { FilterablePickerPopup } from "@/components/ui/FilterablePickerPopup"
+import { getErrorMessage } from "@/lib/api"
 import { firstLineLabel, normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import {
@@ -80,9 +82,12 @@ interface ResultsColumnProps {
   visible: boolean
   columnStyle: CSSProperties
   workspacePicker: ReactNode
+  workspaceId: number | null
   tags: TagRecord[]
   itemsLoading: boolean
   categories: CategoryRecord[]
+  createCategoryPending: boolean
+  onCreateCategory: (label: string) => Promise<CategoryRecord | null>
   statuses: StatusRecord[]
   statusItemGroups: StatusItemGroup[]
   activeStatusId: number | null
@@ -119,9 +124,12 @@ export function ResultsColumn({
   visible,
   columnStyle,
   workspacePicker,
+  workspaceId,
   tags,
   itemsLoading,
   categories,
+  createCategoryPending,
+  onCreateCategory,
   statuses,
   statusItemGroups,
   activeStatusId,
@@ -151,7 +159,7 @@ export function ResultsColumn({
 }: ResultsColumnProps) {
   const setItemGroupDialog = useItemsAppStore((state) => state.setItemGroupDialog)
   const openWorkspaceMovePicker = useItemsAppStore((state) => state.openWorkspaceMovePicker)
-  const [expandedSection, setExpandedSection] = useState<ResultsAccordionId>("categories")
+  const [expandedSection, setExpandedSection] = useState<ResultsAccordionId | null>("categories")
   const searchQuery = useItemsAppStore((state) => state.searchQuery)
   const setSearchQuery = useItemsAppStore((state) => state.setSearchQuery)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -167,6 +175,9 @@ export function ResultsColumn({
   const prevFilingRef = useRef<string | undefined>(undefined)
   const prevStatusIdRef = useRef<number | null | undefined>(undefined)
   const prevTagIdsRef = useRef<number[]>([])
+
+  const toggleSection = (section: ResultsAccordionId) =>
+    setExpandedSection((current) => (current === section ? null : section))
 
   useEffect(() => {
     const validIds = new Set(categories.map((category) => category.id))
@@ -374,73 +385,22 @@ export function ResultsColumn({
         <div className={styles.itemResults}>
           <div className={styles.workspacePicker}>{visible && workspacePicker}</div>
           <AccordionSection
-            id="search"
-            title="Search"
-            expanded={expandedSection === "search"}
-            onExpand={() => setExpandedSection("search")}
-          >
-            <div className={styles.searchField}>
-              <TextInput
-                size="m"
-                placeholder="AI Search"
-                value={searchQuery}
-                onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
-                onKeyDown={(event) => {
-                  if (event.key !== "Escape") return
-                  event.preventDefault()
-                  event.stopPropagation()
-                  if (searchQuery.trim() !== "") {
-                    setSearchQuery("")
-                  } else {
-                    setExpandedSection("categories")
-                  }
-                }}
-                controlRef={searchInputRef}
-                startContent={<MagnifyingGlass size={16} weight="regular" aria-hidden />}
-                endContent={
-                  searchMode ? (
-                    <button
-                      type="button"
-                      className={styles.searchClearButton}
-                      aria-label="Clear search"
-                      title="Clear search"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        setSearchQuery("")
-                        searchInputRef.current?.focus()
-                      }}
-                    >
-                      <X size={14} weight="bold" />
-                    </button>
-                  ) : undefined
-                }
-                className={styles.searchInput}
-                controlProps={{ "aria-label": "AI Search" }}
-              />
-            </div>
-            {searchMode && (
-              <div className={styles.searchResults}>
-                <ItemResultsList
-                  items={searchItems}
-                  activeItemId={activeItemId}
-                  openItemIds={openItemIds}
-                  loading={searchLoading || itemsLoading}
-                  emptyMessage={
-                    selectedTag
-                      ? `No search results in “${selectedTag.label}”.`
-                      : "No search results."
-                  }
-                  onEdit={handleResultEdit}
-                  renderAction={(item) => renderItemRowAction(item, `search-item-${item.id}`)}
-                />
-              </div>
-            )}
-          </AccordionSection>
-          <AccordionSection
             id="categories"
             title="Categories"
             expanded={expandedSection === "categories"}
-            onExpand={() => setExpandedSection("categories")}
+            onToggle={() => toggleSection("categories")}
+            action={
+              visible &&
+              workspaceId !== null && (
+                <CreateCategoryButton
+                  key={workspaceId}
+                  categories={categories}
+                  pending={createCategoryPending}
+                  onCreate={onCreateCategory}
+                  onCreated={() => setExpandedSection("categories")}
+                />
+              )
+            }
             contentRole="list"
             contentLabel="Notes by category"
           >
@@ -648,7 +608,7 @@ export function ResultsColumn({
             id="statuses"
             title="Statuses"
             expanded={expandedSection === "statuses"}
-            onExpand={() => setExpandedSection("statuses")}
+            onToggle={() => toggleSection("statuses")}
             contentRole="list"
             contentLabel="Notes by status"
           >
@@ -740,7 +700,7 @@ export function ResultsColumn({
             id="tags"
             title="Tags"
             expanded={expandedSection === "tags"}
-            onExpand={() => setExpandedSection("tags")}
+            onToggle={() => toggleSection("tags")}
             contentRole="list"
             contentLabel="Notes by tag"
           >
@@ -818,6 +778,69 @@ export function ResultsColumn({
               </>
             )}
           </AccordionSection>
+          <AccordionSection
+            id="search"
+            title="Search"
+            expanded={expandedSection === "search"}
+            onToggle={() => toggleSection("search")}
+          >
+            <div className={styles.searchField}>
+              <TextInput
+                size="m"
+                placeholder="AI Search"
+                value={searchQuery}
+                onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  if (searchQuery.trim() !== "") {
+                    setSearchQuery("")
+                  } else {
+                    setExpandedSection("categories")
+                  }
+                }}
+                controlRef={searchInputRef}
+                startContent={<MagnifyingGlass size={16} weight="regular" aria-hidden />}
+                endContent={
+                  searchMode ? (
+                    <button
+                      type="button"
+                      className={styles.searchClearButton}
+                      aria-label="Clear search"
+                      title="Clear search"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setSearchQuery("")
+                        searchInputRef.current?.focus()
+                      }}
+                    >
+                      <X size={14} weight="bold" />
+                    </button>
+                  ) : undefined
+                }
+                className={styles.searchInput}
+                controlProps={{ "aria-label": "AI Search" }}
+              />
+            </div>
+            {searchMode && (
+              <div className={styles.searchResults}>
+                <ItemResultsList
+                  items={searchItems}
+                  activeItemId={activeItemId}
+                  openItemIds={openItemIds}
+                  loading={searchLoading || itemsLoading}
+                  emptyMessage={
+                    selectedTag
+                      ? `No search results in “${selectedTag.label}”.`
+                      : "No search results."
+                  }
+                  onEdit={handleResultEdit}
+                  renderAction={(item) => renderItemRowAction(item, `search-item-${item.id}`)}
+                />
+              </div>
+            )}
+          </AccordionSection>
         </div>
       </section>
     </div>
@@ -828,7 +851,8 @@ interface AccordionSectionProps {
   id: string
   title: string
   expanded: boolean
-  onExpand: () => void
+  onToggle: () => void
+  action?: ReactNode
   children: ReactNode
   contentRole?: "list"
   contentLabel?: string
@@ -838,7 +862,8 @@ function AccordionSection({
   id,
   title,
   expanded,
-  onExpand,
+  onToggle,
+  action,
   children,
   contentRole,
   contentLabel,
@@ -850,23 +875,27 @@ function AccordionSection({
     <div
       className={`${styles.accordionSection} ${expanded ? styles.accordionSectionExpanded : ""}`}
     >
-      <button
-        type="button"
-        id={headingId}
-        className={styles.accordionHeading}
-        aria-expanded={expanded}
-        aria-controls={panelId}
-        onClick={onExpand}
-      >
-        {title}
-        <CaretRight
-          className={`${styles.accordionHeadingIcon} ${
-            expanded ? styles.accordionHeadingIconExpanded : ""
-          }`}
-          size={12}
-          aria-hidden
-        />
-      </button>
+      <div className={styles.accordionHeader}>
+        <button
+          type="button"
+          id={headingId}
+          className={styles.accordionHeading}
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          onClick={onToggle}
+        >
+          <CaretRight
+            className={`${styles.accordionHeadingIcon} ${
+              expanded ? styles.accordionHeadingIconExpanded : ""
+            }`}
+            size={16}
+            weight="bold"
+            aria-hidden
+          />
+          {title}
+        </button>
+        {action}
+      </div>
       <div
         id={panelId}
         role={contentRole ?? "region"}
@@ -878,6 +907,106 @@ function AccordionSection({
         {children}
       </div>
     </div>
+  )
+}
+
+interface CreateCategoryButtonProps {
+  categories: CategoryRecord[]
+  pending: boolean
+  onCreate: (label: string) => Promise<CategoryRecord | null>
+  onCreated: () => void
+}
+
+function CreateCategoryButton({
+  categories,
+  pending,
+  onCreate,
+  onCreated,
+}: CreateCategoryButtonProps) {
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRevisionRef = useRef(0)
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const [requestError, setRequestError] = useState<string | null>(null)
+  const label = normalizeLabel(value)
+  const duplicate = categories.some((category) => normalizeLabel(category.label) === label)
+  const error = getCategoryNameError(label) ?? (duplicate ? "This category already exists." : null)
+
+  const close = () => {
+    inputRevisionRef.current += 1
+    setOpen(false)
+    setValue("")
+    setRequestError(null)
+  }
+
+  const create = async () => {
+    if (!open || label === "" || pending || error) return
+    inputRef.current?.focus()
+    const inputRevision = inputRevisionRef.current
+    try {
+      const category = await onCreate(label)
+      if (!category || inputRevisionRef.current !== inputRevision || !buttonRef.current) return
+      onCreated()
+      close()
+    } catch (error) {
+      if (inputRevisionRef.current !== inputRevision || !buttonRef.current) return
+      setRequestError(getErrorMessage(error))
+      inputRef.current?.focus()
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`${styles.sectionAddItemButton} ${styles.createCategoryButton}`}
+        aria-label="Add category"
+        title="Add category"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-disabled={pending && !open}
+        onClick={() => {
+          if (open) close()
+          else if (!pending) {
+            setRequestError(null)
+            setOpen(true)
+          }
+        }}
+      >
+        <Plus size={16} weight="regular" aria-hidden />
+      </button>
+      <FilterablePickerPopup
+        anchorRef={buttonRef}
+        open={open}
+        onClose={close}
+        placement={["bottom-end", "top-end"]}
+        listboxAriaLabel="Add category"
+        description={requestError ?? undefined}
+        input={{
+          ref: inputRef,
+          value,
+          placeholder: "Enter new category...",
+          ariaLabel: "Category name",
+          submitAriaLabel: "Create category",
+          submitDisabled: pending,
+          error,
+          onChange: (value) => {
+            inputRevisionRef.current += 1
+            setValue(value)
+            setRequestError(null)
+          },
+          onKeyDown: (event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              void create()
+            }
+          },
+          onSubmit: () => void create(),
+        }}
+      />
+    </>
   )
 }
 
