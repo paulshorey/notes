@@ -397,7 +397,10 @@ export function ResultsColumn({
                   categories={categories}
                   pending={createCategoryPending}
                   onCreate={onCreateCategory}
-                  onCreated={() => setExpandedSection("categories")}
+                  onCreated={(category) => {
+                    setExpandedSection("categories")
+                    onAddItemForCategory(category)
+                  }}
                 />
               )
             }
@@ -914,7 +917,7 @@ interface CreateCategoryButtonProps {
   categories: CategoryRecord[]
   pending: boolean
   onCreate: (label: string) => Promise<CategoryRecord | null>
-  onCreated: () => void
+  onCreated: (category: CategoryRecord) => void
 }
 
 function CreateCategoryButton({
@@ -947,8 +950,8 @@ function CreateCategoryButton({
     try {
       const category = await onCreate(label)
       if (!category || inputRevisionRef.current !== inputRevision || !buttonRef.current) return
-      onCreated()
       close()
+      onCreated(category)
     } catch (error) {
       if (inputRevisionRef.current !== inputRevision || !buttonRef.current) return
       setRequestError(getErrorMessage(error))
