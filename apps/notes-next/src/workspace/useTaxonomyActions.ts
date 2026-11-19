@@ -226,7 +226,7 @@ export function useTaxonomyActions(
   ) => {
     clearMessages()
     const filing = { categoryId: category?.id ?? null, subcategoryId: subcategory?.id ?? null }
-    openDraftEntry({ ...filing, categoryLabel: filingLabel(categories, filing) })
+    openDraftEntry({ ...filing, categoryLabel: itemFilingLabel({ category, subcategory }) })
     closeIfDrawer()
   }
 
