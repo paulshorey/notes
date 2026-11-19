@@ -36,6 +36,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     closeDeleteTag,
     closeEditTag,
     contentRef,
+    createCategoryPending,
+    createWorkspaceCategory,
     deleteTagPending,
     deletingItemId,
     deletingTag,
@@ -229,6 +231,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ResultsColumn
           visible={resultsListVisible}
           columnStyle={resultsColumnStyle}
+          workspaceId={activeWorkspaceId}
           workspacePicker={
             <FilterablePicker
               variant="prominent"
@@ -247,6 +250,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           tags={tags}
           itemsLoading={itemsLoading}
           categories={categories}
+          createCategoryPending={createCategoryPending}
+          onCreateCategory={createWorkspaceCategory}
           statuses={statuses}
           statusItemGroups={statusItemGroups}
           activeStatusId={activeForm.selectedStatusId}

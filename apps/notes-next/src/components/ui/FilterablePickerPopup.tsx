@@ -24,11 +24,13 @@ export interface FilterablePickerPopupProps {
   placement?: ComponentProps<typeof Popup>["placement"]
   listboxAriaLabel: string
   description?: string
-  options: FilterablePickerOption[]
+  options?: FilterablePickerOption[]
   disabled?: boolean
   input?: {
     value: string
     placeholder: string
+    ariaLabel?: string
+    submitAriaLabel?: string
     submitDisabled?: boolean
     error?: string | null
     ref: RefObject<HTMLInputElement | null>
@@ -36,7 +38,7 @@ export interface FilterablePickerPopupProps {
     onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void
     onSubmit: () => void
   }
-  onSelectOption: (option: FilterablePickerOption) => void
+  onSelectOption?: (option: FilterablePickerOption) => void
   showOptionCheckboxes?: boolean
   isOptionActive?: (option: FilterablePickerOption) => boolean
   isOptionSelected?: (option: FilterablePickerOption) => boolean
@@ -68,13 +70,14 @@ export function FilterablePickerPopup({
   const canSubmit = trimmedInputValue !== "" && !optionsDisabled && !inputError
   const descriptionId = useId()
   const errorId = useId()
-  const selectedIndex = isOptionSelected ? options.findIndex(isOptionSelected) : -1
+  const selectedIndex = options && isOptionSelected ? options.findIndex(isOptionSelected) : -1
 
   useEffect(() => {
     if (!open) {
       return
     }
-    window.setTimeout(() => inputRef?.current?.focus(), 0)
+    const timeout = window.setTimeout(() => inputRef?.current?.focus(), 0)
+    return () => window.clearTimeout(timeout)
   }, [inputRef, open])
 
   return (
@@ -92,57 +95,59 @@ export function FilterablePickerPopup({
             {description}
           </div>
         )}
-        <div
-          className={styles.options}
-          role="listbox"
-          aria-label={listboxAriaLabel}
-          aria-describedby={description ? descriptionId : undefined}
-          onKeyDown={input ? undefined : moveOptionFocus}
-        >
-          {inputError ? (
-            <div className={styles.empty} id={errorId} role="alert">
-              {inputError}
-            </div>
-          ) : options.length === 0 && trimmedInputValue !== "" ? (
-            <div className={styles.empty}>
-              {emptyWithQueryMessage?.(trimmedInputValue) ?? (
-                <>Press Enter to create &quot;{trimmedInputValue}&quot;</>
-              )}
-            </div>
-          ) : (
-            options.map((option) => {
-              const selected = isOptionSelected?.(option) ?? false
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  className={styles.option}
-                  data-active={isOptionActive?.(option) || undefined}
-                  data-checked={selected || undefined}
-                  disabled={optionsDisabled}
-                  onClick={() => onSelectOption(option)}
-                  role="option"
-                  aria-selected={selected}
-                >
-                  {showOptionCheckboxes ? (
-                    <span
-                      className={styles.optionCheckbox}
-                      data-qa="filterable-picker-checkbox"
-                      data-checked={selected || undefined}
-                      aria-hidden
-                    >
-                      {selected ? <span className={styles.optionCheckMark} /> : null}
-                    </span>
-                  ) : null}
-                  <span className={styles.optionLabel}>{option.label}</span>
-                </button>
-              )
-            })
-          )}
-          {options.length === 0 && trimmedInputValue === "" && emptyWithoutQueryMessage ? (
-            <div className={styles.empty}>{emptyWithoutQueryMessage}</div>
-          ) : null}
-        </div>
+        {(options || inputError) && (
+          <div
+            className={styles.options}
+            role={options ? "listbox" : undefined}
+            aria-label={options ? listboxAriaLabel : undefined}
+            aria-describedby={options && description ? descriptionId : undefined}
+            onKeyDown={input ? undefined : moveOptionFocus}
+          >
+            {inputError ? (
+              <div className={styles.empty} id={errorId} role="alert">
+                {inputError}
+              </div>
+            ) : options?.length === 0 && trimmedInputValue !== "" ? (
+              <div className={styles.empty}>
+                {emptyWithQueryMessage?.(trimmedInputValue) ?? (
+                  <>Press Enter to create &quot;{trimmedInputValue}&quot;</>
+                )}
+              </div>
+            ) : (
+              options?.map((option) => {
+                const selected = isOptionSelected?.(option) ?? false
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className={styles.option}
+                    data-active={isOptionActive?.(option) || undefined}
+                    data-checked={selected || undefined}
+                    disabled={optionsDisabled}
+                    onClick={() => onSelectOption?.(option)}
+                    role="option"
+                    aria-selected={selected}
+                  >
+                    {showOptionCheckboxes ? (
+                      <span
+                        className={styles.optionCheckbox}
+                        data-qa="filterable-picker-checkbox"
+                        data-checked={selected || undefined}
+                        aria-hidden
+                      >
+                        {selected ? <span className={styles.optionCheckMark} /> : null}
+                      </span>
+                    ) : null}
+                    <span className={styles.optionLabel}>{option.label}</span>
+                  </button>
+                )
+              })
+            )}
+            {options?.length === 0 && trimmedInputValue === "" && emptyWithoutQueryMessage ? (
+              <div className={styles.empty}>{emptyWithoutQueryMessage}</div>
+            ) : null}
+          </div>
+        )}
         {input && (
           <div className={styles.inputRow}>
             <input
@@ -151,8 +156,9 @@ export function FilterablePickerPopup({
               className={styles.input}
               placeholder={input.placeholder}
               value={input.value}
+              aria-label={input.ariaLabel}
               aria-invalid={Boolean(inputError)}
-              aria-describedby={inputError ? errorId : undefined}
+              aria-describedby={inputError ? errorId : description ? descriptionId : undefined}
               disabled={disabled}
               onChange={(event) => input.onChange(event.currentTarget.value)}
               onKeyDown={input.onKeyDown}
@@ -162,7 +168,7 @@ export function FilterablePickerPopup({
               className={styles.submitButton}
               onClick={input.onSubmit}
               disabled={!canSubmit}
-              aria-label="Submit"
+              aria-label={input.submitAriaLabel ?? "Submit"}
             >
               <ArrowRight size={14} weight="regular" />
             </button>

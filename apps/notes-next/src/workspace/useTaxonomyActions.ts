@@ -363,63 +363,60 @@ export function useTaxonomyActions(
     }
   }
 
-  const handleCreateCategory = async (
-    rawLabel: string,
-    targetKey: OpenItemKey | null = activeKey,
-  ) => {
-    if (!user) {
-      setErrorMessage("Sign in before adding categories.")
-      return
-    }
+  const createWorkspaceCategory = async (rawLabel: string): Promise<CategoryRecord | null> => {
+    const workspaceId = activeWorkspaceId
+    if (!user || workspaceId === null) throw new Error("Open a workspace before adding categories.")
     const label = rawLabel.trim()
     const nameError = getCategoryNameError(label)
-    if (nameError) {
-      setErrorMessage(nameError)
-      return
-    }
-    if (label === "" || targetKey === null) {
-      return
-    }
+    if (nameError) throw new Error(nameError)
+    if (label === "") return null
     const existingCategory = categories.find(
       (category) => normalizeLabel(category.label) === normalizeLabel(label),
     )
-    if (existingCategory) {
-      patchEntry(targetKey, (entry) => ({
-        form: {
-          ...entry.form,
-          selectedCategoryId: existingCategory.id,
-          selectedSubcategoryId:
-            entry.form.selectedCategoryId === existingCategory.id
-              ? entry.form.selectedSubcategoryId
-              : null,
-        },
-        categoryInputValue: existingCategory.label,
-      }))
-      return
-    }
+    if (existingCategory) return existingCategory
+
     clearMessages()
     setCreateCategoryPending(true)
     try {
       const response = await itemsFetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
+        body: JSON.stringify({ userId: user.id, workspaceId, label }),
       })
       const data = await readJson<CreateCategoryResponse>(response)
+      if (
+        useWorkspaceStore.getState().user?.id !== user.id ||
+        useWorkspaceStore.getState().activeWorkspaceId !== workspaceId
+      ) {
+        return null
+      }
       setCategories((prev) => upsertCategory(prev, data.category))
+      setStatusMessage(`Category “${data.category.label}” added.`)
+      return data.category
+    } finally {
+      setCreateCategoryPending(false)
+    }
+  }
+
+  const handleCreateCategory = async (
+    rawLabel: string,
+    targetKey: OpenItemKey | null = activeKey,
+  ) => {
+    if (targetKey === null) return
+    try {
+      const category = await createWorkspaceCategory(rawLabel)
+      if (!category) return
       patchEntry(targetKey, (entry) => ({
         form: {
           ...entry.form,
-          selectedCategoryId: data.category.id,
-          selectedSubcategoryId: null,
+          selectedCategoryId: category.id,
+          selectedSubcategoryId:
+            entry.form.selectedCategoryId === category.id ? entry.form.selectedSubcategoryId : null,
         },
-        categoryInputValue: data.category.label,
+        categoryInputValue: category.label,
       }))
-      setStatusMessage(`Category “${data.category.label}” added.`)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
-    } finally {
-      setCreateCategoryPending(false)
     }
   }
 
@@ -1190,6 +1187,7 @@ export function useTaxonomyActions(
     handleSelectSubcategory,
     handleSelectStatus,
     handleCreateTag,
+    createWorkspaceCategory,
     handleCreateCategory,
     handleCreateSubcategory,
     resolveCategoryForSidebarMove,
