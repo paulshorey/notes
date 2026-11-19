@@ -7,6 +7,7 @@ import type {
   ItemGroupAction,
   ItemGroupActionResponse,
   ItemGroupPreview,
+  ItemGroupSelection,
 } from "@lib/db-items/contracts/item-group-actions"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import { itemsFetch, readJson, getErrorMessage, RequestError } from "@/lib/api"
@@ -17,6 +18,7 @@ import {
 import { normalizeLabel } from "@/lib/strings"
 import { describeItemGroupContents, planGroupMove } from "@/lib/itemGroupActions"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
+import { useWorkspaceStore } from "@/stores/workspaceStore"
 import styles from "./ItemGroupActionModal.module.css"
 
 interface Props {
@@ -33,6 +35,19 @@ interface Props {
 const TOP_LEVEL = "top"
 const CREATE_WORKSPACE = "create-workspace"
 
+async function submitItemGroupAction(
+  selection: ItemGroupSelection,
+  snapshot: string,
+  action: ItemGroupAction,
+) {
+  const response = await itemsFetch("/api/item-groups", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ selection, snapshot, action }),
+  })
+  return readJson<ItemGroupActionResponse>(response)
+}
+
 /** The destination picker and group modals share preparation, preview, and execution. */
 export function ItemGroupActionModal({
   userId,
@@ -46,12 +61,13 @@ export function ItemGroupActionModal({
   const dialog = useItemsAppStore((state) => state.itemGroupDialog)
   const setDialog = useItemsAppStore((state) => state.setItemGroupDialog)
   const [preview, setPreview] = useState<ItemGroupPreview | null>(null)
+  const [categoryDeleteConfirmation, setCategoryDeleteConfirmation] = useState<typeof dialog>(null)
   const [label, setLabel] = useState("")
   const pickerInputRef = useRef<HTMLInputElement>(null)
   const [destination, setDestination] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [retry, setRetry] = useState(0)
+  const [retry, setRetry] = useState<{ dialog: NonNullable<typeof dialog> } | null>(null)
   const prepareRef = useRef(prepare)
   const appliedRef = useRef(applied)
   const onErrorRef = useRef(onError)
@@ -73,26 +89,45 @@ export function ItemGroupActionModal({
   useEffect(() => {
     if (!dialog) return
     let active = true
+    const selection = { workspaceId, target: dialog.target }
+    const skipPromptIfEmpty =
+      dialog.intent === "delete" && dialog.target.kind === "category" && retry?.dialog !== dialog
+    const isCurrent = () => active && useItemsAppStore.getState().itemGroupDialog === dialog
     setPreview(null)
     setError(null)
     setPending(true)
     void (async () => {
       await prepareRef.current()
-      if (!active) return
+      if (!isCurrent()) return
       const response = await itemsFetch("/api/item-groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selection: { workspaceId, target: dialog.target } }),
+        body: JSON.stringify({ selection }),
       })
       const next = await readJson<ItemGroupPreview>(response)
-      if (!active) return
+      if (!isCurrent()) return
       if (dialog.intent === "move-to-workspace" && next.itemCount === 0)
         throw new Error("There are no items to move.")
+      if (skipPromptIfEmpty) {
+        if (next.itemCount === 0) {
+          // The server checks this snapshot again before changing the category.
+          const result = await submitItemGroupAction(selection, next.snapshot, {
+            kind: "delete",
+            deleteItems: false,
+          })
+          const workspace = useWorkspaceStore.getState()
+          if (workspace.user?.id === userId && workspace.activeWorkspaceId === workspaceId)
+            await appliedRef.current(result)
+          if (isCurrent()) setDialog(null)
+          return
+        }
+        setCategoryDeleteConfirmation(dialog)
+      }
       setPreview(next)
     })()
       .catch((cause) => {
-        if (!active || useItemsAppStore.getState().itemGroupDialog !== dialog) return
-        if (dialog.intent === "move-to-workspace") {
+        if (!isCurrent()) return
+        if (dialog.intent === "move-to-workspace" || skipPromptIfEmpty) {
           onErrorRef.current(getErrorMessage(cause))
           setDialog(null)
         } else setError(getErrorMessage(cause))
@@ -106,6 +141,12 @@ export function ItemGroupActionModal({
   }, [dialog, userId, workspaceId, retry, setDialog])
 
   if (!dialog) return null
+  if (
+    dialog.intent === "delete" &&
+    dialog.target.kind === "category" &&
+    categoryDeleteConfirmation !== dialog
+  )
+    return null
   const execute = async (action: ItemGroupAction) => {
     if (!preview || pending) return
     setPending(true)
@@ -115,16 +156,11 @@ export function ItemGroupActionModal({
       contextRef.current.workspaceId === workspaceId &&
       useItemsAppStore.getState().itemGroupDialog === dialog
     try {
-      const response = await itemsFetch("/api/item-groups", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          selection: { workspaceId, target: dialog.target },
-          snapshot: preview.snapshot,
-          action,
-        }),
-      })
-      const result = await readJson<ItemGroupActionResponse>(response)
+      const result = await submitItemGroupAction(
+        { workspaceId, target: dialog.target },
+        preview.snapshot,
+        action,
+      )
       if (!isCurrent()) return
       await appliedRef.current(result)
       if (
@@ -323,7 +359,7 @@ export function ItemGroupActionModal({
         )}
         <div className={styles.modalActions}>
           {!preview && !pending && (
-            <Button onClick={() => setRetry((value) => value + 1)}>Refresh preview</Button>
+            <Button onClick={() => setRetry({ dialog })}>Refresh preview</Button>
           )}
           {moving ? (
             <Button

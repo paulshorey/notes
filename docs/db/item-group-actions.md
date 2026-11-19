@@ -66,8 +66,9 @@ account gets a fresh starter workspace when it has no other workspace for captur
 
 Actions cover the whole group in one workspace, including non-text items and
 items hidden by presentation filters. The preview reports the item count, the text
-item count, and for a category the number of subcategories removed with it. The
-Notes dialog discloses non-text items and those subcategories before deletion.
+item count, and for a category the number of subcategories removed with it. Notes
+deletes a category immediately when its preview reports zero items. For categories
+with items, the confirmation dialog discloses non-text items and subcategories.
 
 ## Shared execution
 
