@@ -65,6 +65,7 @@ export function useTaxonomyActions(
   // The last list write for each item, so the next one for that item waits its turn.
   const listWritesByItemRef = useRef(new Map<number, Promise<void>>())
   const latestCleanupRefreshRef = useRef(0)
+  const categoryCreateInFlightRef = useRef(false)
 
   const {
     activeKey,
@@ -374,7 +375,9 @@ export function useTaxonomyActions(
       (category) => normalizeLabel(category.label) === normalizeLabel(label),
     )
     if (existingCategory) return existingCategory
+    if (categoryCreateInFlightRef.current) return null
 
+    categoryCreateInFlightRef.current = true
     clearMessages()
     setCreateCategoryPending(true)
     try {
@@ -394,6 +397,7 @@ export function useTaxonomyActions(
       setStatusMessage(`Category “${data.category.label}” added.`)
       return data.category
     } finally {
+      categoryCreateInFlightRef.current = false
       setCreateCategoryPending(false)
     }
   }

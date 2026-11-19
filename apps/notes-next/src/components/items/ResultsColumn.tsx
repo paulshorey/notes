@@ -925,6 +925,7 @@ function CreateCategoryButton({
 }: CreateCategoryButtonProps) {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const inputRevisionRef = useRef(0)
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState("")
   const [requestError, setRequestError] = useState<string | null>(null)
@@ -933,18 +934,23 @@ function CreateCategoryButton({
   const error = getCategoryNameError(label) ?? (duplicate ? "This category already exists." : null)
 
   const close = () => {
+    inputRevisionRef.current += 1
     setOpen(false)
     setValue("")
     setRequestError(null)
   }
 
   const create = async () => {
-    if (label === "" || pending || error) return
+    if (!open || label === "" || pending || error) return
+    inputRef.current?.focus()
+    const inputRevision = inputRevisionRef.current
     try {
       const category = await onCreate(label)
-      if (category) onCreated()
+      if (!category || inputRevisionRef.current !== inputRevision || !buttonRef.current) return
+      onCreated()
       close()
     } catch (error) {
+      if (inputRevisionRef.current !== inputRevision || !buttonRef.current) return
       setRequestError(getErrorMessage(error))
       inputRef.current?.focus()
     }
@@ -960,10 +966,10 @@ function CreateCategoryButton({
         title="Add category"
         aria-expanded={open}
         aria-haspopup="dialog"
-        disabled={pending}
+        aria-disabled={pending && !open}
         onClick={() => {
           if (open) close()
-          else {
+          else if (!pending) {
             setRequestError(null)
             setOpen(true)
           }
@@ -987,6 +993,7 @@ function CreateCategoryButton({
           submitDisabled: pending,
           error,
           onChange: (value) => {
+            inputRevisionRef.current += 1
             setValue(value)
             setRequestError(null)
           },
