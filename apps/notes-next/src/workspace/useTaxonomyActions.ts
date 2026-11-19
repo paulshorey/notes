@@ -818,43 +818,48 @@ export function useTaxonomyActions(
       throw new Error("An item could not be saved. Resolve the save error and try again.")
   }, [directWritesRef, saveInFlightRef])
 
-  const prepareItemGroupAction = useCallback(async () => {
-    const userId = userRef.current?.id
-    const workspaceId = activeWorkspaceIdRef.current
-    if (taxonomyRefreshTimeoutRef.current !== null) {
-      window.clearTimeout(taxonomyRefreshTimeoutRef.current)
-      taxonomyRefreshTimeoutRef.current = null
-    }
-    // The modal pauses autosave and exit PATCHes. Flush dirty stored items so
-    // the preview includes their latest edits. New drafts stay local.
-    await settlePendingItemWrites()
-    if (userRef.current?.id !== userId || activeWorkspaceIdRef.current !== workspaceId)
-      throw new Error("The active workspace changed. Reopen the group action.")
-    const entries = collectSessionFlushEntries(
-      useItemsAppStore.getState().openItems,
-      isEntryDirty,
-      canSaveEntry,
-    ).filter((entry) => entry.itemId !== null)
-    const detached = [...detachedSavesRef.current].filter(([, entry]) => entry.itemId !== null)
-    const saved = await Promise.all([
-      ...entries.map((entry) => saveEntry(entry.key, "flush")),
-      ...detached.map(([key]) => saveEntry(key, "flush")),
-    ])
-    if (saved.some((value) => !value))
-      throw new Error("Save the pending note changes before changing this group.")
-    persistOpenItemsRef.current()
-  }, [
-    activeWorkspaceIdRef,
-    detachedSavesRef,
-    persistOpenItemsRef,
-    saveEntry,
-    settlePendingItemWrites,
-    taxonomyRefreshTimeoutRef,
-    userRef,
-  ])
+  const prepareItemGroupAction = useCallback(
+    async (signal?: AbortSignal) => {
+      const userId = userRef.current?.id
+      const workspaceId = activeWorkspaceIdRef.current
+      if (taxonomyRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(taxonomyRefreshTimeoutRef.current)
+        taxonomyRefreshTimeoutRef.current = null
+      }
+      // The modal pauses autosave and exit PATCHes. Flush dirty stored items so
+      // the preview includes their latest edits. New drafts stay local.
+      await settlePendingItemWrites()
+      signal?.throwIfAborted()
+      if (userRef.current?.id !== userId || activeWorkspaceIdRef.current !== workspaceId)
+        throw new Error("The active workspace changed. Reopen the group action.")
+      const entries = collectSessionFlushEntries(
+        useItemsAppStore.getState().openItems,
+        isEntryDirty,
+        canSaveEntry,
+      ).filter((entry) => entry.itemId !== null)
+      const detached = [...detachedSavesRef.current].filter(([, entry]) => entry.itemId !== null)
+      const saved = await Promise.all([
+        ...entries.map((entry) => saveEntry(entry.key, "flush")),
+        ...detached.map(([key]) => saveEntry(key, "flush")),
+      ])
+      signal?.throwIfAborted()
+      if (saved.some((value) => !value))
+        throw new Error("Save the pending note changes before changing this group.")
+      persistOpenItemsRef.current()
+    },
+    [
+      activeWorkspaceIdRef,
+      detachedSavesRef,
+      persistOpenItemsRef,
+      saveEntry,
+      settlePendingItemWrites,
+      taxonomyRefreshTimeoutRef,
+      userRef,
+    ],
+  )
 
   const refreshAfterWorkspaceCleanup = useCallback(
-    async (userId: number, workspaceId: number, destinationId?: number) => {
+    async (userId: number, workspaceId: number, destinationId?: number, signal?: AbortSignal) => {
       const requestId = ++latestCleanupRefreshRef.current
       const isCurrent = () =>
         requestId === latestCleanupRefreshRef.current &&
@@ -865,13 +870,14 @@ export function useTaxonomyActions(
         data = await readJson<BootstrapResponse>(
           await itemsFetch(`/api/bootstrap?workspaceId=${destinationId ?? workspaceId}`, {
             cache: "no-store",
+            signal,
           }),
         )
       } catch (error) {
         if (isCurrent()) throw error
         return
       }
-      if (!isCurrent() || data.user.id !== userId) return
+      if (signal?.aborted || !isCurrent() || data.user.id !== userId) return
 
       const store = useItemsAppStore.getState()
       if (!data.tags.some(({ id }) => id === store.selectedTagId)) store.setSelectedTagId(null)
@@ -937,7 +943,7 @@ export function useTaxonomyActions(
   )
 
   const applyItemGroupAction = useCallback(
-    async (result: ItemGroupActionResponse) => {
+    async (result: ItemGroupActionResponse, signal?: AbortSignal) => {
       const currentUser = userRef.current
       const workspaceId = activeWorkspaceIdRef.current
       if (!currentUser || workspaceId === null) return
@@ -1011,12 +1017,13 @@ export function useTaxonomyActions(
             result.cleanup.workspaceRemoved
               ? result.workspaceMove?.destinationWorkspaceId
               : undefined,
+            signal,
           )
         } else {
           await refreshResults(currentUser.id)
         }
       } catch (error) {
-        setErrorMessage(`The change was saved. ${getErrorMessage(error)}`)
+        if (!signal?.aborted) setErrorMessage(`The change was saved. ${getErrorMessage(error)}`)
       }
     },
     [

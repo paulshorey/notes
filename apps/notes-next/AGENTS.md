@@ -207,8 +207,9 @@ Category, subcategory, and uncategorized group menus use `ItemGroupActionModal` 
 group, independent of tag/search filters, including non-text items disclosed in
 the server preview. Uncategorized rename assigns its current members to a new or
 existing category; it never changes future capture defaults. Deleting a category
-or subcategory offers keep-items (the notes become uncategorized, or stay in the
-category without a subcategory) or permanent deletion of its notes. Category and
+whose server preview has zero items applies the keep-items action immediately.
+For a category with items or for a subcategory, the dialog offers either keeping
+the items (unfiled from the group) or permanently deleting them. Category and
 subcategory menus also offer Move; `planGroupMove` in `src/lib/itemGroupActions.ts`
 lists the destinations and why one would be refused, so the dialog says so before
 sending. The item editor and sidebar item and group menus anchor the shared
@@ -222,7 +223,11 @@ active workspace is removed, carry open unsaved drafts into the fallback workspa
 Opening the dialog pauses autosave/exit PATCHes, settles saved entries before
 preview, and excludes unsaved drafts. Apply the committed response to entries and
 caches before refreshing; deleted entries must never become detached saves.
-A conflict or uncertain response requires a fresh preview and confirmation.
+An automatic category deletion has a deadline so saves can resume after a stalled
+preview, deletion, or workspace refresh. A slow preview can be canceled before the
+delete request starts. A conflict or uncertain response requires a fresh preview.
+Retry an automatic empty category deletion from the sidebar. Retry a confirmed
+action in the dialog.
 
 The local server-data snapshot may paint immediately for a returning user, but a failed refresh must not clear workspace-scoped open-note storage or other draft state. A first visit with no usable snapshot must finish in a visible, retryable error state; startup must never retry automatically in a loop.
 
