@@ -65,7 +65,7 @@ export function useTaxonomyActions(
   // The last list write for each item, so the next one for that item waits its turn.
   const listWritesByItemRef = useRef(new Map<number, Promise<void>>())
   const latestCleanupRefreshRef = useRef(0)
-  const categoryCreateInFlightRef = useRef(false)
+  const categoryCreatesRef = useRef(new Map<string, Promise<CategoryRecord | null>>())
 
   const {
     activeKey,
@@ -371,16 +371,22 @@ export function useTaxonomyActions(
     const nameError = getCategoryNameError(label)
     if (nameError) throw new Error(nameError)
     if (label === "") return null
-    const existingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
+    const workspace = useWorkspaceStore.getState()
+    if (workspace.user?.id !== user.id || workspace.activeWorkspaceId !== workspaceId) return null
+    const normalizedLabel = normalizeLabel(label)
+    const existingCategory = workspace.categories.find(
+      (category) => normalizeLabel(category.label) === normalizedLabel,
     )
     if (existingCategory) return existingCategory
-    if (categoryCreateInFlightRef.current) return null
 
-    categoryCreateInFlightRef.current = true
+    const pendingCreates = categoryCreatesRef.current
+    const requestKey = JSON.stringify([user.id, workspaceId, normalizedLabel])
+    const pendingCreate = pendingCreates.get(requestKey)
+    if (pendingCreate) return pendingCreate
+
     clearMessages()
     setCreateCategoryPending(true)
-    try {
+    const request = (async () => {
       const response = await itemsFetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -396,10 +402,12 @@ export function useTaxonomyActions(
       setCategories((prev) => upsertCategory(prev, data.category))
       setStatusMessage(`Category “${data.category.label}” added.`)
       return data.category
-    } finally {
-      categoryCreateInFlightRef.current = false
-      setCreateCategoryPending(false)
-    }
+    })().finally(() => {
+      pendingCreates.delete(requestKey)
+      setCreateCategoryPending(pendingCreates.size > 0)
+    })
+    pendingCreates.set(requestKey, request)
+    return request
   }
 
   const handleCreateCategory = async (
