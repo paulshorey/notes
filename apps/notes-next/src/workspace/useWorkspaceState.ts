@@ -152,6 +152,7 @@ export function useWorkspaceState() {
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
+  const [saveConflictUid, setSaveConflictUid] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [searchErrorMessage, setSearchErrorMessage] = useState<string | null>(null)
@@ -370,6 +371,8 @@ export function useWorkspaceState() {
     setStatusMessage,
     errorMessage,
     setErrorMessage,
+    saveConflictUid,
+    setSaveConflictUid,
     searchErrorMessage,
     setSearchErrorMessage,
     editingTag,

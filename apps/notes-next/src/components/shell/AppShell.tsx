@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 import { Button, Text } from "@gravity-ui/uikit"
+import { readItemsUrlSelection } from "@/lib/itemsUrlSelection"
 import { FeedbackNotifications } from "@/components/items/FeedbackNotifications"
 import { ResultsColumn } from "@/components/items/ResultsColumn"
 import { WorkspaceHeader } from "@/components/items/WorkspaceHeader"
@@ -46,6 +47,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     editingTag,
     embeddingMaintenancePending,
     errorMessage,
+    saveConflictUid,
+    setSaveConflictUid,
     fallbackTagId,
     filingLabelFor,
     handleAddItemForCategory,
@@ -131,6 +134,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               Retry
             </Button>
+            {readItemsUrlSelection().hasItemTarget ? (
+              <Button href={window.location.pathname}>Open workspace</Button>
+            ) : null}
           </div>
         ) : (
           <div className={styles.startupState} aria-live="polite">
@@ -151,6 +157,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={styles.page}>
       <FeedbackNotifications
+        saveConflictUid={saveConflictUid}
+        onDismissConflict={() => setSaveConflictUid(null)}
         statusMessage={statusMessage}
         errorMessage={errorMessage}
         searchErrorMessage={searchErrorMessage}

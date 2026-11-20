@@ -2,7 +2,7 @@ export { createItemForUser, createOrFindItemForUser } from "./add"
 export { deleteItemForUser } from "./delete"
 export {
   findItemByUidInWorkspace,
-  findWorkspaceIdByItemUid,
+  findWorkspaceIdByItem,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
   listItemsStaleEmbeddingsByUser,

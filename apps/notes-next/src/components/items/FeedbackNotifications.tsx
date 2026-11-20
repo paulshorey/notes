@@ -4,6 +4,8 @@ import { Notification } from "@mantine/core"
 import styles from "./FeedbackNotifications.module.css"
 
 interface FeedbackNotificationsProps {
+  saveConflictUid: string | null
+  onDismissConflict: () => void
   statusMessage: string | null
   errorMessage: string | null
   searchErrorMessage: string | null
@@ -13,6 +15,8 @@ interface FeedbackNotificationsProps {
 }
 
 export function FeedbackNotifications({
+  saveConflictUid,
+  onDismissConflict,
   statusMessage,
   errorMessage,
   searchErrorMessage,
@@ -20,12 +24,27 @@ export function FeedbackNotifications({
   onDismissError,
   onDismissSearchError,
 }: FeedbackNotificationsProps) {
-  if (!statusMessage && !errorMessage && !searchErrorMessage) {
+  if (!saveConflictUid && !statusMessage && !errorMessage && !searchErrorMessage) {
     return null
   }
 
   return (
     <div className={styles.feedback}>
+      {saveConflictUid && (
+        <Notification
+          className={styles.feedbackNotification}
+          color="orange"
+          title="Your changes are still in this tab"
+          withCloseButton
+          onClose={onDismissConflict}
+        >
+          The saved item changed.{" "}
+          <a href={`?item=${saveConflictUid}`} target="_blank" rel="noopener noreferrer">
+            Open the current version in a new tab
+          </a>{" "}
+          to compare your edits.
+        </Notification>
+      )}
       {statusMessage && (
         <Notification
           className={styles.feedbackNotification}

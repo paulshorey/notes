@@ -6,7 +6,7 @@ import {
   type StatusRecord,
   type TagRecord,
 } from "@lib/db-items"
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo } from "react"
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef } from "react"
 import { type TextCaptureFormState, itemToFormState } from "@/types/items"
 import { serializeItemDraft } from "@/lib/itemDraft"
 import {
@@ -171,8 +171,8 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
       if (orphanedDraftCount > 0) {
         setStatusMessage(
           orphanedDraftCount === 1
-            ? "A note you were editing was deleted elsewhere. Your unsaved text was kept as a new note."
-            : `${orphanedDraftCount} notes you were editing were deleted elsewhere. Your unsaved text was kept as new notes.`,
+            ? "A note you were editing is no longer in this workspace. Your unsaved text was kept as a new note."
+            : `${orphanedDraftCount} notes you were editing are no longer in this workspace. Your unsaved text was kept as new notes.`,
         )
       }
     },
@@ -420,17 +420,23 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
   // A draft has no address until it is stored.
   const activeItemUid = activeEntry && activeEntry.itemId !== null ? activeEntry.uid : null
 
+  const lastAddressedUid = useRef<string | null>(null)
+
   useEffect(() => {
     if (!user) return
     if (!itemsUrlSelectionReady) return
 
     // Mirrors the *active* entry so the address bar stays copy-pasteable.
-    writeItemsUrlSelection({
-      itemUid: activeItemUid,
-      categoryId: activeEntry?.form.selectedCategoryId ?? null,
-      subcategoryId: activeEntry?.form.selectedSubcategoryId ?? null,
-      tagIds: activeEntry?.form.selectedTagIds ?? [],
-    })
+    writeItemsUrlSelection(
+      {
+        itemUid: activeItemUid,
+        categoryId: activeEntry?.form.selectedCategoryId ?? null,
+        subcategoryId: activeEntry?.form.selectedSubcategoryId ?? null,
+        tagIds: activeEntry?.form.selectedTagIds ?? [],
+      },
+      lastAddressedUid.current !== null && lastAddressedUid.current !== activeItemUid,
+    )
+    lastAddressedUid.current = activeItemUid
   }, [
     activeItemUid,
     activeEntry?.form.selectedCategoryId,
@@ -441,19 +447,19 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
   ])
 
   useEffect(() => {
-    if (!user) return
-
-    const handlePopState = () => {
-      // No flush needed: the target note is already in memory with its own
-      // draft, so applying the URL selection is non-destructive.
-      applyItemsUrlSelection()
+    // History navigation enters through the same authenticated bootstrap as a bookmark.
+    // pagehide persists outgoing drafts under their original workspace.
+    const reload = () => window.location.reload()
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted && readItemsUrlSelection().hasItemTarget) reload()
     }
-
-    window.addEventListener("popstate", handlePopState)
+    window.addEventListener("popstate", reload)
+    window.addEventListener("pageshow", handlePageShow)
     return () => {
-      window.removeEventListener("popstate", handlePopState)
+      window.removeEventListener("popstate", reload)
+      window.removeEventListener("pageshow", handlePageShow)
     }
-  }, [applyItemsUrlSelection, user])
+  }, [])
 
   return {
     openItemEntry,

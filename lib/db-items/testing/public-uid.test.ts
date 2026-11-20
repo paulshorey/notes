@@ -15,7 +15,7 @@ import {
 import {
   createItemForUser,
   createOrFindItemForUser,
-  findWorkspaceIdByItemUid,
+  findWorkspaceIdByItem,
   listItemsByUser,
 } from "../sql/item"
 import { createAnonymousUser } from "../sql/user/anonymous"
@@ -327,10 +327,12 @@ describe("public uid (DB)", { skip: !testDbUrl }, () => {
     const owner = await realUser()
     const second = await createWorkspaceForUser(owner.userId, "second")
     const item = await createItemForUser(owner.userId, input(second.id, "linked"), noEmbedding)
-    assert.equal(await findWorkspaceIdByItemUid(owner.userId, item.uid), second.id)
+    assert.equal(await findWorkspaceIdByItem(owner.userId, item.uid), second.id)
     const other = await realUser()
-    assert.equal(await findWorkspaceIdByItemUid(other.userId, item.uid), null)
-    assert.equal(await findWorkspaceIdByItemUid(owner.userId, randomUUID()), null)
+    assert.equal(await findWorkspaceIdByItem(other.userId, item.uid), null)
+    assert.equal(await findWorkspaceIdByItem(owner.userId, item.id), second.id)
+    assert.equal(await findWorkspaceIdByItem(other.userId, item.id), null)
+    assert.equal(await findWorkspaceIdByItem(owner.userId, randomUUID()), null)
   })
 
   test("a backup with a uid that is not a UUID is refused", async () => {

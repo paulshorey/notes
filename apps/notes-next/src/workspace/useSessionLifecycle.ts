@@ -13,6 +13,7 @@ import {
   updateItemsCacheUser,
   writeItemsCache,
 } from "@/lib/itemsCache"
+import { useWorkspaceStore } from "@/stores/workspaceStore"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { RESULTS_COLUMN_DEFAULT_WIDTH, isResultsDrawerLayout } from "@/lib/resultsColumn"
 import {
@@ -92,25 +93,33 @@ export function useSessionLifecycle(
       {
         applyUser,
         workspaceId,
-        itemUid = null,
+        selection,
       }: {
         applyUser: boolean
         workspaceId?: number
         /** The item the address names; the server opens the workspace that holds it. */
-        itemUid?: string | null
+        selection?: ReturnType<typeof readItemsUrlSelection>
       },
     ) => {
       const bootstrapResponse = await fetchWithTimeout(
         workspaceId !== undefined
           ? `/api/bootstrap?workspaceId=${workspaceId}`
-          : itemUid !== null
-            ? `/api/bootstrap?item=${itemUid}`
+          : selection?.hasItemTarget
+            ? selection.itemId !== null
+              ? `/api/bootstrap?id=${selection.itemId}`
+              : `/api/bootstrap?item=${selection.itemUid ?? ""}`
             : "/api/bootstrap",
         {
           cache: "no-store",
         },
       )
       const bootstrapData = await readJson<BootstrapResponse>(bootstrapResponse)
+      if (
+        !active ||
+        (workspaceId !== undefined &&
+          useWorkspaceStore.getState().activeWorkspaceId !== workspaceId)
+      )
+        return null
       const expectedUserId = Number(userId)
       if (Number.isInteger(expectedUserId) && bootstrapData.user.id !== expectedUserId) {
         throw new RequestError("The active session changed during startup.", 401)
@@ -277,15 +286,9 @@ export function useSessionLifecycle(
       const storedSnapshot =
         !pendingMergeToken && Number.isInteger(numericUserId) ? readItemsCache(numericUserId) : null
 
-      // The address may name an item in a workspace other than the one last open
-      // here. The cached snapshot holds one workspace, so if the item is not in it,
-      // skip the cached paint and let the server open the workspace that holds it.
-      const linkedItemUid = readItemsUrlSelection().itemUid
-      const cachedSnapshot =
-        storedSnapshot &&
-        (linkedItemUid === null || storedSnapshot.items.some((item) => item.uid === linkedItemUid))
-          ? storedSnapshot
-          : null
+      // Even a cached copy of the requested item can belong to its former workspace.
+      const selection = readItemsUrlSelection()
+      const cachedSnapshot = selection.hasItemTarget ? null : storedSnapshot
 
       // Stale-while-revalidate. If we have a recent local snapshot for this
       // user, render the app immediately from cache and refresh in the
@@ -320,7 +323,7 @@ export function useSessionLifecycle(
             applyUser: false,
             workspaceId: cachedSnapshot.activeWorkspaceId,
           })
-          if (!active) return
+          if (!active || !refreshed) return
           // …then again once the real data lands. The cached list can be up to
           // two weeks old, so it cannot be trusted to say whether a note still
           // exists. Reconciling is idempotent and never touches a dirty entry,
@@ -350,9 +353,9 @@ export function useSessionLifecycle(
       try {
         const result = await fetchFreshSession(storedUserId, {
           applyUser: true,
-          itemUid: linkedItemUid,
+          selection,
         })
-        if (!active) return
+        if (!active || !result) return
 
         rehydrateOpenItems(result.sessionData.user.id, {
           workspaceId: result.activeWorkspaceId,
