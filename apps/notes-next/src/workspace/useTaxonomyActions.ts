@@ -432,6 +432,26 @@ export function useTaxonomyActions(
     }
   }
 
+  const createWorkspaceSubcategory = async (
+    category: CategoryRecord,
+    label: string,
+  ): Promise<{ category: CategoryRecord; subcategory: SubcategoryRecord }> => {
+    if (!user) throw new Error("Sign in before adding subcategories.")
+    const response = await itemsFetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        workspaceId: category.workspaceId,
+        categoryId: category.id,
+        label,
+      }),
+    })
+    const data = await readJson<CreateCategoryResponse>(response)
+    if (!data.subcategory) throw new Error("The subcategory was not created.")
+    return { category: data.category, subcategory: data.subcategory }
+  }
+
   /** Create a subcategory of the entry's category, or select it if it exists. */
   const handleCreateSubcategory = async (
     rawLabel: string,
@@ -476,18 +496,7 @@ export function useTaxonomyActions(
     clearMessages()
     setCreateCategoryPending(true)
     try {
-      const response = await itemsFetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          workspaceId: activeWorkspaceId,
-          categoryId: category.id,
-          label,
-        }),
-      })
-      const data = await readJson<CreateCategoryResponse>(response)
-      if (!data.subcategory) throw new Error("The subcategory was not created.")
+      const data = await createWorkspaceSubcategory(category, label)
       const latest = upsertCategory(categoriesRef.current, data.category)
       setCategories(latest)
       selectSubcategory(data.subcategory.id, latest)
@@ -706,6 +715,52 @@ export function useTaxonomyActions(
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
+  }
+
+  const handleMoveItemSubcategory = (item: ItemRecord, rawLabel: string | null) => {
+    if (!user) return
+    clearMessages()
+    return trackDirectWrite(
+      (async () => {
+        try {
+          const category = categoriesRef.current.find((entry) => entry.id === item.category?.id)
+          if (!category) throw new Error("Assign a category before moving to a subcategory.")
+
+          let subcategory: SubcategoryRecord | null = null
+          if (rawLabel !== null) {
+            const label = rawLabel.trim()
+            const nameError = getCategoryNameError(label)
+            if (nameError) throw new Error(nameError)
+            if (label === "") return false
+            subcategory =
+              category.subcategories.find(
+                (entry) => normalizeLabel(entry.label) === normalizeLabel(label),
+              ) ?? null
+            if (!subcategory) {
+              const created = await createWorkspaceSubcategory(category, label)
+              setCategories((current) => upsertCategory(current, created.category))
+              subcategory = created.subcategory
+            }
+          }
+
+          const moved = await patchItemFromSidebar(item, (current) => {
+            if (current.category?.id !== category.id) {
+              throw new Error("The item's category changed. Open the subcategory picker again.")
+            }
+            return { subcategoryId: subcategory?.id ?? null }
+          })
+          if (moved) {
+            setStatusMessage(
+              subcategory ? `Note moved to “${subcategory.label}”.` : "Note's subcategory cleared.",
+            )
+          }
+          return Boolean(moved)
+        } catch (error) {
+          setErrorMessage(getErrorMessage(error))
+          return false
+        }
+      })(),
+    ).then(() => undefined)
   }
 
   const handleMoveItemTag = async (item: ItemRecord, fromTagId: number, tagLabel: string) => {
@@ -1215,6 +1270,7 @@ export function useTaxonomyActions(
     handleSetItemStatus,
     handleQuickAddItem,
     handleMoveItemCategory,
+    handleMoveItemSubcategory,
     handleMoveItemTag,
     prepareItemGroupAction,
     applyItemGroupAction,
