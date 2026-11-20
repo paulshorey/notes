@@ -29,16 +29,16 @@ They can contain note content and authentication data.
    importing production user IDs. Session JWTs and anonymous merge tokens carry
    database user IDs, which can refer to different accounts after the refresh.
    Coordinate the maintenance window with active development users so queued
-   edits finish syncing. Resolve any failed writes before proceeding. With
-   authorization, suspend development app access and let in-flight writes
-   finish. Rotate the development-only `AUTH_SECRET` and redeploy. Verify the
-   new deployment is active and the old deployment has stopped serving. Keep
-   access suspended through the restore so the app cannot issue sessions
-   against the old development data.
-5. Back up development after writes have stopped. Point `DB_ITEMS_URL`
-   explicitly at development and run `scripts/db/items-restore-data.sh` with
-   the reviewed dump and table list.
+   edits sync and in-flight writes finish. Resolve failed writes before
+   proceeding. With authorization, stop only the Railway development web
+   deployment and verify it is offline. Rotate its development-only
+   `AUTH_SECRET` with `railway variable set AUTH_SECRET --stdin --skip-deploys`.
+   Keep the web app offline through the restore.
+5. Reverify the development database endpoint and back it up while the web app
+   is offline. Point `DB_ITEMS_URL` explicitly at development and run
+   `scripts/db/items-restore-data.sh` with the reviewed dump and table list.
    The script truncates and reloads those tables in one transaction.
 6. Compare row counts to the prepared snapshot and confirm the development
-   migration ledger. Reopen app access and use fresh development sessions to
-   verify that the app can read and create items.
+   migration ledger. Redeploy the development web app from its configured source.
+   Verify the new deployment is serving and use fresh development sessions to
+   confirm that the app can read and create items.
