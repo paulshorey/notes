@@ -23,7 +23,7 @@ import {
 } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { existingFiling, filingLabel, isSameFiling, itemFilingLabel } from "@/lib/itemFiling"
-import { readItemsUrlSelection, writeItemsUrlSelection } from "@/lib/itemsUrlSelection"
+import { readItemTarget, readItemsUrlSelection, writeItemsUrlSelection } from "@/lib/itemsUrlSelection"
 import { getMaxOpenItemsPreference, withMaxOpenItemsPreference } from "@/lib/userPreferences"
 import { EMPTY_ITEM_FORM, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
@@ -33,6 +33,7 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
   const {
     activeEntry,
     activeKey,
+    activeView,
     categories,
     categoriesRef,
     clearMessages,
@@ -421,6 +422,7 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
   const activeItemUid = activeEntry && activeEntry.itemId !== null ? activeEntry.uid : null
 
   const lastAddressedUid = useRef<string | null>(null)
+  const lastAddress = useRef<{ pathname: string; search: string } | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -437,6 +439,7 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
       lastAddressedUid.current !== null && lastAddressedUid.current !== activeItemUid,
     )
     lastAddressedUid.current = activeItemUid
+    lastAddress.current = { pathname: window.location.pathname, search: window.location.search }
   }, [
     activeItemUid,
     activeEntry?.form.selectedCategoryId,
@@ -447,19 +450,42 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
   ])
 
   useEffect(() => {
-    // History navigation enters through the same authenticated bootstrap as a bookmark.
-    // pagehide persists outgoing drafts under their original workspace.
-    const reload = () => window.location.reload()
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted && readItemsUrlSelection().hasItemTarget) reload()
+    // The view switcher uses client-side navigation and shares this workspace.
+    lastAddress.current = { pathname: window.location.pathname, search: window.location.search }
+  }, [activeView])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const { pathname, search } = window.location
+      const previous = lastAddress.current
+      lastAddress.current = { pathname, search }
+      if (!previous || previous.search === search) return
+
+      const target = readItemTarget(new URLSearchParams(search))
+      const previousTarget = readItemTarget(new URLSearchParams(previous.search))
+      const itemTargetChanged =
+        target.hasItemTarget !== previousTarget.hasItemTarget ||
+        target.itemUid !== previousTarget.itemUid ||
+        target.itemId !== previousTarget.itemId
+
+      if (itemTargetChanged && (target.hasItemTarget || pathname === previous.pathname)) {
+        // Resolve the bookmark again. pagehide persists outgoing drafts under their
+        // original workspace, including edits from a save that has yet to finish.
+        window.location.reload()
+      } else if (!target.hasItemTarget && user) {
+        applyItemsUrlSelection()
+      }
     }
-    window.addEventListener("popstate", reload)
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted && readItemsUrlSelection().hasItemTarget) window.location.reload()
+    }
+    window.addEventListener("popstate", handlePopState)
     window.addEventListener("pageshow", handlePageShow)
     return () => {
-      window.removeEventListener("popstate", reload)
+      window.removeEventListener("popstate", handlePopState)
       window.removeEventListener("pageshow", handlePageShow)
     }
-  }, [])
+  }, [applyItemsUrlSelection, user])
 
   return {
     openItemEntry,
