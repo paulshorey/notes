@@ -592,19 +592,28 @@ export function useTaxonomyActions(
   const patchItemFromSidebar = (
     listedItem: ItemRecord,
     change: (current: ItemRecord) => StoredItemChange,
-  ): Promise<ItemRecord | null> => {
+  ): Promise<ItemRecord | null> =>
+    enqueueSidebarWrite(listedItem.id, () => patchStoredItem(listedItem, change))
+
+  const enqueueSidebarWrite = (itemId: number, action: () => Promise<ItemRecord | null>) => {
     const queue = listWritesByItemRef.current
-    const previous = queue.get(listedItem.id) ?? Promise.resolve()
-    const write = previous.then(() => patchStoredItem(listedItem, change))
+    const previous = queue.get(itemId) ?? Promise.resolve()
+    const write = previous.then(action)
     const settled = write.then(
       () => undefined,
       () => undefined,
     )
-    queue.set(listedItem.id, settled)
+    queue.set(itemId, settled)
     void settled.then(() => {
-      if (queue.get(listedItem.id) === settled) queue.delete(listedItem.id)
+      if (queue.get(itemId) === settled) queue.delete(itemId)
     })
     return write
+  }
+
+  const readItemForSidebarWrite = (listedItem: ItemRecord) => {
+    const latest =
+      useWorkspaceStore.getState().items.find((stored) => stored.id === listedItem.id) ?? listedItem
+    return settleOpenEntryFor(latest)
   }
 
   const patchStoredItem = async (
@@ -613,9 +622,7 @@ export function useTaxonomyActions(
   ) => {
     if (!user) return null
     // An earlier write in the queue may have changed the item since it was listed.
-    const latest =
-      useWorkspaceStore.getState().items.find((stored) => stored.id === listedItem.id) ?? listedItem
-    const item = await settleOpenEntryFor(latest)
+    const item = await readItemForSidebarWrite(listedItem)
     if (!item) return null
     // Decided against the item as it is now, not as the list showed it when the
     // action started: an earlier write or a saved edit may have changed it since.
@@ -717,50 +724,59 @@ export function useTaxonomyActions(
     }
   }
 
-  const handleMoveItemSubcategory = (item: ItemRecord, rawLabel: string | null) => {
+  const handleMoveItemSubcategory = async (item: ItemRecord, rawLabel: string | null) => {
     if (!user) return
     clearMessages()
-    return trackDirectWrite(
-      (async () => {
-        try {
-          const category = categoriesRef.current.find((entry) => entry.id === item.category?.id)
-          if (!category) throw new Error("Assign a category before moving to a subcategory.")
+    const label = rawLabel?.trim() ?? null
+    const assertSameCategory = (current: ItemRecord) => {
+      if (current.category?.id !== item.category?.id) {
+        throw new Error("The item's category changed. Open the subcategory picker again.")
+      }
+    }
 
-          let subcategory: SubcategoryRecord | null = null
-          if (rawLabel !== null) {
-            const label = rawLabel.trim()
-            const nameError = getCategoryNameError(label)
-            if (nameError) throw new Error(nameError)
-            if (label === "") return false
-            subcategory =
-              category.subcategories.find(
-                (entry) => normalizeLabel(entry.label) === normalizeLabel(label),
-              ) ?? null
-            if (!subcategory) {
-              const created = await createWorkspaceSubcategory(category, label)
-              setCategories((current) => upsertCategory(current, created.category))
-              subcategory = created.subcategory
-            }
-          }
+    await trackDirectWrite(
+      enqueueSidebarWrite(item.id, async () => {
+        const current = await readItemForSidebarWrite(item)
+        if (!current) return null
+        assertSameCategory(current)
+        const category = categoriesRef.current.find((entry) => entry.id === current.category?.id)
+        if (!category) throw new Error("Assign a category before moving to a subcategory.")
 
-          const moved = await patchItemFromSidebar(item, (current) => {
-            if (current.category?.id !== category.id) {
-              throw new Error("The item's category changed. Open the subcategory picker again.")
-            }
-            return { subcategoryId: subcategory?.id ?? null }
-          })
-          if (moved) {
-            setStatusMessage(
-              subcategory ? `Note moved to “${subcategory.label}”.` : "Note's subcategory cleared.",
-            )
+        let subcategory: SubcategoryRecord | null = null
+        if (label !== null) {
+          const nameError = getCategoryNameError(label)
+          if (nameError) throw new Error(nameError)
+          if (label === "") return null
+
+          subcategory =
+            category.subcategories.find(
+              (entry) => normalizeLabel(entry.label) === normalizeLabel(label),
+            ) ?? null
+          if (!subcategory) {
+            const created = await createWorkspaceSubcategory(category, label)
+            setCategories((categories) => upsertCategory(categories, created.category))
+            subcategory = created.subcategory
           }
-          return Boolean(moved)
-        } catch (error) {
+        }
+
+        const moved = await patchStoredItem(current, (stored) => {
+          assertSameCategory(stored)
+          return { subcategoryId: subcategory?.id ?? null }
+        })
+        if (moved) {
+          setStatusMessage(
+            subcategory ? `Note moved to “${subcategory.label}”.` : "Note's subcategory cleared.",
+          )
+        }
+        return moved
+      }).then(
+        (moved) => Boolean(moved),
+        (error) => {
           setErrorMessage(getErrorMessage(error))
           return false
-        }
-      })(),
-    ).then(() => undefined)
+        },
+      ),
+    )
   }
 
   const handleMoveItemTag = async (item: ItemRecord, fromTagId: number, tagLabel: string) => {
