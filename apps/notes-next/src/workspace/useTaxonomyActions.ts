@@ -672,6 +672,7 @@ export function useTaxonomyActions(
   const handleMoveItemFiling = (item: ItemRecord, destination: ItemFiling) => {
     if (!user) return Promise.resolve(false)
     clearMessages()
+    let filingChanged = false
     return trackDirectWrite(
       patchItemFromSidebar(item, (current) => {
         if (current.workspaceId !== activeWorkspaceIdRef.current) {
@@ -681,10 +682,12 @@ export function useTaxonomyActions(
         if (!isSameFiling(filing, destination)) {
           throw new Error("The destination changed. Choose another category or subcategory.")
         }
+        filingChanged = !changesNothing(current, filing)
         return filing
       }).then(
         (moved) => {
           if (!moved) return false
+          if (!filingChanged) return true
           const label = itemFilingLabel(moved)
           setStatusMessage(label ? `Item moved to “${label}”.` : "Item moved to uncategorized.")
           return true
