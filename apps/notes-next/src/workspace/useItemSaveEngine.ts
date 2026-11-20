@@ -2,7 +2,7 @@
 
 import { type ItemRecord } from "@lib/db-items"
 import { useCallback, useEffect, useRef } from "react"
-import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { RequestError, getErrorMessage, itemsFetch, readJson } from "@/lib/api"
 import { wasItemDeletedByUser } from "@/lib/userDeletedItems"
 import { useOpenItemsAutosave } from "@/hooks/useOpenItemsAutosave"
 import {
@@ -50,6 +50,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     saveInFlightRef,
     scheduleTaxonomyRefresh,
     setErrorMessage,
+    setSaveConflictUid,
     setMaxOpenItemsInStore,
     setStatusMessage,
     user,
@@ -200,7 +201,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
           } else {
             // Already gone is the outcome asked for: the exit keepalive may have sent
             // this deletion, or an earlier answer was lost.
-            const response = await send("DELETE", { itemId })
+            const response = await send("DELETE", { itemId, workspaceId })
             if (response.status !== 404) await readJson<{ ok: true }>(response)
             if (userRef.current?.id !== currentUser.id) return
             forgetDeletedItem(currentUser.id, workspaceId, itemId)
@@ -293,7 +294,12 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         }
       } catch (error) {
         if (userRef.current?.id === currentUser.id) {
-          setErrorMessage(getErrorMessage(error))
+          if (error instanceof RequestError && error.status === 409 && itemId !== null) {
+            persistOpenItemsRef.current()
+            setSaveConflictUid(source.uid)
+          } else {
+            setErrorMessage(getErrorMessage(error))
+          }
           if (!detached) patchEntry(key, { saveStatus: "error" })
         }
       } finally {
@@ -326,6 +332,8 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       queuedAutosaveKeysRef,
       saveInFlightRef,
       scheduleTaxonomyRefresh,
+      persistOpenItemsRef,
+      setSaveConflictUid,
       setErrorMessage,
       setStatusMessage,
       userRef,
@@ -449,7 +457,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
           itemId === null
             ? { userId: currentUser.id, item: newItemRequestBody(form, workspaceId, uid) }
             : removing
-              ? { userId: currentUser.id, itemId }
+              ? { userId: currentUser.id, itemId, workspaceId }
               : { userId: currentUser.id, itemId, item: itemRequestBody(form, workspaceId) }
 
         try {

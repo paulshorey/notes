@@ -6,12 +6,16 @@ import { Client, Pool } from "pg"
 import type { ItemGroupSelection } from "../contracts/item-group-actions"
 import { getDb } from "../lib/db/postgres"
 import { executeItemGroupActionForItemsApp } from "../services/item-group-actions"
-import { listWorkspacesForItemsApp, updateItemForItemsApp } from "../services/items-app"
+import {
+  deleteItemForItemsApp,
+  listWorkspacesForItemsApp,
+  updateItemForItemsApp,
+} from "../services/items-app"
 import { deleteCategoryForWorkspace, listCategoriesByWorkspace } from "../sql/category"
 import {
   createItemForUser,
   deleteItemForUser,
-  findWorkspaceIdByItemUid,
+  findWorkspaceIdByItem,
   listItemsByUser,
 } from "../sql/item"
 import { ItemGroupConflictError, ItemGroupNotFoundError } from "../sql/item-group-errors"
@@ -163,8 +167,12 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       const [saved] = await listItemsByUser(userId, destination.id)
       assert.equal(saved?.id, moved.id)
       assert.equal(saved.uid, moved.uid)
-      assert.equal(await findWorkspaceIdByItemUid(userId, moved.uid), destination.id)
+      assert.equal(await findWorkspaceIdByItem(userId, moved.uid), destination.id)
       assert.equal(await deleteItemForUser(moved.id, userId, source.id), false)
+      await assert.rejects(
+        deleteItemForItemsApp({ itemId: moved.id, userId, workspaceId: source.id }),
+        ItemGroupConflictError,
+      )
       await assert.rejects(
         updateItemForItemsApp({
           userId,

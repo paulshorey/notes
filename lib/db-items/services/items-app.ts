@@ -64,7 +64,7 @@ import {
   createOrFindItemForUser,
   deleteItemForUser,
   findItemByUidInWorkspace,
-  findWorkspaceIdByItemUid,
+  findWorkspaceIdByItem,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
   listItemsStaleEmbeddingsByUser,
@@ -405,11 +405,12 @@ export const updateItemsAppUserPreferences = async (r: UpdateUserPreferencesRequ
 }
 
 /**
- * The workspace of the user's item with this uid, so a link to an item opens the
- * workspace it lives in. Null when the user has no such item.
+ * Resolve a bookmark to the workspace that currently owns the item for this user.
  */
-export const findItemWorkspaceForItemsApp = async (r: { userId: number; uid: string }) =>
-  findWorkspaceIdByItemUid(r.userId, r.uid)
+export const findItemWorkspaceForItemsApp = async (r: {
+  userId: number
+  target: string | number
+}) => findWorkspaceIdByItem(r.userId, r.target)
 
 export const listWorkspacesForItemsApp = async (
   r: WorkspacesRequest,
@@ -643,8 +644,16 @@ export const updateItemForItemsApp = async (
 }
 export const deleteItemForItemsApp = async (
   r: DeleteItemRequest,
-): Promise<DeleteResponse | null> =>
-  (await deleteItemForUser(r.itemId, r.userId, r.workspaceId)) ? { ok: true } : null
+): Promise<DeleteResponse | null> => {
+  if (await deleteItemForUser(r.itemId, r.userId, r.workspaceId)) return { ok: true }
+  if (r.workspaceId !== undefined) {
+    const workspaceId = await findWorkspaceIdByItem(r.userId, r.itemId)
+    if (workspaceId !== null && workspaceId !== r.workspaceId) {
+      throw new ItemGroupConflictError("This item moved to another workspace.")
+    }
+  }
+  return null
+}
 export const searchItemsForItemsApp = async (r: SearchRequest): Promise<SearchResponse> => ({
   results: await searchItemsByEmbedding(
     r.userId,

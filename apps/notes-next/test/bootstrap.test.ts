@@ -200,14 +200,14 @@ test("a link to an item opens the workspace that holds it", async () => {
     },
     { id: 9, uid: "1c3e5a70-2b4d-4f6a-8c9e-0a1b2c3d4e5f", userId: 7, label: "side", itemCount: 1 },
   ]
-  const asked: Array<{ userId: number; uid: string }> = []
+  const asked: unknown[] = []
   const loaded: number[] = []
   const base = createFakeItemsAppService()
   const service = createFakeItemsAppService({
     listWorkspacesForItemsApp: async () => ({ workspaces }),
     findItemWorkspaceForItemsApp: async (input) => {
       asked.push(input)
-      return input.uid === uid ? 9 : null
+      return input.target === uid || input.target === 41 ? 9 : null
     },
     listItemsForItemsApp: async (input) => {
       loaded.push(input.workspaceId)
@@ -219,20 +219,48 @@ test("a link to an item opens the workspace that holds it", async () => {
       service,
       async () => 7,
     )(new Request(`https://notes.test/api/bootstrap${query}`))
+    if (response.status === 404) {
+      assert.deepEqual(await response.json(), { error: "This item is unavailable." })
+      return null
+    }
     assert.equal(response.status, 200)
     return ((await response.json()) as { activeWorkspaceId: number }).activeWorkspaceId
   }
 
   assert.equal(await open(`?item=${uid.toUpperCase()}`), 9, "the item's workspace opens")
-  assert.deepEqual(asked, [{ userId: 7, uid }])
-  assert.equal(
-    await open("?item=11111111-2222-4333-8444-555555555555"),
-    3,
-    "an unknown uid changes nothing",
+  assert.deepEqual(asked, [{ userId: 7, target: uid }])
+  assert.equal(await open("?item=11111111-2222-4333-8444-555555555555"), null)
+  assert.equal(await open("?item=41"), null)
+  assert.equal(await open("?item=&id=41"), null)
+  assert.equal(await open(`?workspaceId=3&item=${uid}`), 9)
+  assert.equal(await open("?id=41"), 9)
+  assert.equal(await open("?id=41junk"), null)
+  assert.equal(await open("?workspaceId=3"), 3)
+  assert.deepEqual(loaded, [9, 9, 9, 3])
+})
+
+test("copying an open item keeps its identity across filing changes", async () => {
+  const { writeItemsUrlSelection } = await import("../src/lib/itemsUrlSelection")
+  const original = Object.getOwnPropertyDescriptor(globalThis, "window")
+  const uid = "0b6f1c1e-8f0a-4c56-9d3e-2a7b5c9e4f10"
+  const location = new URL(
+    "https://notes.test/?id=41&workspaceId=3&category=5&subcategory=6&tags=12&ref=mail#origin",
   )
-  assert.equal(await open("?item=41"), 3, "something that is not a uid is not looked up")
-  assert.equal(asked.length, 2)
-  assert.equal(await open(`?workspaceId=3&item=${uid}`), 3, "an explicit workspace wins")
-  assert.equal(asked.length, 2)
-  assert.deepEqual(loaded, [9, 3, 3, 3])
+  const paths: string[] = []
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      location,
+      history: {
+        replaceState: (_state: unknown, _title: string, path: string) => paths.push(path),
+      },
+    },
+  })
+  try {
+    writeItemsUrlSelection({ itemUid: uid, categoryId: 9, subcategoryId: 10, tagIds: [13] })
+    assert.deepEqual(paths, [`/?ref=mail&item=${uid}#origin`])
+  } finally {
+    if (original) Object.defineProperty(globalThis, "window", original)
+    else Reflect.deleteProperty(globalThis, "window")
+  }
 })
