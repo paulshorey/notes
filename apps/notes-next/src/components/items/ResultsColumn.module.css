@@ -465,6 +465,31 @@
   overflow-y: auto;
 }
 
+.itemMoveTree,
+.itemMoveSubcategories {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.itemMoveTree {
+  overflow-y: auto;
+}
+
+.itemMoveSubcategories {
+  padding-inline-start: 16px;
+}
+
+.itemMoveTree .itemMovePickerOption {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.itemMoveTree .itemMovePickerOption[aria-current="true"] {
+  color: var(--g-color-text-brand);
+  font-weight: 600;
+}
+
 .itemMovePickerOption,
 .itemMovePickerEmpty {
   padding: 7px 8px;
