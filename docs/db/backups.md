@@ -17,10 +17,12 @@ They can contain note content and authentication data.
 
 1. Verify both targets and compare the table layouts and migration ledgers.
    Apply any required development schema migrations first.
-2. Back up development before replacing its data. Export production into a
-   disposable database. Clear API tokens and password hashes, and sanitize
-   personal data or private note content before sharing the snapshot.
+2. Back up development before replacing its data. Restore the production
+   export into a private, disposable database. Clear API tokens and password
+   hashes, and sanitize personal data and private note content before preparing
+   the development snapshot.
 3. Make a data-only dump from the prepared snapshot and rehearse its restore.
+   Follow the [table selection instructions](../../scripts/README.md#flags-and-partial-copies).
    Use the same explicit list of application tables for dump and restore.
    Include the empty API-token table because it references the user table.
    Leave `schema_migrations_cursor` out of a data-only refresh.
