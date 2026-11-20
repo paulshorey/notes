@@ -26,8 +26,17 @@ They can contain note content and authentication data.
    Use the same explicit list of application tables for dump and restore.
    Include the empty API-token table because it references the user table.
    Leave `schema_migrations_cursor` out of a data-only refresh.
-4. Point `DB_ITEMS_URL` explicitly at development and run
+4. If the development app is running, fence off existing sessions before
+   importing production user IDs. Session JWTs and anonymous merge tokens carry
+   database user IDs, which can refer to different accounts after the refresh.
+   With authorization, suspend development app access, rotate the
+   development-only `AUTH_SECRET`, and redeploy. Verify the new deployment is
+   active and the old deployment has stopped serving before restoring data.
+   Keep access suspended through the restore so the app cannot issue sessions
+   against the old development data.
+5. Point `DB_ITEMS_URL` explicitly at development and run
    `scripts/db/items-restore-data.sh` with the reviewed dump and table list.
    The script truncates and reloads those tables in one transaction.
-5. Compare row counts to the prepared snapshot, confirm the development
-   migration ledger, and verify the development app can read and create items.
+6. Compare row counts to the prepared snapshot and confirm the development
+   migration ledger. Reopen app access and use fresh development sessions to
+   verify that the app can read and create items.
