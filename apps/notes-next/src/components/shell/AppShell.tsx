@@ -63,6 +63,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     handleLogout,
     handleMaxOpenItemsChange,
     handleMoveItemCategory,
+    handleMoveItemSubcategory,
     handleMoveItemTag,
     handleOpenItemFromResults,
     handlePasteUrlAsMarkdownChange,
@@ -281,6 +282,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           onAddItemForCategory={handleAddItemForCategory}
           onAddItemForTag={handleAddItemForTag}
           onMoveItemCategory={handleMoveItemCategory}
+          onMoveItemSubcategory={handleMoveItemSubcategory}
           onMoveItemTag={handleMoveItemTag}
           onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
           deletingItemId={deletingItemId}

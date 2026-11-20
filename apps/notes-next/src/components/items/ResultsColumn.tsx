@@ -55,18 +55,11 @@ const retainValidIds = (current: number[], validIds: ReadonlySet<number>) => {
   return next.length === current.length ? current : next
 }
 
-type MovePickerState =
-  | {
-      kind: "category"
-      id: string
-      item: ItemRecord
-    }
-  | {
-      kind: "tag"
-      id: string
-      item: ItemRecord
-      fromTagId: number
-    }
+type MovePickerState = { id: string; item: ItemRecord } & (
+  | { kind: "category" }
+  | { kind: "subcategory" }
+  | { kind: "tag"; fromTagId: number }
+)
 
 export interface TagItemGroup {
   tag: TagRecord
@@ -113,6 +106,7 @@ interface ResultsColumnProps {
   ) => void
   onAddItemForTag: (tag: TagRecord) => void
   onMoveItemCategory: (item: ItemRecord, categoryLabel: string) => void | Promise<void>
+  onMoveItemSubcategory: (item: ItemRecord, label: string | null) => void | Promise<void>
   onMoveItemTag: (item: ItemRecord, fromTagId: number, tagLabel: string) => void | Promise<void>
   onDeleteItem: (itemId: number) => void
   deletingItemId: number | null
@@ -151,6 +145,7 @@ export function ResultsColumn({
   onAddItemForCategory,
   onAddItemForTag,
   onMoveItemCategory,
+  onMoveItemSubcategory,
   onMoveItemTag,
   onDeleteItem,
   deletingItemId,
@@ -314,10 +309,12 @@ export function ResultsColumn({
       itemLabel={item.description?.trim() || "Untitled"}
       openActionMenuId={openActionMenuId}
       onOpenActionMenuChange={setOpenActionMenuId}
-      onAssignCategory={() => {
-        setOpenActionMenuId(null)
-        setActiveMovePicker({ kind: "category", item, id })
-      }}
+      onAssignCategory={() => setActiveMovePicker({ kind: "category", item, id })}
+      onAssignSubcategory={
+        categories.some((category) => category.id === item.category?.id)
+          ? () => setActiveMovePicker({ kind: "subcategory", item, id })
+          : undefined
+      }
       onChangeTag={
         fromTagId === undefined
           ? undefined
@@ -352,6 +349,24 @@ export function ResultsColumn({
           emptyMessage="No other categories."
           onClose={closeMovePicker}
           onSelect={(label) => onMoveItemCategory(item, label)}
+        />
+      )
+    }
+
+    if (activeMovePicker.kind === "subcategory") {
+      const category = categories.find((entry) => entry.id === item.category?.id)
+      if (!category) return null
+
+      return (
+        <ItemMovePicker
+          mode="subcategory"
+          options={category.subcategories}
+          currentOptionIds={item.subcategory ? [item.subcategory.id] : []}
+          inputPlaceholder="Enter new..."
+          emptyMessage="No other subcategories."
+          onClose={closeMovePicker}
+          onSelect={(label) => onMoveItemSubcategory(item, label)}
+          onClear={item.subcategory ? () => onMoveItemSubcategory(item, null) : undefined}
         />
       )
     }
@@ -1273,6 +1288,7 @@ interface ItemActionMenuProps {
   openActionMenuId: string | null
   onOpenActionMenuChange: (id: string | null) => void
   onAssignCategory: () => void
+  onAssignSubcategory?: () => void
   onChangeTag?: () => void
   onMoveToWorkspace: (anchorRef: RefObject<HTMLElement | null>) => void
   onDelete: () => void
@@ -1288,6 +1304,7 @@ function ItemActionMenu({
   openActionMenuId,
   onOpenActionMenuChange,
   onAssignCategory,
+  onAssignSubcategory,
   onChangeTag,
   onMoveToWorkspace,
   onDelete,
@@ -1333,11 +1350,37 @@ function ItemActionMenu({
             role="menuitem"
             onClick={() => {
               onOpenActionMenuChange(null)
+              onMoveToWorkspace(buttonRef)
+            }}
+          >
+            <ArrowsLeftRight size={14} weight="regular" />
+            <span>Workspace</span>
+          </button>
+          <button
+            type="button"
+            className={styles.categoryActionMenuItem}
+            role="menuitem"
+            onClick={() => {
+              onOpenActionMenuChange(null)
               onAssignCategory()
             }}
           >
             <ArrowsLeftRight size={14} weight="regular" />
-            <span>Assign category</span>
+            <span>Category</span>
+          </button>
+          <button
+            type="button"
+            className={styles.categoryActionMenuItem}
+            role="menuitem"
+            disabled={!onAssignSubcategory}
+            title={onAssignSubcategory ? undefined : "Assign a category first"}
+            onClick={() => {
+              onOpenActionMenuChange(null)
+              onAssignSubcategory?.()
+            }}
+          >
+            <ArrowsLeftRight size={14} weight="regular" />
+            <span>Subcategory</span>
           </button>
           {onChangeTag && (
             <button
@@ -1353,18 +1396,6 @@ function ItemActionMenu({
               <span>Change tag</span>
             </button>
           )}
-          <button
-            type="button"
-            className={styles.categoryActionMenuItem}
-            role="menuitem"
-            onClick={() => {
-              onOpenActionMenuChange(null)
-              onMoveToWorkspace(buttonRef)
-            }}
-          >
-            <ArrowsLeftRight size={14} weight="regular" />
-            <span>Move to workspace</span>
-          </button>
           <button
             type="button"
             className={`${styles.categoryActionMenuItem} ${styles.categoryActionMenuItemDanger}`}
@@ -1394,13 +1425,14 @@ function ItemActionMenu({
 }
 
 interface ItemMovePickerProps {
-  mode: "category" | "tag"
-  options: Array<CategoryRecord | TagRecord>
+  mode: "category" | "subcategory" | "tag"
+  options: ReadonlyArray<{ id: number; label: string }>
   currentOptionIds: number[]
   inputPlaceholder: string
   emptyMessage: string
   onClose: () => void
   onSelect: (label: string) => void | Promise<void>
+  onClear?: () => void | Promise<void>
 }
 
 function ItemMovePicker({
@@ -1411,10 +1443,11 @@ function ItemMovePicker({
   emptyMessage,
   onClose,
   onSelect,
+  onClear,
 }: ItemMovePickerProps) {
   const [inputValue, setInputValue] = useState("")
   const [pending, setPending] = useState(false)
-  const inputError = mode === "category" ? getCategoryNameError(inputValue) : null
+  const inputError = mode === "tag" ? null : getCategoryNameError(inputValue)
   const currentOptionIdSet = useMemo(() => new Set(currentOptionIds), [currentOptionIds])
   const filteredOptions = useMemo(() => {
     const query = normalizeLabel(inputValue)
@@ -1429,21 +1462,23 @@ function ItemMovePicker({
     })
   }, [currentOptionIdSet, inputValue, options])
 
-  const submitLabel = (rawLabel: string) => {
-    const label = rawLabel.trim()
-    if (label === "" || pending || (mode === "category" && getCategoryNameError(label))) {
-      return
-    }
-
+  const submit = (action: () => void | Promise<void>) => {
+    if (pending) return
     void (async () => {
       setPending(true)
       try {
-        await onSelect(label)
+        await action()
         onClose()
       } finally {
         setPending(false)
       }
     })()
+  }
+
+  const submitLabel = (rawLabel: string) => {
+    const label = rawLabel.trim()
+    if (label === "" || (mode !== "tag" && getCategoryNameError(label))) return
+    submit(() => onSelect(label))
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -1471,14 +1506,26 @@ function ItemMovePicker({
     <div
       className={styles.itemMovePicker}
       role="dialog"
-      aria-label={`Move note to ${mode === "category" ? "category" : "tag"}`}
+      aria-label={`Move note to ${mode}`}
       onClick={(event) => event.stopPropagation()}
     >
       <div
         className={styles.itemMovePickerOptions}
         role="listbox"
-        aria-label={mode === "category" ? "Category options" : "Tag options"}
+        aria-label={`${mode.charAt(0).toUpperCase()}${mode.slice(1)} options`}
       >
+        {onClear && inputValue.trim() === "" && (
+          <button
+            type="button"
+            className={styles.itemMovePickerOption}
+            disabled={pending}
+            onClick={() => submit(onClear)}
+            role="option"
+            aria-selected={false}
+          >
+            no subcategory
+          </button>
+        )}
         {inputError ? (
           <div className={styles.itemMovePickerEmpty} role="alert">
             {inputError}

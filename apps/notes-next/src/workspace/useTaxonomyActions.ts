@@ -432,6 +432,26 @@ export function useTaxonomyActions(
     }
   }
 
+  const createWorkspaceSubcategory = async (
+    category: CategoryRecord,
+    label: string,
+  ): Promise<{ category: CategoryRecord; subcategory: SubcategoryRecord }> => {
+    if (!user) throw new Error("Sign in before adding subcategories.")
+    const response = await itemsFetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: user.id,
+        workspaceId: category.workspaceId,
+        categoryId: category.id,
+        label,
+      }),
+    })
+    const data = await readJson<CreateCategoryResponse>(response)
+    if (!data.subcategory) throw new Error("The subcategory was not created.")
+    return { category: data.category, subcategory: data.subcategory }
+  }
+
   /** Create a subcategory of the entry's category, or select it if it exists. */
   const handleCreateSubcategory = async (
     rawLabel: string,
@@ -476,18 +496,7 @@ export function useTaxonomyActions(
     clearMessages()
     setCreateCategoryPending(true)
     try {
-      const response = await itemsFetch("/api/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user.id,
-          workspaceId: activeWorkspaceId,
-          categoryId: category.id,
-          label,
-        }),
-      })
-      const data = await readJson<CreateCategoryResponse>(response)
-      if (!data.subcategory) throw new Error("The subcategory was not created.")
+      const data = await createWorkspaceSubcategory(category, label)
       const latest = upsertCategory(categoriesRef.current, data.category)
       setCategories(latest)
       selectSubcategory(data.subcategory.id, latest)
@@ -583,19 +592,28 @@ export function useTaxonomyActions(
   const patchItemFromSidebar = (
     listedItem: ItemRecord,
     change: (current: ItemRecord) => StoredItemChange,
-  ): Promise<ItemRecord | null> => {
+  ): Promise<ItemRecord | null> =>
+    enqueueSidebarWrite(listedItem.id, () => patchStoredItem(listedItem, change))
+
+  const enqueueSidebarWrite = (itemId: number, action: () => Promise<ItemRecord | null>) => {
     const queue = listWritesByItemRef.current
-    const previous = queue.get(listedItem.id) ?? Promise.resolve()
-    const write = previous.then(() => patchStoredItem(listedItem, change))
+    const previous = queue.get(itemId) ?? Promise.resolve()
+    const write = previous.then(action)
     const settled = write.then(
       () => undefined,
       () => undefined,
     )
-    queue.set(listedItem.id, settled)
+    queue.set(itemId, settled)
     void settled.then(() => {
-      if (queue.get(listedItem.id) === settled) queue.delete(listedItem.id)
+      if (queue.get(itemId) === settled) queue.delete(itemId)
     })
     return write
+  }
+
+  const readItemForSidebarWrite = (listedItem: ItemRecord) => {
+    const latest =
+      useWorkspaceStore.getState().items.find((stored) => stored.id === listedItem.id) ?? listedItem
+    return settleOpenEntryFor(latest)
   }
 
   const patchStoredItem = async (
@@ -604,9 +622,7 @@ export function useTaxonomyActions(
   ) => {
     if (!user) return null
     // An earlier write in the queue may have changed the item since it was listed.
-    const latest =
-      useWorkspaceStore.getState().items.find((stored) => stored.id === listedItem.id) ?? listedItem
-    const item = await settleOpenEntryFor(latest)
+    const item = await readItemForSidebarWrite(listedItem)
     if (!item) return null
     // Decided against the item as it is now, not as the list showed it when the
     // action started: an earlier write or a saved edit may have changed it since.
@@ -706,6 +722,61 @@ export function useTaxonomyActions(
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     }
+  }
+
+  const handleMoveItemSubcategory = async (item: ItemRecord, rawLabel: string | null) => {
+    if (!user) return
+    clearMessages()
+    const label = rawLabel?.trim() ?? null
+    const assertSameCategory = (current: ItemRecord) => {
+      if (current.category?.id !== item.category?.id) {
+        throw new Error("The item's category changed. Open the subcategory picker again.")
+      }
+    }
+
+    await trackDirectWrite(
+      enqueueSidebarWrite(item.id, async () => {
+        const current = await readItemForSidebarWrite(item)
+        if (!current) return null
+        assertSameCategory(current)
+        const category = categoriesRef.current.find((entry) => entry.id === current.category?.id)
+        if (!category) throw new Error("Assign a category before moving to a subcategory.")
+
+        let subcategory: SubcategoryRecord | null = null
+        if (label !== null) {
+          const nameError = getCategoryNameError(label)
+          if (nameError) throw new Error(nameError)
+          if (label === "") return null
+
+          subcategory =
+            category.subcategories.find(
+              (entry) => normalizeLabel(entry.label) === normalizeLabel(label),
+            ) ?? null
+          if (!subcategory) {
+            const created = await createWorkspaceSubcategory(category, label)
+            setCategories((categories) => upsertCategory(categories, created.category))
+            subcategory = created.subcategory
+          }
+        }
+
+        const moved = await patchStoredItem(current, (stored) => {
+          assertSameCategory(stored)
+          return { subcategoryId: subcategory?.id ?? null }
+        })
+        if (moved) {
+          setStatusMessage(
+            subcategory ? `Note moved to “${subcategory.label}”.` : "Note's subcategory cleared.",
+          )
+        }
+        return moved
+      }).then(
+        (moved) => Boolean(moved),
+        (error) => {
+          setErrorMessage(getErrorMessage(error))
+          return false
+        },
+      ),
+    )
   }
 
   const handleMoveItemTag = async (item: ItemRecord, fromTagId: number, tagLabel: string) => {
@@ -1215,6 +1286,7 @@ export function useTaxonomyActions(
     handleSetItemStatus,
     handleQuickAddItem,
     handleMoveItemCategory,
+    handleMoveItemSubcategory,
     handleMoveItemTag,
     prepareItemGroupAction,
     applyItemGroupAction,
