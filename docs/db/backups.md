@@ -32,8 +32,9 @@ They can contain note content and authentication data.
    edits sync and in-flight writes finish. Resolve failed writes before
    proceeding. With authorization, stop only the Railway development web
    deployment and verify it is offline. Rotate its development-only
-   `AUTH_SECRET` with `railway variable set AUTH_SECRET --stdin --skip-deploys`.
-   Keep the web app offline through the restore.
+   `AUTH_SECRET` using `railway variable set AUTH_SECRET --stdin --skip-deploys`
+   with explicit project, environment, and web service selectors. Keep the web
+   app offline through the restore.
 5. Reverify the development database endpoint and back it up while the web app
    is offline. Point `DB_ITEMS_URL` explicitly at development and run
    `scripts/db/items-restore-data.sh` with the reviewed dump and table list.
