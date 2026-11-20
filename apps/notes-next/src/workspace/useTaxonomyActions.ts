@@ -36,7 +36,6 @@ import { createEmptyItemDraft } from "@/capabilities/draftParts"
 import { newItemRequestBody, serializeItemDraft } from "@/lib/itemDraft"
 import { newPublicUid } from "@/lib/publicUid"
 import { itemToFormState } from "@/types/items"
-import { itemFilingLabel } from "@/lib/itemFiling"
 import {
   type StoredItemChange,
   changesNothing,
@@ -46,7 +45,14 @@ import {
 import { collectSessionFlushEntries, stateWithDetachedSaves } from "@/lib/openItemsExit"
 import { isPreferencesObject } from "@/lib/userPreferences"
 import { canSaveEntry } from "@/views/registry"
-import { existingFiling, filingLabel, isSameFiling, upsertCategory } from "@/lib/itemFiling"
+import {
+  type ItemFiling,
+  existingFiling,
+  filingLabel,
+  isSameFiling,
+  itemFilingLabel,
+  upsertCategory,
+} from "@/lib/itemFiling"
 import { isResultsDrawerLayout } from "@/lib/resultsColumn"
 import { isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
@@ -432,26 +438,6 @@ export function useTaxonomyActions(
     }
   }
 
-  const createWorkspaceSubcategory = async (
-    category: CategoryRecord,
-    label: string,
-  ): Promise<{ category: CategoryRecord; subcategory: SubcategoryRecord }> => {
-    if (!user) throw new Error("Sign in before adding subcategories.")
-    const response = await itemsFetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: user.id,
-        workspaceId: category.workspaceId,
-        categoryId: category.id,
-        label,
-      }),
-    })
-    const data = await readJson<CreateCategoryResponse>(response)
-    if (!data.subcategory) throw new Error("The subcategory was not created.")
-    return { category: data.category, subcategory: data.subcategory }
-  }
-
   /** Create a subcategory of the entry's category, or select it if it exists. */
   const handleCreateSubcategory = async (
     rawLabel: string,
@@ -496,7 +482,18 @@ export function useTaxonomyActions(
     clearMessages()
     setCreateCategoryPending(true)
     try {
-      const data = await createWorkspaceSubcategory(category, label)
+      const response = await itemsFetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          workspaceId: category.workspaceId,
+          categoryId: category.id,
+          label,
+        }),
+      })
+      const data = await readJson<CreateCategoryResponse>(response)
+      if (!data.subcategory) throw new Error("The subcategory was not created.")
       const latest = upsertCategory(categoriesRef.current, data.category)
       setCategories(latest)
       selectSubcategory(data.subcategory.id, latest)
@@ -506,39 +503,6 @@ export function useTaxonomyActions(
     } finally {
       setCreateCategoryPending(false)
     }
-  }
-
-  const resolveCategoryForSidebarMove = async (
-    rawLabel: string,
-  ): Promise<CategoryRecord | null> => {
-    if (!user) {
-      setErrorMessage("Sign in before moving notes.")
-      return null
-    }
-    const label = normalizeLabel(rawLabel)
-    const nameError = getCategoryNameError(label)
-    if (nameError) {
-      setErrorMessage(nameError)
-      return null
-    }
-    if (label === "") {
-      return null
-    }
-    const existingCategory = categories.find(
-      (category) => normalizeLabel(category.label) === normalizeLabel(label),
-    )
-    if (existingCategory) {
-      return existingCategory
-    }
-
-    const response = await itemsFetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
-    })
-    const data = await readJson<CreateCategoryResponse>(response)
-    setCategories((prev) => upsertCategory(prev, data.category))
-    return data.category
   }
 
   const resolveTagForSidebarMove = async (rawLabel: string): Promise<TagRecord | null> => {
@@ -705,72 +669,26 @@ export function useTaxonomyActions(
     })
   }
 
-  const handleMoveItemCategory = async (item: ItemRecord, categoryLabel: string) => {
-    if (!user) return
+  const handleMoveItemFiling = (item: ItemRecord, destination: ItemFiling) => {
+    if (!user) return Promise.resolve(false)
     clearMessages()
-    try {
-      const category = await resolveCategoryForSidebarMove(categoryLabel)
-      if (!category) return
-      if (item.category?.id === category.id) return
-
-      // A subcategory belongs to the category the note is leaving.
-      const moved = await patchItemFromSidebar(item, () => ({
-        categoryId: category.id,
-        subcategoryId: null,
-      }))
-      if (moved) setStatusMessage(`Note moved to “${category.label}”.`)
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
-    }
-  }
-
-  const handleMoveItemSubcategory = async (item: ItemRecord, rawLabel: string | null) => {
-    if (!user) return
-    clearMessages()
-    const label = rawLabel?.trim() ?? null
-    const assertSameCategory = (current: ItemRecord) => {
-      if (current.category?.id !== item.category?.id) {
-        throw new Error("The item's category changed. Open the subcategory picker again.")
-      }
-    }
-
-    await trackDirectWrite(
-      enqueueSidebarWrite(item.id, async () => {
-        const current = await readItemForSidebarWrite(item)
-        if (!current) return null
-        assertSameCategory(current)
-        const category = categoriesRef.current.find((entry) => entry.id === current.category?.id)
-        if (!category) throw new Error("Assign a category before moving to a subcategory.")
-
-        let subcategory: SubcategoryRecord | null = null
-        if (label !== null) {
-          const nameError = getCategoryNameError(label)
-          if (nameError) throw new Error(nameError)
-          if (label === "") return null
-
-          subcategory =
-            category.subcategories.find(
-              (entry) => normalizeLabel(entry.label) === normalizeLabel(label),
-            ) ?? null
-          if (!subcategory) {
-            const created = await createWorkspaceSubcategory(category, label)
-            setCategories((categories) => upsertCategory(categories, created.category))
-            subcategory = created.subcategory
-          }
+    return trackDirectWrite(
+      patchItemFromSidebar(item, (current) => {
+        if (current.workspaceId !== activeWorkspaceIdRef.current) {
+          throw new Error("The item's workspace changed. Open the move picker again.")
         }
-
-        const moved = await patchStoredItem(current, (stored) => {
-          assertSameCategory(stored)
-          return { subcategoryId: subcategory?.id ?? null }
-        })
-        if (moved) {
-          setStatusMessage(
-            subcategory ? `Note moved to “${subcategory.label}”.` : "Note's subcategory cleared.",
-          )
+        const filing = existingFiling(categoriesRef.current, destination)
+        if (!isSameFiling(filing, destination)) {
+          throw new Error("The destination changed. Choose another category or subcategory.")
         }
-        return moved
+        return filing
       }).then(
-        (moved) => Boolean(moved),
+        (moved) => {
+          if (!moved) return false
+          const label = itemFilingLabel(moved)
+          setStatusMessage(label ? `Item moved to “${label}”.` : "Item moved to uncategorized.")
+          return true
+        },
         (error) => {
           setErrorMessage(getErrorMessage(error))
           return false
@@ -1280,13 +1198,11 @@ export function useTaxonomyActions(
     createWorkspaceCategory,
     handleCreateCategory,
     handleCreateSubcategory,
-    resolveCategoryForSidebarMove,
     resolveTagForSidebarMove,
     patchItemFromSidebar,
     handleSetItemStatus,
     handleQuickAddItem,
-    handleMoveItemCategory,
-    handleMoveItemSubcategory,
+    handleMoveItemFiling,
     handleMoveItemTag,
     prepareItemGroupAction,
     applyItemGroupAction,
