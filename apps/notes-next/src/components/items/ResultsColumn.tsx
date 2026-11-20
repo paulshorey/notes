@@ -1391,10 +1391,6 @@ function ItemFilingPicker({
 
   const select = async (filing: ItemFiling) => {
     if (pending) return
-    if (isSameFiling(filing, currentFiling)) {
-      onClose()
-      return
-    }
     setPending(true)
     try {
       if (await onSelect(filing)) onClose()
