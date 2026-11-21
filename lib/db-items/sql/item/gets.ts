@@ -31,13 +31,13 @@ export const findItemByUidInWorkspace = async (
   return rows[0] ? mapItem(rows[0]) : null
 }
 
-/** The workspace that holds the user's item with this uid, or null when they have none. */
-export const findWorkspaceIdByItemUid = async (userId: number, uid: string) => {
+/** Resolve a public UID or legacy item ID within the authenticated account. */
+export const findWorkspaceIdByItem = async (userId: number, target: string | number) => {
   const { rows } = await getDb().query<{ workspace_id: number }>(
     `SELECT n.workspace_id FROM public.workspace_item_v1 n
      JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
-     WHERE n.uid=$2::uuid AND w.user_id=$1`,
-    [userId, uid],
+     WHERE ${typeof target === "string" ? "n.uid=$2::uuid" : "n.id=$2"} AND w.user_id=$1`,
+    [userId, target],
   )
   return rows[0]?.workspace_id ?? null
 }

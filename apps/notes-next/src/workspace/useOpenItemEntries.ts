@@ -6,7 +6,7 @@ import {
   type StatusRecord,
   type TagRecord,
 } from "@lib/db-items"
-import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo } from "react"
+import { type Dispatch, type SetStateAction, useCallback, useEffect, useMemo, useRef } from "react"
 import { type TextCaptureFormState, itemToFormState } from "@/types/items"
 import { serializeItemDraft } from "@/lib/itemDraft"
 import {
@@ -23,7 +23,7 @@ import {
 } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { existingFiling, filingLabel, isSameFiling, itemFilingLabel } from "@/lib/itemFiling"
-import { readItemsUrlSelection, writeItemsUrlSelection } from "@/lib/itemsUrlSelection"
+import { readItemTarget, readItemsUrlSelection, writeItemsUrlSelection } from "@/lib/itemsUrlSelection"
 import { getMaxOpenItemsPreference, withMaxOpenItemsPreference } from "@/lib/userPreferences"
 import { EMPTY_ITEM_FORM, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
@@ -33,6 +33,7 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
   const {
     activeEntry,
     activeKey,
+    activeView,
     categories,
     categoriesRef,
     clearMessages,
@@ -171,8 +172,8 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
       if (orphanedDraftCount > 0) {
         setStatusMessage(
           orphanedDraftCount === 1
-            ? "A note you were editing was deleted elsewhere. Your unsaved text was kept as a new note."
-            : `${orphanedDraftCount} notes you were editing were deleted elsewhere. Your unsaved text was kept as new notes.`,
+            ? "A note you were editing is no longer in this workspace. Your unsaved text was kept as a new note."
+            : `${orphanedDraftCount} notes you were editing are no longer in this workspace. Your unsaved text was kept as new notes.`,
         )
       }
     },
@@ -420,17 +421,25 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
   // A draft has no address until it is stored.
   const activeItemUid = activeEntry && activeEntry.itemId !== null ? activeEntry.uid : null
 
+  const lastAddressedUid = useRef<string | null>(null)
+  const lastAddress = useRef<{ pathname: string; search: string } | null>(null)
+
   useEffect(() => {
     if (!user) return
     if (!itemsUrlSelectionReady) return
 
     // Mirrors the *active* entry so the address bar stays copy-pasteable.
-    writeItemsUrlSelection({
-      itemUid: activeItemUid,
-      categoryId: activeEntry?.form.selectedCategoryId ?? null,
-      subcategoryId: activeEntry?.form.selectedSubcategoryId ?? null,
-      tagIds: activeEntry?.form.selectedTagIds ?? [],
-    })
+    writeItemsUrlSelection(
+      {
+        itemUid: activeItemUid,
+        categoryId: activeEntry?.form.selectedCategoryId ?? null,
+        subcategoryId: activeEntry?.form.selectedSubcategoryId ?? null,
+        tagIds: activeEntry?.form.selectedTagIds ?? [],
+      },
+      lastAddressedUid.current !== null && lastAddressedUid.current !== activeItemUid,
+    )
+    lastAddressedUid.current = activeItemUid
+    lastAddress.current = { pathname: window.location.pathname, search: window.location.search }
   }, [
     activeItemUid,
     activeEntry?.form.selectedCategoryId,
@@ -441,17 +450,40 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
   ])
 
   useEffect(() => {
-    if (!user) return
+    // The view switcher uses client-side navigation and shares this workspace.
+    lastAddress.current = { pathname: window.location.pathname, search: window.location.search }
+  }, [activeView])
 
+  useEffect(() => {
     const handlePopState = () => {
-      // No flush needed: the target note is already in memory with its own
-      // draft, so applying the URL selection is non-destructive.
-      applyItemsUrlSelection()
-    }
+      const { pathname, search } = window.location
+      const previous = lastAddress.current
+      lastAddress.current = { pathname, search }
+      if (!previous || previous.search === search) return
 
+      const target = readItemTarget(new URLSearchParams(search))
+      const previousTarget = readItemTarget(new URLSearchParams(previous.search))
+      const itemTargetChanged =
+        target.hasItemTarget !== previousTarget.hasItemTarget ||
+        target.itemUid !== previousTarget.itemUid ||
+        target.itemId !== previousTarget.itemId
+
+      if (itemTargetChanged && (target.hasItemTarget || pathname === previous.pathname)) {
+        // Resolve the bookmark again. pagehide persists outgoing drafts under their
+        // original workspace, including edits from a save that has yet to finish.
+        window.location.reload()
+      } else if (!target.hasItemTarget && user) {
+        applyItemsUrlSelection()
+      }
+    }
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted && readItemsUrlSelection().hasItemTarget) window.location.reload()
+    }
     window.addEventListener("popstate", handlePopState)
+    window.addEventListener("pageshow", handlePageShow)
     return () => {
       window.removeEventListener("popstate", handlePopState)
+      window.removeEventListener("pageshow", handlePageShow)
     }
   }, [applyItemsUrlSelection, user])
 

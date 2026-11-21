@@ -20,6 +20,9 @@ import {
   X,
 } from "@phosphor-icons/react"
 import { Button, Popup, Text, TextInput } from "@gravity-ui/uikit"
+import { FilterablePickerPopup } from "@/components/ui/FilterablePickerPopup"
+import { getErrorMessage } from "@/lib/api"
+import { type ItemFiling, isSameFiling, NO_FILING } from "@/lib/itemFiling"
 import { firstLineLabel, normalizeLabel, toLowercaseInput } from "@/lib/strings"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import {
@@ -53,18 +56,10 @@ const retainValidIds = (current: number[], validIds: ReadonlySet<number>) => {
   return next.length === current.length ? current : next
 }
 
-type MovePickerState =
-  | {
-      kind: "category"
-      id: string
-      item: ItemRecord
-    }
-  | {
-      kind: "tag"
-      id: string
-      item: ItemRecord
-      fromTagId: number
-    }
+type MovePickerState = { id: string; itemId: number } & (
+  | { kind: "filing"; anchorRef: RefObject<HTMLElement | null> }
+  | { kind: "tag"; fromTagId: number }
+)
 
 export interface TagItemGroup {
   tag: TagRecord
@@ -80,9 +75,12 @@ interface ResultsColumnProps {
   visible: boolean
   columnStyle: CSSProperties
   workspacePicker: ReactNode
+  workspaceId: number | null
   tags: TagRecord[]
   itemsLoading: boolean
   categories: CategoryRecord[]
+  createCategoryPending: boolean
+  onCreateCategory: (label: string) => Promise<CategoryRecord | null>
   statuses: StatusRecord[]
   statusItemGroups: StatusItemGroup[]
   activeStatusId: number | null
@@ -107,7 +105,7 @@ interface ResultsColumnProps {
     subcategory?: SubcategoryRecord | null,
   ) => void
   onAddItemForTag: (tag: TagRecord) => void
-  onMoveItemCategory: (item: ItemRecord, categoryLabel: string) => void | Promise<void>
+  onMoveItemFiling: (item: ItemRecord, filing: ItemFiling) => Promise<boolean>
   onMoveItemTag: (item: ItemRecord, fromTagId: number, tagLabel: string) => void | Promise<void>
   onDeleteItem: (itemId: number) => void
   deletingItemId: number | null
@@ -119,9 +117,12 @@ export function ResultsColumn({
   visible,
   columnStyle,
   workspacePicker,
+  workspaceId,
   tags,
   itemsLoading,
   categories,
+  createCategoryPending,
+  onCreateCategory,
   statuses,
   statusItemGroups,
   activeStatusId,
@@ -142,7 +143,7 @@ export function ResultsColumn({
   onEditItem,
   onAddItemForCategory,
   onAddItemForTag,
-  onMoveItemCategory,
+  onMoveItemFiling,
   onMoveItemTag,
   onDeleteItem,
   deletingItemId,
@@ -151,7 +152,7 @@ export function ResultsColumn({
 }: ResultsColumnProps) {
   const setItemGroupDialog = useItemsAppStore((state) => state.setItemGroupDialog)
   const openWorkspaceMovePicker = useItemsAppStore((state) => state.openWorkspaceMovePicker)
-  const [expandedSection, setExpandedSection] = useState<ResultsAccordionId>("categories")
+  const [expandedSection, setExpandedSection] = useState<ResultsAccordionId | null>("categories")
   const searchQuery = useItemsAppStore((state) => state.searchQuery)
   const setSearchQuery = useItemsAppStore((state) => state.setSearchQuery)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -167,6 +168,9 @@ export function ResultsColumn({
   const prevFilingRef = useRef<string | undefined>(undefined)
   const prevStatusIdRef = useRef<number | null | undefined>(undefined)
   const prevTagIdsRef = useRef<number[]>([])
+
+  const toggleSection = (section: ResultsAccordionId) =>
+    setExpandedSection((current) => (current === section ? null : section))
 
   useEffect(() => {
     const validIds = new Set(categories.map((category) => category.id))
@@ -293,9 +297,8 @@ export function ResultsColumn({
     onEditItem(item)
   }
 
-  const closeMovePicker = () => {
-    setActiveMovePicker(null)
-  }
+  const closeMovePicker = () =>
+    setActiveMovePicker((current) => (current === activeMovePicker ? null : current))
 
   const renderItemRowAction = (item: ItemRecord, id: string, fromTagId?: number) => (
     <ItemActionMenu
@@ -303,20 +306,11 @@ export function ResultsColumn({
       itemLabel={item.description?.trim() || "Untitled"}
       openActionMenuId={openActionMenuId}
       onOpenActionMenuChange={setOpenActionMenuId}
-      onAssignCategory={() => {
-        setOpenActionMenuId(null)
-        setActiveMovePicker({ kind: "category", item, id })
-      }}
+      onMove={(anchorRef) => setActiveMovePicker({ kind: "filing", itemId: item.id, id, anchorRef })}
       onChangeTag={
         fromTagId === undefined
           ? undefined
-          : () => {
-              setOpenActionMenuId(null)
-              setActiveMovePicker({ kind: "tag", item, fromTagId, id })
-            }
-      }
-      onMoveToWorkspace={(anchorRef) =>
-        openWorkspaceMovePicker({ kind: "item", itemId: item.id }, anchorRef)
+          : () => setActiveMovePicker({ kind: "tag", itemId: item.id, fromTagId, id })
       }
       onDelete={() => onDeleteItem(item.id)}
       deletePending={deletingItemId === item.id}
@@ -327,31 +321,32 @@ export function ResultsColumn({
   )
 
   const renderMovePicker = (item: ItemRecord, pickerId: string) => {
-    if (activeMovePicker?.item.id !== item.id || activeMovePicker.id !== pickerId) {
+    if (activeMovePicker?.itemId !== item.id || activeMovePicker.id !== pickerId) {
       return null
     }
 
-    if (activeMovePicker.kind === "category") {
+    if (activeMovePicker.kind === "filing") {
       return (
-        <ItemMovePicker
-          mode="category"
-          options={categories}
-          currentOptionIds={item.category ? [item.category.id] : []}
-          inputPlaceholder="Enter new..."
-          emptyMessage="No other categories."
+        <ItemFilingPicker
+          categories={categories}
+          currentFiling={{
+            categoryId: item.category?.id ?? null,
+            subcategoryId: item.subcategory?.id ?? null,
+          }}
           onClose={closeMovePicker}
-          onSelect={(label) => onMoveItemCategory(item, label)}
+          onSelect={(filing) => onMoveItemFiling(item, filing)}
+          onMoveToWorkspace={() => {
+            closeMovePicker()
+            openWorkspaceMovePicker({ kind: "item", itemId: item.id }, activeMovePicker.anchorRef)
+          }}
         />
       )
     }
 
     return (
-      <ItemMovePicker
-        mode="tag"
-        options={tags}
-        currentOptionIds={[activeMovePicker.fromTagId]}
-        inputPlaceholder="Enter new..."
-        emptyMessage="No other tags."
+      <ItemTagPicker
+        tags={tags}
+        currentTagId={activeMovePicker.fromTagId}
         onClose={closeMovePicker}
         onSelect={(label) => onMoveItemTag(item, activeMovePicker.fromTagId, label)}
       />
@@ -374,73 +369,25 @@ export function ResultsColumn({
         <div className={styles.itemResults}>
           <div className={styles.workspacePicker}>{visible && workspacePicker}</div>
           <AccordionSection
-            id="search"
-            title="Search"
-            expanded={expandedSection === "search"}
-            onExpand={() => setExpandedSection("search")}
-          >
-            <div className={styles.searchField}>
-              <TextInput
-                size="m"
-                placeholder="AI Search"
-                value={searchQuery}
-                onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
-                onKeyDown={(event) => {
-                  if (event.key !== "Escape") return
-                  event.preventDefault()
-                  event.stopPropagation()
-                  if (searchQuery.trim() !== "") {
-                    setSearchQuery("")
-                  } else {
-                    setExpandedSection("categories")
-                  }
-                }}
-                controlRef={searchInputRef}
-                startContent={<MagnifyingGlass size={16} weight="regular" aria-hidden />}
-                endContent={
-                  searchMode ? (
-                    <button
-                      type="button"
-                      className={styles.searchClearButton}
-                      aria-label="Clear search"
-                      title="Clear search"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => {
-                        setSearchQuery("")
-                        searchInputRef.current?.focus()
-                      }}
-                    >
-                      <X size={14} weight="bold" />
-                    </button>
-                  ) : undefined
-                }
-                className={styles.searchInput}
-                controlProps={{ "aria-label": "AI Search" }}
-              />
-            </div>
-            {searchMode && (
-              <div className={styles.searchResults}>
-                <ItemResultsList
-                  items={searchItems}
-                  activeItemId={activeItemId}
-                  openItemIds={openItemIds}
-                  loading={searchLoading || itemsLoading}
-                  emptyMessage={
-                    selectedTag
-                      ? `No search results in “${selectedTag.label}”.`
-                      : "No search results."
-                  }
-                  onEdit={handleResultEdit}
-                  renderAction={(item) => renderItemRowAction(item, `search-item-${item.id}`)}
-                />
-              </div>
-            )}
-          </AccordionSection>
-          <AccordionSection
             id="categories"
             title="Categories"
             expanded={expandedSection === "categories"}
-            onExpand={() => setExpandedSection("categories")}
+            onToggle={() => toggleSection("categories")}
+            action={
+              visible &&
+              workspaceId !== null && (
+                <CreateCategoryButton
+                  key={workspaceId}
+                  categories={categories}
+                  pending={createCategoryPending}
+                  onCreate={onCreateCategory}
+                  onCreated={(category) => {
+                    setExpandedSection("categories")
+                    onAddItemForCategory(category)
+                  }}
+                />
+              )
+            }
             contentRole="list"
             contentLabel="Notes by category"
           >
@@ -500,7 +447,8 @@ export function ResultsColumn({
                         <SectionActionMenu
                           id={key}
                           label={category?.label ?? UNCATEGORIZED_LABEL}
-                          editLabel="Rename"
+                          editLabel={category ? "Rename category" : "Rename"}
+                          deleteLabel={category ? "Delete category" : "Delete"}
                           openActionMenuId={openActionMenuId}
                           onOpenActionMenuChange={setOpenActionMenuId}
                           onEdit={() =>
@@ -591,7 +539,8 @@ export function ResultsColumn({
                                 <SectionActionMenu
                                   id={subKey}
                                   label={subcategory.label}
-                                  editLabel="Rename"
+                                  editLabel="Rename subcategory"
+                                  deleteLabel="Delete subcategory"
                                   openActionMenuId={openActionMenuId}
                                   onOpenActionMenuChange={setOpenActionMenuId}
                                   onEdit={() =>
@@ -648,7 +597,7 @@ export function ResultsColumn({
             id="statuses"
             title="Statuses"
             expanded={expandedSection === "statuses"}
-            onExpand={() => setExpandedSection("statuses")}
+            onToggle={() => toggleSection("statuses")}
             contentRole="list"
             contentLabel="Notes by status"
           >
@@ -740,7 +689,7 @@ export function ResultsColumn({
             id="tags"
             title="Tags"
             expanded={expandedSection === "tags"}
-            onExpand={() => setExpandedSection("tags")}
+            onToggle={() => toggleSection("tags")}
             contentRole="list"
             contentLabel="Notes by tag"
           >
@@ -818,6 +767,69 @@ export function ResultsColumn({
               </>
             )}
           </AccordionSection>
+          <AccordionSection
+            id="search"
+            title="Search"
+            expanded={expandedSection === "search"}
+            onToggle={() => toggleSection("search")}
+          >
+            <div className={styles.searchField}>
+              <TextInput
+                size="m"
+                placeholder="AI Search"
+                value={searchQuery}
+                onUpdate={(value) => setSearchQuery(toLowercaseInput(value))}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  if (searchQuery.trim() !== "") {
+                    setSearchQuery("")
+                  } else {
+                    setExpandedSection("categories")
+                  }
+                }}
+                controlRef={searchInputRef}
+                startContent={<MagnifyingGlass size={16} weight="regular" aria-hidden />}
+                endContent={
+                  searchMode ? (
+                    <button
+                      type="button"
+                      className={styles.searchClearButton}
+                      aria-label="Clear search"
+                      title="Clear search"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setSearchQuery("")
+                        searchInputRef.current?.focus()
+                      }}
+                    >
+                      <X size={14} weight="bold" />
+                    </button>
+                  ) : undefined
+                }
+                className={styles.searchInput}
+                controlProps={{ "aria-label": "AI Search" }}
+              />
+            </div>
+            {searchMode && (
+              <div className={styles.searchResults}>
+                <ItemResultsList
+                  items={searchItems}
+                  activeItemId={activeItemId}
+                  openItemIds={openItemIds}
+                  loading={searchLoading || itemsLoading}
+                  emptyMessage={
+                    selectedTag
+                      ? `No search results in “${selectedTag.label}”.`
+                      : "No search results."
+                  }
+                  onEdit={handleResultEdit}
+                  renderAction={(item) => renderItemRowAction(item, `search-item-${item.id}`)}
+                />
+              </div>
+            )}
+          </AccordionSection>
         </div>
       </section>
     </div>
@@ -828,7 +840,8 @@ interface AccordionSectionProps {
   id: string
   title: string
   expanded: boolean
-  onExpand: () => void
+  onToggle: () => void
+  action?: ReactNode
   children: ReactNode
   contentRole?: "list"
   contentLabel?: string
@@ -838,7 +851,8 @@ function AccordionSection({
   id,
   title,
   expanded,
-  onExpand,
+  onToggle,
+  action,
   children,
   contentRole,
   contentLabel,
@@ -850,23 +864,27 @@ function AccordionSection({
     <div
       className={`${styles.accordionSection} ${expanded ? styles.accordionSectionExpanded : ""}`}
     >
-      <button
-        type="button"
-        id={headingId}
-        className={styles.accordionHeading}
-        aria-expanded={expanded}
-        aria-controls={panelId}
-        onClick={onExpand}
-      >
-        {title}
-        <CaretRight
-          className={`${styles.accordionHeadingIcon} ${
-            expanded ? styles.accordionHeadingIconExpanded : ""
-          }`}
-          size={12}
-          aria-hidden
-        />
-      </button>
+      <div className={styles.accordionHeader}>
+        <button
+          type="button"
+          id={headingId}
+          className={styles.accordionHeading}
+          aria-expanded={expanded}
+          aria-controls={panelId}
+          onClick={onToggle}
+        >
+          <CaretRight
+            className={`${styles.accordionHeadingIcon} ${
+              expanded ? styles.accordionHeadingIconExpanded : ""
+            }`}
+            size={16}
+            weight="bold"
+            aria-hidden
+          />
+          {title}
+        </button>
+        {action}
+      </div>
       <div
         id={panelId}
         role={contentRole ?? "region"}
@@ -878,6 +896,106 @@ function AccordionSection({
         {children}
       </div>
     </div>
+  )
+}
+
+interface CreateCategoryButtonProps {
+  categories: CategoryRecord[]
+  pending: boolean
+  onCreate: (label: string) => Promise<CategoryRecord | null>
+  onCreated: (category: CategoryRecord) => void
+}
+
+function CreateCategoryButton({
+  categories,
+  pending,
+  onCreate,
+  onCreated,
+}: CreateCategoryButtonProps) {
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRevisionRef = useRef(0)
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const [requestError, setRequestError] = useState<string | null>(null)
+  const label = normalizeLabel(value)
+  const duplicate = categories.some((category) => normalizeLabel(category.label) === label)
+  const error = getCategoryNameError(label) ?? (duplicate ? "This category already exists." : null)
+
+  const close = () => {
+    inputRevisionRef.current += 1
+    setOpen(false)
+    setValue("")
+    setRequestError(null)
+  }
+
+  const create = async () => {
+    if (!open || label === "" || pending || error) return
+    inputRef.current?.focus()
+    const inputRevision = inputRevisionRef.current
+    try {
+      const category = await onCreate(label)
+      if (!category || inputRevisionRef.current !== inputRevision || !buttonRef.current) return
+      close()
+      onCreated(category)
+    } catch (error) {
+      if (inputRevisionRef.current !== inputRevision || !buttonRef.current) return
+      setRequestError(getErrorMessage(error))
+      inputRef.current?.focus()
+    }
+  }
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className={`${styles.sectionAddItemButton} ${styles.createCategoryButton}`}
+        aria-label="Add category"
+        title="Add category"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-disabled={pending && !open}
+        onClick={() => {
+          if (open) close()
+          else if (!pending) {
+            setRequestError(null)
+            setOpen(true)
+          }
+        }}
+      >
+        <Plus size={16} weight="regular" aria-hidden />
+      </button>
+      <FilterablePickerPopup
+        anchorRef={buttonRef}
+        open={open}
+        onClose={close}
+        placement={["bottom-end", "top-end"]}
+        listboxAriaLabel="Add category"
+        description={requestError ?? undefined}
+        input={{
+          ref: inputRef,
+          value,
+          placeholder: "Enter new category...",
+          ariaLabel: "Category name",
+          submitAriaLabel: "Create category",
+          submitDisabled: pending,
+          error,
+          onChange: (value) => {
+            inputRevisionRef.current += 1
+            setValue(value)
+            setRequestError(null)
+          },
+          onKeyDown: (event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              void create()
+            }
+          },
+          onSubmit: () => void create(),
+        }}
+      />
+    </>
   )
 }
 
@@ -1029,6 +1147,7 @@ interface SectionActionMenuProps {
   deleteDisabled?: boolean
   deleteTitle?: string
   editLabel?: string
+  deleteLabel?: string
 }
 
 function SectionActionMenu({
@@ -1043,6 +1162,7 @@ function SectionActionMenu({
   deleteDisabled = false,
   deleteTitle,
   editLabel = "Edit",
+  deleteLabel = "Delete",
 }: SectionActionMenuProps) {
   const open = openActionMenuId === id
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -1075,6 +1195,20 @@ function SectionActionMenu({
         role="menu"
       >
         <div className={styles.categoryActionMenu} onClick={(event) => event.stopPropagation()}>
+          {onMoveToWorkspace && (
+            <button
+              type="button"
+              className={styles.categoryActionMenuItem}
+              role="menuitem"
+              onClick={() => {
+                onOpenActionMenuChange(null)
+                onMoveToWorkspace(buttonRef)
+              }}
+            >
+              <ArrowsLeftRight size={14} weight="regular" />
+              <span>Move to workspace</span>
+            </button>
+          )}
           <button
             type="button"
             className={styles.categoryActionMenuItem}
@@ -1098,21 +1232,7 @@ function SectionActionMenu({
               }}
             >
               <ArrowBendDownRight size={14} weight="regular" />
-              <span>Move</span>
-            </button>
-          )}
-          {onMoveToWorkspace && (
-            <button
-              type="button"
-              className={styles.categoryActionMenuItem}
-              role="menuitem"
-              onClick={() => {
-                onOpenActionMenuChange(null)
-                onMoveToWorkspace(buttonRef)
-              }}
-            >
-              <ArrowsLeftRight size={14} weight="regular" />
-              <span>Move to workspace</span>
+              <span>Move into another category</span>
             </button>
           )}
           <button
@@ -1127,7 +1247,7 @@ function SectionActionMenu({
             }}
           >
             <Trash size={14} weight="regular" />
-            <span>Delete</span>
+            <span>{deleteLabel}</span>
           </button>
         </div>
       </Popup>
@@ -1140,9 +1260,8 @@ interface ItemActionMenuProps {
   itemLabel: string
   openActionMenuId: string | null
   onOpenActionMenuChange: (id: string | null) => void
-  onAssignCategory: () => void
+  onMove: (anchorRef: RefObject<HTMLElement | null>) => void
   onChangeTag?: () => void
-  onMoveToWorkspace: (anchorRef: RefObject<HTMLElement | null>) => void
   onDelete: () => void
   deletePending?: boolean
   movePickerActive: boolean
@@ -1155,9 +1274,8 @@ function ItemActionMenu({
   itemLabel,
   openActionMenuId,
   onOpenActionMenuChange,
-  onAssignCategory,
+  onMove,
   onChangeTag,
-  onMoveToWorkspace,
   onDelete,
   deletePending = false,
   movePickerActive,
@@ -1201,11 +1319,11 @@ function ItemActionMenu({
             role="menuitem"
             onClick={() => {
               onOpenActionMenuChange(null)
-              onAssignCategory()
+              onMove(buttonRef)
             }}
           >
             <ArrowsLeftRight size={14} weight="regular" />
-            <span>Assign category</span>
+            <span>Move</span>
           </button>
           {onChangeTag && (
             <button
@@ -1221,18 +1339,6 @@ function ItemActionMenu({
               <span>Change tag</span>
             </button>
           )}
-          <button
-            type="button"
-            className={styles.categoryActionMenuItem}
-            role="menuitem"
-            onClick={() => {
-              onOpenActionMenuChange(null)
-              onMoveToWorkspace(buttonRef)
-            }}
-          >
-            <ArrowsLeftRight size={14} weight="regular" />
-            <span>Move to workspace</span>
-          </button>
           <button
             type="button"
             className={`${styles.categoryActionMenuItem} ${styles.categoryActionMenuItemDanger}`}
@@ -1261,48 +1367,112 @@ function ItemActionMenu({
   )
 }
 
-interface ItemMovePickerProps {
-  mode: "category" | "tag"
-  options: Array<CategoryRecord | TagRecord>
-  currentOptionIds: number[]
-  inputPlaceholder: string
-  emptyMessage: string
+interface ItemFilingPickerProps {
+  categories: CategoryRecord[]
+  currentFiling: ItemFiling
+  onClose: () => void
+  onSelect: (filing: ItemFiling) => Promise<boolean>
+  onMoveToWorkspace: () => void
+}
+
+function ItemFilingPicker({
+  categories,
+  currentFiling,
+  onClose,
+  onSelect,
+  onMoveToWorkspace,
+}: ItemFilingPickerProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    dialogRef.current?.focus({ preventScroll: true })
+  }, [])
+
+  const select = async (filing: ItemFiling) => {
+    if (pending) return
+    setPending(true)
+    try {
+      if (await onSelect(filing)) onClose()
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const destination = (label: string, filing: ItemFiling, parentLabel?: string) => (
+    <button
+      type="button"
+      className={styles.itemMovePickerOption}
+      aria-label={parentLabel ? `${parentLabel} › ${label}` : undefined}
+      aria-current={isSameFiling(filing, currentFiling) || undefined}
+      disabled={pending}
+      onClick={() => void select(filing)}
+    >
+      {label}
+    </button>
+  )
+
+  return (
+    <div
+      ref={dialogRef}
+      className={styles.itemMovePicker}
+      role="dialog"
+      aria-label="Move item"
+      tabIndex={-1}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <ul className={styles.itemMoveTree} role="list" aria-label="Filing destinations">
+        <li>{destination(UNCATEGORIZED_LABEL, NO_FILING)}</li>
+        {categories.map((category) => (
+          <li key={category.id}>
+            {destination(category.label, { categoryId: category.id, subcategoryId: null })}
+            {category.subcategories.length > 0 && (
+              <ul className={styles.itemMoveSubcategories} role="list">
+                {category.subcategories.map((subcategory) => (
+                  <li key={subcategory.id}>
+                    {destination(
+                      subcategory.label,
+                      { categoryId: category.id, subcategoryId: subcategory.id },
+                      category.label,
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        className={styles.categoryActionMenuItem}
+        disabled={pending}
+        onClick={onMoveToWorkspace}
+      >
+        <ArrowsLeftRight size={14} weight="regular" />
+        <span>Move to workspace</span>
+      </button>
+    </div>
+  )
+}
+
+interface ItemTagPickerProps {
+  tags: TagRecord[]
+  currentTagId: number
   onClose: () => void
   onSelect: (label: string) => void | Promise<void>
 }
 
-function ItemMovePicker({
-  mode,
-  options,
-  currentOptionIds,
-  inputPlaceholder,
-  emptyMessage,
-  onClose,
-  onSelect,
-}: ItemMovePickerProps) {
+function ItemTagPicker({ tags, currentTagId, onClose, onSelect }: ItemTagPickerProps) {
   const [inputValue, setInputValue] = useState("")
   const [pending, setPending] = useState(false)
-  const inputError = mode === "category" ? getCategoryNameError(inputValue) : null
-  const currentOptionIdSet = useMemo(() => new Set(currentOptionIds), [currentOptionIds])
-  const filteredOptions = useMemo(() => {
+  const filteredTags = useMemo(() => {
     const query = normalizeLabel(inputValue)
-
-    return options.filter((option) => {
-      if (currentOptionIdSet.has(option.id)) {
-        return false
-      }
-
-      const normalized = normalizeLabel(option.label)
-      return query === "" || normalized.includes(query)
-    })
-  }, [currentOptionIdSet, inputValue, options])
+    return tags.filter((tag) => tag.id !== currentTagId && normalizeLabel(tag.label).includes(query))
+  }, [currentTagId, inputValue, tags])
 
   const submitLabel = (rawLabel: string) => {
     const label = rawLabel.trim()
-    if (label === "" || pending || (mode === "category" && getCategoryNameError(label))) {
-      return
-    }
-
+    if (label === "" || pending) return
     void (async () => {
       setPending(true)
       try {
@@ -1329,56 +1499,45 @@ function ItemMovePicker({
     if (label === "") {
       return
     }
-    const matchingOption = options.find(
-      (option) => normalizeLabel(option.label) === normalizeLabel(label),
-    )
-    submitLabel(matchingOption?.label ?? label)
+    const matchingTag = tags.find((tag) => normalizeLabel(tag.label) === normalizeLabel(label))
+    submitLabel(matchingTag?.label ?? label)
   }
 
   return (
     <div
       className={styles.itemMovePicker}
       role="dialog"
-      aria-label={`Move note to ${mode === "category" ? "category" : "tag"}`}
+      aria-label="Move note to tag"
       onClick={(event) => event.stopPropagation()}
     >
-      <div
-        className={styles.itemMovePickerOptions}
-        role="listbox"
-        aria-label={mode === "category" ? "Category options" : "Tag options"}
-      >
-        {inputError ? (
-          <div className={styles.itemMovePickerEmpty} role="alert">
-            {inputError}
-          </div>
-        ) : filteredOptions.length === 0 && inputValue.trim() !== "" ? (
+      <div className={styles.itemMovePickerOptions} role="listbox" aria-label="Tag options">
+        {filteredTags.length === 0 && inputValue.trim() !== "" ? (
           <div className={styles.itemMovePickerEmpty}>
             Press Enter to create &quot;{inputValue.trim()}&quot;
           </div>
         ) : (
-          filteredOptions.map((option) => (
+          filteredTags.map((tag) => (
             <button
-              key={option.id}
+              key={tag.id}
               type="button"
               className={styles.itemMovePickerOption}
               disabled={pending}
-              onClick={() => submitLabel(option.label)}
+              onClick={() => submitLabel(tag.label)}
               role="option"
               aria-selected={false}
             >
-              {option.label}
+              {tag.label}
             </button>
           ))
         )}
-        {filteredOptions.length === 0 && inputValue.trim() === "" && (
-          <div className={styles.itemMovePickerEmpty}>{emptyMessage}</div>
+        {filteredTags.length === 0 && inputValue.trim() === "" && (
+          <div className={styles.itemMovePickerEmpty}>No other tags.</div>
         )}
       </div>
       <input
         type="text"
         className={styles.itemMovePickerInput}
-        aria-invalid={Boolean(inputError)}
-        placeholder={inputPlaceholder}
+        placeholder="Enter new..."
         value={inputValue}
         disabled={pending}
         onChange={(event) => setInputValue(toLowercaseInput(event.currentTarget.value))}

@@ -9,6 +9,7 @@ const ITEM_URL_SUBCATEGORY_PARAM = "subcategory"
 const ITEM_URL_TAGS_PARAM = "tags"
 
 export interface ItemsUrlSelection {
+  hasItemTarget: boolean
   hasState: boolean
   itemUid: string | null
   /** Read from an older address only; never written. */
@@ -22,7 +23,12 @@ const parsePositiveInteger = (value: string | null) => {
   if (value === null || value.trim() === "") return null
 
   const parsed = Number.parseInt(value, 10)
-  return Number.isInteger(parsed) && parsed > 0 && String(parsed) === value.trim() ? parsed : null
+  return Number.isSafeInteger(parsed) &&
+    parsed > 0 &&
+    parsed <= 2147483647 &&
+    String(parsed) === value.trim()
+    ? parsed
+    : null
 }
 
 const parseUid = (value: string | null) => {
@@ -30,19 +36,16 @@ const parseUid = (value: string | null) => {
   return isPublicUid(uid) ? uid : null
 }
 
-export const readItemsUrlSelection = (): ItemsUrlSelection => {
-  if (typeof window === "undefined") {
-    return {
-      hasState: false,
-      itemUid: null,
-      itemId: null,
-      categoryId: null,
-      subcategoryId: null,
-      tagIds: [],
-    }
-  }
+export const readItemTarget = (params: URLSearchParams) => ({
+  hasItemTarget: params.has(ITEM_URL_UID_PARAM) || params.has(ITEM_URL_ID_PARAM),
+  itemUid: parseUid(params.get(ITEM_URL_UID_PARAM)),
+  itemId: params.has(ITEM_URL_UID_PARAM)
+    ? null
+    : parsePositiveInteger(params.get(ITEM_URL_ID_PARAM)),
+})
 
-  const params = new URLSearchParams(window.location.search)
+export const readItemsUrlSelection = (): ItemsUrlSelection => {
+  const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search)
   const rawTags = params.get(ITEM_URL_TAGS_PARAM)
   const tagIds =
     rawTags === null
@@ -57,25 +60,27 @@ export const readItemsUrlSelection = (): ItemsUrlSelection => {
         )
 
   return {
+    ...readItemTarget(params),
     hasState:
       params.has(ITEM_URL_UID_PARAM) ||
       params.has(ITEM_URL_ID_PARAM) ||
       params.has(ITEM_URL_CATEGORY_PARAM) ||
       params.has(ITEM_URL_TAGS_PARAM),
-    itemUid: parseUid(params.get(ITEM_URL_UID_PARAM)),
-    itemId: parsePositiveInteger(params.get(ITEM_URL_ID_PARAM)),
     categoryId: parsePositiveInteger(params.get(ITEM_URL_CATEGORY_PARAM)),
     subcategoryId: parsePositiveInteger(params.get(ITEM_URL_SUBCATEGORY_PARAM)),
     tagIds,
   }
 }
 
-export const writeItemsUrlSelection = ({
-  itemUid,
-  categoryId,
-  subcategoryId,
-  tagIds,
-}: Omit<ItemsUrlSelection, "hasState" | "itemId">) => {
+export const writeItemsUrlSelection = (
+  {
+    itemUid,
+    categoryId,
+    subcategoryId,
+    tagIds,
+  }: Omit<ItemsUrlSelection, "hasItemTarget" | "hasState" | "itemId">,
+  push = false,
+) => {
   if (typeof window === "undefined") {
     return
   }
@@ -89,6 +94,11 @@ export const writeItemsUrlSelection = ({
     url.searchParams.delete(ITEM_URL_UID_PARAM)
   } else {
     url.searchParams.set(ITEM_URL_UID_PARAM, itemUid)
+    url.searchParams.delete("workspace")
+    url.searchParams.delete("workspaceId")
+    categoryId = null
+    subcategoryId = null
+    tagIds = []
   }
 
   if (categoryId === null) {
@@ -113,6 +123,7 @@ export const writeItemsUrlSelection = ({
   const nextPath = `${url.pathname}${url.search}${url.hash}`
   const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
   if (nextPath !== currentPath) {
-    window.history.replaceState(window.history.state, "", nextPath)
+    if (push) window.history.pushState(null, "", nextPath)
+    else window.history.replaceState(window.history.state, "", nextPath)
   }
 }

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react"
 import { Button, Text } from "@gravity-ui/uikit"
+import { readItemsUrlSelection } from "@/lib/itemsUrlSelection"
 import { FeedbackNotifications } from "@/components/items/FeedbackNotifications"
 import { ResultsColumn } from "@/components/items/ResultsColumn"
 import { WorkspaceHeader } from "@/components/items/WorkspaceHeader"
@@ -36,6 +37,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     closeDeleteTag,
     closeEditTag,
     contentRef,
+    createCategoryPending,
+    createWorkspaceCategory,
     deleteTagPending,
     deletingItemId,
     deletingTag,
@@ -44,6 +47,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     editingTag,
     embeddingMaintenancePending,
     errorMessage,
+    saveConflictUid,
+    setSaveConflictUid,
     fallbackTagId,
     filingLabelFor,
     handleAddItemForCategory,
@@ -57,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     handleLogin,
     handleLogout,
     handleMaxOpenItemsChange,
-    handleMoveItemCategory,
+    handleMoveItemFiling,
     handleMoveItemTag,
     handleOpenItemFromResults,
     handlePasteUrlAsMarkdownChange,
@@ -129,6 +134,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               Retry
             </Button>
+            {readItemsUrlSelection().hasItemTarget ? (
+              <Button href={window.location.pathname}>Open workspace</Button>
+            ) : null}
           </div>
         ) : (
           <div className={styles.startupState} aria-live="polite">
@@ -149,6 +157,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={styles.page}>
       <FeedbackNotifications
+        saveConflictUid={saveConflictUid}
+        onDismissConflict={() => setSaveConflictUid(null)}
         statusMessage={statusMessage}
         errorMessage={errorMessage}
         searchErrorMessage={searchErrorMessage}
@@ -229,6 +239,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <ResultsColumn
           visible={resultsListVisible}
           columnStyle={resultsColumnStyle}
+          workspaceId={activeWorkspaceId}
           workspacePicker={
             <FilterablePicker
               variant="prominent"
@@ -247,6 +258,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           tags={tags}
           itemsLoading={itemsLoading}
           categories={categories}
+          createCategoryPending={createCategoryPending}
+          onCreateCategory={createWorkspaceCategory}
           statuses={statuses}
           statusItemGroups={statusItemGroups}
           activeStatusId={activeForm.selectedStatusId}
@@ -267,7 +280,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           onEditItem={handleOpenItemFromResults}
           onAddItemForCategory={handleAddItemForCategory}
           onAddItemForTag={handleAddItemForTag}
-          onMoveItemCategory={handleMoveItemCategory}
+          onMoveItemFiling={handleMoveItemFiling}
           onMoveItemTag={handleMoveItemTag}
           onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
           deletingItemId={deletingItemId}

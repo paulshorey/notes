@@ -178,8 +178,10 @@ between views, so the session, the open-item ring, and pending saves carry acros
 - All database access and embedding logic is in `@lib/db-items`. API routes call `itemsAppService` from `@lib/db-items/services/items-app` — no SQL or Jina calls in this package.
 - Use Zustand stores under `src/stores/` for app-wide UI state. Prefer store actions/selectors over passing state and callbacks through multiple component layers.
 
-The workspace picker sits above Search in the right sidebar. Up to 720px, navigation is a collapsed
-right drawer toggled by the top-right header button; above 720px it is a visible,
+The workspace picker row sits above Search in the right sidebar and shares the main
+header's height. Up to 720px, navigation is a collapsed right drawer toggled by the
+top-right header button, and the picker caret and accordion titles share a leading
+inset. Above 720px navigation is a visible,
 resizable right column. There is no bottom trigger or swipe gesture.
 `useSidebarDrawer` synchronizes the store when crossing this boundary and preserves
 visibility when resizing within a layout. Keep `SIDEBAR_OVERLAY_MEDIA_QUERY` in
@@ -205,8 +207,9 @@ Category, subcategory, and uncategorized group menus use `ItemGroupActionModal` 
 group, independent of tag/search filters, including non-text items disclosed in
 the server preview. Uncategorized rename assigns its current members to a new or
 existing category; it never changes future capture defaults. Deleting a category
-or subcategory offers keep-items (the notes become uncategorized, or stay in the
-category without a subcategory) or permanent deletion of its notes. Category and
+whose server preview has zero items applies the keep-items action immediately.
+For a category with items or for a subcategory, the dialog offers either keeping
+the items (unfiled from the group) or permanently deleting them. Category and
 subcategory menus also offer Move; `planGroupMove` in `src/lib/itemGroupActions.ts`
 lists the destinations and why one would be refused, so the dialog says so before
 sending. The item editor and sidebar item and group menus anchor the shared
@@ -220,7 +223,11 @@ active workspace is removed, carry open unsaved drafts into the fallback workspa
 Opening the dialog pauses autosave/exit PATCHes, settles saved entries before
 preview, and excludes unsaved drafts. Apply the committed response to entries and
 caches before refreshing; deleted entries must never become detached saves.
-A conflict or uncertain response requires a fresh preview and confirmation.
+An automatic category deletion has a deadline so saves can resume after a stalled
+preview, deletion, or workspace refresh. A slow preview can be canceled before the
+delete request starts. A conflict or uncertain response requires a fresh preview.
+Retry an automatic empty category deletion from the sidebar. Retry a confirmed
+action in the dialog.
 
 The local server-data snapshot may paint immediately for a returning user, but a failed refresh must not clear workspace-scoped open-note storage or other draft state. A first visit with no usable snapshot must finish in a visible, retryable error state; startup must never retry automatically in a loop.
 
@@ -246,7 +253,7 @@ Notes persist through `saveEntry(key, mode)` in `useItemSaveEngine.ts`, keyed by
 
 `pagehide`/`visibilitychange` write the persistence snapshot **first**, while entries are still dirty and including anything in `detachedSaves`. That snapshot is the durable recovery if keepalive bodies are dropped (browsers share a bounded in-flight quota). Keepalive then sends every pending entry: a POST for a never-saved draft, a PATCH for a stored note, and a DELETE for a stored note that was emptied. `visibilitychange` then `pagehide` share a sent-keys set so the same request is not fired twice.
 
-**A create is safe to repeat.** Every entry has a `uid` (`src/lib/publicUid.ts`): its item's, or for a draft the one its create will carry (`newItemRequestBody`). The server stores one item per uid, so a create sent again, after a lost answer or by a reload replaying the draft from its snapshot, finds the item the first one stored and answers `200` instead of `201`. Nothing was written in that case, so `saveEntry` follows a `200` with a PATCH of the same snapshot to that item. Quick-add sends a uid too. The address bar names the open item by uid (`?item=`); an older `?id=` address still opens its item and is rewritten. A link may name an item in a workspace other than the one last open: startup passes the uid to `GET /api/bootstrap?item=`, which opens the workspace that holds it, and skips the cached paint when the cached workspace does not have the item. The editor's document is named by the entry's uid, because every workspace's ring starts its drafts at the same key.
+**A create is safe to repeat.** Every entry has a `uid` (`src/lib/publicUid.ts`): its item's, or for a draft the one its create will carry (`newItemRequestBody`). The server stores one item per uid, so a create sent again, after a lost answer or by a reload replaying the draft from its snapshot, finds the item the first one stored and answers `200` instead of `201`. Nothing was written in that case, so `saveEntry` follows a `200` with a PATCH of the same snapshot to that item. Quick-add sends a uid too. The address bar names the open item by uid (`?item=`); an older `?id=` address still opens its item and is rewritten. A link may name an item in a workspace other than the one last open: startup and history navigation resolve the item through authenticated bootstrap before restoring its workspace ring. The item address contains only its UID and any unrelated URL parameters. An unavailable item keeps its address and offers a return to the workspace. The editor's document is named by the entry's uid, because every workspace's ring starts its drafts at the same key.
 
 **Invariant worth protecting:** a form change the _user_ did not make must never leave an entry dirty. Reconciliation and category/tag repair recompute `savedSignature` alongside the form — otherwise autosave immediately pushes the change back to the server.
 
