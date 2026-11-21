@@ -39,7 +39,6 @@
 }
 
 .workspacePicker {
-  --picker-padding-inline: 0px;
   display: flex;
   height: var(--notes-header-height);
   flex: 0 0 auto;

@@ -46,6 +46,12 @@
   padding-right: 1px;
 }
 
+.triggerSuffix {
+  flex: 0 0 auto;
+  color: var(--g-color-text-secondary);
+  white-space: nowrap;
+}
+
 .triggerLabel,
 .triggerValue {
   min-width: 0;
