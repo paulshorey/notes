@@ -120,7 +120,8 @@ sorts by it, so reordering in one view reorders in the others.
   stamps `time_done` and, when the workspace has a done status, moves the task to the
   first one. Unticking clears `time_done` and, if the task is in a done status, moves it
   to the first status without `is_done`. Board and checklist both read `time_done`, so
-  they agree even when no done status exists.
+  they agree even when no done status exists. `time_done` is stamped only when it is
+  empty, so moving a done task between done statuses keeps its completion time.
 
 ## The new types
 
