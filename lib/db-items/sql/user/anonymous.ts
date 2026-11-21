@@ -176,6 +176,7 @@ export const MERGE_TABLE_STRATEGIES: Record<string, "dedup-remap" | "reparent" |
   // Anonymous sessions have no way to mint API tokens; any that existed would
   // be discarded with the anonymous row.
   user_api_token_v1: "drop",
+  user_password_reset_v1: "drop",
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>

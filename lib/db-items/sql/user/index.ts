@@ -1,6 +1,7 @@
 export {
   findUserByIdentifier,
   getUserById,
+  isCurrentCredentialVersion,
   updateUserPreferencesById,
   verifyUserCredentials,
 } from "./gets"
@@ -16,3 +17,4 @@ export {
 } from "./anonymous"
 export { hashPassword, isHashedPassword, verifyPassword } from "./password"
 export type { UserPreferences, UserSummary } from "./types"
+export { reservePasswordReset, resetPasswordWithCode } from "./passwordReset"

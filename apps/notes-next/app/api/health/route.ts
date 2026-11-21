@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getDb } from "@lib/db-items"
 
 const REQUIRED_RELATIONS = [
+  "public.user_password_reset_v1",
   "public.user_workspace_v1",
   "public.workspace_category_v1",
   "public.workspace_status_v1",

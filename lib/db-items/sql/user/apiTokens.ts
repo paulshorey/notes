@@ -7,18 +7,20 @@ import { getDb } from "../../lib/db/postgres";
 const hashApiToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 
-export const createApiTokenForUser = async (userId: number) => {
+export const createApiTokenForUser = async (userId: number, credentialVersion: number) => {
   const token = `nta_${randomBytes(32).toString("base64url")}`;
 
-  await getDb().query(
+  const inserted = await getDb().query(
     `
       INSERT INTO public.user_api_token_v1 (user_id, token_hash)
-      VALUES ($1, $2)
+      SELECT id, $2::text FROM public.user_v1
+      WHERE id = $1 AND credential_version = $3
+      FOR UPDATE
     `,
-    [userId, hashApiToken(token)]
+    [userId, hashApiToken(token), credentialVersion]
   );
 
-  return token;
+  return inserted.rowCount === 1 ? token : null;
 };
 
 export const findUserIdByApiToken = async (token: string) => {

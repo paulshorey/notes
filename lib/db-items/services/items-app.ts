@@ -392,8 +392,12 @@ export const getItemsAppSession = async (r: SessionRequest): Promise<SessionResp
 export const loginItemsAppUser = async (
   r: TokenLoginRequest,
 ): Promise<TokenLoginResponse | null> => {
-  const user = await verifyUserCredentials(r.identifier, r.password)
-  return user ? { token: await createApiTokenForUser(user.id), user } : null
+  const verified = await verifyUserCredentials(r.identifier, r.password)
+  if (!verified) return null
+
+  const { user, credentialVersion } = verified
+  const token = await createApiTokenForUser(user.id, credentialVersion)
+  return token ? { token, user } : null
 }
 export const getItemsAppUserIdForToken = ({ token }: { token: string }) =>
   token ? findUserIdByApiToken(token) : Promise.resolve(null)

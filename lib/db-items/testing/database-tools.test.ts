@@ -13,6 +13,7 @@ const root = fileURLToPath(new URL("../../../", import.meta.url))
 const tables = [
   "user_v1",
   "user_api_token_v1",
+  "user_password_reset_v1",
   "user_workspace_v1",
   "workspace_item_v1",
   "workspace_category_v1",

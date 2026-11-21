@@ -315,6 +315,21 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 | `DB_ITEMS_URL` | PostgreSQL connection string (`DB_NOTES_URL` fallback)           |
 | `JINA_API_KEY` | Jina AI embeddings key (semantic search + embedding maintenance) |
 
+## Password recovery
+
+**Forgot password?** in the sign-in menu accepts the same identifier as sign-in.
+Set the server-side Twilio variables from `.env.example`. Use the same
+`TWILIO_TO_NUMBER` configured for Paul's contact form. Notes issues a public
+request reference and texts the corresponding code to that configured number
+for eligible requests. It allows one text per account per five minutes and a
+maximum of five per 15 minutes and 20 per day per database.
+
+Before sharing a code, verify the person's ownership through a channel you
+already trust and match their request reference to the text. Anyone can submit
+a request or a contact form. If ownership cannot be verified, withhold the code.
+Codes expire after 30 minutes and a successful reset revokes existing web
+sessions and API tokens for the account.
+
 ## Build and dev
 
 ```bash

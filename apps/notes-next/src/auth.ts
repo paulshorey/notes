@@ -1,7 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { readItemsUserId } from "./lib/sessionIdentity"
-import { createAnonymousUser, verifyUserCredentials } from "@lib/db-items/sql/user"
+import { createAnonymousUser, isCurrentCredentialVersion, verifyUserCredentials } from "@lib/db-items/sql/user"
 import { authConfig } from "./auth.config"
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
@@ -22,13 +22,15 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           return null
         }
 
-        const user = await verifyUserCredentials(identifier, password)
+        const verified = await verifyUserCredentials(identifier, password)
 
-        if (!user) {
+        if (!verified) {
           return null
         }
 
+        const { user, credentialVersion } = verified
         return {
+          credentialVersion,
           id: String(user.id),
           name: user.username,
           email: user.email,
@@ -54,30 +56,19 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       if (user?.itemsUserId) {
         token.itemsUserId = user.itemsUserId
         token.notesUserId = user.itemsUserId
         token.isAnonymous = user.isAnonymous ?? false
-        return token
-      }
-
-      if (account?.provider === "anonymous" && user?.id) {
-        token.itemsUserId = Number.parseInt(user.id, 10)
-        token.notesUserId = token.itemsUserId
-        token.isAnonymous = true
-        return token
-      }
-
-      if (account?.provider === "credentials" && user?.id) {
-        token.itemsUserId = Number.parseInt(user.id, 10)
-        token.notesUserId = token.itemsUserId
-        token.isAnonymous = false
+        token.credentialVersion = user.credentialVersion ?? 0
         return token
       }
 
       const existingId = readItemsUserId(token)
       if (existingId !== null) {
+        const credentialVersion = typeof token.credentialVersion === "number" ? token.credentialVersion : 0
+        if (!(await isCurrentCredentialVersion(existingId, credentialVersion))) return null
         token.itemsUserId = existingId
         token.notesUserId = existingId
       }

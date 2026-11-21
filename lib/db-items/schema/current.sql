@@ -168,6 +168,19 @@ ALTER SEQUENCE public.user_note_v1_id_seq OWNED BY public.workspace_item_v1.id;
 
 
 --
+-- Name: user_password_reset_v1; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_password_reset_v1 (
+    request_id uuid NOT NULL,
+    user_id integer NOT NULL,
+    credential_version integer NOT NULL,
+    code_hash text,
+    requested_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+
+--
 -- Name: user_v1; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -181,6 +194,7 @@ CREATE TABLE public.user_v1 (
     preferences jsonb DEFAULT '{}'::jsonb NOT NULL,
     password text,
     is_anonymous boolean DEFAULT false NOT NULL,
+    credential_version integer DEFAULT 0 NOT NULL,
     CONSTRAINT user_v1_preferences_object_check CHECK ((jsonb_typeof(preferences) = 'object'::text))
 );
 
@@ -489,6 +503,14 @@ ALTER TABLE ONLY public.user_api_token_v1
 
 ALTER TABLE ONLY public.user_api_token_v1
     ADD CONSTRAINT user_api_token_v1_token_hash_key UNIQUE (token_hash);
+
+
+--
+-- Name: user_password_reset_v1 user_password_reset_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_password_reset_v1
+    ADD CONSTRAINT user_password_reset_v1_pkey PRIMARY KEY (request_id);
 
 
 --
@@ -828,6 +850,14 @@ ALTER TABLE ONLY public.item_tag_link_v1
 
 ALTER TABLE ONLY public.user_api_token_v1
     ADD CONSTRAINT user_api_token_v1_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_password_reset_v1 user_password_reset_v1_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_password_reset_v1
+    ADD CONSTRAINT user_password_reset_v1_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE;
 
 
 --
