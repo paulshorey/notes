@@ -101,11 +101,15 @@
 .accordionHeadingIcon {
   flex: 0 0 auto;
   display: block;
-  transform-origin: 50% 50%;
+}
+
+.accordionHeadingIcon,
+.categoryCaret {
   transition: transform 0.15s ease;
 }
 
-.accordionHeadingIconExpanded {
+.accordionHeading[aria-expanded="true"] .accordionHeadingIcon,
+.categoryToggle[aria-expanded="true"] .categoryCaret {
   transform: rotate(90deg);
 }
 
@@ -218,7 +222,7 @@
   min-width: 0;
   flex: 1 1 auto;
   align-items: baseline;
-  gap: 0;
+  gap: 4px;
   overflow: hidden;
   white-space: nowrap;
   /* text-transform: uppercase; */
@@ -228,16 +232,15 @@
   padding-bottom: 5px;
 }
 
-.categoryCountText,
-.categoryPreposition {
+.categoryIndicator {
   flex: 0 0 auto;
-  /* color: var(--g-color-text-hint, #8a8a8a); */
-  font-weight: 400;
 }
 
-.categoryCountText {
-  font-variant-numeric: tabular-nums;
+.categoryCaret {
+  margin-inline-end: 2px;
+  vertical-align: middle;
 }
+
 .categoryCountTextSup {
   color: var(--g-color-text-hint, #8a8a8a);
   font-size: 75%;
@@ -573,7 +576,9 @@
 @media (prefers-reduced-motion: reduce) {
   .resultsColumnShell,
   .resultsColumnShellCollapsed,
-  .resultsColumnShellCollapsed .resultsColumn {
+  .resultsColumnShellCollapsed .resultsColumn,
+  .accordionHeadingIcon,
+  .categoryCaret {
     transition: none;
   }
 }

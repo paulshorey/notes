@@ -428,6 +428,7 @@ export function ResultsColumn({
                         active={expanded}
                         selected={selected}
                         expanded={expanded}
+                        showCaret
                         panelId={panelId}
                         onToggle={() => toggleCategoryGroup(group)}
                       >
@@ -516,6 +517,7 @@ export function ResultsColumn({
                                 active={subExpanded}
                                 selected={subSelected}
                                 expanded={subExpanded}
+                                showCaret
                                 panelId={subPanelId}
                                 onToggle={() => {
                                   setOpenActionMenuId(null)
@@ -874,9 +876,7 @@ function AccordionSection({
           onClick={onToggle}
         >
           <CaretRight
-            className={`${styles.accordionHeadingIcon} ${
-              expanded ? styles.accordionHeadingIconExpanded : ""
-            }`}
+            className={styles.accordionHeadingIcon}
             size={16}
             weight="bold"
             aria-hidden
@@ -1095,6 +1095,7 @@ interface SectionTitleProps {
   active?: boolean
   selected?: boolean
   expanded: boolean
+  showCaret?: boolean
   panelId: string
   onToggle: () => void
   children: ReactNode
@@ -1106,6 +1107,7 @@ function SectionTitle({
   active = false,
   selected = false,
   expanded,
+  showCaret = false,
   panelId,
   onToggle,
   children,
@@ -1120,12 +1122,16 @@ function SectionTitle({
         onClick={onToggle}
       >
         <span className={styles.categoryLabel}>
-          {/* <span className={styles.categoryCountText}>{count}</span>
-          <sub className={styles.categoryPreposition}>in</sub> */}
           <span
             className={`${styles.categoryNameText} ${active ? styles.categoryNameTextActive : ""} ${selected ? styles.categoryNameTextSelected : ""}`}
           >
-            {label} <sup className={styles.categoryCountTextSup}>{count}</sup>
+            {label}
+          </span>
+          <span className={styles.categoryIndicator}>
+            {showCaret && (
+              <CaretRight className={styles.categoryCaret} size={12} weight="bold" aria-hidden />
+            )}
+            <sup className={styles.categoryCountTextSup}>{count}</sup>
           </span>
         </span>
       </button>
