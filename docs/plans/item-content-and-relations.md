@@ -116,7 +116,8 @@ sorts by it, so reordering in one view reorders in the others.
 - Giving a line a status promotes it: it appears on the task board, and the checklist
   shows its status.
 - A task is done when its status has `is_done`. Moving it there stamps `time_done`;
-  ticking its checkbox moves it to the first done status.
+  ticking its checkbox moves it to the first done status. If the workspace has no done
+  status, ticking stamps `time_done` and leaves the status unchanged; unticking clears it.
 
 ## The new types
 
@@ -158,7 +159,8 @@ the date can be edited.
 Changing a date to a day that already has an entry asks whether to combine the two.
 Combining appends the text, unions the tags, keeps the target day's filing, moves the
 links, and deletes the emptied entry; it is permanent and the prompt says so. Declining
-rejects the date change. Account merge and backup restore combine same-day entries
+rejects the date change. Restoring a trashed entry onto a day that has gained a new entry
+asks the same question; declining leaves it in the trash. Account merge and backup restore combine same-day entries
 without asking.
 
 A day shows two sets of items: those that fall on it by their own dates (time blocks,
