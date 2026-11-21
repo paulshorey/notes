@@ -16,6 +16,7 @@ export interface FilterablePickerProps {
   onCreateOption?: (label: string) => void | Promise<void>
   triggerClassName?: string
   triggerLabel?: string
+  triggerSuffix?: string
   triggerRole?: "menuitem"
   /** Replaces the default caret. Parents can pass any styled icon markup. */
   triggerIcon?: ReactNode
@@ -46,6 +47,7 @@ export function FilterablePicker({
   onCreateOption,
   triggerClassName,
   triggerLabel,
+  triggerSuffix,
   triggerRole,
   triggerIcon,
   caretPosition = "start",
@@ -170,6 +172,7 @@ export function FilterablePicker({
         </span>
         {triggerLabel ? <span className={styles.triggerLabel}>{triggerLabel}</span> : null}
         {value ? <span className={styles.triggerValue}>{value}</span> : null}
+        {triggerSuffix ? <span className={styles.triggerSuffix}>{triggerSuffix}</span> : null}
       </button>
 
       <FilterablePickerPopup

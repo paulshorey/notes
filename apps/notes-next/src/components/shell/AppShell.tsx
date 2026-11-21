@@ -244,6 +244,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <FilterablePicker
               variant="prominent"
               value={workspaceLabel}
+              triggerClassName={styles.workspacePickerTrigger}
+              triggerSuffix="space"
               triggerAriaLabel={`Current workspace, ${workspaceLabel}`}
               listboxAriaLabel="Workspace options"
               options={workspaces}
