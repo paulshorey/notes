@@ -116,9 +116,11 @@ sorts by it, so reordering in one view reorders in the others.
 - Giving a line a status promotes it: it appears on the task board, and the checklist
   shows its status.
 - A task is done when `time_done` is set. Moving it to a status with `is_done` stamps
-  `time_done`; ticking its checkbox stamps it and, when the workspace has a done status,
-  moves the task to the first one. Unticking clears `time_done`. Board and checklist both
-  read `time_done`, so they agree even when no done status exists.
+  `time_done`; moving it to a status without `is_done` clears it. Ticking its checkbox
+  stamps `time_done` and, when the workspace has a done status, moves the task to the
+  first one. Unticking clears `time_done` and, if the task is in a done status, moves it
+  to the first status without `is_done`. Board and checklist both read `time_done`, so
+  they agree even when no done status exists.
 
 ## The new types
 
