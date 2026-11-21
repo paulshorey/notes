@@ -23,10 +23,10 @@ removed are added rule by rule as each type is built and tested.
 
 What an item holds is split into two groups.
 
-| Group   | Members                                                           | Rule                                    |
-| ------- | ----------------------------------------------------------------- | --------------------------------------- |
-| Content | text, time block, journal date                                    | An item holds at least one.             |
-| State   | status, done, due date, reminder, parent, position, filing, tags  | Describes an item; never keeps it alive. |
+| Group   | Members                                                          | Rule                                     |
+| ------- | ---------------------------------------------------------------- | ---------------------------------------- |
+| Content | text, time block, journal date                                   | An item holds at least one.              |
+| State   | status, done, due date, reminder, parent, position, filing, tags | Describes an item; never keeps it alive. |
 
 Two rules follow, enforced by the item service and by check constraints:
 
@@ -41,13 +41,13 @@ constraints need no data migration.
 
 ## Kinds and views
 
-| Kind      | An item is this kind when it holds | View                              |
-| --------- | ---------------------------------- | --------------------------------- |
-| `note`    | text                               | notes                             |
-| `task`    | text and a status                  | tasks: board and list             |
-| `list`    | children                           | lists: nested checklist           |
-| `time`    | a time block                       | time: day timeline                |
-| `journal` | a journal date                     | journal: one entry per day        |
+| Kind      | An item is this kind when it holds | View                       |
+| --------- | ---------------------------------- | -------------------------- |
+| `note`    | text                               | notes                      |
+| `task`    | text and a status                  | tasks: board and list      |
+| `list`    | children                           | lists: nested checklist    |
+| `time`    | a time block                       | time: day timeline         |
+| `journal` | a journal date                     | journal: one entry per day |
 
 Each kind has its own screen. A calendar view is a sixth screen that lists every item
 with any date; it is a view, not a kind.
@@ -64,18 +64,18 @@ item can become invisible.
 
 New columns on `workspace_item_v1`:
 
-| Column            | Type          | Purpose                                                    |
-| ----------------- | ------------- | ---------------------------------------------------------- |
-| `revision`        | integer       | Conflict check: an update names the revision it edited.    |
-| `time_deleted`    | timestamptz   | Trash. Listing skips trashed items; restore clears it.     |
-| `author_user_id`  | integer       | Who created the item; needed once a workspace is shared.   |
-| `time_done`       | timestamptz   | When the item was completed; null while open.              |
-| `position`        | text          | Fractional order key.                                      |
-| `parent_id`       | integer       | The item that contains this one.                           |
-| `time_start`      | timestamptz   | Start of a time block.                                     |
-| `time_end`        | timestamptz   | End of a time block; null while a timer runs.              |
-| `time_planned`    | boolean       | A plan not yet confirmed, as opposed to a record.          |
-| `entry_date`      | date          | The calendar day of a journal entry.                       |
+| Column           | Type        | Purpose                                                  |
+| ---------------- | ----------- | -------------------------------------------------------- |
+| `revision`       | integer     | Conflict check: an update names the revision it edited.  |
+| `time_deleted`   | timestamptz | Trash. Listing skips trashed items; restore clears it.   |
+| `author_user_id` | integer     | Who created the item; needed once a workspace is shared. |
+| `time_done`      | timestamptz | When the item was completed; null while open.            |
+| `position`       | text        | Fractional order key.                                    |
+| `parent_id`      | integer     | The item that contains this one.                         |
+| `time_start`     | timestamptz | Start of a time block.                                   |
+| `time_end`       | timestamptz | End of a time block; null while a timer runs.            |
+| `time_planned`   | boolean     | A plan not yet confirmed, as opposed to a record.        |
+| `entry_date`     | date        | The calendar day of a journal entry.                     |
 
 `workspace_status_v1` gains `is_done`, so a status can mean completed.
 
@@ -88,10 +88,10 @@ would bypass constraints, typed backup fields, and the storage audit.
 
 ## Relations
 
-| Relation    | Meaning              | Shape                       | Stored as                 |
-| ----------- | -------------------- | --------------------------- | ------------------------- |
-| Containment | "is part of"         | Tree, one parent, ordered   | `parent_id`, `position`   |
-| Reference   | "is about", "mentions" | Many to many, no ownership | `item_link_v1`            |
+| Relation    | Meaning                | Shape                      | Stored as               |
+| ----------- | ---------------------- | -------------------------- | ----------------------- |
+| Containment | "is part of"           | Tree, one parent, ordered  | `parent_id`, `position` |
+| Reference   | "is about", "mentions" | Many to many, no ownership | `item_link_v1`          |
 
 Containment is for checklist lines, subtasks, and tasks in a project. Trashing a parent
 trashes its children. A parent cannot be placed inside its own descendant: the service
