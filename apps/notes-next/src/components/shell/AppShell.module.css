@@ -53,7 +53,7 @@
 
 .content .workspacePickerTrigger {
   --picker-padding-inline: 6px;
-  border: 1px solid var(--g-color-line-generic);
+  border: 1px solid var(--g-color-line-generic-hover);
   border-radius: 4px;
 }
 
