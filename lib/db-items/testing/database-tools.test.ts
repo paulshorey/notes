@@ -10,16 +10,19 @@ import { Client } from "pg"
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
 const root = fileURLToPath(new URL("../../../", import.meta.url))
-const tables = [
+const tablesWithIdSequence = [
   "user_v1",
   "user_api_token_v1",
-  "user_password_reset_v1",
   "user_workspace_v1",
   "workspace_item_v1",
   "workspace_category_v1",
   "workspace_subcategory_v1",
   "workspace_status_v1",
   "workspace_tag_v1",
+]
+const tables = [
+  ...tablesWithIdSequence,
+  "user_password_reset_v1",
   "item_tag_link_v1",
   "schema_migrations_cursor",
 ]
@@ -75,7 +78,7 @@ const fixture = async (
       [JSON.stringify([1, ...Array(1023).fill(0)])],
     )
     // UPDATE intentionally runs the timestamp trigger; capture its exact stored result.
-    for (const table of tables.slice(0, 8))
+    for (const table of tablesWithIdSequence)
       await source.query("SELECT setval(pg_get_serial_sequence($1,'id'),90000,true)", [
         `public.${table}`,
       ])
