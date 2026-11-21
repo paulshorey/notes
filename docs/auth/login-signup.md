@@ -99,7 +99,10 @@ The `jwt` and `session` callbacks attach:
 
 API routes resolve the acting user from the session cookie (web) or
 `Authorization: Bearer` header (API clients). Client-supplied `userId` fields in
-request bodies are ignored.
+request bodies are ignored. Cookie sessions carry the credential version at
+sign-in. Auth.js checks it against the account on session reads. During
+database failures, protected API routes deny access and bootstrap returns a
+retryable 503 while preserving the session cookie.
 
 ### Password hashing
 
@@ -275,6 +278,11 @@ Anonymous users see a toggle between two modes (`authMode` local state):
 | -------- | ----------------------------------------------- | -------------- |
 | `signin` | Identifier + password                           | Sign in        |
 | `signup` | Username, email (optional), password (8+ chars) | Create account |
+
+The sign-in menu also opens **Forgot password?**. Eligible requests send a
+one-time code to the configured operator. The requester shares the public
+reference with the operator, who verifies ownership and relays the code.
+A successful reset revokes existing session access and bearer tokens.
 
 Permanent users see account info, debug embedding actions, and Sign out.
 

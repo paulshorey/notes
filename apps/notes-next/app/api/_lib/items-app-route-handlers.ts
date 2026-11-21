@@ -11,6 +11,7 @@ import {
   ITEMS_APP_USER_NOT_FOUND_ERROR,
   parseCategoriesRequest,
   parseCreateCategoryRequest,
+  getItemsAppErrorStatus,
   itemsAppService,
   parseDeleteCategoryRequest,
   parseTagsRequest,
@@ -105,7 +106,10 @@ const readAuthorizedJsonObject = async (request: Request, userId: number) => ({
   userId,
 })
 
-const toErrorResponse = (error: unknown, status = 400) =>
+const toErrorResponse = (
+  error: unknown,
+  status = getItemsAppErrorStatus(error) === 503 ? 503 : 400,
+) =>
   NextResponse.json(
     { error: error instanceof Error ? error.message : "Unexpected server error." },
     { status },

@@ -57,6 +57,7 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   callbacks: {
     ...authConfig.callbacks,
     async jwt({ token, user }) {
+      delete token.credentialCheckUnavailable
       if (user?.itemsUserId) {
         token.itemsUserId = user.itemsUserId
         token.notesUserId = user.itemsUserId
@@ -67,14 +68,20 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
 
       const existingId = readItemsUserId(token)
       if (existingId !== null) {
-        const credentialVersion = typeof token.credentialVersion === "number" ? token.credentialVersion : 0
-        if (!(await isCurrentCredentialVersion(existingId, credentialVersion))) return null
+        const version = typeof token.credentialVersion === "number" ? token.credentialVersion : 0
+        try {
+          if (!(await isCurrentCredentialVersion(existingId, version))) return null
+        } catch {
+          // Throwing here would make Auth.js treat the cookie as invalid and remove it.
+          token.credentialCheckUnavailable = true
+        }
         token.itemsUserId = existingId
         token.notesUserId = existingId
       }
       return token
     },
     async session({ session, token }) {
+      if (token.credentialCheckUnavailable === true) session.credentialCheckUnavailable = true
       if (session.user) {
         const userId = readItemsUserId(token)
         if (userId !== null) {
@@ -88,3 +95,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
   },
 })
+
+/** Cookie identity cannot authorize API access until its credentials are verified. */
+export async function getVerifiedSession() {
+  const session = await auth()
+  if (session?.credentialCheckUnavailable) {
+    // Use the connection exception class recognized by the API error mapper.
+    throw Object.assign(new Error("The database is unavailable. Please retry."), { code: "08000" })
+  }
+  return session
+}

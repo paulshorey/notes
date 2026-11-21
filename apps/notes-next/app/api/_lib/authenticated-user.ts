@@ -1,4 +1,4 @@
-import { auth } from "@/auth"
+import { getVerifiedSession } from "@/auth"
 import type { SessionUserResolver } from "./items-app-route-handlers"
 
 /**
@@ -7,7 +7,7 @@ import type { SessionUserResolver } from "./items-app-route-handlers"
  * (and their tests) do not import the NextAuth configuration.
  */
 export const resolveSessionUserId: SessionUserResolver = async () => {
-  const session = await auth()
+  const session = await getVerifiedSession()
   const itemsUserId = session?.user?.itemsUserId
 
   return typeof itemsUserId === "number" ? itemsUserId : null
