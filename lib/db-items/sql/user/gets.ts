@@ -9,7 +9,7 @@ const userSelect = `
 `
 
 const userSelectWithPassword = `
-  SELECT id, username, email, phone, preferences, password
+  SELECT id, username, email, phone, preferences, password, credential_version
   FROM public.user_v1
 `
 
@@ -31,70 +31,64 @@ const mapUser = (row: UserV1Row): UserSummary => ({
 
 type UserV1RowWithPassword = UserV1Row & { password: string | null }
 
-export const verifyUserCredentials = async (identifier: string, password: string) => {
+const byIdentifier = `
+  WHERE (lower(username) = lower($1)
+    OR lower(email) = lower($1)
+    OR ($2 <> '' AND regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2))
+    AND is_anonymous = false
+  ORDER BY id ASC
+  LIMIT 1
+`
+
+function identifierParams(identifier: string) {
   const trimmed = identifier.trim()
+  if (trimmed === "") throw new Error("Username, email, or phone is required.")
+  return [trimmed, trimmed.replace(/\D/g, "")]
+}
 
-  if (trimmed === "") {
-    throw new Error("Username, email, or phone is required.")
-  }
+export const findUserCredentials = async (identifier: string) => {
+  const { rows } = await getDb().query<UserV1RowWithPassword>(
+    `${userSelectWithPassword} ${byIdentifier}`,
+    identifierParams(identifier),
+  )
+  return rows[0] ?? null
+}
 
-  if (password === "") {
-    throw new Error("Password is required.")
-  }
+export const verifyUserCredentials = async (identifier: string, password: string) => {
+  if (password === "") throw new Error("Password is required.")
 
-  const phoneDigits = trimmed.replace(/\D/g, "")
-  const query = `
-    ${userSelectWithPassword}
-    WHERE (lower(username) = lower($1)
-      OR lower(email) = lower($1)
-      OR ($2 <> '' AND regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2))
-      AND is_anonymous = false
-    ORDER BY id ASC
-    LIMIT 1
-  `
-  const { rows } = await getDb().query<UserV1RowWithPassword>(query, [trimmed, phoneDigits])
-  const row = rows[0]
+  const row = await findUserCredentials(identifier)
+  if (!row || !verifyPassword(password, row.password)) return null
 
-  if (!row || !verifyPassword(password, row.password)) {
-    return null
-  }
-
-  // Upgrade legacy plaintext rows the first time they log in successfully.
-  // Best-effort: the login must succeed even if the rehash write fails.
+  // Only upgrade the legacy value if a password reset hasn't superseded it.
   if (row.password !== null && !isHashedPassword(row.password)) {
     try {
-      await getDb().query(`UPDATE public.user_v1 SET password = $2 WHERE id = $1`, [
-        row.id,
-        hashPassword(password),
-      ])
+      await getDb().query(
+        `UPDATE public.user_v1 SET password = $2 WHERE id = $1 AND password = $3 AND credential_version = $4`,
+        [row.id, hashPassword(password), row.password, row.credential_version],
+      )
     } catch {
-      // Ignore; the row stays on plaintext until the next login.
+      // A failed legacy upgrade does not prevent sign-in.
     }
   }
 
-  return mapUser(row)
+  return { user: mapUser(row), credentialVersion: row.credential_version }
 }
 
 export const findUserByIdentifier = async (identifier: string) => {
-  const trimmed = identifier.trim()
-
-  if (trimmed === "") {
-    throw new Error("Username, email, or phone is required.")
-  }
-
-  const phoneDigits = trimmed.replace(/\D/g, "")
-  const query = `
-    ${userSelect}
-    WHERE (lower(username) = lower($1)
-      OR lower(email) = lower($1)
-      OR ($2 <> '' AND regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $2))
-      AND is_anonymous = false
-    ORDER BY id ASC
-    LIMIT 1
-  `
-  const { rows } = await getDb().query<UserV1Row>(query, [trimmed, phoneDigits])
-
+  const { rows } = await getDb().query<UserV1Row>(
+    `${userSelect} ${byIdentifier}`,
+    identifierParams(identifier),
+  )
   return rows[0] ? mapUser(rows[0]) : null
+}
+
+export const isCurrentCredentialVersion = async (userId: number, version: number) => {
+  const result = await getDb().query(
+    `SELECT 1 FROM public.user_v1 WHERE id = $1 AND credential_version = $2`,
+    [userId, version],
+  )
+  return result.rowCount === 1
 }
 
 export const getUserById = async (userId: number) => {

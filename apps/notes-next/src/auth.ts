@@ -1,7 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { readItemsUserId } from "./lib/sessionIdentity"
-import { createAnonymousUser, verifyUserCredentials } from "@lib/db-items/sql/user"
+import { createAnonymousUser, isCurrentCredentialVersion, verifyUserCredentials } from "@lib/db-items/sql/user"
 import { authConfig } from "./auth.config"
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
@@ -22,13 +22,15 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           return null
         }
 
-        const user = await verifyUserCredentials(identifier, password)
+        const verified = await verifyUserCredentials(identifier, password)
 
-        if (!user) {
+        if (!verified) {
           return null
         }
 
+        const { user, credentialVersion } = verified
         return {
+          credentialVersion,
           id: String(user.id),
           name: user.username,
           email: user.email,
@@ -54,36 +56,32 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
+      delete token.credentialCheckUnavailable
       if (user?.itemsUserId) {
         token.itemsUserId = user.itemsUserId
         token.notesUserId = user.itemsUserId
         token.isAnonymous = user.isAnonymous ?? false
-        return token
-      }
-
-      if (account?.provider === "anonymous" && user?.id) {
-        token.itemsUserId = Number.parseInt(user.id, 10)
-        token.notesUserId = token.itemsUserId
-        token.isAnonymous = true
-        return token
-      }
-
-      if (account?.provider === "credentials" && user?.id) {
-        token.itemsUserId = Number.parseInt(user.id, 10)
-        token.notesUserId = token.itemsUserId
-        token.isAnonymous = false
+        token.credentialVersion = user.credentialVersion ?? 0
         return token
       }
 
       const existingId = readItemsUserId(token)
       if (existingId !== null) {
+        const version = typeof token.credentialVersion === "number" ? token.credentialVersion : 0
+        try {
+          if (!(await isCurrentCredentialVersion(existingId, version))) return null
+        } catch {
+          // Throwing here would make Auth.js treat the cookie as invalid and remove it.
+          token.credentialCheckUnavailable = true
+        }
         token.itemsUserId = existingId
         token.notesUserId = existingId
       }
       return token
     },
     async session({ session, token }) {
+      if (token.credentialCheckUnavailable === true) session.credentialCheckUnavailable = true
       if (session.user) {
         const userId = readItemsUserId(token)
         if (userId !== null) {
@@ -97,3 +95,13 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     },
   },
 })
+
+/** Cookie identity cannot authorize API access until its credentials are verified. */
+export async function getVerifiedSession() {
+  const session = await auth()
+  if (session?.credentialCheckUnavailable) {
+    // Use the connection exception class recognized by the API error mapper.
+    throw Object.assign(new Error("The database is unavailable. Please retry."), { code: "08000" })
+  }
+  return session
+}

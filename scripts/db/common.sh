@@ -34,6 +34,7 @@ items_db_resolve_clients() {
 readonly ITEMS_DB_DEFAULT_TABLES=(
   user_v1
   user_api_token_v1
+  user_password_reset_v1
   user_workspace_v1
   workspace_item_v1
   workspace_category_v1

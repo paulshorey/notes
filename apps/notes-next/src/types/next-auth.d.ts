@@ -3,10 +3,12 @@ import type { DefaultSession } from "next-auth"
 declare module "next-auth" {
   interface User {
     itemsUserId?: number
+    credentialVersion?: number
     isAnonymous?: boolean
   }
 
   interface Session {
+    credentialCheckUnavailable?: true
     user: {
       itemsUserId?: number
       /** Compatibility for already-loaded text clients. */
@@ -18,6 +20,8 @@ declare module "next-auth" {
 
 declare module "@auth/core/jwt" {
   interface JWT {
+    credentialCheckUnavailable?: true
+    credentialVersion?: number
     itemsUserId?: number
     /** Compatibility with existing encrypted cookies and older server builds. */
     notesUserId?: number

@@ -308,6 +308,7 @@ WITH required(name) AS (
   VALUES
     ('public.user_v1'),
     ('public.user_api_token_v1'),
+    ('public.user_password_reset_v1'),
     ('public.user_workspace_v1'),
     ('public.workspace_item_v1'),
     ('public.workspace_category_v1'),

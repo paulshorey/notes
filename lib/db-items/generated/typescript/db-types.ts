@@ -15,6 +15,14 @@ export interface UserApiTokenV1Row {
   time_last_used: Date | null
 }
 
+export interface UserPasswordResetV1Row {
+  request_id: string
+  user_id: number
+  credential_version: number
+  code_hash: string | null
+  requested_at: Date
+}
+
 export interface UserV1Row {
   id: number
   username: string
@@ -25,6 +33,7 @@ export interface UserV1Row {
   preferences: unknown
   password: string | null
   is_anonymous: boolean
+  credential_version: number
 }
 
 export interface UserWorkspaceV1Row {
@@ -95,6 +104,7 @@ export interface WorkspaceTagV1Row {
 export interface PostgresDbSchema {
   item_tag_link_v1: ItemTagLinkV1Row
   user_api_token_v1: UserApiTokenV1Row
+  user_password_reset_v1: UserPasswordResetV1Row
   user_v1: UserV1Row
   user_workspace_v1: UserWorkspaceV1Row
   workspace_category_v1: WorkspaceCategoryV1Row

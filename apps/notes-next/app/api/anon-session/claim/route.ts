@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { getVerifiedSession } from "@/auth"
 import {
   claimAnonymousItemsAppSession,
   getItemsAppErrorStatus,
@@ -7,7 +7,12 @@ import {
 } from "@lib/db-items/services/items-app"
 
 export const POST = async (request: Request) => {
-  const session = await auth()
+  let session
+  try {
+    session = await getVerifiedSession()
+  } catch {
+    return NextResponse.json({ error: "Notes is temporarily unavailable." }, { status: 503 })
+  }
 
   if (!session?.user?.itemsUserId || !session.user.isAnonymous) {
     return NextResponse.json(

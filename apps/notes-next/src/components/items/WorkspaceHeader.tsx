@@ -14,6 +14,7 @@ import {
   X,
 } from "@phosphor-icons/react"
 import type { UserSummary } from "@lib/db-items"
+import { PasswordResetModal } from "@/components/account/PasswordResetModal"
 import { ViewSwitcher } from "@/components/shell/ViewSwitcher"
 import { itemHeadline } from "@/lib/strings"
 import {
@@ -226,6 +227,7 @@ export function WorkspaceHeader({
 }: WorkspaceHeaderProps) {
   const userBtnRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [passwordResetOpen, setPasswordResetOpen] = useState(false)
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [signupUsername, setSignupUsername] = useState("")
@@ -363,6 +365,12 @@ export function WorkspaceHeader({
           />
         </Button>
       </span>
+      {passwordResetOpen && (
+        <PasswordResetModal
+          initialIdentifier={identifier}
+          onClose={() => setPasswordResetOpen(false)}
+        />
+      )}
       {restoreOpen && (
         <BackupRestoreModal
           opened
@@ -415,6 +423,20 @@ export function WorkspaceHeader({
                   width="max"
                 >
                   Sign in
+                </Button>
+                <Button
+                  type="button"
+                  view="flat"
+                  size="m"
+                  width="max"
+                  disabled={authPending || transferPending}
+                  onClick={() => {
+                    closeAuthMenu()
+                    onPasswordChange("")
+                    setPasswordResetOpen(true)
+                  }}
+                >
+                  Forgot password?
                 </Button>
                 <Button
                   type="button"
