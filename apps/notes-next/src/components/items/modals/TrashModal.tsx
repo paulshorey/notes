@@ -153,7 +153,7 @@ export function TrashModal({
                 loading={pending === "all"}
                 onClick={() => void empty()}
               >
-                Delete {items.length} forever
+                Delete all forever
               </Button>{" "}
               <Button view="flat" size="m" onClick={() => setConfirmingEmpty(false)}>
                 Keep them
