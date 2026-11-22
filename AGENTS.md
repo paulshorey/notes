@@ -67,6 +67,13 @@ status. Verify pre-deploy migrations and app health after promotion.
 Write PR handoffs with the problem, resulting behavior, material decisions,
 validation, and remaining work; scale detail to the change.
 
+A review, by a person, a bot, or an agent running a PR, fixes bugs, races, validation
+gaps, wording, and tests. It does not change what a user sees or what happens to a
+user's data. When a finding calls for that, decide it from what the user meant by the
+action, not from the data model, and ask the developer: an agent running a PR marks it
+`blocked` and states the choice. Deleting something, for example, takes the whole item
+unless the user is asked.
+
 ## Cloud environments
 
 Cursor Cloud provides disposable PostgreSQL 17/pgvector databases through
