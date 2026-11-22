@@ -9,16 +9,19 @@ import {
   type UserSummary,
 } from "@lib/db-items"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
-import { useCallback, useRef } from "react"
+import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
+import { useCallback, useMemo, useRef } from "react"
 import { itemsFetch, readJson } from "@/lib/api"
 import { updateItemsCacheList, updateItemsCacheUser } from "@/lib/itemsCache"
 import { RESULTS_COLUMN_DEFAULT_WIDTH } from "@/lib/resultsColumn"
 import {
   getMaxOpenItemsPreference,
+  getNotesViewHiddenKindsPreference,
   getPasteUrlAsMarkdownPreference,
   getStoredResultsColumnWidth,
   normalizeUserPreferences,
   serializeUserPreferences,
+  withNotesViewKindVisibility,
   withPasteUrlAsMarkdownPreference,
 } from "@/lib/userPreferences"
 import { TAXONOMY_REFRESH_DEBOUNCE_MS } from "@/workspace/shared"
@@ -48,6 +51,24 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
   const pasteUrlAsMarkdown = getPasteUrlAsMarkdownPreference(userPreferences)
 
   const preferredMaxOpenItems = getMaxOpenItemsPreference(userPreferences)
+
+  // A new array for the same choice would recompute every list that depends on it.
+  const hiddenKindsKey = getNotesViewHiddenKindsPreference(userPreferences).join(",")
+  const notesViewHiddenKinds = useMemo(
+    () => (hiddenKindsKey === "" ? [] : (hiddenKindsKey.split(",") as ItemKindKey[])),
+    [hiddenKindsKey],
+  )
+
+  const handleNotesViewKindVisibilityChange = useCallback(
+    (kind: ItemKindKey, visible: boolean) => {
+      setUserPreferences((current) =>
+        getNotesViewHiddenKindsPreference(current).includes(kind) === !visible
+          ? current
+          : withNotesViewKindVisibility(current, kind, visible),
+      )
+    },
+    [setUserPreferences],
+  )
 
   const handlePasteUrlAsMarkdownChange = useCallback(
     (enabled: boolean) => {
@@ -232,6 +253,8 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
   )
 
   return {
+    notesViewHiddenKinds,
+    handleNotesViewKindVisibilityChange,
     pasteUrlAsMarkdown,
     preferredMaxOpenItems,
     handlePasteUrlAsMarkdownChange,

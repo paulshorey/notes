@@ -5,7 +5,7 @@ import { hasItemCapability, type ItemCapabilitySource } from "./item-capabilitie
  * never stored, so it cannot disagree with the content. An item can be several kinds at
  * once, and it stops being a kind when the content that made it one is removed.
  *
- * Each kind is the selection rule of one view. Use a lowercase, singular name for
+ * Views select their items by kind. Use a lowercase, singular name for
  * both the kind key and its display label, such as "note" or "task".
  */
 export type ItemKindKey = "note" | "task"

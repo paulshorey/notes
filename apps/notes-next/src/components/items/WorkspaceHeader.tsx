@@ -27,6 +27,8 @@ import type { EmbeddingMaintenanceMode, ItemSaveStatus, TextCaptureFormState } f
 import styles from "./WorkspaceHeader.module.css"
 import { BackupControls, BackupRestoreModal } from "./BackupControls"
 import { TrashModal } from "./modals/TrashModal"
+import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
+import { viewForKind } from "@/views/registry"
 import type { ItemRecord, RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
 
 const OPEN_ITEMS_CHOICES = [1, 3, 5, 10, 15, 20, 25]
@@ -179,6 +181,8 @@ interface WorkspaceHeaderProps {
   isAnonymous: boolean
   resultsListVisible: boolean
   pasteUrlAsMarkdown: boolean
+  notesViewHiddenKinds: readonly ItemKindKey[]
+  onNotesViewKindVisibilityChange: (kind: ItemKindKey, visible: boolean) => void
   onPasteUrlAsMarkdownChange: (enabled: boolean) => void
   onAddItem: () => void
   onLogout: () => void
@@ -208,6 +212,8 @@ export function WorkspaceHeader({
   isAnonymous,
   resultsListVisible,
   pasteUrlAsMarkdown,
+  notesViewHiddenKinds,
+  onNotesViewKindVisibilityChange,
   onPasteUrlAsMarkdownChange,
   onAddItem,
   onLogout,
@@ -287,6 +293,21 @@ export function WorkspaceHeader({
       Paste URLs as markdown links
     </Checkbox>
   )
+
+  // The notes view lists everything with text. Each kind that has a view of its own
+  // can be left out of it.
+  const notesViewPreference = viewForKind("note").optionalKinds.map((kind) => (
+    <Checkbox
+      key={kind}
+      size="m"
+      checked={!notesViewHiddenKinds.includes(kind)}
+      disabled={transferPending}
+      onUpdate={(visible) => onNotesViewKindVisibilityChange(kind, visible)}
+      className={styles.userMenuPreference}
+    >
+      Show {kind}s in notes
+    </Checkbox>
+  ))
 
   // A fixed set of choices rather than a free number field. Lowering the cap
   // evicts immediately, so a text input would apply every intermediate value
@@ -386,6 +407,7 @@ export function WorkspaceHeader({
       <Popup anchorRef={userBtnRef} open={menuOpen} onClose={closeAuthMenu} placement="bottom-end">
         <div className={styles.userMenu}>
           {pasteUrlPreference}
+          {notesViewPreference}
           {openItemsPreference}
           <BackupControls
             isAnonymous={isAnonymous}

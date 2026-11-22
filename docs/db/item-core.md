@@ -128,9 +128,10 @@ removed.
 | `note` | text                               |
 | `task` | text and a status                  |
 
-`itemKinds(item)` lists an item's kinds and `isKind(item, key)` tests one. Each kind is
-the selection rule of one view: `notes-next` keeps every item of the workspace and each
-view lists the items of its kind. `isTextItem` is the `note` test for code that also
+`itemKinds(item)` lists an item's kinds and `isKind(item, key)` tests one. `notes-next`
+keeps every item of the workspace, and each view declares which of them it lists in
+terms of kinds: the `task` view lists tasks, and the `note` view lists everything with
+text except the kinds the user left out of it. `isTextItem` is the `note` test for code that also
 needs the item narrowed to its text.
 
 ## This refactor

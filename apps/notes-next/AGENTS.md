@@ -57,7 +57,7 @@ src/                        — non-route code (import with "@/..." alias)
     useAccountActions.ts    — login, signup, logout, workspace switching, backup
     useTaxonomyActions.ts   — category, subcategory, status, tag, and group actions
   views/
-    registry.ts             — `ITEM_VIEWS`: each view's kind and route
+    registry.ts             — `ITEM_VIEWS`: each view's kind, selection rule, and route
     notes/NotesView.tsx     — the `note` view: the editor for the active entry
     tasks/TasksView.tsx     — the `task` view: board by status, list by due date
     tasks/taskLists.ts      — pure column and ordering rules for the board and list
@@ -114,12 +114,15 @@ between views, so the session, the open-item ring, and pending saves carry acros
   the provider exposes them all through `useItemsWorkspace()`. A hook may depend only
   on hooks earlier in the controller. `workspaceStore` holds everything loaded from the
   server; the workspace hooks are its only writers.
-- **Views.** A view is a screen over the items of one kind (`@lib/db-items/contracts/item-kinds`).
+- **Views.** A view is a screen over some of the workspace's items, named after a kind (`@lib/db-items/contracts/item-kinds`).
   `src/views/registry.ts` lists them: `note` at `/` and `task` at `/tasks`. To add one,
   give the kind a lowercase, singular name, register its view, and add a page under
   `app/(workspace)/`. The header picker displays each view's kind key. The workspace keeps every item of the active workspace;
-  `useItemLists` narrows the lists to the active view's kind with `isKind`, so an item
-  that is several kinds appears in each of those views and opens as the same entry.
+  `useItemLists` narrows the lists with the active view's `selects`, so an item appears
+  in every view that selects it and opens as the same entry. The `note` view lists
+  everything with text. Its `optionalKinds` (now `task`) are the kinds a user can leave
+  out of it with the "Show tasks in notes" checkbox in the account menu, stored as the
+  `notesApp.notesViewHiddenKinds` preference.
   Every view edits through `ItemEditor`, bound to the active entry. The `note` view
   always shows it. The `task` view opens it in a dialog over the board when the user
   opens an item. Each view names the parts it prioritizes in `editorProminent`.

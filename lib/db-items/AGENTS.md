@@ -34,7 +34,7 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   deletes none.
 - `contracts/item-kinds.ts` names what an item holds: a `note` has text, and a `task`
   has text and a status. A kind is
-  computed, never stored, and an item can be several kinds. Select the items of a view
+  computed, never stored, and an item can be several kinds. Write a view's selection
   with `isKind` instead of testing fields.
 - Deleting an item moves it to `user_item_trash_v1` in the same statement
   (`TRASH_ITEMS_SQL`, used by `sql/item/delete.ts`, the one place items are deleted on

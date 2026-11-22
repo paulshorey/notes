@@ -1,4 +1,5 @@
 import type { UserPreferences } from "@lib/db-items"
+import { ITEM_KINDS, type ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { clampStoredResultsColumnWidth } from "@/lib/resultsColumn"
 import { clampMaxOpenItems, MAX_OPEN_ITEMS_DEFAULT } from "@/stores/openItems"
 
@@ -67,6 +68,35 @@ export const withPasteUrlAsMarkdownPreference = (
     pasteUrlAsMarkdown: enabled,
   },
 })
+
+const KIND_KEYS = new Set<string>(ITEM_KINDS.map((kind) => kind.key))
+
+/** The kinds left out of the notes view. A stored name that is no kind is ignored. */
+export const getNotesViewHiddenKindsPreference = (preferences: UserPreferences): ItemKindKey[] => {
+  const itemsAppPreferences = preferences.notesApp
+  if (!isPreferencesObject(itemsAppPreferences)) return []
+  const stored = itemsAppPreferences.notesViewHiddenKinds
+  return Array.isArray(stored)
+    ? ITEM_KINDS.map((kind) => kind.key).filter((key) => stored.includes(key))
+    : []
+}
+
+export const withNotesViewKindVisibility = (
+  preferences: UserPreferences,
+  kind: ItemKindKey,
+  visible: boolean,
+): UserPreferences => {
+  const hidden = getNotesViewHiddenKindsPreference(preferences).filter((key) => key !== kind)
+  return {
+    ...preferences,
+    notesApp: {
+      ...(isPreferencesObject(preferences.notesApp) ? preferences.notesApp : {}),
+      notesViewHiddenKinds: (visible ? hidden : [...hidden, kind]).filter((key) =>
+        KIND_KEYS.has(key),
+      ),
+    },
+  }
+}
 
 export const getMaxOpenItemsPreference = (preferences: UserPreferences) => {
   const itemsAppPreferences = preferences.notesApp
