@@ -62,6 +62,9 @@ import type { ItemSaveEngineOutput } from "./useItemSaveEngine"
 import type { OpenItemEntriesOutput } from "./useOpenItemEntries"
 import type { ItemListsOutput } from "./useItemLists"
 
+/** Browsers refuse a keepalive request whose body is 64 KiB or more; this leaves room. */
+const KEEPALIVE_BODY_LIMIT = 60 * 1024
+
 export function useTaxonomyActions(
   ctx: WorkspaceStateOutput &
     WorkspaceDataOutput &
@@ -1164,7 +1167,10 @@ export function useTaxonomyActions(
     clearMessages()
     const send = async (current: ItemRecord | null) => {
       const stored = current ? storedItemFields(current) : null
-      const keepsFiling = stored !== null && stored.categoryId === values.categoryId
+      // Removing the block changes nothing else, so the stored filing stays as it is.
+      const categoryId =
+        stored !== null && values.timeStart === null ? stored.categoryId : values.categoryId
+      const keepsFiling = stored !== null && stored.categoryId === categoryId
       // The open entry's newer text was saved when `current` was read; the form's copy is
       // older unless the user changed it here.
       const description =
@@ -1173,29 +1179,31 @@ export function useTaxonomyActions(
           : values.description
       if (stored?.statusId != null && description.trim() === "")
         throw new Error("A task needs text. Remove its status before clearing the text.")
+      const body = JSON.stringify({
+        userId,
+        ...(current ? { itemId: current.id, expectedTimeModified: current.timeModified } : {}),
+        item: {
+          ...(current ? {} : { uid: values.uid }),
+          workspaceId,
+          categoryId,
+          subcategoryId: keepsFiling ? stored.subcategoryId : null,
+          statusId: stored?.statusId ?? null,
+          tagIds: stored?.tagIds ?? [],
+          description,
+          timeStart: values.timeStart,
+          timeEnd: values.timeEnd,
+          timePlanned: values.timePlanned,
+          timeDue: current?.timeDue ?? null,
+          timeRemind: current?.timeRemind ?? null,
+        },
+      })
       const response = await itemsFetch("/api/items", {
         method: current ? "PATCH" : "POST",
-        // The form's values exist nowhere else, so the request outlives a closing page.
-        keepalive: true,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          ...(current ? { itemId: current.id, expectedTimeModified: current.timeModified } : {}),
-          item: {
-            ...(current ? {} : { uid: values.uid }),
-            workspaceId,
-            categoryId: values.categoryId,
-            subcategoryId: keepsFiling ? stored.subcategoryId : null,
-            statusId: stored?.statusId ?? null,
-            tagIds: stored?.tagIds ?? [],
-            description,
-            timeStart: values.timeStart,
-            timeEnd: values.timeEnd,
-            timePlanned: values.timePlanned,
-            timeDue: current?.timeDue ?? null,
-            timeRemind: current?.timeRemind ?? null,
-          },
-        }),
+        // The form's values exist nowhere else, so a request that fits the browser's
+        // keepalive limit outlives a closing page.
+        keepalive: new Blob([body]).size < KEEPALIVE_BODY_LIMIT,
+        body,
       })
       const data = await readJson<{ item: ItemRecord }>(response)
       // A repeated create answers 200 with the item an earlier attempt stored and writes

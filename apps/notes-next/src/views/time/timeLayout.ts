@@ -151,6 +151,7 @@ export const daySummary = (
 ): { count: number; minutes: number } => {
   let count = 0
   let minutes = 0
+  const nextDay = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)
   for (const item of items) {
     if (!isTimeBlock(item)) continue
     const start = minutesInto(day, new Date(item.timeStart))
@@ -159,7 +160,11 @@ export const daySummary = (
       start === end ? start >= 0 && start < DAY_MINUTES : end > 0 && start < DAY_MINUTES
     if (!touches) continue
     count += 1
-    minutes += Math.min(end, DAY_MINUTES) - Math.max(start, 0)
+    // Elapsed time, not clock minutes: a day with a clock change is not 24 hours long.
+    minutes +=
+      (Math.min(new Date(item.timeEnd).getTime(), nextDay.getTime()) -
+        Math.max(new Date(item.timeStart).getTime(), day.getTime())) /
+      60_000
   }
   return { count, minutes: Math.round(minutes) }
 }
