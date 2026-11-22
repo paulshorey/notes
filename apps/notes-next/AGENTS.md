@@ -29,7 +29,8 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     bootstrap/              — GET (user/workspaces + one workspace snapshot for startup/switching)
     backup/                 — GET (JSON download), POST (validated atomic merge into permanent account)
     session/                — GET (authenticated user), PATCH (preferences)
-    items/                  — GET (list), POST (create), PATCH (update), DELETE
+    items/                  — GET (list), POST (create), PATCH (update), DELETE (to the trash)
+    items/trash/            — GET (list), POST (restore one), DELETE (purge one or all)
     notes/                  — legacy payload facade over the item routes
     tags/                   — GET (list), POST (create)
     categories/             — GET (list), POST (create), PATCH, DELETE
@@ -81,6 +82,7 @@ src/                        — non-route code (import with "@/..." alias)
         ItemGroupActionModal.tsx
         EditTagModal.tsx
         DeleteTagModal.tsx
+        TrashModal.tsx      — the user's deleted items: restore, delete forever, empty; opened from the account menu
     ui/
       icons/                — small inline SVG icons
   hooks/                    — shared React hooks (useSidebarDrawer, useAutoDismissStatus,

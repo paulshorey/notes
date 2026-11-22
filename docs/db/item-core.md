@@ -46,8 +46,8 @@ search and embeddings skip an item without text.
 
 An item without content is not kept. The service refuses to store one, and the web
 client deletes a stored item when an edit removes its content: emptying a note or a task
-deletes it, whatever status or date it has. Deleting a status clears it from its items
-and deletes none of them.
+deletes it, whatever status or date it has, and the item goes to the [trash](#trash) as
+it was last stored. Deleting a status clears it from its items and deletes none of them.
 
 Content types use lowercase, singular names. `note` and `task` are computed from
 the capabilities an item holds. An item can match both types. The type names
@@ -85,6 +85,36 @@ Four things are generated from those declarations and list no item column themse
 Adding a capability means adding its entry there and in the browser-safe registry. A
 backup version increases whenever a field is added, and import reads every earlier
 version.
+
+## Trash
+
+Every deletion of an item, single or as part of a group action, moves it to
+`user_item_trash_v1` in the same statement (`TRASH_ITEMS_SQL`). A trash entry is not an
+item: it holds the item's backup fields as JSON, built from the stored-capability
+registry, so a new capability is kept in the trash without any trash code. Nothing that
+lists, counts, searches, moves, or backs up items sees it.
+
+The trash belongs to the user, not the workspace, because deleting a workspace's last
+item removes the workspace and the vocabulary nothing else uses. An entry remembers its
+workspace by id while that exists and by label after.
+
+| Action                | Route                     | What happens                                          |
+| --------------------- | ------------------------- | ----------------------------------------------------- |
+| List                  | `GET /api/items/trash`    | The user's 200 most recent entries, newest first.     |
+| Restore               | `POST /api/items/trash`   | The entry becomes an item again and leaves the trash. |
+| Delete forever, empty | `DELETE /api/items/trash` | One entry, or all of them, is removed for good.       |
+
+Restoring is an import of one item (`sql/item/trash.ts`). It goes to the workspace it
+was deleted from, or the user's workspace of the same label, which is created when
+there is none. The category, subcategory, status, and tags it names are created when
+they are missing. It keeps its uid unless an item took that uid meanwhile, and its
+creation and modification times. It gets a new integer id, and its text is embedded
+again; if the provider is unavailable, embedding maintenance picks it up.
+
+An entry is kept for `TRASH_RETENTION_DAYS` (30). Each deletion removes the user's
+entries older than that. Account merge moves a visitor's trash to the account. A
+backup carries no trash, and deleting a workspace deletes its items without trashing
+them.
 
 ## Kinds
 

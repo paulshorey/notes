@@ -177,6 +177,7 @@ export const MERGE_TABLE_STRATEGIES: Record<string, "dedup-remap" | "reparent" |
   // be discarded with the anonymous row.
   user_api_token_v1: "drop",
   user_password_reset_v1: "drop",
+  user_item_trash_v1: "reparent",
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -312,6 +313,13 @@ export const mergeAnonymousUserIntoWithClient = async (
     result.itemsSkipped += skippedIds.length
     await client.query(`DELETE FROM public.user_workspace_v1 WHERE id=$1`, [source.id])
   }
+
+  // The visitor's trash comes along. An entry whose workspace was merged away finds the
+  // account's workspace of the same label when it is restored.
+  await client.query(`UPDATE public.user_item_trash_v1 SET user_id=$1 WHERE user_id=$2`, [
+    realUserId,
+    anonUserId,
+  ])
 
   // Delete anon user — CASCADE removes orphaned anon categories/tags
   await client.query(`DELETE FROM public.user_v1 WHERE id = $1`, [anonUserId])

@@ -36,7 +36,8 @@ Set `DB_ITEMS_URL` explicitly for the intended source or destination.
 
 Defaults are defined in `scripts/db/common.sh`:
 
-- `user_v1`, `user_api_token_v1`, `user_password_reset_v1`, `user_workspace_v1`
+- `user_v1`, `user_api_token_v1`, `user_password_reset_v1`, `user_workspace_v1`,
+  `user_item_trash_v1`
 - `workspace_item_v1`
 - `workspace_category_v1`, `workspace_subcategory_v1`, `workspace_status_v1`,
   `workspace_tag_v1`

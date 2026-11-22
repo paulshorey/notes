@@ -3,8 +3,8 @@
 This plan extends the item model so one record can be a note, a task, a checklist, a
 time block, or a journal entry, and so items can relate to each other. It builds on
 [item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md). Each phase
-updates those documents when it ships. Built so far: the content and state split of
-phase 1, with text as the only content.
+updates those documents when it ships. Built so far, from phase 1: the content
+and state split, with text as the only content, and the trash.
 
 The structure is the commitment. The detailed rules for what happens when a property is
 removed are added rule by rule as each type is built and tested.
@@ -73,7 +73,6 @@ New columns on `workspace_item_v1`:
 | Column           | Type        | Purpose                                                  |
 | ---------------- | ----------- | -------------------------------------------------------- |
 | `revision`       | integer     | Conflict check: an update names the revision it edited.  |
-| `time_deleted`   | timestamptz | Trash. Listing skips trashed items; restore clears it.   |
 | `author_user_id` | integer     | Who created the item; needed once a workspace is shared. |
 | `time_done`      | timestamptz | When the item was completed; null while open.            |
 | `position`       | text        | Fractional order key.                                    |
@@ -84,6 +83,11 @@ New columns on `workspace_item_v1`:
 | `entry_date`     | date        | The calendar day of a journal entry.                     |
 
 `workspace_status_v1` gains `is_done`, so a status can mean completed.
+
+Deleted items leave the item table for `user_item_trash_v1`, which keeps each as its
+backup fields ([item core](../db/item-core.md#trash)). No query over items has to
+exclude trashed rows, a unique rule such as one journal entry per day needs no
+exception for them, and a trashed list is stored as its lines together.
 
 New table `item_link_v1`: `from_item_id`, `to_item_id`, `workspace_id`, `relation`,
 `position`. Both item keys are composite with `workspace_id`.
@@ -163,7 +167,7 @@ logged time.
 ### Journal
 
 A journal entry is an item with an `entry_date`, unique per workspace, author, and day
-among items that are not trashed. It needs no text. A new entry takes today's date, and
+day. It needs no text. A new entry takes today's date, and
 the date can be edited.
 
 Changing a date to a day that already has an entry asks whether to combine the two.
@@ -207,8 +211,7 @@ Each phase is one or more pull requests and leaves the app working.
 1. **Foundations.**
    - Split the capability registries into content and state; a task requires text and
      a status. Built.
-   - Trash. Clearing the text of a task deletes it with its status and dates, so this
-     comes next.
+   - Trash. Built.
    - Views declare their selection rule; add the notes filter.
    - `revision` conflict check.
    - The shared access check and `author_user_id`.

@@ -446,6 +446,83 @@
         }
       ]
     },
+    "TrashedItemRecord": {
+      "fields": [
+        {
+          "name": "id",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "workspaceLabel",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "timeDeleted",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "category",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "subcategory",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "status",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "tags",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "scalar",
+            "type": "string"
+          },
+          "nullable": false
+        },
+        {
+          "name": "timeDue",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeRemind",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
     "SemanticSearchResult": {
       "fields": [
         {
@@ -878,6 +955,53 @@
         },
         {
           "name": "workspaceId",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "TrashRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "RestoreTrashedItemRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "trashId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "PurgeTrashRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "trashId",
           "optional": true,
           "kind": "scalar",
           "type": "number",
@@ -1475,6 +1599,45 @@
           "optional": false,
           "kind": "scalar",
           "type": "true",
+          "nullable": false
+        }
+      ]
+    },
+    "TrashResponse": {
+      "fields": [
+        {
+          "name": "items",
+          "optional": false,
+          "kind": "array",
+          "items": {
+            "kind": "model",
+            "type": "TrashedItemRecord"
+          },
+          "nullable": false
+        },
+        {
+          "name": "retentionDays",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "PurgeTrashResponse": {
+      "fields": [
+        {
+          "name": "ok",
+          "optional": false,
+          "kind": "scalar",
+          "type": "true",
+          "nullable": false
+        },
+        {
+          "name": "purged",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
           "nullable": false
         }
       ]

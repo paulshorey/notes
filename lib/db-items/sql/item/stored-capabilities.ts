@@ -234,11 +234,32 @@ export const ITEM_IDENTITY_FIELDS = allFields
   .filter(([, field]) => field.identity !== false)
   .map(([name]) => name)
 
-/** One row per item of workspace `$1`, with every backup field under its own name. */
-export const PORTABLE_ITEMS_SQL = `SELECT n.id,${allFields
+const portableFields = allFields
   .map(([name, field]) => `${field.export} AS ${quoted(name)}`)
-  .join(",\n  ")}
+  .join(",\n  ")
+
+/** One row per item of workspace `$1`, with every backup field under its own name. */
+export const PORTABLE_ITEMS_SQL = `SELECT n.id,${portableFields}
   FROM public.workspace_item_v1 n WHERE n.workspace_id=$1 ORDER BY n.id`
+
+/**
+ * Delete the items `$1` that belong to user `$2` (in workspace `$3` when it is given),
+ * keeping each in the trash as its backup fields. It is one statement, so the trash
+ * holds exactly the rows that were deleted. Returns the deleted ids.
+ */
+export const TRASH_ITEMS_SQL = `WITH doomed AS MATERIALIZED (
+    SELECT n.id FROM public.workspace_item_v1 n
+    JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
+    WHERE n.id=ANY($1::int[]) AND w.user_id=$2 AND ($3::int IS NULL OR n.workspace_id=$3)
+  ), trashed AS (
+    INSERT INTO public.user_item_trash_v1(user_id,workspace_id,workspace_label,item)
+    SELECT $2,p.workspace_id,p.workspace_label,to_jsonb(p)-'id'-'workspace_id'-'workspace_label'
+    FROM (SELECT n.id,n.workspace_id,
+        (SELECT w.label FROM public.user_workspace_v1 w WHERE w.id=n.workspace_id) workspace_label,
+        ${portableFields}
+      FROM public.workspace_item_v1 n JOIN doomed d ON d.id=n.id) p
+  )
+  DELETE FROM public.workspace_item_v1 n USING doomed d WHERE n.id=d.id RETURNING n.id`
 
 const imported = allFields.flatMap(([, field]) => Object.entries(field.import ?? {}))
 
@@ -269,7 +290,7 @@ export const findUnrestoredFields = (parts: readonly StoredItemPart[] = STORED_P
  * Restore the backup items in `$2` (a JSON array) as items of workspace `$1`: one
  * statement stages every item with a new id, writes the item rows, then writes each
  * owned table's rows. Those depend on the new ids, and running in the same statement
- * lets their foreign keys see the items it wrote.
+ * lets their foreign keys see the items it wrote. Returns the new ids.
  */
 export const IMPORT_ITEMS_SQL = `WITH items AS MATERIALIZED (
     SELECT nextval(pg_get_serial_sequence('public.workspace_item_v1','id'))::int id,v.*
@@ -282,7 +303,7 @@ export const IMPORT_ITEMS_SQL = `WITH items AS MATERIALIZED (
     FROM items n
     RETURNING id
   )${ownedTables.map(([name, table]) => `, ${quoted(`${name}_rows`)} AS (\n    ${table.import}\n  )`).join("")}
-  SELECT COUNT(*) FROM inserted`
+  SELECT id FROM inserted ORDER BY id`
 
 const rehomed = STORED_PARTS.flatMap((part) => Object.entries(part.rehome ?? {}))
 const rehomedTables = ownedTables.flatMap(([name, table]) =>

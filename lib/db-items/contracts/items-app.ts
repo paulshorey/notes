@@ -96,6 +96,24 @@ export interface ItemRecord {
   timeModified: string
 }
 
+/**
+ * A deleted item waiting in the trash. It is no longer an item: it has no item id or
+ * uid to act on, only the trash entry's own `id`, and its workspace and vocabulary are
+ * kept by label.
+ */
+export interface TrashedItemRecord {
+  id: number
+  workspaceLabel: string
+  timeDeleted: string
+  description: string | null
+  category: string | null
+  subcategory: string | null
+  status: string | null
+  tags: string[]
+  timeDue: string | null
+  timeRemind: string | null
+}
+
 export interface SemanticSearchResult {
   item: ItemRecord
   similarity: number
@@ -204,6 +222,21 @@ export interface DeleteItemRequest {
   userId: number
   itemId: number
   workspaceId?: number
+}
+
+export interface TrashRequest {
+  userId: number
+}
+
+export interface RestoreTrashedItemRequest {
+  userId: number
+  trashId: number
+}
+
+/** Without a `trashId`, the user's whole trash is emptied. */
+export interface PurgeTrashRequest {
+  userId: number
+  trashId?: number
 }
 
 export interface SearchRequest {
@@ -355,6 +388,17 @@ export interface EmbeddingMaintenanceResponse {
 
 export interface DeleteResponse {
   ok: true
+}
+
+export interface TrashResponse {
+  items: TrashedItemRecord[]
+  /** Days a deleted item stays in the trash before it is removed for good. */
+  retentionDays: number
+}
+
+export interface PurgeTrashResponse {
+  ok: true
+  purged: number
 }
 
 export interface ErrorResponse {

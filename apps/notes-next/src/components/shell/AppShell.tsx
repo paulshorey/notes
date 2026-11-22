@@ -71,6 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     handleResizePointerMove,
     handleResizePointerUp,
     handleRestoreBackup,
+    handleItemRestored,
     handleResultsOverlayClick,
     handleRunEmbeddingMaintenance,
     handleSaveTag,
@@ -177,6 +178,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <WorkspaceHeader
               onDownloadBackup={handleDownloadBackup}
               onRestoreBackup={handleRestoreBackup}
+              onItemRestored={handleItemRestored}
               user={user}
               isAnonymous={authSession?.user?.isAnonymous ?? false}
               resultsListVisible={resultsListVisible}

@@ -43,6 +43,38 @@
       "type": "Date"
     }
   ],
+  "user_item_trash_v1": [
+    {
+      "column": "id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "user_id",
+      "nullable": false,
+      "type": "number"
+    },
+    {
+      "column": "workspace_id",
+      "nullable": true,
+      "type": "number"
+    },
+    {
+      "column": "workspace_label",
+      "nullable": false,
+      "type": "string"
+    },
+    {
+      "column": "item",
+      "nullable": false,
+      "type": "unknown"
+    },
+    {
+      "column": "time_deleted",
+      "nullable": false,
+      "type": "Date"
+    }
+  ],
   "user_password_reset_v1": [
     {
       "column": "request_id",

@@ -12,6 +12,11 @@ import type {
   DeleteCategoryResponse,
   DeleteItemRequest,
   DeleteResponse,
+  PurgeTrashRequest,
+  PurgeTrashResponse,
+  RestoreTrashedItemRequest,
+  TrashRequest,
+  TrashResponse,
   DeleteStatusRequest,
   DeleteTagRequest,
   DeleteTagResponse,
@@ -63,7 +68,12 @@ import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
 import {
   createOrFindItemForUser,
   deleteItemForUser,
+  findItemByIdForUser,
   findItemByUidInWorkspace,
+  listTrashedItemsByUser,
+  purgeTrashedItemsForUser,
+  restoreTrashedItemForUser,
+  TRASH_RETENTION_DAYS,
   findWorkspaceIdByItem,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
@@ -134,6 +144,7 @@ import {
 } from "./item-embeddings"
 
 export const ITEMS_APP_ITEM_NOT_FOUND_ERROR = "Item not found."
+export const ITEMS_APP_TRASHED_ITEM_NOT_FOUND_ERROR = "This item is no longer in the trash."
 export const ITEMS_APP_CATEGORY_NOT_FOUND_ERROR = "Category not found."
 export const ITEMS_APP_TAG_NOT_FOUND_ERROR = "Tag not found."
 export const ITEMS_APP_STATUS_NOT_FOUND_ERROR = "Status not found."
@@ -329,6 +340,23 @@ export const parseDeleteItemRequest = (v: unknown): DeleteItemRequest => {
     ...(b.workspaceId === undefined
       ? {}
       : { workspaceId: parsePositiveInteger(b.workspaceId, "workspaceId") }),
+  }
+}
+export const parseTrashRequest = (userId: unknown): TrashRequest => ({
+  userId: parsePositiveInteger(userId, "userId"),
+})
+export const parseRestoreTrashedItemRequest = (v: unknown): RestoreTrashedItemRequest => {
+  const b = object(v)
+  return {
+    ...parseTrashRequest(b.userId),
+    trashId: parsePositiveInteger(b.trashId, "trashId"),
+  }
+}
+export const parsePurgeTrashRequest = (v: unknown): PurgeTrashRequest => {
+  const b = object(v)
+  return {
+    ...parseTrashRequest(b.userId),
+    ...(b.trashId === undefined ? {} : { trashId: parsePositiveInteger(b.trashId, "trashId") }),
   }
 }
 export const parseSearchRequest = (v: unknown): SearchRequest => {
@@ -658,6 +686,35 @@ export const deleteItemForItemsApp = async (
   }
   return null
 }
+export const listTrashForItemsApp = async (r: TrashRequest): Promise<TrashResponse> => ({
+  items: await listTrashedItemsByUser(r.userId),
+  retentionDays: TRASH_RETENTION_DAYS,
+})
+export const restoreTrashedItemForItemsApp = async (
+  r: RestoreTrashedItemRequest,
+): Promise<ItemResponse | null> => {
+  const itemId = await restoreTrashedItemForUser(r.userId, r.trashId)
+  if (itemId === null) return null
+  const item = await findItemByIdForUser(r.userId, itemId)
+  if (!item) return null
+  // Derived data is not kept in the trash, so search needs the text embedded again.
+  // The item is already back; if the provider is unavailable, embedding maintenance
+  // picks it up as an item with a missing embedding.
+  try {
+    await updateItemEmbeddingsForUser(
+      itemId,
+      r.userId,
+      await createItemEmbeddingInput({ description: item.description }),
+    )
+  } catch {
+    // Left for embedding maintenance.
+  }
+  return { item }
+}
+export const purgeTrashForItemsApp = async (r: PurgeTrashRequest): Promise<PurgeTrashResponse> => ({
+  ok: true,
+  purged: await purgeTrashedItemsForUser(r.userId, r.trashId ?? null),
+})
 export const searchItemsForItemsApp = async (r: SearchRequest): Promise<SearchResponse> => ({
   results: await searchItemsByEmbedding(
     r.userId,
@@ -765,6 +822,9 @@ export const itemsAppService = {
   createItemForItemsApp,
   updateItemForItemsApp,
   deleteItemForItemsApp,
+  listTrashForItemsApp,
+  restoreTrashedItemForItemsApp,
+  purgeTrashForItemsApp,
   searchItemsForItemsApp,
   maintainItemEmbeddingsForItemsApp,
   createAnonymousItemsAppSession,

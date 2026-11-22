@@ -18,7 +18,7 @@ Dump data only (no DDL) for selected public tables. Requires DB_ITEMS_URL.
 
 Usage: items-backup-data.sh [-t TABLE]... [OUTFILE.sql]
   -t, --table TABLE   Public table name (repeatable). Default: ITEMS_DB_DEFAULT_TABLES
-                      in common.sh (user_v1, user_api_token_v1, user_password_reset_v1, user_workspace_v1, workspace_item_v1,
+                      in common.sh (user_v1, user_api_token_v1, user_password_reset_v1, user_item_trash_v1, user_workspace_v1, workspace_item_v1,
                       workspace_{category,status,tag}_v1, item_{category,tag}_link_v1,
                       schema_migrations_cursor)
   -h, --help          Show this help.

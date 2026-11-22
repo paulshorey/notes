@@ -26,7 +26,8 @@ import type { OpenItemKey } from "@/stores/openItems"
 import type { EmbeddingMaintenanceMode, ItemSaveStatus, TextCaptureFormState } from "@/types/items"
 import styles from "./WorkspaceHeader.module.css"
 import { BackupControls, BackupRestoreModal } from "./BackupControls"
-import type { RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
+import { TrashModal } from "./modals/TrashModal"
+import type { ItemRecord, RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
 
 const OPEN_ITEMS_CHOICES = [1, 3, 5, 10, 15, 20, 25]
 
@@ -173,6 +174,7 @@ export interface SignupFields {
 interface WorkspaceHeaderProps {
   onDownloadBackup: () => Promise<void>
   onRestoreBackup: (file: File) => Promise<RestoreBackupResponse>
+  onItemRestored: (item: ItemRecord) => void
   user: UserSummary
   isAnonymous: boolean
   resultsListVisible: boolean
@@ -201,6 +203,7 @@ interface WorkspaceHeaderProps {
 export function WorkspaceHeader({
   onDownloadBackup,
   onRestoreBackup,
+  onItemRestored,
   user,
   isAnonymous,
   resultsListVisible,
@@ -228,6 +231,7 @@ export function WorkspaceHeader({
   const userBtnRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const [passwordResetOpen, setPasswordResetOpen] = useState(false)
+  const [trashOpen, setTrashOpen] = useState(false)
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [signupUsername, setSignupUsername] = useState("")
@@ -378,6 +382,7 @@ export function WorkspaceHeader({
           onRestore={onRestoreBackup}
         />
       )}
+      {trashOpen && <TrashModal onClose={() => setTrashOpen(false)} onRestored={onItemRestored} />}
       <Popup anchorRef={userBtnRef} open={menuOpen} onClose={closeAuthMenu} placement="bottom-end">
         <div className={styles.userMenu}>
           {pasteUrlPreference}
@@ -388,6 +393,10 @@ export function WorkspaceHeader({
             onOpenRestore={() => {
               closeAuthMenu()
               setRestoreOpen(true)
+            }}
+            onOpenTrash={() => {
+              closeAuthMenu()
+              setTrashOpen(true)
             }}
           />
           {isAnonymous ? (

@@ -15,6 +15,15 @@ export interface UserApiTokenV1Row {
   time_last_used: Date | null
 }
 
+export interface UserItemTrashV1Row {
+  id: number
+  user_id: number
+  workspace_id: number | null
+  workspace_label: string
+  item: unknown
+  time_deleted: Date
+}
+
 export interface UserPasswordResetV1Row {
   request_id: string
   user_id: number
@@ -104,6 +113,7 @@ export interface WorkspaceTagV1Row {
 export interface PostgresDbSchema {
   item_tag_link_v1: ItemTagLinkV1Row
   user_api_token_v1: UserApiTokenV1Row
+  user_item_trash_v1: UserItemTrashV1Row
   user_password_reset_v1: UserPasswordResetV1Row
   user_v1: UserV1Row
   user_workspace_v1: UserWorkspaceV1Row

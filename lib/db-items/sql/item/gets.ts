@@ -16,6 +16,17 @@ export const listItemsByUser = async (userId: number, workspaceId: number) => {
   )
   return rows.map(mapItem)
 }
+/** The user's item with this id, or null. */
+export const findItemByIdForUser = async (userId: number, itemId: number) => {
+  const { rows } = await getDb().query<ItemRow>(
+    `${itemSelect}
+    JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
+    WHERE n.id=$2 AND w.user_id=$1`,
+    [userId, itemId],
+  )
+  return rows[0] ? mapItem(rows[0]) : null
+}
+
 /** The user's item with this uid in this workspace, or null. */
 export const findItemByUidInWorkspace = async (
   userId: number,

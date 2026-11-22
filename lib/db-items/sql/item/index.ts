@@ -1,6 +1,12 @@
 export { createItemForUser, createOrFindItemForUser } from "./add"
-export { deleteItemForUser } from "./delete"
+export { deleteItemForUser, TRASH_RETENTION_DAYS } from "./delete"
 export {
+  listTrashedItemsByUser,
+  purgeTrashedItemsForUser,
+  restoreTrashedItemForUser,
+} from "./trash"
+export {
+  findItemByIdForUser,
   findItemByUidInWorkspace,
   findWorkspaceIdByItem,
   listItemsByUser,
