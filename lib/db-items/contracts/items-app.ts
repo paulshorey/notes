@@ -218,6 +218,19 @@ export interface UpdateItemRequest {
   userId: number
   itemId: number
   item: ItemInput
+  /**
+   * The `timeModified` of the item as the caller last saw it. When the stored item has
+   * changed since, the update is refused with `409` and an `ItemConflictResponse`.
+   * Without it the update is applied whatever the stored item holds.
+   */
+  expectedTimeModified?: string
+}
+
+/** The body of a `409` for an update that named a stale `expectedTimeModified`. */
+export interface ItemConflictResponse {
+  error: string
+  /** The item as it is stored now. */
+  item: ItemRecord
 }
 
 export interface DeleteItemRequest {

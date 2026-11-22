@@ -15,6 +15,7 @@ export const updateItemForUser = async (
   item: ItemInput,
   embeddings: ItemEmbeddingWriteInput | null,
   expectedDescription?: string | null,
+  expectedTimeModified: string | null = null,
 ) => {
   const client = await getDb().connect()
   try {
@@ -51,6 +52,12 @@ export const updateItemForUser = async (
     if (embeddings === null && expectedDescription !== undefined) {
       guard = `AND n.description IS NOT DISTINCT FROM $10::text`
       values.push(toNullableText(expectedDescription ?? ""))
+    }
+    // The caller edited the item as it was at this modification time. Stored times
+    // have microseconds and a caller's has milliseconds, so they are compared there.
+    if (expectedTimeModified !== null) {
+      values.push(expectedTimeModified)
+      guard += ` AND date_trunc('milliseconds', n.time_modified)=$${values.length}::timestamptz`
     }
     const result = await client.query(
       `UPDATE public.workspace_item_v1 n SET workspace_id=$3,status_id=$4,description=$5,time_due=$6,time_remind=$7,

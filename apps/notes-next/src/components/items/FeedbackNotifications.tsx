@@ -6,6 +6,7 @@ import styles from "./FeedbackNotifications.module.css"
 interface FeedbackNotificationsProps {
   saveConflictUid: string | null
   onDismissConflict: () => void
+  onKeepConflictingEdits: (uid: string) => void
   statusMessage: string | null
   errorMessage: string | null
   searchErrorMessage: string | null
@@ -17,6 +18,7 @@ interface FeedbackNotificationsProps {
 export function FeedbackNotifications({
   saveConflictUid,
   onDismissConflict,
+  onKeepConflictingEdits,
   statusMessage,
   errorMessage,
   searchErrorMessage,
@@ -42,7 +44,15 @@ export function FeedbackNotifications({
           <a href={`?item=${saveConflictUid}`} target="_blank" rel="noopener noreferrer">
             Open the current version in a new tab
           </a>{" "}
-          to compare your edits.
+          to compare your edits, or{" "}
+          <button
+            type="button"
+            className={styles.feedbackAction}
+            onClick={() => onKeepConflictingEdits(saveConflictUid)}
+          >
+            save your version over it
+          </button>
+          .
         </Notification>
       )}
       {statusMessage && (

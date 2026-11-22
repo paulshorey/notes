@@ -36,9 +36,9 @@ export interface OpenItemEntry {
    */
   uid: string
   /**
-   * `timeModified` of the record this entry was last loaded or saved from.
-   * Nothing reads it yet; it is the base revision a conflict check would need,
-   * and it is far cheaper to record now than to backfill later.
+   * `timeModified` of the record this entry was last loaded or saved from. An update
+   * names it, so the server can refuse to write over a change made elsewhere. null
+   * for a draft, and for an entry whose user chose to save over the stored item.
    */
   baseTimeModified: string | null
   /** Live in-memory draft. */

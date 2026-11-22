@@ -5,7 +5,7 @@ time block, or a journal entry, and so items can relate to each other. It builds
 [item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md). Each phase
 updates those documents when it ships. Built so far, from phase 1: the content
 and state split, with text as the only content; the trash; and view selection rules
-with the notes filter.
+with the notes filter; and the conflict check on update.
 
 The structure is the commitment. The detailed rules for what happens when a property is
 removed are added rule by rule as each type is built and tested.
@@ -73,7 +73,6 @@ New columns on `workspace_item_v1`:
 
 | Column           | Type        | Purpose                                                  |
 | ---------------- | ----------- | -------------------------------------------------------- |
-| `revision`       | integer     | Conflict check: an update names the revision it edited.  |
 | `author_user_id` | integer     | Who created the item; needed once a workspace is shared. |
 | `time_done`      | timestamptz | When the item was completed; null while open.            |
 | `position`       | text        | Fractional order key.                                    |
@@ -84,6 +83,10 @@ New columns on `workspace_item_v1`:
 | `entry_date`     | date        | The calendar day of a journal entry.                     |
 
 `workspace_status_v1` gains `is_done`, so a status can mean completed.
+
+An update names the `time_modified` of the version it edited, and is refused when the
+stored item has changed since ([item core](../db/item-core.md#concurrent-edits)). The
+modification time is the version, so no revision column is needed.
 
 Deleted items leave the item table for `user_item_trash_v1`, which keeps each as its
 backup fields ([item core](../db/item-core.md#trash)). No query over items has to
@@ -214,7 +217,7 @@ Each phase is one or more pull requests and leaves the app working.
      a status. Built.
    - Trash. Built.
    - Views declare their selection rule; add the notes filter. Built.
-   - `revision` conflict check.
+   - Conflict check on update. Built.
    - The shared access check and `author_user_id`.
    - `is_done`, `time_done`, and `position`.
 2. **Time blocks.** Columns, the content and status check constraints, the `time`

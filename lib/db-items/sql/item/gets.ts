@@ -58,8 +58,9 @@ export const selectItemEmbeddingStateById = async (itemId: number, userId: numbe
     description: string | null
     has_embedding: boolean
     embedding_model: string | null
+    time_modified: Date
   }>(
-    `SELECT n.workspace_id,n.description,(n.description_embedding IS NOT NULL) has_embedding,n.embedding_model
+    `SELECT n.workspace_id,n.description,(n.description_embedding IS NOT NULL) has_embedding,n.embedding_model,n.time_modified
      FROM public.workspace_item_v1 n JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
      WHERE n.id=$1 AND w.user_id=$2`,
     [itemId, userId],
