@@ -2,10 +2,10 @@
 
 This plan extends the item model so one record can be a note, a task, a checklist, a
 time block, or a journal entry, and so items can relate to each other. It builds on
-[item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md). Each phase
-updates those documents when it ships. Built so far, from phase 1: the content
-and state split, with text as the only content; the trash; and view selection rules
-with the notes filter; and the conflict check on update.
+[item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md), and each
+phase updates those documents when it ships.
+
+Phase 1 is built. Phase 2, time blocks, is next. [Phases](#phases) lists the order.
 
 The structure is the commitment. The detailed rules for what happens when a property is
 removed are added rule by rule as each type is built and tested.
@@ -18,8 +18,8 @@ removed are added rule by rule as each type is built and tested.
 - **Everything stays inside one workspace.** A parent, a link, a category, a status,
   and a tag always belong to the item's workspace, enforced by composite foreign keys.
 - **Declared once.** Every new column or table is declared in
-  `sql/item/stored-capabilities.ts`, so backup, restore, duplicate detection, and
-  account merge carry it and `db:verify` fails when one is missed.
+  `sql/item/stored-capabilities.ts`, so backup, restore, duplicate detection, account
+  merge, and the trash carry it, and `db:verify` fails when one is missed.
 
 ## Content and state
 
@@ -35,77 +35,76 @@ Two rules follow:
 - An item without content is not kept.
 - A status and a parent each require text.
 
-The item service enforces them. Check constraints join it in phase 2, with the second
-content type. While text is the only content, a constraint could only say that text is
-required, and the layers below the service stay free of that assumption so that a time
-block without text needs no change there.
-
 A date alone does not make an item. A location is a later state field that turns a
 dated item into an event.
 
-Production and development hold no item without text (checked 2026-11-21), so the
-constraints will need no data migration.
+Text is the only content today, and the item service enforces the first rule. Phase 2
+adds the second content type and, with it, check constraints for both rules. Until
+then a constraint could only say that text is required, and the layers below the
+service stay free of that assumption so that a time block without text needs no change
+there. Production and development hold no item without text (checked 2026-11-21), so
+the constraints need no data migration.
 
 ## Kinds and views
 
-| Kind      | An item is this kind when it holds | View                       |
-| --------- | ---------------------------------- | -------------------------- |
-| `note`    | text                               | notes                      |
-| `task`    | text and a status                  | tasks: board and list      |
-| `list`    | children                           | lists: nested checklist    |
-| `time`    | a time block                       | time: day timeline         |
-| `journal` | a journal date                     | journal: one entry per day |
+| Kind      | An item is this kind when it holds | View                       | Phase |
+| --------- | ---------------------------------- | -------------------------- | ----- |
+| `note`    | text                               | notes                      | Built |
+| `task`    | text and a status                  | tasks: board and list      | Built |
+| `time`    | a time block                       | time: day timeline         | 2     |
+| `journal` | a journal date                     | journal: one entry per day | 3     |
+| `list`    | children                           | lists: nested checklist    | 4     |
 
 Each kind has its own screen. A calendar view is a sixth screen that lists every item
 with any date; it is a view, not a kind.
 
-A view declares its own selection rule instead of being bound to exactly one kind. The
-notes view lists every item with text and has a filter per kind. Journal entries, time
-blocks, and tasks are shown by default; list lines are hidden by default. The choice is
-a user preference.
+A view declares which items it lists. The notes view lists every item with text and
+lets the user leave out the kinds that have a view of their own; the choice is a
+preference. Tasks, journal entries, and time blocks are shown unless hidden. List lines
+are hidden unless shown.
 
 Because every item holds content and each content type has a view that lists it, no
 item can become invisible.
 
 ## Storage
 
-New columns on `workspace_item_v1`:
+Columns each phase adds to `workspace_item_v1`:
 
-| Column           | Type        | Purpose                                                  |
-| ---------------- | ----------- | -------------------------------------------------------- |
-| `author_user_id` | integer     | Who created the item; needed once a workspace is shared. |
-| `time_done`      | timestamptz | When the item was completed; null while open.            |
-| `position`       | text        | Fractional order key.                                    |
-| `parent_id`      | integer     | The item that contains this one.                         |
-| `time_start`     | timestamptz | Start of a time block.                                   |
-| `time_end`       | timestamptz | End of a time block; null while a timer runs.            |
-| `time_planned`   | boolean     | A plan not yet confirmed, as opposed to a record.        |
-| `entry_date`     | date        | The calendar day of a journal entry.                     |
+| Column         | Type        | Purpose                                           | Phase |
+| -------------- | ----------- | ------------------------------------------------- | ----- |
+| `time_start`   | timestamptz | Start of a time block.                            | 2     |
+| `time_end`     | timestamptz | End of a time block; null while a timer runs.     | 2     |
+| `time_planned` | boolean     | A plan not yet confirmed, as opposed to a record. | 2     |
+| `entry_date`   | date        | The calendar day of a journal entry.              | 3     |
+| `parent_id`    | integer     | The item that contains this one.                  | 4     |
+| `position`     | text        | Fractional order key.                             | 4     |
+| `time_done`    | timestamptz | When the item was completed; null while open.     | 4     |
 
-`workspace_status_v1` gains `is_done`, so a status can mean completed.
-
-An update names the `time_modified` of the version it edited, and is refused when the
-stored item has changed since ([item core](../db/item-core.md#concurrent-edits)). The
-modification time is the version, so no revision column is needed.
-
-Deleted items leave the item table for `user_item_trash_v1`, which keeps each as its
-backup fields ([item core](../db/item-core.md#trash)). No query over items has to
-exclude trashed rows, a unique rule such as one journal entry per day needs no
-exception for them, and a trashed list is stored as its lines together.
-
-New table `item_link_v1`: `from_item_id`, `to_item_id`, `workspace_id`, `relation`,
-`position`. Both item keys are composite with `workspace_id`.
+Phase 4 also adds `is_done` to `workspace_status_v1`, so a status can mean completed.
+Phase 5 adds the table `item_link_v1`: `from_item_id`, `to_item_id`, `workspace_id`,
+`relation`, `position`. Both item keys are composite with `workspace_id`.
 
 Scalar fields that an item holds once stay as columns. Anything an item holds many of
 gets its own table keyed by item id. There is no generic JSON content column, because it
 would bypass constraints, typed backup fields, and the storage audit.
 
+Two parts of phase 1 shape the later phases:
+
+- **Trash.** Deleted items leave the item table for `user_item_trash_v1`, which keeps
+  each as its backup fields ([item core](../db/item-core.md#trash)). No query over
+  items has to exclude trashed rows, a unique rule such as one journal entry per day
+  needs no exception for them, and a trashed list is stored as its lines together.
+- **Versions.** An update names the `time_modified` of the version it edited and is
+  refused when the stored item has changed since
+  ([item core](../db/item-core.md#concurrent-edits)). The modification time is the
+  version, so there is no revision column.
+
 ## Relations
 
-| Relation    | Meaning                | Shape                      | Stored as               |
-| ----------- | ---------------------- | -------------------------- | ----------------------- |
-| Containment | "is part of"           | Tree, one parent, ordered  | `parent_id`, `position` |
-| Reference   | "is about", "mentions" | Many to many, no ownership | `item_link_v1`          |
+| Relation    | Meaning                | Shape                      | Stored as               | Phase |
+| ----------- | ---------------------- | -------------------------- | ----------------------- | ----- |
+| Containment | "is part of"           | Tree, one parent, ordered  | `parent_id`, `position` | 4     |
+| Reference   | "is about", "mentions" | Many to many, no ownership | `item_link_v1`          | 5     |
 
 Containment is for checklist lines, subtasks, and tasks in a project. Trashing a parent
 trashes its children. A parent cannot be placed inside its own descendant: the service
@@ -130,27 +129,16 @@ sorts by it, so reordering in one view reorders in the others.
 - Giving a line a status promotes it: it appears on the task board, and the checklist
   shows its status.
 - A task is done when `time_done` is set. Moving it to a status with `is_done` stamps
-  `time_done`; moving it to a status without `is_done` clears it. Ticking its checkbox
-  stamps `time_done` and, when the workspace has a done status, moves the task to the
-  first one. Unticking clears `time_done` and, if the task is in a done status, moves it
-  to the first status without `is_done`. Board and checklist both read `time_done`, so
-  they agree even when no done status exists. `time_done` is stamped only when it is
-  empty, so moving a done task between done statuses keeps its completion time.
+  `time_done`; moving it to a status without `is_done` clears it.
+- Ticking a task's checkbox stamps `time_done` and, when the workspace has a done
+  status, moves the task to the first one. Unticking clears `time_done` and, if the
+  task is in a done status, moves it to the first status without `is_done`.
+- Board and checklist both read `time_done`, so they agree even when no done status
+  exists.
+- `time_done` is stamped only when it is empty, so moving a done task between done
+  statuses keeps its completion time.
 
 ## The new types
-
-### Lists
-
-A list is any item with children, so a task with subtasks renders as a checklist too.
-A line copies its list's category when created and can be refiled freely. Deleting a
-list deletes its lines. Clearing a line's text deletes the line.
-
-Blank lines stay as local drafts until they have text. Lines are saved through a batch
-route that creates, updates, and reorders several items in one transaction; each create
-names its uid, so a retry stores nothing twice.
-
-A list is embedded as one document: its own text followed by its lines. Lines have no
-embedding of their own. A search hit opens the list at the matching line.
 
 ### Time blocks
 
@@ -165,74 +153,85 @@ filed like any item. A check constraint keeps the end after the start.
 - Records may overlap and are shown side by side.
 - A block without an end is a running timer. Starting a timer stops the running one.
 
-A time block points at a task through a reference link, so trashing the task keeps the
-logged time.
+From phase 5 a time block can point at a task through a reference link, so trashing
+the task keeps the logged time.
 
 ### Journal
 
-A journal entry is an item with an `entry_date`, unique per workspace, author, and day
-day. It needs no text. A new entry takes today's date, and
-the date can be edited.
+A journal entry is an item with an `entry_date`, and a workspace has one entry per day.
+It needs no text. A new entry takes today's date, and the date can be edited.
 
 Changing a date to a day that already has an entry asks whether to combine the two.
 Combining appends the text, unions the tags, keeps the target day's filing, moves the
 links, and deletes the emptied entry; it is permanent and the prompt says so. Declining
-rejects the date change. Restoring a trashed entry onto a day that has gained a new entry
-asks the same question; declining leaves it in the trash. Account merge and backup restore combine same-day entries
-without asking.
+rejects the date change. Restoring a trashed entry onto a day that has gained a new
+entry asks the same question; declining leaves it in the trash. Account merge and
+backup restore combine same-day entries without asking.
 
-A day shows two sets of items: those that fall on it by their own dates (time blocks,
-items due or done that day), which are computed and never stored, and those attached to
-the entry by a reference link.
+A day shows the items that fall on it by their own dates: time blocks, and items due or
+done that day. These are computed and never stored. From phase 5 it also shows the
+items attached to the entry by a reference link.
 
 Day boundaries use the user's time zone, stored as a preference. Time blocks are
 instants; a journal date is a plain date.
 
-## Backup
+### Lists
 
-A backup is written in two sections: items, each with its uid, then relations by uid
-(parents and links). Restore writes the items first and the relations second, mapping
-any uid it had to reassign. Duplicate detection judges a tree at its root, so a line is
-a duplicate only when its whole list is.
+A list is any item with children, so a task with subtasks renders as a checklist too.
+A line copies its list's category when created and can be refiled freely. Deleting a
+list deletes its lines. Clearing a line's text deletes the line.
+
+Blank lines stay as local drafts until they have text. Lines are saved through a batch
+route that creates, updates, and reorders several items in one transaction; each create
+names its uid, so a retry stores nothing twice.
+
+A list is embedded as one document: its own text followed by its lines. Lines have no
+embedding of their own. A search hit opens the list at the matching line.
+
+A backup is written in two sections once items have parents: items, each with its uid,
+then relations by uid, which are parents and, from phase 5, links. Restore writes the
+items first and the relations second, mapping any uid it had to reassign. Duplicate
+detection judges a tree at its root, so a line is a duplicate only when its whole list
+is.
 
 ## Sharing
 
-Sharing is per item and per taxonomy level, and content can be published by URL. None of
-it is built in this plan, and two structural steps keep it open:
+Sharing is per item and per taxonomy level, and content can be published by URL. It is
+designed after this plan, as one piece, because what it needs depends on that
+granularity:
 
-- Every query authorizes through one shared access check instead of repeating the join
-  to the workspace's owner.
-- Every item records its author.
-
-The later design adds grants (a user, a target that is a workspace, category,
-subcategory, or item, and a role), with an item inheriting from its parent and its
-filing, and a publish flag that serves an item by its uid.
+- **Access.** Every query now checks that the workspace belongs to the acting user.
+  Sharing replaces that with grants: a user, a target that is a workspace, category,
+  subcategory, or item, and a role, with an item inheriting from its parent and its
+  filing.
+- **Authors.** An item records who created it once a workspace can hold more than one
+  person's items. One journal entry per day then becomes one per author per day, and
+  time blocks belong to a person.
+- **Publishing.** A publish flag serves an item by its uid.
 
 ## Phases
 
 Each phase is one or more pull requests and leaves the app working.
 
-1. **Foundations.**
-   - Split the capability registries into content and state; a task requires text and
-     a status. Built.
-   - Trash. Built.
-   - Views declare their selection rule; add the notes filter. Built.
-   - Conflict check on update. Built.
-   - The shared access check and `author_user_id`.
-2. **Time blocks.** Columns, the content and status check constraints, the `time`
-   kind, the day timeline, the timer.
+1. **Foundations.** Built.
+   - Capabilities are content or state, and a task is text with a status.
+   - Deleted items go to the trash.
+   - Each view declares its selection, and the notes view has its filter.
+   - An update is refused when it would write over a change made elsewhere.
+2. **Time blocks.** The three time columns, the content and status check constraints,
+   the `time` kind, the day timeline, the timer.
 3. **Journal.** `entry_date`, the `journal` kind, the journal view, combining days.
-4. **Lists.** `parent_id`, `position`, `time_done`, done statuses (`is_done`), the
-   batch route, the checklist view, subtasks, list embeddings, two-section backups.
+4. **Lists.** `parent_id`, `position`, `time_done`, done statuses, the batch route,
+   the checklist view, subtasks, list embeddings, two-section backups.
 5. **Links.** `item_link_v1`, time block to task, items attached to a journal day.
 6. **Calendar.** One view of every dated item.
 7. **Finish the task view** with subtasks, manual card order, and done columns.
 
 ## Deferred
 
+- Sharing, as described above.
 - Recurring items. Each occurrence will be a real item created when the previous one
   completes.
 - Delivering reminders. `time_remind` is stored and nothing sends it.
-- Sharing screens, grants, and publishing.
 - Location, events, files, bookmarks, contacts, and money.
 - Keeping a list's lines when the list is deleted.
