@@ -1,6 +1,5 @@
 "use client"
 
-import { isKind } from "@lib/db-items/contracts/item-kinds"
 import { type ItemRecord, type SearchResponse } from "@lib/db-items"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
 import { useCallback, useEffect, useMemo } from "react"
@@ -30,6 +29,7 @@ export function useItemLists(
     loadCategories,
     loadItems,
     loadTags,
+    notesViewHiddenKinds,
     remapEntriesAfterCategoryChange,
     runSearch,
     searchMode,
@@ -119,25 +119,27 @@ export function useItemLists(
     [selectedTagId],
   )
 
+  const selectsItem = useCallback(
+    (item: ItemRecord) => activeView.selects(item, { notesViewHiddenKinds }),
+    [activeView, notesViewHiddenKinds],
+  )
+
   const searchItems = useMemo<DisplayItemItem[]>(() => {
     if (!searchMode) {
       return []
     }
 
     return [...searchResults]
-      .filter((result) => isKind(result.item, activeView.kind) && matchesSelectedTag(result.item))
+      .filter((result) => selectsItem(result.item) && matchesSelectedTag(result.item))
       .sort((left, right) => right.similarity - left.similarity)
       .map((result) => ({
         item: result.item,
         relevance: result.similarity,
       }))
-  }, [activeView.kind, matchesSelectedTag, searchMode, searchResults])
+  }, [matchesSelectedTag, searchMode, searchResults, selectsItem])
 
-  // The workspace holds every item; a view lists the ones of its kind.
-  const viewItems = useMemo(
-    () => items.filter((item) => isKind(item, activeView.kind)),
-    [activeView.kind, items],
-  )
+  // The workspace holds every item; a view lists the ones it selects.
+  const viewItems = useMemo(() => items.filter(selectsItem), [items, selectsItem])
 
   const allItemItems = useMemo<DisplayItemItem[]>(
     () =>

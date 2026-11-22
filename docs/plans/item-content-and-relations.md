@@ -4,7 +4,8 @@ This plan extends the item model so one record can be a note, a task, a checklis
 time block, or a journal entry, and so items can relate to each other. It builds on
 [item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md). Each phase
 updates those documents when it ships. Built so far, from phase 1: the content
-and state split, with text as the only content, and the trash.
+and state split, with text as the only content; the trash; and view selection rules
+with the notes filter.
 
 The structure is the commitment. The detailed rules for what happens when a property is
 removed are added rule by rule as each type is built and tested.
@@ -212,7 +213,7 @@ Each phase is one or more pull requests and leaves the app working.
    - Split the capability registries into content and state; a task requires text and
      a status. Built.
    - Trash. Built.
-   - Views declare their selection rule; add the notes filter.
+   - Views declare their selection rule; add the notes filter. Built.
    - `revision` conflict check.
    - The shared access check and `author_user_id`.
    - `is_done`, `time_done`, and `position`.

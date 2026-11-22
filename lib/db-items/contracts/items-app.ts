@@ -11,6 +11,8 @@ export interface TextClientPreferences {
   maxOpenNotes?: number
   /** Last workspace used by the web app. The server always re-authorizes it. */
   currentWorkspaceId?: number
+  /** Kinds the user chose to leave out of the notes view, which otherwise lists them. */
+  notesViewHiddenKinds?: string[]
 }
 
 export interface UserPreferences {

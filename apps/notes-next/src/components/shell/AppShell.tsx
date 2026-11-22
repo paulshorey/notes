@@ -66,6 +66,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     handleMoveItemTag,
     handleOpenItemFromResults,
     handlePasteUrlAsMarkdownChange,
+    handleNotesViewKindVisibilityChange,
+    notesViewHiddenKinds,
     handleResizePointerCancel,
     handleResizePointerDown,
     handleResizePointerMove,
@@ -184,6 +186,8 @@ export function AppShell({ children }: { children: ReactNode }) {
               resultsListVisible={resultsListVisible}
               pasteUrlAsMarkdown={pasteUrlAsMarkdown}
               onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
+              notesViewHiddenKinds={notesViewHiddenKinds}
+              onNotesViewKindVisibilityChange={handleNotesViewKindVisibilityChange}
               onAddItem={handleCancelEdit}
               onLogout={handleLogout}
               maxOpenItems={maxOpenItems}

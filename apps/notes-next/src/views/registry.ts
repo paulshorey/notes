@@ -1,17 +1,33 @@
 import { hasText } from "@lib/db-items/contracts/item-capabilities"
-import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
+import type { ItemRecord } from "@lib/db-items"
+import { isKind, type ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { draftHoldsContent, isBlankItemDraft, type ItemDraft } from "@/capabilities/draftParts"
 
+/** What a view's selection depends on besides the item itself. */
+export interface ViewSelectionContext {
+  /** Kinds the user chose to leave out of the notes view. */
+  notesViewHiddenKinds: readonly ItemKindKey[]
+}
+
 /**
- * A view is a screen over the items of one kind. The same item appears in every view
- * whose kind it is, and opening it anywhere opens the same item.
+ * A view is a screen over some of the workspace's items. It is named after a kind and
+ * decides for itself which items it lists (`selects`), so the same item appears in
+ * every view that selects it, and opening it anywhere opens the same item.
  *
  * Add a view here and give its route a page under `app/(workspace)/`. The shell reads
- * this list for navigation and uses the active view's kind to decide which of the
- * workspace's items that screen lists.
+ * this list for navigation and asks the active view which of the workspace's items
+ * that screen lists.
  */
 export interface ItemView {
+  /** The kind the view is named after. It identifies the view; `selects` picks its items. */
   kind: ItemKindKey
+  /** Whether this view lists the item. */
+  selects: (item: ItemRecord, context: ViewSelectionContext) => boolean
+  /**
+   * Kinds the view lists that the user may leave out of it, because each has a view of
+   * its own. They are listed unless hidden.
+   */
+  optionalKinds: readonly ItemKindKey[]
   /** Path of the view's page. */
   route: string
   /**
@@ -47,6 +63,11 @@ export const DEFAULT_VIEW_KIND: ItemKindKey = "note"
 export const ITEM_VIEWS: readonly ItemView[] = [
   {
     kind: "note",
+    // Everything with text is a note here, whatever else it is, except the kinds the
+    // user left out.
+    selects: (item, { notesViewHiddenKinds }) =>
+      isKind(item, "note") && !notesViewHiddenKinds.some((kind) => isKind(item, kind)),
+    optionalKinds: ["task"],
     route: "/",
     // A note starts once the draft has text.
     canCreate: (draft) => hasText(draft.description),
@@ -56,6 +77,8 @@ export const ITEM_VIEWS: readonly ItemView[] = [
   },
   {
     kind: "task",
+    selects: (item) => isKind(item, "task"),
+    optionalKinds: [],
     route: "/tasks",
     // A task is text with a status, so it starts once the draft has text.
     canCreate: (draft) => hasText(draft.description),
