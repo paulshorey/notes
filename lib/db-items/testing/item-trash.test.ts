@@ -98,6 +98,7 @@ describe("the trash keeps deleted items (DB)", { skip: !testDbUrl }, () => {
         tags: ["urgent"],
         timeStart: null,
         timeEnd: null,
+        entryDate: null,
         timeDue: due,
         timeRemind: null,
       },

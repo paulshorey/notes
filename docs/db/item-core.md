@@ -32,6 +32,7 @@ hold beyond identity, workspace, and taxonomy. Each capability has a role.
 | ---------- | ------- | ------------------------------ |
 | `text`     | content | `description`                  |
 | `time`     | content | `time_start`, `time_end`       |
+| `day`      | content | `entry_date`                   |
 | `schedule` | state   | `time_due`, `time_remind`      |
 | `status`   | state   | `status_id` → workspace status |
 
@@ -105,6 +106,31 @@ it.
 A time block is content, so an item can be one without text. It is then of the `time`
 kind only, takes no status, and has no embedding.
 
+## Journal entries
+
+A journal entry is an item with an `entry_date`: a calendar date with no time or zone,
+read and written as `YYYY-MM-DD`. It is content, so an entry needs no text. A workspace
+has one entry per day, kept by the unique index `workspace_item_v1_journal_day_key`.
+
+Like the time block, `entryDate` is optional in a write request: leaving it out says
+nothing about the day, and `null` removes it. A write that would give a workspace a
+second entry for a day is refused with `409` (`JournalDayTakenError`). What happens
+next is the caller's choice, because combining two days is permanent:
+
+| Situation                                    | Outcome                                                           |
+| -------------------------------------------- | ----------------------------------------------------------------- |
+| An item is given a day another entry has     | Refused. `POST /api/items/journal` combines it into that entry.   |
+| A trashed entry is restored onto a taken day | Refused and left in the trash, unless `combineJournalDay` is set. |
+| An entry moves to a workspace with its day   | Refused.                                                          |
+| Account merge or backup restore meets a day  | Combined without asking, since no one can be asked.               |
+
+Combining (`sql/item/journal.ts`) appends the text after the remaining entry's own,
+adds the tags it lacks, and keeps its filing and everything else it holds. The entry
+combined into it is deleted without going to the trash, because its text now lives in
+the other. The remaining entry's embedding is cleared and written again.
+
+A backup file that names one day twice in a workspace is refused.
+
 ## Concurrent edits
 
 An update may name the version it edited: `expectedTimeModified`, the `timeModified` of
@@ -157,11 +183,12 @@ every time and never stored, so it cannot disagree with the content. An item can
 several kinds at once, and it stops being a kind when the content that made it one is
 removed.
 
-| Kind   | An item is this kind when it holds |
-| ------ | ---------------------------------- |
-| `note` | text                               |
-| `task` | text and a status                  |
-| `time` | a time block                       |
+| Kind      | An item is this kind when it holds |
+| --------- | ---------------------------------- |
+| `note`    | text                               |
+| `task`    | text and a status                  |
+| `time`    | a time block                       |
+| `journal` | a journal day                      |
 
 `itemKinds(item)` lists an item's kinds and `isKind(item, key)` tests one. `notes-next`
 keeps every item of the workspace, and each view declares which of them it lists in
@@ -218,16 +245,17 @@ Compatibility never makes a client-supplied user ID authoritative.
 - The single existing `user_note_v1_id_seq` keeps its name temporarily because
   old account-merge SQL calls it literally. New code discovers the owning
   sequence with `pg_get_serial_sequence`; no competing allocator is created.
-- Backup version 4 nests subcategories, stores one category per item, and carries time
-  blocks. Import accepts version 3, which has no time blocks, version 2's category
+- Backup version 5 nests subcategories, stores one category per item, and carries time
+  blocks and journal days. Import accepts version 4, which has no journal days, version
+  3, which has no time blocks either, version 2's category
   lists, and version 1's `workspaces[].notes`, with the reserved-category conversion.
   An item an earlier version stored that holds no content is left out, and a status on
-  an item without text is dropped. Every client downloads version 4.
+  an item without text is dropped. Every client downloads version 5.
 - Open-item storage uses version 4. Its reader upgrades note-named and category-list
   snapshots, including serialized IDs and clean/dirty signatures. Authored text and
   navigation keys are preserved. Legacy dirty snapshots are not removed if the upgraded
   snapshot cannot be written.
-- The browser's copy of server data uses version 6 and requires a uid on every item.
+- The browser's copy of server data uses version 7 and requires a uid on every item.
   It is never upgraded: a snapshot in another shape is ignored, and the next load
   fetches a fresh one.
 - Existing encrypted cookies with `notesUserId` remain valid. Sessions expose

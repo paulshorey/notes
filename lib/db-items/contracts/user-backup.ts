@@ -9,15 +9,19 @@ import type {
 } from "./items-app"
 import { UNCATEGORIZED_LABEL } from "./category-name"
 import { hasItemContent, hasText } from "./item-capabilities"
+import { parseEntryDate } from "./item-journal"
 import { normalizeTimeBlock, TimeBlockOrderError } from "./item-time"
 import { isPublicUid } from "./public-uid"
 
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
-export const USER_BACKUP_VERSION = 4
+export const USER_BACKUP_VERSION = 5
 /** Versions 1 and 2 list several categories per item and have no subcategories. */
 const FLAT_CATEGORY_VERSIONS = [1, 2]
-/** Version 3 has one category per item and no time blocks, which read as absent. */
-const READABLE_VERSIONS = [...FLAT_CATEGORY_VERSIONS, 3, USER_BACKUP_VERSION]
+/**
+ * Version 3 has one category per item and no time blocks, and version 4 has no journal
+ * days. What a version lacks reads as absent.
+ */
+const READABLE_VERSIONS = [...FLAT_CATEGORY_VERSIONS, 3, 4, USER_BACKUP_VERSION]
 export const USER_BACKUP_MAX_BYTES = 50 * 1024 * 1024
 const MAX_RECORDS = 100_000
 
@@ -60,6 +64,14 @@ const timestamp = (value: unknown): string => {
   return new Date(value).toISOString()
 }
 const nullableTimestamp = (value: unknown) => (value === null ? null : timestamp(value))
+/** An item's journal day. A file from before journal days names none. */
+const journalDay = (value: unknown) => {
+  try {
+    return parseEntryDate(value)
+  } catch {
+    return fail("Backup contains an invalid journal day.")
+  }
+}
 /** An item's time block. A file from before time blocks names none. */
 const timeBlock = (item: Record<string, unknown>) => {
   const optional = (value: unknown) => (value == null ? null : timestamp(value))
@@ -114,16 +126,24 @@ const preferences = (value: unknown, depth = 0): unknown => {
 }
 
 /**
- * Files written under earlier rules (versions 1 to 3) can hold an item with only a
- * status or a date, and a status on an item without text. Neither can be stored, so
- * the first is left out and the second loses its status. A version 4 file follows the
- * current rules, so an item like that is invalid and the file is refused.
+ * Files of versions 1 to 3 were written under earlier rules and can hold an item with
+ * only a status or a date, and a status on an item without text. Neither can be
+ * stored, so the first is left out and the second loses its status. A later file
+ * follows the current rules, so an item like that is invalid and the file is refused.
  */
 const holdsContent = (item: BackupItem) => hasItemContent({ ...item, statusId: null })
 const hasUnsupportedStatus = (item: BackupItem) =>
   item.status !== null && !hasText(item.description)
 const withoutUnsupportedState = (item: BackupItem): BackupItem =>
   hasUnsupportedStatus(item) ? { ...item, status: null } : item
+
+/** A workspace has one journal entry per day, so a file that names a day twice is refused. */
+const oneEntryPerDay = (items: BackupItem[]): BackupItem[] => {
+  const days = items.flatMap((item) => (item.entryDate ? [item.entryDate] : []))
+  if (new Set(days).size !== days.length)
+    fail("Backup contains two journal entries for one day in a workspace.")
+  return items
+}
 
 /** Validate the entire file before opening a write transaction. Never trust ids from a file. */
 export const parseUserBackup = (value: unknown): UserBackup => {
@@ -216,6 +236,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
           status,
           tags: refs(n.tags, tagLabels),
           ...timeBlock(n),
+          entryDate: journalDay(n.entryDate),
           timeDue: nullableTimestamp(n.timeDue),
           timeRemind: nullableTimestamp(n.timeRemind),
           timeCreated: timestamp(n.timeCreated),
@@ -228,16 +249,15 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         categories: categories.filter((category) => category.label !== UNCATEGORIZED_LABEL),
         statuses,
         tags,
-        items:
-          b.version === USER_BACKUP_VERSION
+        items: oneEntryPerDay(
+          (b.version as number) >= 4
             ? items.map((item) =>
                 holdsContent(item) && !hasUnsupportedStatus(item)
                   ? item
-                  : fail(
-                      "An item holds neither text nor a time block, or has a status without text.",
-                    ),
+                  : fail("An item holds no content, or has a status without text."),
               )
             : items.filter(holdsContent).map(withoutUnsupportedState),
+        ),
       }
     }),
     (w) => w.label,

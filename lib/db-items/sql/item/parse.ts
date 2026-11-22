@@ -1,3 +1,4 @@
+import { parseEntryDate } from "../../contracts/item-journal"
 import { normalizeTimeBlock } from "../../contracts/item-time"
 import { parseOptionalPublicUid } from "../../contracts/public-uid"
 import type { ItemInput } from "./types"
@@ -63,6 +64,7 @@ export const parseItemInput = (value: unknown): ItemInput => {
       "timeStart"
     >),
     ...(optional("timeEnd", (raw) => timestamp(raw, "End time")) as Pick<ItemInput, "timeEnd">),
+    ...(optional("entryDate", parseEntryDate) as Pick<ItemInput, "entryDate">),
     timeDue: timestamp(record.timeDue, "Due time"),
     timeRemind: timestamp(record.timeRemind, "Reminder time"),
   })

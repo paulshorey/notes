@@ -614,6 +614,7 @@ export function useTaxonomyActions(
             // Named so an item that is a time block without text still holds content.
             timeStart: item.timeStart,
             timeEnd: item.timeEnd,
+            entryDate: item.entryDate,
             timeDue: item.timeDue,
             timeRemind: item.timeRemind,
           },

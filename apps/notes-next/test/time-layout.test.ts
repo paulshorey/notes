@@ -38,6 +38,7 @@ const block = (
   description: null,
   timeStart: start.toISOString(),
   timeEnd: end.toISOString(),
+  entryDate: null,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
@@ -235,7 +236,7 @@ test("the time view starts an item from a time block and lists time blocks only"
   assert.equal(time.selects({ ...withText, timeStart: null, timeEnd: null }, context), false)
   // A block with text is also a note, unless time blocks are left out of notes.
   const notes = viewForKind("note")
-  assert.deepEqual(notes.optionalKinds, ["task", "time"])
+  assert.deepEqual(notes.optionalKinds, ["task", "time", "journal"])
   assert.equal(notes.selects(withText, context), true)
   assert.equal(notes.selects(withText, { notesViewHiddenKinds: ["time"] }), false)
   assert.equal(notes.selects(block(2, at(25, 9), at(25, 10)), context), false)

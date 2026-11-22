@@ -308,6 +308,9 @@ export const mergeAnonymousUserIntoWithClient = async (
     }
     const moved = await moveWorkspaceItems(client, source.id, destinationId, {
       excludeItemIds: skippedIds,
+      // Signing in and restoring a backup cannot stop to ask, so two entries for one
+      // day become one.
+      combineJournalDays: true,
     })
     result.itemsImported += moved.length
     result.itemsSkipped += skippedIds.length

@@ -47,9 +47,9 @@ export const createOrFindItemForUser = async (
       `INSERT INTO public.workspace_item_v1
        (workspace_id,category_id,subcategory_id,status_id,description,time_due,time_remind,
         description_embedding,embedding_model,embedding_updated_at,uid,
-        time_start,time_end)
+        time_start,time_end,entry_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8::vector,$9,$10,COALESCE($11::uuid,gen_random_uuid()),
-        $12,$13)
+        $12,$13,$14)
        ON CONFLICT (uid) DO NOTHING RETURNING id`,
       [
         item.workspaceId,
@@ -65,6 +65,7 @@ export const createOrFindItemForUser = async (
         item.uid ?? null,
         item.timeStart ?? null,
         item.timeEnd ?? null,
+        item.entryDate ?? null,
       ],
     )
     const inserted = rows[0]?.id

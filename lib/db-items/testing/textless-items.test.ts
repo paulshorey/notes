@@ -296,10 +296,7 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     const stamp = { timeCreated: due, timeModified: due }
     const base = { category: null, subcategory: null, tags: [], timeRemind: null, ...stamp }
     backup.workspaces[0]!.items.push({ ...base, description: null, status: null, timeDue: due })
-    assert.throws(
-      () => parseUserBackup(JSON.parse(JSON.stringify(backup))),
-      /neither text nor a time block/,
-    )
+    assert.throws(() => parseUserBackup(JSON.parse(JSON.stringify(backup))), /holds no content/)
     assert.doesNotThrow(() =>
       parseUserBackup({ ...JSON.parse(JSON.stringify(backup)), version: 3 }),
     )

@@ -5,7 +5,8 @@ time block, or a journal entry, and so items can relate to each other. It builds
 [item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md), and each
 phase updates those documents when it ships.
 
-Phases 1 and 2 are built. Phase 3, the journal, is next. [Phases](#phases) lists the
+Phases 1 and 2 are built, and so is the storage half of phase 3: journal entries can
+be saved, combined, backed up, and restored. The journal view is next. [Phases](#phases) lists the
 order.
 
 The structure is the commitment. The detailed rules for what happens when a property is
@@ -172,7 +173,8 @@ Combining appends the text, unions the tags, keeps the target day's filing, move
 links, and deletes the emptied entry; it is permanent and the prompt says so. Declining
 rejects the date change. Restoring a trashed entry onto a day that has gained a new
 entry asks the same question; declining leaves it in the trash. Account merge and
-backup restore combine same-day entries without asking.
+backup restore combine same-day entries without asking. Moving an entry to a workspace
+that already has its day is refused.
 
 A day shows the items that fall on it by their own dates: time blocks, and items due or
 done that day. These are computed and never stored. From phase 5 it also shows the
@@ -228,7 +230,9 @@ Each phase is one or more pull requests and leaves the app working.
    - The two time columns, the content and status check constraints, and the `time`
      kind. Built.
    - The time view: the form, and the hours, day, week, and month ranges. Built.
-3. **Journal.** `entry_date`, the `journal` kind, the journal view, combining days.
+3. **Journal.**
+   - `entry_date`, the `journal` kind, one entry per day, and combining days. Built.
+   - The journal view.
 4. **Lists.** `parent_id`, `position`, `time_done`, done statuses, the batch route,
    the checklist view, subtasks, list embeddings, two-section backups.
 5. **Links.** `item_link_v1`, time block to task, items attached to a journal day.

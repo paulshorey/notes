@@ -14,6 +14,7 @@ const entry = (values: Partial<TrashedItemRecord> = {}): TrashedItemRecord => ({
   tags: [],
   timeStart: null,
   timeEnd: null,
+  entryDate: null,
   timeDue: null,
   timeRemind: null,
   ...values,

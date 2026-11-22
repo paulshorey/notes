@@ -161,7 +161,8 @@ CREATE TABLE public.workspace_item_v1 (
     uid uuid DEFAULT gen_random_uuid() NOT NULL,
     time_start timestamp with time zone,
     time_end timestamp with time zone,
-    CONSTRAINT workspace_item_v1_content_check CHECK (((COALESCE(description, ''::text) ~ '[^\t\n\v\f\r    -     　﻿]'::text) OR (time_start IS NOT NULL))),
+    entry_date date,
+    CONSTRAINT workspace_item_v1_content_check CHECK (((COALESCE(description, ''::text) ~ '[^\t\n\v\f\r    -     　﻿]'::text) OR (time_start IS NOT NULL) OR (entry_date IS NOT NULL))),
     CONSTRAINT workspace_item_v1_status_requires_text_check CHECK (((status_id IS NULL) OR (COALESCE(description, ''::text) ~ '[^\t\n\v\f\r    -     　﻿]'::text))),
     CONSTRAINT workspace_item_v1_subcategory_requires_category_check CHECK (((subcategory_id IS NULL) OR (category_id IS NOT NULL))),
     CONSTRAINT workspace_item_v1_time_block_complete_check CHECK (((time_start IS NULL) = (time_end IS NULL))),
@@ -805,6 +806,13 @@ CREATE INDEX workspace_item_v1_category_id_idx ON public.workspace_item_v1 USING
 --
 
 CREATE INDEX workspace_item_v1_description_embedding_hnsw_idx ON public.workspace_item_v1 USING hnsw (description_embedding public.vector_cosine_ops);
+
+
+--
+-- Name: workspace_item_v1_journal_day_key; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX workspace_item_v1_journal_day_key ON public.workspace_item_v1 USING btree (workspace_id, entry_date) WHERE (entry_date IS NOT NULL);
 
 
 --

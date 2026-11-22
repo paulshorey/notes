@@ -308,6 +308,11 @@
       "column": "time_end",
       "nullable": true,
       "type": "Date"
+    },
+    {
+      "column": "entry_date",
+      "nullable": true,
+      "type": "Date"
     }
   ],
   "workspace_status_v1": [

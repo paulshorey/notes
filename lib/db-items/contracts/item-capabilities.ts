@@ -8,13 +8,14 @@ import type { ItemInput, ItemRecord } from "./items-app"
  * alone is not an item. Add a capability here once; saving and every other consumer of
  * this registry pick it up. `item-kinds.ts` names the combinations ("note", "task", ...).
  */
-export type ItemCapabilityKey = "text" | "time" | "schedule" | "status"
+export type ItemCapabilityKey = "text" | "time" | "day" | "schedule" | "status"
 
 export type ItemCapabilityRole = "content" | "state"
 
 /** The fields capabilities read. Satisfied by a stored item and by a write request. */
 export type ItemCapabilitySource = Pick<ItemRecord, "description" | "timeDue" | "timeRemind"> & {
   timeStart?: string | null
+  entryDate?: string | null
 } & (Pick<ItemRecord, "status"> | Pick<ItemInput, "statusId">)
 
 export interface ItemCapability {
@@ -32,6 +33,8 @@ export const ITEM_CAPABILITIES: readonly ItemCapability[] = [
   { key: "text", role: "content", isPresent: (item) => hasText(item.description) },
   // A time block: a start and an end, which are set together.
   { key: "time", role: "content", isPresent: (item) => item.timeStart != null },
+  // The calendar day of a journal entry.
+  { key: "day", role: "content", isPresent: (item) => item.entryDate != null },
   {
     key: "schedule",
     role: "state",

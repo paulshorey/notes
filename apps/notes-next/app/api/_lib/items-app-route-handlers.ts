@@ -19,6 +19,7 @@ import {
   parseDeleteTagRequest,
   parseEmbeddingMaintenanceRequest,
   parseCreateItemRequest,
+  parseCombineJournalDayRequest,
   parseDeleteItemRequest,
   ItemChangedError,
   parsePurgeTrashRequest,
@@ -351,6 +352,30 @@ export const createTrashRouteHandlers = (
       )
     } catch (error) {
       return toErrorResponse(error)
+    }
+  },
+})
+
+/**
+ * POST gives an item a journal day that another entry already has, by combining it
+ * into that entry. The answer is the entry that now holds both.
+ */
+export const createJournalRouteHandlers = (
+  service: ItemsAppService = itemsAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
+  POST: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      const result = await service.combineJournalDayForItemsApp(
+        parseCombineJournalDayRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      if (!result)
+        return NextResponse.json({ error: ITEMS_APP_ITEM_NOT_FOUND_ERROR }, { status: 404 })
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error, service.getItemsAppErrorStatus(error))
     }
   },
 })

@@ -1,3 +1,6 @@
+import { isJournalDayViolation } from "../../contracts/item-journal"
+import { ItemGroupConflictError } from "../item-group-errors"
+import { COMBINE_MOVING_JOURNAL_DAYS_SQL } from "./journal"
 import type { PoolClient } from "pg"
 import { MOVE_ITEMS_SQL } from "./stored-capabilities"
 
@@ -24,7 +27,20 @@ export const moveWorkspaceItems = async (
   client: PoolClient,
   sourceId: number,
   destinationId: number,
-  { itemIds = null, excludeItemIds = [] }: { itemIds?: number[] | null; excludeItemIds?: number[] },
+  {
+    itemIds = null,
+    excludeItemIds = [],
+    combineJournalDays = false,
+  }: {
+    itemIds?: number[] | null
+    excludeItemIds?: number[]
+    /**
+     * What to do with a moving journal entry whose day the destination already has:
+     * combine it into that entry, or refuse the move. A person is asked before two
+     * days are combined, so only a move no one can be asked about combines them.
+     */
+    combineJournalDays?: boolean
+  },
 ) => {
   const values = [destinationId, sourceId, itemIds]
   const moving = `WITH moving AS (
@@ -67,8 +83,18 @@ export const moveWorkspaceItems = async (
     values,
   )
 
-  const moved = await withStoredTimeModified(client, () =>
-    client.query<{ id: number }>(MOVE_ITEMS_SQL, [...values, excludeItemIds]),
-  )
-  return moved.rows.map(({ id }) => id)
+  if (combineJournalDays)
+    await client.query(COMBINE_MOVING_JOURNAL_DAYS_SQL, [...values, excludeItemIds])
+  try {
+    const moved = await withStoredTimeModified(client, () =>
+      client.query<{ id: number }>(MOVE_ITEMS_SQL, [...values, excludeItemIds]),
+    )
+    return moved.rows.map(({ id }) => id)
+  } catch (error) {
+    if (isJournalDayViolation(error))
+      throw new ItemGroupConflictError(
+        "That workspace already has a journal entry for one of these days.",
+      )
+    throw error
+  }
 }

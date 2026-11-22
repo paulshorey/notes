@@ -17,7 +17,7 @@ import type {
  * pattern, scoped to the notes app data.
  */
 export interface ItemsCacheSnapshot {
-  schemaVersion: 6
+  schemaVersion: 7
   userId: number
   user: UserSummary
   workspaces: WorkspaceRecord[]
@@ -29,7 +29,7 @@ export interface ItemsCacheSnapshot {
   savedAt: number
 }
 
-const CACHE_SCHEMA_VERSION = 6
+const CACHE_SCHEMA_VERSION = 7
 const LEGACY_CACHE_STORAGE_PREFIX = "notes-app-cache-v2"
 const CACHE_STORAGE_PREFIX = "items-app-cache-v3"
 const LATEST_CACHE_STORAGE_KEY = `${CACHE_STORAGE_PREFIX}:latest`

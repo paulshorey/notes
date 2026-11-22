@@ -38,6 +38,7 @@ const record = (values: Partial<ItemRecord> = {}): ItemRecord => ({
   description: null,
   timeStart: null,
   timeEnd: null,
+  entryDate: null,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2027-01-02T03:04:05.000Z",
@@ -89,6 +90,7 @@ test("every capability is content or state, and text is content", () => {
     [
       ["text", "content"],
       ["time", "content"],
+      ["day", "content"],
       ["schedule", "state"],
       ["status", "state"],
     ],

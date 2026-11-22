@@ -44,6 +44,7 @@ const sampleItem = {
   description: "The Notes API routes should follow the shared contract.",
   timeStart: null,
   timeEnd: null,
+  entryDate: null,
   timeDue: "2026-03-18T16:00:00.000Z",
   timeRemind: "2026-03-18T15:30:00.000Z",
   timeCreated: "2026-03-17T10:00:00.000Z",
@@ -108,6 +109,7 @@ export const sampleTrashedItem = {
   tags: ["urgent"],
   timeStart: null,
   timeEnd: null,
+  entryDate: null,
   timeDue: null,
   timeRemind: null,
 }
@@ -176,6 +178,7 @@ export const createFakeItemsAppService = (
   deleteItemForItemsApp: async () => ({ ok: true }),
   listTrashForItemsApp: async () => ({ items: [sampleTrashedItem], retentionDays: 30 }),
   restoreTrashedItemForItemsApp: async () => ({ item: sampleItem }),
+  combineJournalDayForItemsApp: async () => ({ item: sampleItem }),
   purgeTrashForItemsApp: async () => ({ ok: true, purged: 1 }),
   searchItemsForItemsApp: async () => ({ results: [sampleSearchResult] }),
   maintainItemEmbeddingsForItemsApp: async () => sampleEmbeddingMaintenanceResponse,
@@ -1259,5 +1262,54 @@ export const registerItemsApiAdapterSuite = (
       item: sampleItem,
     })
     assert.deepEqual(requests, ["2027-01-01T00:00:00.000Z"])
+  })
+
+  test(`${adapterName} combines an item into the journal day it names`, async (t) => {
+    const requests: unknown[] = []
+    const adapter = await createAdapter(
+      createFakeItemsAppService({
+        combineJournalDayForItemsApp: async (request) => {
+          requests.push(request)
+          return request.itemId === 41 ? { item: sampleItem } : null
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const combined = await adapter.request({
+      method: "POST",
+      path: "/api/items/journal",
+      headers: authHeaders,
+      body: { userId: 999999, itemId: 41, entryDate: "2026-11-25" },
+    })
+    assert.equal(combined.status, 200)
+    assert.deepEqual(combined.body, { item: sampleItem })
+    assert.deepEqual(requests, [{ userId: sampleUser.id, itemId: 41, entryDate: "2026-11-25" }])
+
+    const missing = await adapter.request({
+      method: "POST",
+      path: "/api/items/journal",
+      headers: authHeaders,
+      body: { itemId: 42, entryDate: "2026-11-25" },
+    })
+    assert.equal(missing.status, 404)
+
+    const invalid = await adapter.request({
+      method: "POST",
+      path: "/api/items/journal",
+      headers: authHeaders,
+      body: { itemId: 41, entryDate: "tomorrow" },
+    })
+    assert.equal(invalid.status, 400)
+
+    const unauthenticated = await adapter.request({
+      method: "POST",
+      path: "/api/items/journal",
+      body: { itemId: 41, entryDate: "2026-11-25" },
+    })
+    assert.equal(unauthenticated.status, 401)
   })
 }

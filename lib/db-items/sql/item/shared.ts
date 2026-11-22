@@ -1,9 +1,10 @@
 import type { CategoryRef, TagRef, ItemRecord } from "./types"
 import type { PoolClient } from "pg"
 import { assertCategoryNameAllowed } from "../../contracts/category-name"
+import { isJournalDayViolation, JournalDayTakenError } from "../../contracts/item-journal"
 
 export const itemColumns = `
-  n.id, n.uid, n.workspace_id, n.description, n.time_start, n.time_end,
+  n.id, n.uid, n.workspace_id, n.description, n.time_start, n.time_end, n.entry_date::text AS entry_date,
   n.time_due, n.time_remind,
   n.time_created, n.time_modified,
   CASE WHEN s.id IS NULL THEN NULL ELSE json_build_object('id', s.id, 'label', s.label) END AS status,
@@ -27,6 +28,7 @@ export interface ItemRow {
   description: string | null
   time_start: Date | null
   time_end: Date | null
+  entry_date: string | null
   time_due: Date | null
   time_remind: Date | null
   time_created: Date
@@ -62,6 +64,7 @@ export const mapItem = (row: ItemRow): ItemRecord => ({
   description: row.description,
   timeStart: row.time_start?.toISOString() ?? null,
   timeEnd: row.time_end?.toISOString() ?? null,
+  entryDate: row.entry_date,
   timeDue: row.time_due?.toISOString() ?? null,
   timeRemind: row.time_remind?.toISOString() ?? null,
   timeCreated: row.time_created.toISOString(),
@@ -128,6 +131,7 @@ export const resolveItemFiling = async (
 
 /** A category or subcategory removed between the check above and the write. */
 export const rethrowFilingRace = (error: unknown): never => {
+  if (isJournalDayViolation(error)) throw new JournalDayTakenError()
   if (
     error &&
     typeof error === "object" &&

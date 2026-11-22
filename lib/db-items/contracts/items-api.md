@@ -34,10 +34,13 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 `statusId`, `tagIds`, nullable `description`, `timeDue`, and `timeRemind`, and the
 optional time block `timeStart` and `timeEnd`. Given one end of a time
 block, the other takes the same instant; given neither field, an update leaves the
-stored block as it is. A subcategory
+stored block as it is. `entryDate` is the optional journal day as `YYYY-MM-DD`, and is
+left as stored when omitted; a day another entry of the workspace has is refused with
+`409`, and `POST /api/items/journal` with `{ itemId, entryDate }` combines the item
+into that entry and returns it. A subcategory
 that does not belong to the category is cleared, not refused. The HTTP parser accepts
 omitted text as null. `POST` and `PATCH` return `400` when the item would hold no
-content: text or a time block. A due or reminder date, a status, a category, or tags
+content: text, a time block, or a journal day. A due or reminder date, a status, a category, or tags
 describe content and never make an item, and a status requires text
 (`contracts/item-capabilities.ts`). Search returns only items with text.
 `ItemRecord` returns `id`, `workspaceId`, nullable `category` and `subcategory`
@@ -75,10 +78,10 @@ GET downloads `jot-new-backup-YYYY-MM-DD.json`, always in the current version. P
 the entire JSON file, without another wrapper, and requires a permanent account.
 Success returns `{ itemsImported, itemsSkipped }` with legacy aliases when needed.
 
-The envelope's stable format is `jot.new-user-backup`. Version 4 nests
+The envelope's stable format is `jot.new-user-backup`. Version 5 nests
 `subcategories` under each category, stores one `category` and `subcategory` per item,
-and carries each item's time block. Import also accepts version 3, which has no time
-blocks, version 2's list of categories per item, keeping the first, and version 1's
+and carries each item's time block and journal day. Import also accepts version 4,
+which has no journal days, version 3, which has no time blocks either, version 2's list of categories per item, keeping the first, and version 1's
 `workspaces[].notes`. Relationships use workspace-local labels. Files preserve nullable
 text, dates, timestamps, empty workspaces, unused vocabulary, and preferences;
 they exclude credentials, account identity, vectors, and browser draft/cache state.

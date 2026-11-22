@@ -32,6 +32,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     session/                — GET (authenticated user), PATCH (preferences)
     items/                  — GET (list), POST (create), PATCH (update), DELETE (to the trash)
     items/trash/            — GET (list), POST (restore one), DELETE (purge one or all)
+    items/journal/          — POST (combine an item into the entry its journal day already has)
     notes/                  — legacy payload facade over the item routes
     tags/                   — GET (list), POST (create)
     categories/             — GET (list), POST (create), PATCH, DELETE
@@ -69,6 +70,7 @@ src/                        — non-route code (import with "@/..." alias)
     draftParts.ts           — composes the parts into the draft, the save request, and list labels
     taxonomy.ts             — filing and tags parts
     text/, schedule/, status/ — each capability's draft part and editor control
+    day/                    — the journal day's draft part; nothing edits it yet
     time/                   — the time block's draft part; the time view's form edits it
   components/
     shell/
@@ -124,9 +126,8 @@ between views, so the session, the open-item ring, and pending saves carry acros
   `app/(workspace)/`. The header picker displays each view's kind key. The workspace keeps every item of the active workspace;
   `useItemLists` narrows the lists with the active view's `selects`, so an item appears
   in every view that selects it and opens as the same entry. The `note` view lists
-  everything with text. Its `optionalKinds` (`task` and `time`) are the kinds a user can leave
-  out of it with the "Show tasks in notes" and "Show time blocks in notes" checkboxes
-  in the account menu, stored as the `notesApp.notesViewHiddenKinds` preference.
+  everything with text. Its `optionalKinds` (`task`, `time`, and `journal`) are the kinds a user can leave
+  out of it with the "Show … in notes" checkboxes in the account menu, stored as the `notesApp.notesViewHiddenKinds` preference.
   Every view edits through `ItemEditor`, bound to the active entry. The `note` view
   always shows it. The `task` view opens it in a dialog over the board when the user
   opens an item. Each view names the parts it prioritizes in `editorProminent`.

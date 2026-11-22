@@ -18,6 +18,7 @@ const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   description: "stored text",
   timeStart: null,
   timeEnd: null,
+  entryDate: null,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
