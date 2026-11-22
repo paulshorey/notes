@@ -213,6 +213,9 @@ test("a time block is content in a draft, and an item without one sends no time 
   delete (legacyBlock as Record<string, unknown>).timePlanned
   delete (legacyBlock as Record<string, unknown>).timeBlockKnown
   assert.deepEqual(timePart.toRequest(legacyBlock as unknown as typeof empty), {})
+  // A never-saved draft started from a block in the time view has both ends and is sent.
+  const started = { ...empty, timeStart: at(25, 9).toISOString(), timeEnd: at(25, 9).toISOString() }
+  assert.equal(timePart.toRequest(started).timeEnd, started.timeEnd)
 })
 
 test("the time view starts an item from a time block and lists time blocks only", () => {

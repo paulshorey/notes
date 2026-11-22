@@ -1187,6 +1187,9 @@ export function useTaxonomyActions(
         }),
       })
       const data = await readJson<{ item: ItemRecord }>(response)
+      // A repeated create answers 200 with the item an earlier attempt stored and writes
+      // nothing, so this attempt's values are sent to that item.
+      if (!current && response.status === 200) return send(data.item)
       mergeSavedItem(userId, data.item)
       applyServerItemToEntry(data.item)
       scheduleTaxonomyRefresh(userId)
