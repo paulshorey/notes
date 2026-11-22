@@ -108,11 +108,12 @@ export const restoreTrashedItemForUser = async (userId: number, trashId: number)
   const client = await getDb().connect()
   try {
     await client.query("BEGIN")
+    // A deletion that empties a workspace removes it; waiting here keeps the workspace
+    // this restore picks from disappearing before the item is written. It comes before
+    // the shared lock below so that waiting on one account never holds up the others.
+    await lockUserWorkspaces(client, userId)
     // Imports that keep a uid take turns, so each sees the uids the others wrote.
     await client.query(`SELECT pg_advisory_xact_lock(hashtext('items.restore.uid'))`)
-    // A deletion that empties a workspace removes it; waiting here keeps the workspace
-    // this restore picks from disappearing before the item is written.
-    await lockUserWorkspaces(client, userId)
     const taken = await client.query<{
       workspace_id: number | null
       workspace_label: string
