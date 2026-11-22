@@ -38,7 +38,6 @@ const block = (
   description: null,
   timeStart: start.toISOString(),
   timeEnd: end.toISOString(),
-  timePlanned: false,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
@@ -169,7 +168,7 @@ test("a time block is content in a draft, and an item without one sends no time 
   assert.equal("timeStart" in itemDraftRequest(empty), false)
   assert.equal(timePart.holds?.(empty), false)
 
-  const stored = block(7, at(25, 9), at(25, 10), { timePlanned: true })
+  const stored = block(7, at(25, 9), at(25, 10))
   const draft = itemDraftFromItem(stored)
   assert.deepEqual(
     Object.fromEntries(
@@ -180,7 +179,6 @@ test("a time block is content in a draft, and an item without one sends no time 
       timeRemind: null,
       timeStart: stored.timeStart,
       timeEnd: stored.timeEnd,
-      timePlanned: true,
     },
   )
   // The text is gone and the block remains, so the item is kept, in every view.
@@ -189,14 +187,14 @@ test("a time block is content in a draft, and an item without one sends no time 
   // Removing the block of an item that had one is sent, so the server removes it too.
   const cleared = { ...draft, timeStart: null, timeEnd: null }
   assert.deepEqual(
-    [itemDraftRequest(cleared).timeStart, itemDraftRequest(cleared).timePlanned],
-    [null, false],
+    [itemDraftRequest(cleared).timeStart, itemDraftRequest(cleared).timeEnd],
+    [null, null],
   )
   assert.equal(entrySaveAction({ view: "time", itemId: 7, form: cleared }), "delete")
 
   // A draft kept in the browser from before time blocks has none of these fields.
   const old = { ...empty, description: "an older draft" } as Record<string, unknown>
-  for (const key of ["timeStart", "timeEnd", "timePlanned", "timeBlockKnown"]) delete old[key]
+  for (const key of ["timeStart", "timeEnd", "timeBlockKnown"]) delete old[key]
   assert.deepEqual(
     itemDraftRequest(old as unknown as typeof empty),
     itemDraftRequest({ ...empty, description: "an older draft" }),
@@ -210,7 +208,6 @@ test("a time block is content in a draft, and an item without one sends no time 
     timeStart: at(25, 9).toISOString(),
   }
   delete (legacyBlock as Record<string, unknown>).timeEnd
-  delete (legacyBlock as Record<string, unknown>).timePlanned
   delete (legacyBlock as Record<string, unknown>).timeBlockKnown
   assert.deepEqual(timePart.toRequest(legacyBlock as unknown as typeof empty), {})
   // A never-saved draft started from a block in the time view has both ends and is sent.

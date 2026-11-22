@@ -1,7 +1,7 @@
 "use client"
 
 import type { ItemRecord } from "@lib/db-items"
-import { Button, Checkbox, Modal, Text } from "@gravity-ui/uikit"
+import { Button, Modal, Text } from "@gravity-ui/uikit"
 import { type FormEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { toDateTimeLocalValue } from "@/lib/dates"
@@ -43,6 +43,9 @@ const rangeTitle = (range: TimeRange, days: Date[], anchor: Date) => {
   return `${short(first)} – ${short(last)}`
 }
 
+/** How long a new block is until the user sets its ends. */
+const DEFAULT_BLOCK_MINUTES = 30
+
 /** The nearest half hour at or before an instant. */
 const roundToHalfHour = (date: Date) => {
   const rounded = new Date(date)
@@ -66,6 +69,8 @@ function TimeViewContent() {
   const [range, setRange] = useState<TimeRange>("week")
   const [anchor, setAnchor] = useState(() => new Date())
   const [editing, setEditing] = useState<Editing | null>(null)
+  // One block per click: a second click waits for the first block to be stored.
+  const addingRef = useRef(false)
 
   // The now line and the hours shown around now move while the view stays open.
   const [now, setNow] = useState(() => new Date())
@@ -126,7 +131,19 @@ function TimeViewContent() {
     const minutes = firstHour * 60 + ((event.clientY - bounds.top) / bounds.height) * hours * 60
     const start = new Date(day)
     start.setMinutes(Math.floor(minutes / 30) * 30)
-    setEditing({ item: null, start })
+    // A click makes a block of the default length right away. Clicking the block opens
+    // its form, where the exact times, the text, and the category are set.
+    if (addingRef.current) return
+    addingRef.current = true
+    void handleSaveTimeBlock(null, {
+      timeStart: start.toISOString(),
+      timeEnd: new Date(start.getTime() + DEFAULT_BLOCK_MINUTES * 60_000).toISOString(),
+      description: "",
+      categoryId: null,
+      uid: newPublicUid(),
+    }).finally(() => {
+      addingRef.current = false
+    })
   }
 
   return (
@@ -326,7 +343,7 @@ function DayColumn({
               key={item.id}
               type="button"
               role="listitem"
-              className={`${styles.block} ${item.timePlanned ? styles.blockPlanned : ""}`}
+              className={`${styles.block} ${new Date(item.timeStart).getTime() > now.getTime() ? styles.blockFuture : ""}`}
               style={{
                 top: `${Math.max(0, percent(startMinute))}%`,
                 height: `${Math.min(100, percent(endMinute)) - Math.max(0, percent(startMinute))}%`,
@@ -334,7 +351,7 @@ function DayColumn({
                 width: `${100 / columns}%`,
               }}
               onClick={() => onOpen(item)}
-              aria-label={`${item.timePlanned ? "Planned: " : ""}${label}${category ? `, ${category}` : ""}`}
+              aria-label={`${label}${category ? `, ${category}` : ""}`}
             >
               <span className={item.description ? undefined : styles.blockNoText}>{label}</span>
               {category && <span className={styles.blockCategory}>{category}</span>}
@@ -363,9 +380,8 @@ function TimeBlockForm({
   onSave: (
     existing: ItemRecord | null,
     values: {
-      timeStart: string
-      timeEnd: string
-      timePlanned: boolean
+      timeStart: string | null
+      timeEnd: string | null
       description: string
       categoryId: number | null
       uid: string
@@ -374,15 +390,17 @@ function TimeBlockForm({
   onDelete: (itemId: number) => Promise<boolean>
 }) {
   const { item } = editing
-  // A new block starts and ends at the same time until the user says otherwise.
+  // A new block is the default length until the user says otherwise.
   const [start, setStart] = useState(() => toDateTimeLocalValue(item?.timeStart ?? editing.start))
-  const [end, setEnd] = useState(() => toDateTimeLocalValue(item?.timeEnd ?? editing.start))
+  const [end, setEnd] = useState(() =>
+    toDateTimeLocalValue(
+      item?.timeEnd ?? new Date(editing.start.getTime() + DEFAULT_BLOCK_MINUTES * 60_000),
+    ),
+  )
   const [description, setDescription] = useState(item?.description ?? "")
   const [categoryId, setCategoryId] = useState<number | null>(
     item ? (item.category?.id ?? null) : (editing.categoryId ?? null),
   )
-  // Until the user chooses, a new block is a plan when it starts in the future.
-  const [planned, setPlanned] = useState<boolean | null>(item ? item.timePlanned : null)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<"save" | "delete" | null>(null)
   // One identity for the block this form creates, so a retry after a failed or repeated
@@ -398,8 +416,6 @@ function TimeBlockForm({
   }, [])
 
   const times = parseBlockTimes(start, end)
-  const startsInFuture = !("error" in times) && new Date(times.timeStart).getTime() > Date.now()
-  const isPlanned = planned ?? startsInFuture
   const category = categories.find(({ id }) => id === categoryId)
 
   const submit = async (event: FormEvent) => {
@@ -425,7 +441,6 @@ function TimeBlockForm({
     const stored = await onSave(item, {
       timeStart,
       timeEnd,
-      timePlanned: isPlanned,
       description,
       categoryId,
       uid,
@@ -435,12 +450,24 @@ function TimeBlockForm({
     if (stored) onClose()
   }
 
-  const remove = async () => {
+  const hasText = (item?.description ?? "").trim() !== ""
+  // A block whose item also has text can lose just its time and stay a note, or go to
+  // the trash whole. The user says which.
+  const [choosingRemoval, setChoosingRemoval] = useState(false)
+
+  const remove = async (what: "block" | "item") => {
     if (!item || pending) return
     setPending("delete")
-    // Deleting a block deletes the item: its text, filing, and everything else it
-    // holds go to the trash with it, where the whole item can be restored.
-    const removed = await onDelete(item.id)
+    const removed =
+      what === "item"
+        ? await onDelete(item.id)
+        : (await onSave(item, {
+            timeStart: null,
+            timeEnd: null,
+            description: item.description ?? "",
+            categoryId: item.category?.id ?? null,
+            uid,
+          })) !== null
     if (!mountedRef.current) return
     setPending(null)
     if (removed) onClose()
@@ -488,37 +515,61 @@ function TimeBlockForm({
           selectedIds={[categoryId ?? "none"]}
           onSelectOption={({ id }) => setCategoryId(typeof id === "number" ? id : null)}
         />
-        <Checkbox size="m" checked={isPlanned} onUpdate={setPlanned}>
-          Planned, not yet done
-        </Checkbox>
         {error && (
           <Text color="danger" role="alert">
             {error}
           </Text>
         )}
-        <div className={styles.formActions}>
-          <span>
-            {item && (
-              <Button
-                view="flat-danger"
-                size="m"
-                loading={pending === "delete"}
-                disabled={pending !== null}
-                onClick={() => void remove()}
-              >
-                Delete
-              </Button>
-            )}
-          </span>
-          <span>
-            <Button view="flat" size="m" onClick={onClose}>
-              Cancel
-            </Button>{" "}
-            <Button view="action" size="m" type="submit" loading={pending === "save"}>
-              Save
+        {choosingRemoval ? (
+          <div className={styles.removal} role="group" aria-label="Delete this time block">
+            <Text color="secondary">This time block has a note.</Text>
+            <Button
+              view="outlined"
+              size="m"
+              width="max"
+              disabled={pending !== null}
+              onClick={() => void remove("block")}
+            >
+              Remove the time, keep the note
             </Button>
-          </span>
-        </div>
+            <Button
+              view="outlined-danger"
+              size="m"
+              width="max"
+              disabled={pending !== null}
+              onClick={() => void remove("item")}
+            >
+              Delete the note too
+            </Button>
+            <Button view="flat" size="m" width="max" onClick={() => setChoosingRemoval(false)}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <div className={styles.formActions}>
+            <span>
+              {item && (
+                <Button
+                  view="flat-danger"
+                  size="m"
+                  loading={pending === "delete"}
+                  disabled={pending !== null}
+                  onClick={() => (hasText ? setChoosingRemoval(true) : void remove("item"))}
+                >
+                  Delete
+                </Button>
+              )}
+            </span>
+            <span>
+              <Button view="flat" size="m" onClick={onClose}>
+                Cancel
+              </Button>{" "}
+              <Button view="action" size="m" type="submit" loading={pending === "save"}>
+                Save
+              </Button>
+            </span>
+          </div>
+        )}
       </form>
     </Modal>
   )

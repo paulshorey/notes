@@ -224,20 +224,19 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     const workspace = await createWorkspaceForUser(sourceId, "errands")
     await createItemForItemsApp({
       userId: sourceId,
-      item: input(workspace.id, { ...block, timePlanned: true, timeDue: due }),
+      item: input(workspace.id, { ...block, timeDue: due }),
     })
 
     const backup = await exportUserBackup(sourceId)
     const exported = backup.workspaces.find((entry) => entry.label === "errands")!
     assert.deepEqual(
-      exported.items.map(({ description, timeStart, timeEnd, timePlanned, timeDue }) => ({
+      exported.items.map(({ description, timeStart, timeEnd, timeDue }) => ({
         description,
         timeStart,
         timeEnd,
-        timePlanned,
         timeDue,
       })),
-      [{ description: null, ...block, timePlanned: true, timeDue: due }],
+      [{ description: null, ...block, timeDue: due }],
     )
 
     assert.deepEqual(await restoreUserBackup(targetId, backup), {
@@ -252,7 +251,6 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     assert.equal(restored[0]!.description, null)
     assert.equal(restored[0]!.timeStart, block.timeStart)
     assert.equal(restored[0]!.timeEnd, block.timeEnd)
-    assert.equal(restored[0]!.timePlanned, true)
     // Restoring the same file again recognizes the time block as already present.
     assert.deepEqual(await restoreUserBackup(targetId, backup), {
       itemsImported: 0,
@@ -312,21 +310,13 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     const workspace = await createWorkspaceForUser(userId, "personal")
     const { item } = await createItemForItemsApp({
       userId,
-      item: input(workspace.id, { ...block, timePlanned: true }),
+      item: input(workspace.id, block),
     })
     await deleteItemForItemsApp({ userId, itemId: item.id })
     const [entry] = await listTrashedItemsByUser(userId)
     assert.equal(entry!.description, null)
     assert.equal(entry!.timeStart, block.timeStart)
     assert.equal(entry!.timeEnd, block.timeEnd)
-    assert.equal(entry!.timePlanned, true)
-  })
-
-  test("timePlanned must be a boolean or null", () => {
-    const base = { workspaceId: 1, timeStart: due }
-    assert.equal(parseItemInput({ ...base, timePlanned: true }).timePlanned, true)
-    assert.equal(parseItemInput({ ...base, timePlanned: null }).timePlanned, null)
-    assert.throws(() => parseItemInput({ ...base, timePlanned: "true" }), /timePlanned/)
   })
 
   test("signing in to an existing account keeps an anonymous time block", async () => {

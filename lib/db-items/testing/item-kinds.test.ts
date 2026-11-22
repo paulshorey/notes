@@ -24,7 +24,6 @@ const record = (values: Partial<ItemRecord> = {}): ItemRecord => ({
   description: null,
   timeStart: null,
   timeEnd: null,
-  timePlanned: false,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2027-01-02T03:04:05.000Z",

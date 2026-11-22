@@ -614,7 +614,6 @@ export function useTaxonomyActions(
             // Named so an item that is a time block without text still holds content.
             timeStart: item.timeStart,
             timeEnd: item.timeEnd,
-            timePlanned: item.timePlanned,
             timeDue: item.timeDue,
             timeRemind: item.timeRemind,
           },
@@ -1153,9 +1152,9 @@ export function useTaxonomyActions(
   const handleSaveTimeBlock = (
     existing: ItemRecord | null,
     values: {
-      timeStart: string
-      timeEnd: string
-      timePlanned: boolean
+      /** Both ends, or both null to take the block off an item that keeps its text. */
+      timeStart: string | null
+      timeEnd: string | null
       description: string
       categoryId: number | null
       /** Names the item a create stores, so repeating the create stores it once. */
@@ -1191,7 +1190,6 @@ export function useTaxonomyActions(
           description,
           timeStart: values.timeStart,
           timeEnd: values.timeEnd,
-          timePlanned: values.timePlanned,
           timeDue: current?.timeDue ?? null,
           timeRemind: current?.timeRemind ?? null,
         },

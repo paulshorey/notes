@@ -31,7 +31,6 @@ const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   description: "Ship the shell\nand the views",
   timeStart: null,
   timeEnd: null,
-  timePlanned: false,
   timeDue: "2026-03-04T15:30:00.000Z",
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
@@ -52,7 +51,6 @@ test("an empty draft holds every part and nothing to save", () => {
     remindExpanded: false,
     timeStart: null,
     timeEnd: null,
-    timePlanned: false,
     timeBlockKnown: false,
   })
 })
@@ -70,7 +68,6 @@ test("a stored item fills every part of the draft", () => {
     remindExpanded: false,
     timeStart: null,
     timeEnd: null,
-    timePlanned: false,
     timeBlockKnown: false,
   })
   assert.equal(itemDraftFromItem(item({ description: null })).description, "")
@@ -177,7 +174,6 @@ test("the notes view lists everything with text except the kinds left out of it"
     description: "text",
     timeStart: null,
     timeEnd: null,
-    timePlanned: false,
     timeDue: null,
     timeRemind: null,
     timeCreated: "2026-01-01T00:00:00.000Z",

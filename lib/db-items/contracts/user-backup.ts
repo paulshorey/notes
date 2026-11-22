@@ -64,11 +64,10 @@ const nullableTimestamp = (value: unknown) => (value === null ? null : timestamp
 const timeBlock = (item: Record<string, unknown>) => {
   const optional = (value: unknown) => (value == null ? null : timestamp(value))
   try {
-    const block = normalizeTimeBlock({
+    return normalizeTimeBlock({
       timeStart: optional(item.timeStart),
       timeEnd: optional(item.timeEnd),
     })
-    return { ...block, timePlanned: block.timeStart != null && item.timePlanned === true }
   } catch (error) {
     if (error instanceof TimeBlockOrderError) return fail("Backup contains an invalid time block.")
     throw error

@@ -63,7 +63,6 @@ const makeItem = (
   description,
   timeStart: null,
   timeEnd: null,
-  timePlanned: false,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",

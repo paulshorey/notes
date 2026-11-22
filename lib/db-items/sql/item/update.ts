@@ -38,19 +38,11 @@ export const updateItemForUser = async (
       filing.categoryId,
       filing.subcategoryId,
     ]
-    // A request that names no time block leaves the stored one alone. One that names
-    // a block without saying whether it is a plan keeps the stored answer, and a block
-    // an item did not have before is a plan when it starts in the future.
+    // A request that names no time block leaves the stored one alone.
     let timeSql = ""
     if (item.timeStart !== undefined) {
-      values.push(
-        item.timeStart,
-        item.timeEnd ?? null,
-        item.timeStart === null ? false : (item.timePlanned ?? null),
-      )
-      timeSql = `, time_planned=COALESCE($12::boolean,
-          CASE WHEN n.time_start IS NULL THEN $10::timestamptz > now() ELSE n.time_planned END),
-        time_start=$10, time_end=$11`
+      values.push(item.timeStart, item.timeEnd ?? null)
+      timeSql = `, time_start=$10, time_end=$11`
     }
     const next = () => values.length + 1
     let embeddingSql = ""

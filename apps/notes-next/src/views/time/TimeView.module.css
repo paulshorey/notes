@@ -120,7 +120,7 @@
   cursor: pointer;
 }
 
-.blockPlanned {
+.blockFuture {
   border-style: dashed;
   background: transparent;
 }
@@ -225,5 +225,12 @@
   display: flex;
   justify-content: space-between;
   gap: 8px;
+  margin-top: 4px;
+}
+
+.removal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 4px;
 }

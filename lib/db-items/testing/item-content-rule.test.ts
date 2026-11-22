@@ -129,13 +129,12 @@ describe("what counts as an item's content (DB)", { skip: !testDbUrl }, () => {
       assert.equal(hasItemContent(record), true, `item ${record.id}`)
   })
 
-  test("a time block has both ends in order, and a plan needs a block", async () => {
+  test("a time block has both ends, in order", async () => {
     const w = await workspace()
     const bad = [
       `time_start='2027-01-02T03:00Z'`,
       `time_end='2027-01-02T03:00Z'`,
       `time_start='2027-01-02T04:00Z',time_end='2027-01-02T03:00Z'`,
-      `time_planned=true`,
     ]
     const id = await insert(w.workspaceId, { description: "words" })
     for (const change of bad)
@@ -145,7 +144,7 @@ describe("what counts as an item's content (DB)", { skip: !testDbUrl }, () => {
         change,
       )
     await getDb().query(
-      `UPDATE public.workspace_item_v1 SET time_start='2027-01-02T03:00Z',time_end='2027-01-02T03:00Z',time_planned=true WHERE id=$1`,
+      `UPDATE public.workspace_item_v1 SET time_start='2027-01-02T03:00Z',time_end='2027-01-02T03:00Z' WHERE id=$1`,
       [id],
     )
   })

@@ -308,11 +308,6 @@
       "column": "time_end",
       "nullable": true,
       "type": "Date"
-    },
-    {
-      "column": "time_planned",
-      "nullable": false,
-      "type": "boolean"
     }
   ],
   "workspace_status_v1": [
