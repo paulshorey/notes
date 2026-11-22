@@ -68,7 +68,7 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     // user left out.
     selects: (item, { notesViewHiddenKinds }) =>
       isKind(item, "note") && !notesViewHiddenKinds.some((kind) => isKind(item, kind)),
-    optionalKinds: ["task", "time"],
+    optionalKinds: ["task", "time", "journal"],
     route: "/",
     // A note starts once the draft has text.
     canCreate: (draft) => hasText(draft.description),

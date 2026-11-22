@@ -31,6 +31,7 @@ const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   description: "Ship the shell\nand the views",
   timeStart: null,
   timeEnd: null,
+  entryDate: null,
   timeDue: "2026-03-04T15:30:00.000Z",
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
@@ -52,6 +53,7 @@ test("an empty draft holds every part and nothing to save", () => {
     timeStart: null,
     timeEnd: null,
     timeBlockKnown: false,
+    entryDate: null,
   })
 })
 
@@ -69,6 +71,7 @@ test("a stored item fills every part of the draft", () => {
     timeStart: null,
     timeEnd: null,
     timeBlockKnown: false,
+    entryDate: null,
   })
   assert.equal(itemDraftFromItem(item({ description: null })).description, "")
 })
@@ -174,6 +177,7 @@ test("the notes view lists everything with text except the kinds left out of it"
     description: "text",
     timeStart: null,
     timeEnd: null,
+    entryDate: null,
     timeDue: null,
     timeRemind: null,
     timeCreated: "2026-01-01T00:00:00.000Z",
@@ -187,7 +191,7 @@ test("the notes view lists everything with text except the kinds left out of it"
   const all = { notesViewHiddenKinds: [] }
   const withoutTasks = { notesViewHiddenKinds: ["task" as const] }
 
-  assert.deepEqual(notes.optionalKinds, ["task", "time"])
+  assert.deepEqual(notes.optionalKinds, ["task", "time", "journal"])
   assert.equal(notes.selects(note, all), true)
   assert.equal(notes.selects(task, all), true, "a task has text, so notes lists it")
   assert.equal(notes.selects(note, withoutTasks), true)
@@ -208,7 +212,9 @@ test("the kinds left out of the notes view are a preference, and unknown names a
     [],
   )
   assert.deepEqual(
-    getNotesViewHiddenKindsPreference({ notesApp: { notesViewHiddenKinds: ["journal", "task"] } }),
+    getNotesViewHiddenKindsPreference({
+      notesApp: { notesViewHiddenKinds: ["no such kind", "task"] },
+    }),
     ["task"],
   )
 })
@@ -226,4 +232,19 @@ test("an item with a time block keeps its content when its text is emptied", () 
   assert.equal(itemDraftRequest(draft).timeStart, block.timeStart)
   assert.equal(itemDraftRequest(draft).timeEnd, block.timeEnd)
   assert.equal(draftHoldsContent(itemDraftFromItem(item({ description: null }))), false)
+})
+
+test("a journal entry keeps its content when its text is emptied, and its saves name its day", () => {
+  const entry = item({ description: null, status: null, entryDate: "2026-11-25" })
+  const draft = itemDraftFromItem(entry)
+  assert.equal(draftHoldsContent(draft), true)
+  // A save names the day, so the server sees content even with no text.
+  assert.equal(itemDraftRequest(draft).entryDate, "2026-11-25")
+  assert.equal("entryDate" in itemDraftRequest(createEmptyItemDraft()), false)
+  // A journal entry with text is also a note, unless journal entries are left out.
+  const written = item({ entryDate: "2026-11-25" })
+  const notes = viewForKind("note")
+  assert.equal(notes.selects(written, { notesViewHiddenKinds: [] }), true)
+  assert.equal(notes.selects(written, { notesViewHiddenKinds: ["journal"] }), false)
+  assert.equal(notes.selects(entry, { notesViewHiddenKinds: [] }), false)
 })

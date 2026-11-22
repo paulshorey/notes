@@ -31,6 +31,7 @@ export const backupFixture = (): UserBackup => ({
           tags: ["important"],
           timeStart: "2026-12-01T09:00:00.000Z",
           timeEnd: "2026-12-01T10:30:00.000Z",
+          entryDate: null,
           timeDue: "2027-01-02T03:04:05.000Z",
           timeRemind: null,
           ...dates,
@@ -78,7 +79,7 @@ export const upgradedFlatCategoryBackup = (): UserBackup => {
   for (const workspace of current.workspaces) {
     for (const category of workspace.categories) category.subcategories = []
     for (const item of workspace.items)
-      Object.assign(item, { subcategory: null, timeStart: null, timeEnd: null })
+      Object.assign(item, { subcategory: null, timeStart: null, timeEnd: null, entryDate: null })
   }
   return current
 }

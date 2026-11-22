@@ -10,6 +10,7 @@ import {
   createTagsRouteHandlers,
   createEmbeddingMaintenanceRouteHandlers,
   createItemsRouteHandlers,
+  createJournalRouteHandlers,
   createSearchRouteHandlers,
   createSessionRouteHandlers,
   createStatusesRouteHandlers,
@@ -27,6 +28,7 @@ const createNextAdapter = (service: ItemsAppService): ItemsApiAdapter => {
   const sessionHandlers = createSessionRouteHandlers(service)
   const itemsHandlers = createItemsRouteHandlers(service)
   const trashHandlers = createTrashRouteHandlers(service)
+  const journalHandlers = createJournalRouteHandlers(service)
   const categoriesHandlers = createCategoriesRouteHandlers(service)
   const tagsHandlers = createTagsRouteHandlers(service)
   const statusesHandlers = createStatusesRouteHandlers(service)
@@ -71,6 +73,8 @@ const createNextAdapter = (service: ItemsAppService): ItemsApiAdapter => {
         } else {
           response = await itemsHandlers.DELETE(new Request(url, requestInit))
         }
+      } else if (url.pathname === "/api/items/journal") {
+        response = await journalHandlers.POST(new Request(url, requestInit))
       } else if (url.pathname === "/api/items/trash") {
         if (method === "GET") {
           response = await trashHandlers.GET(new Request(url, getRequestInit))

@@ -175,6 +175,19 @@ export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart>
       timeEnd: { type: "timestamptz", export: "n.time_end", import: { time_end: `n."timeEnd"` } },
     },
   },
+  day: {
+    present: `n.entry_date IS NOT NULL`,
+    columns: ["entry_date"],
+    tables: {},
+    fields: {
+      // Read as text: a date has no zone, and a driver's Date would give it one.
+      entryDate: {
+        type: "date",
+        export: "n.entry_date::text",
+        import: { entry_date: `n."entryDate"` },
+      },
+    },
+  },
   schedule: {
     present: `(n.time_due IS NOT NULL OR n.time_remind IS NOT NULL)`,
     columns: ["time_due", "time_remind"],

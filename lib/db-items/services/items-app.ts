@@ -10,6 +10,7 @@ import type {
   CreateWorkspaceRequest,
   DeleteCategoryRequest,
   DeleteCategoryResponse,
+  CombineJournalDayRequest,
   DeleteItemRequest,
   DeleteResponse,
   ItemRecord,
@@ -64,7 +65,9 @@ export {
 } from "./item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
 import { assertItemHasContent } from "../contracts/item-capabilities"
+import { JournalDayTakenError, parseEntryDate } from "../contracts/item-journal"
 import { normalizeTimeBlock } from "../contracts/item-time"
+import { combineItemIntoJournalDay } from "../sql/item/journal"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
@@ -211,7 +214,9 @@ const labelRequest = (value: unknown) => {
   return { ...workspaceRequest(b.userId, b.workspaceId), label: label(b.label) }
 }
 export const getItemsAppErrorStatus = (error: unknown) =>
-  error instanceof ItemGroupConflictError || error instanceof ItemChangedError
+  error instanceof ItemGroupConflictError ||
+  error instanceof ItemChangedError ||
+  error instanceof JournalDayTakenError
     ? 409
     : error instanceof ItemGroupNotFoundError
       ? 404
@@ -359,6 +364,17 @@ export const parseRestoreTrashedItemRequest = (v: unknown): RestoreTrashedItemRe
   return {
     ...parseTrashRequest(b.userId),
     trashId: parsePositiveInteger(b.trashId, "trashId"),
+    ...(b.combineJournalDay === true ? { combineJournalDay: true } : {}),
+  }
+}
+export const parseCombineJournalDayRequest = (v: unknown): CombineJournalDayRequest => {
+  const b = object(v)
+  const entryDate = parseEntryDate(b.entryDate)
+  if (entryDate === null) throw new Error("Journal day is required.")
+  return {
+    userId: parsePositiveInteger(b.userId, "userId"),
+    itemId: parsePositiveInteger(b.itemId, "itemId"),
+    entryDate,
   }
 }
 export const parsePurgeTrashRequest = (v: unknown): PurgeTrashRequest => {
@@ -743,7 +759,9 @@ export const listTrashForItemsApp = async (r: TrashRequest): Promise<TrashRespon
 export const restoreTrashedItemForItemsApp = async (
   r: RestoreTrashedItemRequest,
 ): Promise<ItemResponse | null> => {
-  const itemId = await restoreTrashedItemForUser(r.userId, r.trashId)
+  const itemId = await restoreTrashedItemForUser(r.userId, r.trashId, {
+    combineJournalDay: r.combineJournalDay === true,
+  })
   if (itemId === null) return null
   const item = await findItemByIdForUser(r.userId, itemId)
   if (!item) return null
@@ -753,6 +771,28 @@ export const restoreTrashedItemForItemsApp = async (
   try {
     await updateItemEmbeddingsForUser(
       itemId,
+      r.userId,
+      await createItemEmbeddingInput({ description: item.description }),
+    )
+  } catch {
+    // Left for embedding maintenance.
+  }
+  return { item }
+}
+/**
+ * Combining two journal days is permanent: the item's text and tags join the entry the
+ * day already has, and the item is deleted without going to the trash.
+ */
+export const combineJournalDayForItemsApp = async (
+  r: CombineJournalDayRequest,
+): Promise<ItemResponse | null> => {
+  const item = await combineItemIntoJournalDay(r.userId, r.itemId, r.entryDate)
+  if (!item) return null
+  // The entry's text changed, so its embedding was cleared. A provider failure leaves
+  // the new one to embedding maintenance.
+  try {
+    await updateItemEmbeddingsForUser(
+      item.id,
       r.userId,
       await createItemEmbeddingInput({ description: item.description }),
     )
@@ -874,6 +914,7 @@ export const itemsAppService = {
   deleteItemForItemsApp,
   listTrashForItemsApp,
   restoreTrashedItemForItemsApp,
+  combineJournalDayForItemsApp,
   purgeTrashForItemsApp,
   searchItemsForItemsApp,
   maintainItemEmbeddingsForItemsApp,

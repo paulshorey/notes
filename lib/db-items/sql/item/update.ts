@@ -44,6 +44,10 @@ export const updateItemForUser = async (
       values.push(item.timeStart, item.timeEnd ?? null)
       timeSql = `, time_start=$10, time_end=$11`
     }
+    if (item.entryDate !== undefined) {
+      values.push(item.entryDate)
+      timeSql += `, entry_date=$${values.length}`
+    }
     const next = () => values.length + 1
     let embeddingSql = ""
     if (embeddings !== null) {

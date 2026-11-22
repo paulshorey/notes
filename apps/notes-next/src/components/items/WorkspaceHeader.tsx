@@ -31,6 +31,12 @@ import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { viewForKind } from "@/views/registry"
 import type { ItemRecord, RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
 
+/** How the notes filter names a kind whose plain plural would read wrong. */
+const NOTES_VIEW_KIND_LABELS: Partial<Record<ItemKindKey, string>> = {
+  time: "time blocks",
+  journal: "journal entries",
+}
+
 const OPEN_ITEMS_CHOICES = [1, 3, 5, 10, 15, 20, 25]
 
 const SAVE_STATUS_LABELS: Record<ItemSaveStatus, string> = {
@@ -305,7 +311,7 @@ export function WorkspaceHeader({
       onUpdate={(visible) => onNotesViewKindVisibilityChange(kind, visible)}
       className={styles.userMenuPreference}
     >
-      Show {kind === "time" ? "time blocks" : `${kind}s`} in notes
+      Show {NOTES_VIEW_KIND_LABELS[kind] ?? `${kind}s`} in notes
     </Checkbox>
   ))
 

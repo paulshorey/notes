@@ -32,6 +32,7 @@ const makeItem = (id: number, description = `note ${id}`): ItemRecord => ({
   description,
   timeStart: null,
   timeEnd: null,
+  entryDate: null,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
@@ -304,6 +305,7 @@ test("a blank new-note action clears an explicit status when reusing an untouche
     timeStart: null,
     timeEnd: null,
     timeBlockKnown: false,
+    entryDate: null,
   })
   assert.equal(getActiveEntry(reused)?.categoryInputValue, "")
 })

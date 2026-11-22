@@ -95,6 +95,8 @@ export interface ItemRecord {
   /** A time block's start and end. Both are set, or both are null. */
   timeStart: string | null
   timeEnd: string | null
+  /** The calendar day of a journal entry, as `YYYY-MM-DD`. Null for any other item. */
+  entryDate: string | null
   timeDue: string | null
   timeRemind: string | null
   timeCreated: string
@@ -117,6 +119,7 @@ export interface TrashedItemRecord {
   tags: string[]
   timeStart: string | null
   timeEnd: string | null
+  entryDate: string | null
   timeDue: string | null
   timeRemind: string | null
 }
@@ -145,6 +148,11 @@ export interface ItemInput {
    */
   timeStart?: string | null
   timeEnd?: string | null
+  /**
+   * The journal day, as `YYYY-MM-DD`. Like the time block, a request that leaves it out
+   * says nothing about it, and `null` removes it. A workspace has one entry per day.
+   */
+  entryDate?: string | null
   timeDue: string | null
   timeRemind: string | null
 }
@@ -258,6 +266,19 @@ export interface TrashRequest {
 export interface RestoreTrashedItemRequest {
   userId: number
   trashId: number
+  /**
+   * For a trashed journal entry whose day has another entry now: add its text and tags
+   * to that entry. Without it such a restore is refused with `409` and the entry stays
+   * in the trash.
+   */
+  combineJournalDay?: boolean
+}
+
+/** Give an item a journal day another entry already has, by combining it into that entry. */
+export interface CombineJournalDayRequest {
+  userId: number
+  itemId: number
+  entryDate: string
 }
 
 /** Without a `trashId`, the user's whole trash is emptied. */
@@ -485,6 +506,8 @@ export interface BackupItem {
   /** Absent in files written before items had time blocks. */
   timeStart?: string | null
   timeEnd?: string | null
+  /** Absent in files written before items had journal days. */
+  entryDate?: string | null
   timeDue: string | null
   timeRemind: string | null
   timeCreated: string

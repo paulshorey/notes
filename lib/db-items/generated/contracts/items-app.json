@@ -441,6 +441,13 @@
           "nullable": true
         },
         {
+          "name": "entryDate",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
           "name": "timeDue",
           "optional": false,
           "kind": "scalar",
@@ -546,6 +553,13 @@
           "nullable": true
         },
         {
+          "name": "entryDate",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
           "name": "timeDue",
           "optional": false,
           "kind": "scalar",
@@ -642,6 +656,13 @@
         },
         {
           "name": "timeEnd",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "entryDate",
           "optional": true,
           "kind": "scalar",
           "type": "string",
@@ -1064,6 +1085,38 @@
           "optional": false,
           "kind": "scalar",
           "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "combineJournalDay",
+          "optional": true,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
+        }
+      ]
+    },
+    "CombineJournalDayRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "itemId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "entryDate",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
           "nullable": false
         }
       ]
@@ -1999,6 +2052,13 @@
         },
         {
           "name": "timeEnd",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "entryDate",
           "optional": true,
           "kind": "scalar",
           "type": "string",

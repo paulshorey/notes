@@ -3,6 +3,7 @@ import { schedulePart, type ScheduleDraft } from "./schedule/draft"
 import { statusPart, type StatusDraft } from "./status/draft"
 import { filingPart, tagsPart, type FilingDraft, type TagsDraft } from "./taxonomy"
 import { textPart, type TextDraft } from "./text/draft"
+import { dayPart, type DayDraft } from "./day/draft"
 import { timePart, type TimeDraft } from "./time/draft"
 import type { ItemDraftPart } from "./types"
 
@@ -12,7 +13,8 @@ export type ItemDraft = FilingDraft &
   TagsDraft &
   TextDraft &
   ScheduleDraft &
-  TimeDraft
+  TimeDraft &
+  DayDraft
 
 /**
  * The parts of a draft, in the order their request fields are written.
@@ -21,7 +23,15 @@ export type ItemDraft = FilingDraft &
  * order, and browsers keep signatures across reloads. Add a new part at the end, so
  * existing signatures still match and no open entry reads as edited after an update.
  */
-const DRAFT_PARTS = [filingPart, statusPart, tagsPart, textPart, schedulePart, timePart] as const
+const DRAFT_PARTS = [
+  filingPart,
+  statusPart,
+  tagsPart,
+  textPart,
+  schedulePart,
+  timePart,
+  dayPart,
+] as const
 
 export const createEmptyItemDraft = (): ItemDraft =>
   Object.assign({}, ...DRAFT_PARTS.map((part) => part.empty())) as ItemDraft

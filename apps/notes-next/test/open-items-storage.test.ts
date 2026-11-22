@@ -63,6 +63,7 @@ const makeItem = (
   description,
   timeStart: null,
   timeEnd: null,
+  entryDate: null,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
@@ -530,7 +531,7 @@ test("a server cache is used for the first paint only when its items have uids",
   try {
     writeItemsCache(current as unknown as Parameters<typeof writeItemsCache>[0])
     const cached = readItemsCache(1)!
-    assert.equal(cached.schemaVersion, 6)
+    assert.equal(cached.schemaVersion, 7)
     assert.equal(cached.items[0]?.description, "authored notes text")
     assert.equal(cached.items[0]?.uid, makeItem(41, "").uid)
     assert.deepEqual(cached.user.preferences, preferences)
@@ -544,7 +545,7 @@ test("a server cache is used for the first paint only when its items have uids",
     delete withoutUid.uid
     storage.setItem(key, JSON.stringify({ ...stored, items: [withoutUid] }))
     assert.equal(readItemsCache(1), null)
-    storage.setItem(key, JSON.stringify({ ...stored, schemaVersion: 5 }))
+    storage.setItem(key, JSON.stringify({ ...stored, schemaVersion: 6 }))
     assert.equal(readItemsCache(1), null, "an earlier version is not read")
   } finally {
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow)

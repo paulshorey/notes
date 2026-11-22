@@ -8,7 +8,7 @@ import { hasItemCapability, type ItemCapabilitySource } from "./item-capabilitie
  * Views select their items by kind. Use a lowercase, singular name for
  * both the kind key and its display label, such as "note" or "task".
  */
-export type ItemKindKey = "note" | "task" | "time"
+export type ItemKindKey = "note" | "task" | "time" | "journal"
 
 export interface ItemKind {
   key: ItemKindKey
@@ -26,6 +26,7 @@ export const ITEM_KINDS: readonly ItemKind[] = [
     matches: (item) => hasItemCapability(item, "text") && hasItemCapability(item, "status"),
   },
   { key: "time", label: "time", matches: (item) => hasItemCapability(item, "time") },
+  { key: "journal", label: "journal", matches: (item) => hasItemCapability(item, "day") },
 ]
 
 /** The kinds an item is, in registry order. */

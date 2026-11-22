@@ -21,7 +21,7 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for an item with no category. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
 - Composite foreign keys enforce that every item relation comes from the item's own workspace.
 - `contracts/item-capabilities.ts` is the registry of what an item can hold. Each
-  capability has a role: content (text, time) makes an item exist, and state (schedule,
+  capability has a role: content (text, time, day) makes an item exist, and state (schedule,
   status) describes one and never keeps it alive. A state may name what it `requires`:
   a status requires text. Declare a new capability there instead of branching on
   fields.
@@ -38,8 +38,14 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   (`contracts/item-time.ts`) fills in a missing end from the other. `ItemInput` leaves
   the time fields optional: an update that names neither keeps the stored block, and
   `null` removes it. See Time blocks in `docs/db/item-core.md`.
+- A journal entry is an item with an `entry_date`, a plain date read and written as
+  `YYYY-MM-DD` text, never through a driver `Date`. One entry per workspace and day is
+  kept by a unique index, and a write that breaks it throws `JournalDayTakenError`
+  (HTTP `409`). `sql/item/journal.ts` combines two entries: account merge and backup
+  restore do it without asking, and a user-driven write does it only when asked. See
+  Journal entries in `docs/db/item-core.md`.
 - `contracts/item-kinds.ts` names what an item holds: a `note` has text, a `task` has
-  text and a status, and a `time` item has a time block. A kind is
+  text and a status, a `time` item has a time block, and a `journal` item has a day. A kind is
   computed, never stored, and an item can be several kinds. Write a view's selection
   with `isKind` instead of testing fields.
 - `updateItemForItemsApp` accepts `expectedTimeModified`, the version the caller edited.
