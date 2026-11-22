@@ -222,8 +222,8 @@ Each phase is one or more pull requests and leaves the app working.
 2. **Time blocks.** Columns, the content and status check constraints, the `time`
    kind, the day timeline, the timer.
 3. **Journal.** `entry_date`, the `journal` kind, the journal view, combining days.
-4. **Lists.** `parent_id`, `position`, `time_done`, done statuses (`is_done`), the batch route, the checklist view, subtasks, list
-   embeddings, two-section backups.
+4. **Lists.** `parent_id`, `position`, `time_done`, done statuses (`is_done`), the
+   batch route, the checklist view, subtasks, list embeddings, two-section backups.
 5. **Links.** `item_link_v1`, time block to task, items attached to a journal day.
 6. **Calendar.** One view of every dated item.
 7. **Finish the task view** with subtasks, manual card order, and done columns.
