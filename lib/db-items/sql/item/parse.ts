@@ -63,10 +63,10 @@ export const parseItemInput = (value: unknown): ItemInput => {
       "timeStart"
     >),
     ...(optional("timeEnd", (raw) => timestamp(raw, "End time")) as Pick<ItemInput, "timeEnd">),
-    ...(optional("timePlanned", (raw) => (raw == null ? null : raw === true)) as Pick<
-      ItemInput,
-      "timePlanned"
-    >),
+    ...(optional("timePlanned", (raw) => {
+      if (raw == null || typeof raw === "boolean") return raw
+      throw new Error("timePlanned must be true, false, or null.")
+    }) as Pick<ItemInput, "timePlanned">),
     timeDue: timestamp(record.timeDue, "Due time"),
     timeRemind: timestamp(record.timeRemind, "Reminder time"),
   })

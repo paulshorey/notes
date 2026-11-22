@@ -115,13 +115,16 @@ const preferences = (value: unknown, depth = 0): unknown => {
 }
 
 /**
- * Files written under earlier rules can hold an item with only a status or a date, and
- * a status on an item without text. Neither can be stored, so the first is left out
- * and the second loses its status.
+ * Files written under earlier rules (versions 1 to 3) can hold an item with only a
+ * status or a date, and a status on an item without text. Neither can be stored, so
+ * the first is left out and the second loses its status. A version 4 file follows the
+ * current rules, so an item like that is invalid and the file is refused.
  */
 const holdsContent = (item: BackupItem) => hasItemContent({ ...item, statusId: null })
+const hasUnsupportedStatus = (item: BackupItem) =>
+  item.status !== null && !hasText(item.description)
 const withoutUnsupportedState = (item: BackupItem): BackupItem =>
-  item.status !== null && !hasText(item.description) ? { ...item, status: null } : item
+  hasUnsupportedStatus(item) ? { ...item, status: null } : item
 
 /** Validate the entire file before opening a write transaction. Never trust ids from a file. */
 export const parseUserBackup = (value: unknown): UserBackup => {
@@ -226,7 +229,16 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         categories: categories.filter((category) => category.label !== UNCATEGORIZED_LABEL),
         statuses,
         tags,
-        items: items.filter(holdsContent).map(withoutUnsupportedState),
+        items:
+          b.version === USER_BACKUP_VERSION
+            ? items.map((item) =>
+                holdsContent(item) && !hasUnsupportedStatus(item)
+                  ? item
+                  : fail(
+                      "An item holds neither text nor a time block, or has a status without text.",
+                    ),
+              )
+            : items.filter(holdsContent).map(withoutUnsupportedState),
       }
     }),
     (w) => w.label,

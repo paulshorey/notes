@@ -606,6 +606,10 @@ export function useTaxonomyActions(
             workspaceId: activeWorkspaceId,
             ...fields,
             description: item.description ?? "",
+            // Named so an item that is a time block without text still holds content.
+            timeStart: item.timeStart,
+            timeEnd: item.timeEnd,
+            timePlanned: item.timePlanned,
             timeDue: item.timeDue,
             timeRemind: item.timeRemind,
           },

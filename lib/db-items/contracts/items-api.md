@@ -37,11 +37,12 @@ block, the other takes the same instant; given neither field, an update leaves t
 stored block as it is. A subcategory
 that does not belong to the category is cleared, not refused. The HTTP parser accepts
 omitted text as null. `POST` and `PATCH` return `400` when the item would hold no
-capability at all: text, a due or reminder date, or a status each suffice on their own
+content: text or a time block. A due or reminder date, a status, a category, or tags
+describe content and never make an item, and a status requires text
 (`contracts/item-capabilities.ts`). Search returns only items with text.
 `ItemRecord` returns `id`, `workspaceId`, nullable `category` and `subcategory`
-references, status and tag references, `description`, due/reminder dates, and
-creation/modification timestamps. An item has one workspace; relationship IDs must
+references, status and tag references, `description`, the time block (`timeStart`,
+`timeEnd`, `timePlanned`), due/reminder dates, and creation/modification timestamps. An item has one workspace; relationship IDs must
 belong to that workspace. A new item needs no category. There is no `type` field.
 See `docs/db/item-taxonomy.md`.
 

@@ -117,6 +117,9 @@ export interface TrashedItemRecord {
   subcategory: string | null
   status: string | null
   tags: string[]
+  timeStart: string | null
+  timeEnd: string | null
+  timePlanned: boolean
   timeDue: string | null
   timeRemind: string | null
 }

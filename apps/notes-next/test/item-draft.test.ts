@@ -3,6 +3,7 @@ import test from "node:test"
 import type { ItemRecord } from "@lib/db-items"
 import {
   createEmptyItemDraft,
+  draftHoldsContent,
   isBlankItemDraft,
   itemDraftFromItem,
   itemDraftRequest,
@@ -214,4 +215,19 @@ test("the kinds left out of the notes view are a preference, and unknown names a
     getNotesViewHiddenKindsPreference({ notesApp: { notesViewHiddenKinds: ["journal", "task"] } }),
     ["task"],
   )
+})
+
+test("an item with a time block keeps its content when its text is emptied", () => {
+  const block = item({
+    description: null,
+    status: null,
+    timeStart: "2026-03-04T15:00:00.000Z",
+    timeEnd: "2026-03-04T16:00:00.000Z",
+  })
+  const draft = itemDraftFromItem(block)
+  assert.equal(draftHoldsContent(draft), true)
+  // Its saves name the block, so the server keeps it as the draft holds it.
+  assert.equal(itemDraftRequest(draft).timeStart, block.timeStart)
+  assert.equal(itemDraftRequest(draft).timeEnd, block.timeEnd)
+  assert.equal(draftHoldsContent(itemDraftFromItem(item({ description: null }))), false)
 })

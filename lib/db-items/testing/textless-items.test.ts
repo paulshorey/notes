@@ -8,10 +8,13 @@ import { getDb } from "../lib/db/postgres"
 import { CURRENT_ITEM_EMBEDDING_MODEL } from "../services/item-embeddings"
 import {
   createItemForItemsApp,
+  deleteItemForItemsApp,
   mergeAnonymousItemsAppSession,
   updateItemForItemsApp,
 } from "../services/items-app"
-import { listItemsByUser, searchItemsByEmbedding } from "../sql/item"
+import { listItemsByUser, parseItemInput, searchItemsByEmbedding } from "../sql/item"
+import { listTrashedItemsByUser } from "../sql/item/trash"
+import { parseUserBackup } from "../contracts/user-backup"
 import { previewItemGroup } from "../sql/item-groups"
 import { createStatusForWorkspace } from "../sql/status"
 import { createAnonymousUser } from "../sql/user/anonymous"
@@ -286,6 +289,44 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
         [null, null, block.timeStart],
       ],
     )
+  })
+
+  test("a version 4 backup that breaks the content rules is refused", async () => {
+    const userId = await realUser()
+    await createWorkspaceForUser(userId, "personal")
+    const backup = await exportUserBackup(userId)
+    const stamp = { timeCreated: due, timeModified: due }
+    const base = { category: null, subcategory: null, tags: [], timeRemind: null, ...stamp }
+    backup.workspaces[0]!.items.push({ ...base, description: null, status: null, timeDue: due })
+    assert.throws(
+      () => parseUserBackup(JSON.parse(JSON.stringify(backup))),
+      /neither text nor a time block/,
+    )
+    assert.doesNotThrow(() =>
+      parseUserBackup({ ...JSON.parse(JSON.stringify(backup)), version: 3 }),
+    )
+  })
+
+  test("the trash lists the time block of a deleted item", async () => {
+    const userId = await realUser()
+    const workspace = await createWorkspaceForUser(userId, "personal")
+    const { item } = await createItemForItemsApp({
+      userId,
+      item: input(workspace.id, { ...block, timePlanned: true }),
+    })
+    await deleteItemForItemsApp({ userId, itemId: item.id })
+    const [entry] = await listTrashedItemsByUser(userId)
+    assert.equal(entry!.description, null)
+    assert.equal(entry!.timeStart, block.timeStart)
+    assert.equal(entry!.timeEnd, block.timeEnd)
+    assert.equal(entry!.timePlanned, true)
+  })
+
+  test("timePlanned must be a boolean or null", () => {
+    const base = { workspaceId: 1, timeStart: due }
+    assert.equal(parseItemInput({ ...base, timePlanned: true }).timePlanned, true)
+    assert.equal(parseItemInput({ ...base, timePlanned: null }).timePlanned, null)
+    assert.throws(() => parseItemInput({ ...base, timePlanned: "true" }), /timePlanned/)
   })
 
   test("signing in to an existing account keeps an anonymous time block", async () => {

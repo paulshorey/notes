@@ -14,6 +14,11 @@ interface TrashRow {
 }
 
 const text = (value: unknown) => (typeof value === "string" && value !== "" ? value : null)
+/** A stored instant as UTC, whatever offset the database session wrote it with. */
+const instant = (value: unknown) => {
+  const raw = text(value)
+  return raw === null ? null : new Date(raw).toISOString()
+}
 const labels = (value: unknown) =>
   Array.isArray(value) ? value.filter((label): label is string => typeof label === "string") : []
 
@@ -27,6 +32,9 @@ const mapTrashedItem = (row: TrashRow): TrashedItemRecord => ({
   subcategory: text(row.item.subcategory),
   status: text(row.item.status),
   tags: labels(row.item.tags),
+  timeStart: instant(row.item.timeStart),
+  timeEnd: instant(row.item.timeEnd),
+  timePlanned: row.item.timePlanned === true,
   timeDue: text(row.item.timeDue),
   timeRemind: text(row.item.timeRemind),
 })
