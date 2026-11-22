@@ -201,6 +201,18 @@ test("a time block is content in a draft, and an item without one sends no time 
     itemDraftRequest(old as unknown as typeof empty),
     itemDraftRequest({ ...empty, description: "an older draft" }),
   )
+
+  // An older draft of a time-block item holds only its start. It sends no time fields,
+  // so it matches the signature saved with it and cannot write a block with no end.
+  const legacyBlock = {
+    ...empty,
+    description: "an older block",
+    timeStart: at(25, 9).toISOString(),
+  }
+  delete (legacyBlock as Record<string, unknown>).timeEnd
+  delete (legacyBlock as Record<string, unknown>).timePlanned
+  delete (legacyBlock as Record<string, unknown>).timeBlockKnown
+  assert.deepEqual(timePart.toRequest(legacyBlock as unknown as typeof empty), {})
 })
 
 test("the time view starts an item from a time block and lists time blocks only", () => {

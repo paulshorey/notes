@@ -1153,6 +1153,8 @@ export function useTaxonomyActions(
       timePlanned: boolean
       description: string
       categoryId: number | null
+      /** Names the item a create stores, so repeating the create stores it once. */
+      uid: string
     },
   ): Promise<ItemRecord | null> => {
     const workspaceId = activeWorkspaceId
@@ -1169,7 +1171,7 @@ export function useTaxonomyActions(
           userId,
           ...(current ? { itemId: current.id, expectedTimeModified: current.timeModified } : {}),
           item: {
-            ...(current ? {} : { uid: newPublicUid() }),
+            ...(current ? {} : { uid: values.uid }),
             workspaceId,
             categoryId: values.categoryId,
             subcategoryId: keepsFiling ? stored.subcategoryId : null,

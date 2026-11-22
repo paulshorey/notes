@@ -42,8 +42,10 @@ export const timePart: ItemDraftPart<TimeDraft> = {
   }),
   toRequest: (draft) => {
     const { timeStart, timeEnd, timePlanned, timeBlockKnown } = read(draft)
-    // Leaving the fields out tells the server to keep whatever is stored.
-    if (!timeBlockKnown && timeStart === null) return {}
+    // Leaving the fields out tells the server to keep whatever is stored. A restored
+    // draft that holds a start but no timeBlockKnown flag predates the end field, so
+    // it also leaves them out rather than send a start with no end.
+    if (!timeBlockKnown) return {}
     return { timeStart, timeEnd, timePlanned: timeStart !== null && timePlanned }
   },
   listLabel: (item) =>

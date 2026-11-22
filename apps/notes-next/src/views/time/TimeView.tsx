@@ -5,6 +5,7 @@ import { Button, Checkbox, Modal, Text } from "@gravity-ui/uikit"
 import { type FormEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { toDateTimeLocalValue } from "@/lib/dates"
+import { newPublicUid } from "@/lib/publicUid"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { useItemsWorkspace } from "@/workspace/ItemsWorkspaceProvider"
 import styles from "./TimeView.module.css"
@@ -345,6 +346,7 @@ function TimeBlockForm({
       timePlanned: boolean
       description: string
       categoryId: number | null
+      uid: string
     },
   ) => Promise<ItemRecord | null>
   onDelete: (itemId: number) => Promise<void>
@@ -359,6 +361,17 @@ function TimeBlockForm({
   const [planned, setPlanned] = useState<boolean | null>(item ? item.timePlanned : null)
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState<"save" | "delete" | null>(null)
+  // One identity for the block this form creates, so a retry after a failed or repeated
+  // submit finds the block the first attempt stored instead of adding another.
+  const [uid] = useState(newPublicUid)
+  // A write that finishes after the form closed must not close whatever opened since.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const times = parseBlockTimes(start, end)
   const startsInFuture = !("error" in times) && new Date(times.timeStart).getTime() > Date.now()
@@ -379,7 +392,9 @@ function TimeBlockForm({
       timePlanned: isPlanned,
       description,
       categoryId,
+      uid,
     })
+    if (!mountedRef.current) return
     setPending(null)
     if (stored) onClose()
   }
@@ -388,6 +403,7 @@ function TimeBlockForm({
     if (!item || pending) return
     setPending("delete")
     await onDelete(item.id)
+    if (!mountedRef.current) return
     setPending(null)
     onClose()
   }
