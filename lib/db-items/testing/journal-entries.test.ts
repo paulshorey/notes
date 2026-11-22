@@ -200,6 +200,16 @@ describe("journal entries (DB)", { skip: !testDbUrl }, () => {
       [target],
     )
     assert.equal(stored.rows[0]!.embedded, false, "the old embedding no longer matches the text")
+    // Text that only appears inside the day's text is still new, and is appended.
+    const short = await seedEntry(workspace.id, "2026-11-27", "Morn")
+    await combineJournalDayForItemsApp({ userId, itemId: short, entryDate: "2026-11-25" })
+    // A block the day already holds is not added again.
+    const repeat = await seedEntry(workspace.id, "2026-11-28", "Evening")
+    await combineJournalDayForItemsApp({ userId, itemId: repeat, entryDate: "2026-11-25" })
+    assert.deepEqual(
+      (await entries(userId, workspace.id)).map((entry) => entry.text),
+      ["Morning\n\nEvening\n\nMorn"],
+    )
     // A day without an entry has nothing to combine with.
     assert.equal(
       await combineJournalDayForItemsApp({ userId, itemId: target, entryDate: "2026-12-01" }),

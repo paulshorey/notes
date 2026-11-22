@@ -5,10 +5,12 @@ import { selectItemById } from "./shared"
 
 /**
  * True when the source entry adds no text to the destination: it has none, or the
- * destination already holds it, as when the same backup is restored a second time.
+ * destination already holds it as a whole block between blank lines, as when the same
+ * backup is restored a second time. Text that merely appears inside other text is new.
  */
 const NOTHING_TO_APPEND = `(NULLIF(btrim(s.description),'') IS NULL
-  OR position(btrim(s.description) in COALESCE(d.description,''))>0)`
+  OR position(E'\\n\\n'||btrim(s.description)||E'\\n\\n'
+    in E'\\n\\n'||btrim(COALESCE(d.description,''))||E'\\n\\n')>0)`
 
 /**
  * Combine journal entries, given `pairs(source_id,dest_id)`: each destination entry
