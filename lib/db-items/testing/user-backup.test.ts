@@ -269,7 +269,15 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
       (n) => n.description === workspace.items[0]!.description,
     )!
     const { categories: _legacy, ...portable } = workspace.items[0]!
-    assert.deepEqual(withoutUid(item), { ...portable, category: null, subcategory: null })
+    // The file is from before time blocks, so the item comes back without one.
+    assert.deepEqual(withoutUid(item), {
+      ...portable,
+      category: null,
+      subcategory: null,
+      timeStart: null,
+      timeEnd: null,
+      timePlanned: false,
+    })
     assert.equal(
       restored.workspaces[0]!.categories.some((c) => c.label === "uncategorized"),
       false,

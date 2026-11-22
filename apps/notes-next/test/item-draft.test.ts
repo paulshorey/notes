@@ -3,6 +3,7 @@ import test from "node:test"
 import type { ItemRecord } from "@lib/db-items"
 import {
   createEmptyItemDraft,
+  draftHoldsContent,
   isBlankItemDraft,
   itemDraftFromItem,
   itemDraftRequest,
@@ -28,6 +29,9 @@ const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
     { id: 5, label: "idea" },
   ],
   description: "Ship the shell\nand the views",
+  timeStart: null,
+  timeEnd: null,
+  timePlanned: false,
   timeDue: "2026-03-04T15:30:00.000Z",
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
@@ -46,6 +50,7 @@ test("an empty draft holds every part and nothing to save", () => {
     timeRemind: null,
     dueExpanded: false,
     remindExpanded: false,
+    timeStart: null,
   })
 })
 
@@ -60,6 +65,7 @@ test("a stored item fills every part of the draft", () => {
     timeRemind: null,
     dueExpanded: true,
     remindExpanded: false,
+    timeStart: null,
   })
   assert.equal(itemDraftFromItem(item({ description: null })).description, "")
 })
@@ -163,6 +169,9 @@ test("the notes view lists everything with text except the kinds left out of it"
     status: null,
     tags: [],
     description: "text",
+    timeStart: null,
+    timeEnd: null,
+    timePlanned: false,
     timeDue: null,
     timeRemind: null,
     timeCreated: "2026-01-01T00:00:00.000Z",
@@ -200,4 +209,17 @@ test("the kinds left out of the notes view are a preference, and unknown names a
     getNotesViewHiddenKindsPreference({ notesApp: { notesViewHiddenKinds: ["journal", "task"] } }),
     ["task"],
   )
+})
+
+test("an item with a time block keeps its content when its text is emptied", () => {
+  const block = item({
+    description: null,
+    status: null,
+    timeStart: "2026-03-04T15:00:00.000Z",
+    timeEnd: "2026-03-04T16:00:00.000Z",
+  })
+  const draft = itemDraftFromItem(block)
+  assert.equal(draftHoldsContent(draft), true)
+  assert.equal("timeStart" in itemDraftRequest(draft), false)
+  assert.equal(draftHoldsContent(itemDraftFromItem(item({ description: null }))), false)
 })

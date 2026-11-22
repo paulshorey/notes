@@ -3,7 +3,8 @@ import type { PoolClient } from "pg"
 import { assertCategoryNameAllowed } from "../../contracts/category-name"
 
 export const itemColumns = `
-  n.id, n.uid, n.workspace_id, n.description, n.time_due, n.time_remind,
+  n.id, n.uid, n.workspace_id, n.description, n.time_start, n.time_end, n.time_planned,
+  n.time_due, n.time_remind,
   n.time_created, n.time_modified,
   CASE WHEN s.id IS NULL THEN NULL ELSE json_build_object('id', s.id, 'label', s.label) END AS status,
   (SELECT json_build_object('id', c.id, 'label', c.label)
@@ -24,6 +25,9 @@ export interface ItemRow {
   uid: string
   workspace_id: number
   description: string | null
+  time_start: Date | null
+  time_end: Date | null
+  time_planned: boolean
   time_due: Date | null
   time_remind: Date | null
   time_created: Date
@@ -57,6 +61,9 @@ export const mapItem = (row: ItemRow): ItemRecord => ({
   status: parseRefs([row.status])[0] ?? null,
   tags: parseRefs(row.tags) as TagRef[],
   description: row.description,
+  timeStart: row.time_start?.toISOString() ?? null,
+  timeEnd: row.time_end?.toISOString() ?? null,
+  timePlanned: row.time_planned,
   timeDue: row.time_due?.toISOString() ?? null,
   timeRemind: row.time_remind?.toISOString() ?? null,
   timeCreated: row.time_created.toISOString(),

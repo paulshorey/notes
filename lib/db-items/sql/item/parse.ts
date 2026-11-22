@@ -1,3 +1,4 @@
+import { normalizeTimeBlock } from "../../contracts/item-time"
 import { parseOptionalPublicUid } from "../../contracts/public-uid"
 import type { ItemInput } from "./types"
 const positiveInt = (value: unknown, field: string): number => {
@@ -43,7 +44,10 @@ const categoryId = (record: Record<string, unknown>) => {
 export const parseItemInput = (value: unknown): ItemInput => {
   if (typeof value !== "object" || value === null) throw new Error("Item payload is required.")
   const record = value as Record<string, unknown>
-  return {
+  // A field that is absent is left out, which is how a request says nothing about it.
+  const optional = <Value>(field: string, parse: (raw: unknown) => Value) =>
+    record[field] === undefined ? {} : { [field]: parse(record[field]) }
+  return normalizeTimeBlock({
     uid: parseOptionalPublicUid(record.uid),
     workspaceId: positiveInt(record.workspaceId, "workspaceId"),
     categoryId: categoryId(record),
@@ -54,7 +58,16 @@ export const parseItemInput = (value: unknown): ItemInput => {
         : positiveInt(record.statusId, "statusId"),
     tagIds: ids(record.tagIds, "tagIds"),
     description: typeof record.description === "string" ? record.description : null,
+    ...(optional("timeStart", (raw) => timestamp(raw, "Start time")) as Pick<
+      ItemInput,
+      "timeStart"
+    >),
+    ...(optional("timeEnd", (raw) => timestamp(raw, "End time")) as Pick<ItemInput, "timeEnd">),
+    ...(optional("timePlanned", (raw) => {
+      if (raw == null || typeof raw === "boolean") return raw
+      throw new Error("timePlanned must be true, false, or null.")
+    }) as Pick<ItemInput, "timePlanned">),
     timeDue: timestamp(record.timeDue, "Due time"),
     timeRemind: timestamp(record.timeRemind, "Reminder time"),
-  }
+  })
 }

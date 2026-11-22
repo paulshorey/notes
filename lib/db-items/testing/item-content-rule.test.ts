@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
-import { hasItemContent } from "../contracts/item-capabilities"
+import { hasItemContent, missingRequirement } from "../contracts/item-capabilities"
 import { getDb } from "../lib/db/postgres"
 import { listItemsByUser } from "../sql/item"
 import { ITEM_HAS_CONTENT_SQL } from "../sql/item/stored-capabilities"
@@ -38,82 +38,127 @@ describe("what counts as an item's content (DB)", { skip: !testDbUrl }, () => {
     )
     return { userId, workspaceId: created.id, ...vocabulary.rows[0]! }
   }
-  const insert = async (
-    workspaceId: number,
-    values: {
-      description?: string | null
-      due?: string | null
-      remind?: string | null
-      status?: number | null
-      category?: number | null
-    },
-  ) =>
+  type Candidate = {
+    description?: string | null
+    due?: string | null
+    start?: string | null
+    status?: number | null
+    category?: number | null
+  }
+  const insert = async (workspaceId: number, values: Candidate) =>
     (
       await getDb().query<{ id: number }>(
-        `INSERT INTO public.workspace_item_v1(workspace_id,description,time_due,time_remind,status_id,category_id)
-         VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+        `INSERT INTO public.workspace_item_v1(workspace_id,description,time_due,time_start,time_end,status_id,category_id)
+         VALUES($1,$2,$3,$4,$4,$5,$6) RETURNING id`,
         [
           workspaceId,
           values.description ?? null,
           values.due ?? null,
-          values.remind ?? null,
+          values.start ?? null,
           values.status ?? null,
           values.category ?? null,
         ],
       )
     ).rows[0]!.id
 
-  test("the SQL rule for content agrees with the registry's", async () => {
+  test("the table accepts exactly the items the registry's rules accept", async () => {
     const w = await workspace()
-    const ids = {
-      text: await insert(w.workspaceId, { description: "words" }),
-      blankText: await insert(w.workspaceId, { description: "  \n\t " }),
+    const at = "2027-01-02T03:04:05Z"
+    const candidates: Record<string, Candidate> = {
+      text: { description: "words" },
+      blankText: { description: "  \n\t " },
       // Whitespace that `trim` removes but a locale's space class may not include.
-      unicodeSpaces: await insert(w.workspaceId, {
-        description: "\u00A0\u1680\u2003\u2028\u2029\u202F\u205F\u3000\uFEFF",
-      }),
+      unicodeSpaces: { description: "\u00A0\u1680\u2003\u2028\u2029\u202F\u205F\u3000\uFEFF" },
       // Characters `trim` keeps, which some collations call spaces.
-      controlOnly: await insert(w.workspaceId, { description: "\u0085\u001C" }),
-      due: await insert(w.workspaceId, { due: "2027-01-02T03:04:05Z" }),
-      remind: await insert(w.workspaceId, { remind: "2027-01-02T03:04:05Z" }),
-      status: await insert(w.workspaceId, { status: w.status }),
-      filedOnly: await insert(w.workspaceId, { category: w.category }),
-      nothing: await insert(w.workspaceId, {}),
+      controlOnly: { description: "\u0085\u001C" },
+      timeBlock: { start: at },
+      timeBlockWithBlankText: { start: at, description: "   " },
+      due: { due: at },
+      status: { status: w.status },
+      filedOnly: { category: w.category },
+      nothing: {},
+      textWithStatus: { description: "words", status: w.status },
+      timeBlockWithStatus: { start: at, status: w.status },
+      textAndTimeBlockWithStatus: { description: "words", start: at, status: w.status },
     }
-    await getDb().query(
-      `INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id) VALUES($1,$2,$3)`,
-      [ids.nothing, w.tag, w.workspaceId],
-    )
+    const accepted: Record<string, boolean> = {}
+    for (const [name, values] of Object.entries(candidates)) {
+      const source = {
+        description: values.description ?? null,
+        timeStart: values.start ?? null,
+        timeDue: values.due ?? null,
+        timeRemind: null,
+        statusId: values.status ?? null,
+      }
+      const allowed = hasItemContent(source) && missingRequirement(source) === null
+      const stored = await insert(w.workspaceId, values).then(
+        () => true,
+        (error: { code?: string }) => {
+          // 23514 is a check constraint; anything else is a broken test.
+          assert.equal(error.code, "23514", name)
+          return false
+        },
+      )
+      assert.equal(stored, allowed, name)
+      accepted[name] = stored
+    }
+    assert.deepEqual(accepted, {
+      text: true,
+      blankText: false,
+      unicodeSpaces: false,
+      controlOnly: true,
+      timeBlock: true,
+      timeBlockWithBlankText: true,
+      due: false,
+      status: false,
+      filedOnly: false,
+      nothing: false,
+      textWithStatus: true,
+      timeBlockWithStatus: false,
+      textAndTimeBlockWithStatus: true,
+    })
+
+    // Every stored item holds content by the SQL rule and by the registry's.
     const sql = await getDb().query<{ id: number; has: boolean }>(
       `SELECT n.id,${ITEM_HAS_CONTENT_SQL} AS has FROM public.workspace_item_v1 n WHERE n.workspace_id=$1`,
       [w.workspaceId],
     )
-    const bySql = new Map(sql.rows.map((row) => [row.id, row.has]))
-    const records = await listItemsByUser(w.userId, w.workspaceId)
-    assert.equal(records.length, Object.keys(ids).length)
-    for (const record of records)
-      assert.equal(bySql.get(record.id), hasItemContent(record), `item ${record.id}`)
-    assert.deepEqual(
-      Object.fromEntries(Object.entries(ids).map(([name, id]) => [name, bySql.get(id)])),
-      {
-        text: true,
-        blankText: false,
-        unicodeSpaces: false,
-        controlOnly: true,
-        due: false,
-        remind: false,
-        status: false,
-        filedOnly: false,
-        nothing: false,
-      },
+    assert.equal(sql.rows.length, Object.values(accepted).filter(Boolean).length)
+    assert.ok(sql.rows.every((row) => row.has))
+    for (const record of await listItemsByUser(w.userId, w.workspaceId))
+      assert.equal(hasItemContent(record), true, `item ${record.id}`)
+  })
+
+  test("a time block has both ends in order, and a plan needs a block", async () => {
+    const w = await workspace()
+    const bad = [
+      `time_start='2027-01-02T03:00Z'`,
+      `time_end='2027-01-02T03:00Z'`,
+      `time_start='2027-01-02T04:00Z',time_end='2027-01-02T03:00Z'`,
+      `time_planned=true`,
+    ]
+    const id = await insert(w.workspaceId, { description: "words" })
+    for (const change of bad)
+      await assert.rejects(
+        getDb().query(`UPDATE public.workspace_item_v1 SET ${change} WHERE id=$1`, [id]),
+        { code: "23514" },
+        change,
+      )
+    await getDb().query(
+      `UPDATE public.workspace_item_v1 SET time_start='2027-01-02T03:00Z',time_end='2027-01-02T03:00Z',time_planned=true WHERE id=$1`,
+      [id],
     )
   })
 
   test("deleting a status clears it from its items and deletes none of them", async () => {
     const w = await workspace()
     const withText = await insert(w.workspaceId, { status: w.status, description: "still a note" })
-    const withDate = await insert(w.workspaceId, { status: w.status, due: "2027-01-02T03:04:05Z" })
-    const otherStatus = await insert(w.workspaceId, { status: w.other })
+    const withDate = await insert(w.workspaceId, {
+      status: w.status,
+      description: "dated",
+      due: "2027-01-02T03:04:05Z",
+    })
+    const otherStatus = await insert(w.workspaceId, { status: w.other, description: "other" })
 
     assert.equal(await deleteStatusForWorkspace(w.userId, w.workspaceId, w.status), true)
 

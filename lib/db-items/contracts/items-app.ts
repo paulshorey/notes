@@ -92,6 +92,11 @@ export interface ItemRecord {
   status: CategoryRef | null
   tags: TagRef[]
   description: string | null
+  /** A time block's start and end. Both are set, or both are null. */
+  timeStart: string | null
+  timeEnd: string | null
+  /** Whether the time block is a plan not yet confirmed. False without a time block. */
+  timePlanned: boolean
   timeDue: string | null
   timeRemind: string | null
   timeCreated: string
@@ -112,6 +117,9 @@ export interface TrashedItemRecord {
   subcategory: string | null
   status: string | null
   tags: string[]
+  timeStart: string | null
+  timeEnd: string | null
+  timePlanned: boolean
   timeDue: string | null
   timeRemind: string | null
 }
@@ -133,6 +141,15 @@ export interface ItemInput {
   statusId: number | null
   tagIds: number[]
   description: string | null
+  /**
+   * The time block. Given only one of the two, the other takes the same instant. A
+   * request that names neither field leaves a stored item's time block as it is, so a
+   * client that does not know about time blocks cannot remove one.
+   */
+  timeStart?: string | null
+  timeEnd?: string | null
+  /** Left out, a new block is a plan when it starts in the future. */
+  timePlanned?: boolean | null
   timeDue: string | null
   timeRemind: string | null
 }
@@ -470,6 +487,10 @@ export interface BackupItem {
   subcategory: string | null
   status: string | null
   tags: string[]
+  /** Absent in files written before items had time blocks. */
+  timeStart?: string | null
+  timeEnd?: string | null
+  timePlanned?: boolean
   timeDue: string | null
   timeRemind: string | null
   timeCreated: string

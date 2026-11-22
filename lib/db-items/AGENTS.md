@@ -21,19 +21,25 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for an item with no category. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
 - Composite foreign keys enforce that every item relation comes from the item's own workspace.
 - `contracts/item-capabilities.ts` is the registry of what an item can hold. Each
-  capability has a role: content (text) makes an item exist, and state (schedule,
-  status) describes one and never keeps it alive. Declare a new capability there
-  instead of branching on fields.
-  `hasItemContent` is the save rule (at least one content capability), applied by
-  `createItemForItemsApp` and `updateItemForItemsApp`. `ITEM_HAS_CONTENT_SQL`
-  (`sql/item/stored-capabilities.ts`) is the same rule over an item row, built from
-  each content capability's `present` condition. The SQL layer and the tables still
-  accept a bare item, and listing, group actions, backup, restore, and account merge
-  carry a stored item whatever content it holds: nothing below the service may name
-  text as the content it expects. Deleting a status clears it from its items and
-  deletes none.
-- `contracts/item-kinds.ts` names what an item holds: a `note` has text, and a `task`
-  has text and a status. A kind is
+  capability has a role: content (text, time) makes an item exist, and state (schedule,
+  status) describes one and never keeps it alive. A state may name what it `requires`:
+  a status requires text. Declare a new capability there instead of branching on
+  fields.
+  `assertItemHasContent` applies the save rules (`hasItemContent`: at least one content
+  capability; `missingRequirement`: each state has what it requires) in
+  `createItemForItemsApp` and `updateItemForItemsApp`, and the check constraints
+  `workspace_item_v1_content_check` and `workspace_item_v1_status_requires_text_check`
+  repeat them, so a test or script cannot insert an item the rules refuse.
+  `ITEM_HAS_CONTENT_SQL` (`sql/item/stored-capabilities.ts`) is the content rule over
+  an item row. Listing, group actions, backup, restore, account merge, and the trash
+  carry an item whatever content it holds: no layer may name text as the content it
+  expects. Deleting a status clears it from its items and deletes none.
+- A time block is `time_start` and `time_end`, set together. `normalizeTimeBlock`
+  (`contracts/item-time.ts`) fills in a missing end from the other. `ItemInput` leaves
+  the time fields optional: an update that names neither keeps the stored block, and
+  `null` removes it. See Time blocks in `docs/db/item-core.md`.
+- `contracts/item-kinds.ts` names what an item holds: a `note` has text, a `task` has
+  text and a status, and a `time` item has a time block. A kind is
   computed, never stored, and an item can be several kinds. Write a view's selection
   with `isKind` instead of testing fields.
 - `updateItemForItemsApp` accepts `expectedTimeModified`, the version the caller edited.

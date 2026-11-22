@@ -427,6 +427,27 @@
           "nullable": true
         },
         {
+          "name": "timeStart",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeEnd",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timePlanned",
+          "optional": false,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
           "name": "timeDue",
           "optional": false,
           "kind": "scalar",
@@ -518,6 +539,27 @@
           "nullable": false
         },
         {
+          "name": "timeStart",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeEnd",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timePlanned",
+          "optional": false,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
           "name": "timeDue",
           "optional": false,
           "kind": "scalar",
@@ -603,6 +645,27 @@
           "optional": false,
           "kind": "scalar",
           "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeStart",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeEnd",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timePlanned",
+          "optional": true,
+          "kind": "scalar",
+          "type": "boolean",
           "nullable": true
         },
         {
@@ -1946,6 +2009,27 @@
             "kind": "scalar",
             "type": "string"
           },
+          "nullable": false
+        },
+        {
+          "name": "timeStart",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeEnd",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timePlanned",
+          "optional": true,
+          "kind": "scalar",
+          "type": "boolean",
           "nullable": false
         },
         {

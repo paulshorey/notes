@@ -162,6 +162,24 @@ export const STORED_ITEM_CAPABILITIES: Record<ItemCapabilityKey, StoredItemPart>
       },
     },
   },
+  time: {
+    present: `n.time_start IS NOT NULL`,
+    columns: ["time_start", "time_end", "time_planned"],
+    tables: {},
+    fields: {
+      timeStart: {
+        type: "timestamptz",
+        export: "n.time_start",
+        import: { time_start: `n."timeStart"` },
+      },
+      timeEnd: { type: "timestamptz", export: "n.time_end", import: { time_end: `n."timeEnd"` } },
+      timePlanned: {
+        type: "boolean",
+        export: "n.time_planned",
+        import: { time_planned: `COALESCE(n."timePlanned" AND n."timeStart" IS NOT NULL,false)` },
+      },
+    },
+  },
   schedule: {
     present: `(n.time_due IS NOT NULL OR n.time_remind IS NOT NULL)`,
     columns: ["time_due", "time_remind"],

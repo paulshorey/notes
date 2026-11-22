@@ -46,8 +46,10 @@ export const createOrFindItemForUser = async (
     const { rows } = await client.query<{ id: number }>(
       `INSERT INTO public.workspace_item_v1
        (workspace_id,category_id,subcategory_id,status_id,description,time_due,time_remind,
-        description_embedding,embedding_model,embedding_updated_at,uid)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::vector,$9,$10,COALESCE($11::uuid,gen_random_uuid()))
+        description_embedding,embedding_model,embedding_updated_at,uid,
+        time_start,time_end,time_planned)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::vector,$9,$10,COALESCE($11::uuid,gen_random_uuid()),
+        $12,$13,COALESCE($14::boolean,$12::timestamptz > now(),false))
        ON CONFLICT (uid) DO NOTHING RETURNING id`,
       [
         item.workspaceId,
@@ -61,6 +63,10 @@ export const createOrFindItemForUser = async (
         embeddings.embeddingModel,
         embeddings.embeddingModel ? new Date().toISOString() : null,
         item.uid ?? null,
+        item.timeStart ?? null,
+        item.timeEnd ?? null,
+        // A new block is a plan when it starts in the future, unless the caller says.
+        item.timeStart == null ? false : (item.timePlanned ?? null),
       ],
     )
     const inserted = rows[0]?.id

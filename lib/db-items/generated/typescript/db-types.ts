@@ -80,6 +80,9 @@ export interface WorkspaceItemV1Row {
   category_id: number | null
   subcategory_id: number | null
   uid: string
+  time_start: Date | null
+  time_end: Date | null
+  time_planned: boolean
 }
 
 export interface WorkspaceStatusV1Row {

@@ -64,6 +64,7 @@ export {
 } from "./item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
 import { assertItemHasContent } from "../contracts/item-capabilities"
+import { normalizeTimeBlock } from "../contracts/item-time"
 import { exportUserBackup, restoreUserBackup } from "../sql/user/backup"
 export { BackupAccountError } from "../sql/user/backup"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "../item-search-constants"
@@ -628,7 +629,10 @@ export const deleteStatusForItemsApp = async (
   (await deleteStatusForWorkspace(r.userId, r.workspaceId, r.statusId)) ? { ok: true } : null
 // Storage accepts a bare item. The service refuses an item that holds no content, which
 // the capability registry defines; nothing here names a field.
-export const createItemForItemsApp = async (r: CreateItemRequest): Promise<CreateItemResponse> => {
+export const createItemForItemsApp = async (
+  request: CreateItemRequest,
+): Promise<CreateItemResponse> => {
+  const r = { ...request, item: normalizeTimeBlock(request.item) }
   assertItemHasContent(r.item)
   // A repeated create is answered before anything else is asked for. The text is not
   // written again, so it needs no embedding, and the caller gets its item back even
@@ -670,7 +674,12 @@ const changedSince = async (r: UpdateItemRequest) => {
   return current && current.timeModified !== r.expectedTimeModified ? current : null
 }
 
-export const updateItemForItemsApp = async (r: UpdateItemRequest): Promise<ItemResponse | null> => {
+export const updateItemForItemsApp = async (
+  request: UpdateItemRequest,
+): Promise<ItemResponse | null> => {
+  const r = { ...request, item: normalizeTimeBlock(request.item) }
+  // A request that names no time block is judged by what else it holds: it cannot
+  // rely on a stored block it does not know about.
   assertItemHasContent(r.item)
   const stored = await selectItemEmbeddingStateById(r.itemId, r.userId)
   // A stale editor must see the deletion immediately, before any provider call.
