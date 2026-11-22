@@ -1157,6 +1157,8 @@ export function useTaxonomyActions(
       timeEnd: string | null
       description: string
       categoryId: number | null
+      /** The subcategory of a new block. An existing item keeps its own within its category. */
+      subcategoryId?: number | null
       /** Names the item a create stores, so repeating the create stores it once. */
       uid: string
     },
@@ -1167,7 +1169,12 @@ export function useTaxonomyActions(
     clearMessages()
     const send = async (current: ItemRecord | null) => {
       const stored = current ? storedItemFields(current) : null
-      const { categoryId } = values
+      // A category the form did not change gives way to the stored one, which an open
+      // entry's saved edits may have moved since the form opened.
+      const categoryId =
+        stored !== null && values.categoryId === (existing?.category?.id ?? null)
+          ? stored.categoryId
+          : values.categoryId
       const keepsFiling = stored !== null && stored.categoryId === categoryId
       // The open entry's newer text was saved when `current` was read; the form's copy is
       // older unless the user changed it here.
@@ -1184,7 +1191,7 @@ export function useTaxonomyActions(
           ...(current ? {} : { uid: values.uid }),
           workspaceId,
           categoryId,
-          subcategoryId: keepsFiling ? stored.subcategoryId : null,
+          subcategoryId: keepsFiling ? stored.subcategoryId : (values.subcategoryId ?? null),
           statusId: stored?.statusId ?? null,
           tagIds: stored?.tagIds ?? [],
           description,
@@ -1240,11 +1247,15 @@ export function useTaxonomyActions(
       write.then(
         () => true,
         async (error) => {
-          // The item changed elsewhere. Loading it lets a second Save start from the
-          // stored version instead of failing the same way.
-          if (error instanceof RequestError && error.status === 409) {
+          // The item changed or was deleted elsewhere. Loading the items lets a second
+          // Save start from what is stored instead of failing the same way.
+          if (error instanceof RequestError && (error.status === 409 || error.status === 404)) {
             await loadItems(userId).catch(() => undefined)
-            setErrorMessage("This item changed elsewhere. Check it, then save again.")
+            setErrorMessage(
+              error.status === 404
+                ? "This item was deleted elsewhere."
+                : "This item changed elsewhere. Check it, then save again.",
+            )
           } else {
             setErrorMessage(getErrorMessage(error))
           }

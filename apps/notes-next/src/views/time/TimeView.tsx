@@ -4,6 +4,7 @@ import type { ItemRecord } from "@lib/db-items"
 import { Button, Modal, Text } from "@gravity-ui/uikit"
 import { type FormEvent, type MouseEvent, useEffect, useMemo, useRef, useState } from "react"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
+import { isBlankItemDraft } from "@/capabilities/draftParts"
 import { toDateTimeLocalValue } from "@/lib/dates"
 import { newPublicUid } from "@/lib/publicUid"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
@@ -27,7 +28,12 @@ import {
  * What the form is editing: a stored block, or a new one starting at `start`, filed in
  * `categoryId` when the action that asked for it named a category.
  */
-type Editing = { item: ItemRecord | null; start: Date; categoryId?: number | null }
+type Editing = {
+  item: ItemRecord | null
+  start: Date
+  categoryId?: number | null
+  subcategoryId?: number | null
+}
 
 const dayLabel = (day: Date) =>
   day.toLocaleDateString(undefined, { weekday: "short", day: "numeric" })
@@ -91,10 +97,14 @@ function TimeViewContent() {
     const { activeKey, openItems } = useItemsAppStore.getState()
     const entry = openItems.find((candidate) => candidate.key === activeKey)
     if (entry && entry.itemId === null) {
+      // Only a blank draft is a request for something new. One the user has written
+      // in is a note in progress, and this view has nothing to show for it.
+      if (!isBlankItemDraft(entry.form)) return
       setEditing({
         item: null,
         start: roundToHalfHour(new Date()),
         categoryId: entry.form.selectedCategoryId,
+        subcategoryId: entry.form.selectedSubcategoryId,
       })
       return
     }
@@ -102,6 +112,9 @@ function TimeViewContent() {
     if (!item?.timeStart) return
     const start = new Date(item.timeStart)
     setAnchor(start)
+    // The Now range shows today only, so a block on another day opens in its own day.
+    if (!isSameDay(start, new Date()))
+      setRange((current) => (current === "hours" ? "day" : current))
     setEditing({ item, start })
   }, [openRequestCount, viewItems])
 
@@ -384,6 +397,7 @@ function TimeBlockForm({
       timeEnd: string | null
       description: string
       categoryId: number | null
+      subcategoryId?: number | null
       uid: string
     },
   ) => Promise<ItemRecord | null>
@@ -443,6 +457,11 @@ function TimeBlockForm({
       timeEnd,
       description,
       categoryId,
+      // A new block asked for from a subcategory is filed there, unless the user
+      // then chose another category.
+      ...(!item && categoryId === (editing.categoryId ?? null)
+        ? { subcategoryId: editing.subcategoryId ?? null }
+        : {}),
       uid,
     })
     if (!mountedRef.current) return
