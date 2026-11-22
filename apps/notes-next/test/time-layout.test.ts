@@ -243,3 +243,13 @@ test("the time view starts an item from a time block and lists time blocks only"
   assert.equal(notes.selects(withText, { notesViewHiddenKinds: ["time"] }), false)
   assert.equal(notes.selects(block(2, at(25, 9), at(25, 10)), context), false)
 })
+
+test("a block sits at its local clock time on a day that changes its clocks", () => {
+  // Under a daylight-saving zone these are the spring and autumn changes; elsewhere,
+  // ordinary days. Either way 09:00 is minute 540.
+  for (const day of [new Date(2026, 2, 8), new Date(2026, 10, 1)]) {
+    const nine = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9)
+    const segments = daySegments([block(1, nine, nine)], new Date(day))
+    assert.equal(segments[0]?.startMinute, 540)
+  }
+})

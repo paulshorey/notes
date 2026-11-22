@@ -1148,8 +1148,9 @@ export function useTaxonomyActions(
   const handleSaveTimeBlock = (
     existing: ItemRecord | null,
     values: {
-      timeStart: string
-      timeEnd: string
+      /** Both ends, or both null to remove the block from an item that has other content. */
+      timeStart: string | null
+      timeEnd: string | null
       timePlanned: boolean
       description: string
       categoryId: number | null
@@ -1164,8 +1165,18 @@ export function useTaxonomyActions(
     const send = async (current: ItemRecord | null) => {
       const stored = current ? storedItemFields(current) : null
       const keepsFiling = stored !== null && stored.categoryId === values.categoryId
+      // The open entry's newer text was saved when `current` was read; the form's copy is
+      // older unless the user changed it here.
+      const description =
+        current && values.description === (existing?.description ?? "")
+          ? (current.description ?? "")
+          : values.description
+      if (stored?.statusId != null && description.trim() === "")
+        throw new Error("A task needs text. Remove its status before clearing the text.")
       const response = await itemsFetch("/api/items", {
         method: current ? "PATCH" : "POST",
+        // The form's values exist nowhere else, so the request outlives a closing page.
+        keepalive: true,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
@@ -1177,7 +1188,7 @@ export function useTaxonomyActions(
             subcategoryId: keepsFiling ? stored.subcategoryId : null,
             statusId: stored?.statusId ?? null,
             tagIds: stored?.tagIds ?? [],
-            description: values.description,
+            description,
             timeStart: values.timeStart,
             timeEnd: values.timeEnd,
             timePlanned: values.timePlanned,
@@ -1239,9 +1250,10 @@ export function useTaxonomyActions(
     })()
   }
 
-  const handleDeleteItem = async (itemId: number) => {
+  /** Moves an item to the trash. Resolves true once it is deleted, false otherwise. */
+  const handleDeleteItem = async (itemId: number): Promise<boolean> => {
     const workspaceId = activeWorkspaceId
-    if (!user || workspaceId === null) return
+    if (!user || workspaceId === null) return false
     clearMessages()
     setDeletingItemId(itemId)
     // Marked before the request: a save of the open entry that is answered 404 must not
@@ -1249,14 +1261,16 @@ export function useTaxonomyActions(
     markItemDeletedByUser(itemId)
     try {
       await settlePendingItemWrites()
-      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
+      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId)
+        return false
       const response = await itemsFetch("/api/items", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, itemId, workspaceId }),
       })
       await readJson<{ ok: true }>(response)
-      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
+      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId)
+        return true
       closeEntriesForItemInStore(itemId)
       for (const [key, entry] of detachedSavesRef.current) {
         if (entry.itemId !== itemId) continue
@@ -1273,9 +1287,11 @@ export function useTaxonomyActions(
       await refreshAfterWorkspaceCleanup(user.id, workspaceId).catch((error) =>
         setErrorMessage(`The item was deleted. ${getErrorMessage(error)}`),
       )
+      return true
     } catch (error) {
       unmarkItemDeletedByUser(itemId)
       setErrorMessage(getErrorMessage(error))
+      return false
     } finally {
       setDeletingItemId(null)
     }

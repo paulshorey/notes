@@ -76,8 +76,18 @@ export interface DaySegment {
   columns: number
 }
 
-const minutesInto = (day: Date, instant: Date): number =>
-  (instant.getTime() - day.getTime()) / 60_000
+/** Minutes of the local calendar and clock, so a daylight-saving change does not shift a day. */
+const localMinutes = (date: Date): number =>
+  Date.UTC(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+  ) / 60_000
+
+const minutesInto = (day: Date, instant: Date): number => localMinutes(instant) - localMinutes(day)
 
 /**
  * The blocks that touch a day, clipped to it and laid out so that overlapping blocks

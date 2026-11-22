@@ -52,6 +52,13 @@ const roundToHalfHour = (date: Date) => {
  * ranges. A block is created and edited in a form, which stores it directly.
  */
 export function TimeView() {
+  // The server and the browser disagree about today, so the timeline waits for the browser.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  return mounted ? <TimeViewContent /> : null
+}
+
+function TimeViewContent() {
   const { categories, handleDeleteItem, handleSaveTimeBlock, viewItems } = useItemsWorkspace()
   const [range, setRange] = useState<TimeRange>("week")
   const [anchor, setAnchor] = useState(() => new Date())
@@ -341,15 +348,15 @@ function TimeBlockForm({
   onSave: (
     existing: ItemRecord | null,
     values: {
-      timeStart: string
-      timeEnd: string
+      timeStart: string | null
+      timeEnd: string | null
       timePlanned: boolean
       description: string
       categoryId: number | null
       uid: string
     },
   ) => Promise<ItemRecord | null>
-  onDelete: (itemId: number) => Promise<void>
+  onDelete: (itemId: number) => Promise<boolean>
 }) {
   const { item } = editing
   // A new block starts and ends at the same time until the user says otherwise.
@@ -402,10 +409,21 @@ function TimeBlockForm({
   const remove = async () => {
     if (!item || pending) return
     setPending("delete")
-    await onDelete(item.id)
+    // An item with text is also a note or a task: only its block is removed.
+    const hasText = (item.description ?? "").trim() !== ""
+    const removed = hasText
+      ? (await onSave(item, {
+          timeStart: null,
+          timeEnd: null,
+          timePlanned: false,
+          description: item.description ?? "",
+          categoryId: item.category?.id ?? null,
+          uid,
+        })) !== null
+      : await onDelete(item.id)
     if (!mountedRef.current) return
     setPending(null)
-    onClose()
+    if (removed) onClose()
   }
 
   return (
