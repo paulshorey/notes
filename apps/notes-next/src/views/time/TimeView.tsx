@@ -87,7 +87,9 @@ function TimeViewContent() {
     setEditing({ item, start })
   }, [openRequestCount, viewItems])
 
-  const days = useMemo(() => rangeDays(range, anchor), [anchor, range])
+  // The Now range follows the clock, so it moves to the new day at midnight.
+  const shownAnchor = range === "hours" ? now : anchor
+  const days = useMemo(() => rangeDays(range, shownAnchor), [range, shownAnchor])
   const [firstHour, lastHour] = visibleHours(range, now)
   const hours = lastHour - firstHour
 
@@ -157,7 +159,7 @@ function TimeViewContent() {
             </button>
           </>
         )}
-        <Text className={styles.title}>{rangeTitle(range, days, anchor)}</Text>
+        <Text className={styles.title}>{rangeTitle(range, days, shownAnchor)}</Text>
         <span className={styles.spacer} />
         <Button
           view="action"
@@ -260,6 +262,7 @@ function TimeViewContent() {
           onClose={() => setEditing(null)}
           onSave={handleSaveTimeBlock}
           onDelete={handleDeleteItem}
+          findItem={(itemId) => viewItems.find((candidate) => candidate.id === itemId)}
         />
       )}
     </div>
@@ -341,6 +344,7 @@ function TimeBlockForm({
   onClose,
   onSave,
   onDelete,
+  findItem,
 }: {
   editing: Editing
   categories: { id: number; label: string }[]
@@ -357,6 +361,7 @@ function TimeBlockForm({
     },
   ) => Promise<ItemRecord | null>
   onDelete: (itemId: number) => Promise<boolean>
+  findItem: (itemId: number) => ItemRecord | undefined
 }) {
   const { item } = editing
   // A new block starts and ends at the same time until the user says otherwise.
@@ -394,8 +399,20 @@ function TimeBlockForm({
     }
     setError(null)
     setPending("save")
+    // The form shows minutes. An end the user left alone keeps its stored instant, so
+    // a block made elsewhere with seconds is not shortened by an unrelated edit.
+    const kept = (input: string, original: string | null | undefined, parsed: string) =>
+      original && input === toDateTimeLocalValue(original) ? original : parsed
+    const timeStart = kept(start, item?.timeStart, times.timeStart)
+    const timeEnd = kept(end, item?.timeEnd, times.timeEnd)
+    if (new Date(timeEnd).getTime() < new Date(timeStart).getTime()) {
+      setError("A time block cannot end before it starts.")
+      setPending(null)
+      return
+    }
     const stored = await onSave(item, {
-      ...times,
+      timeStart,
+      timeEnd,
       timePlanned: isPlanned,
       description,
       categoryId,
@@ -409,15 +426,17 @@ function TimeBlockForm({
   const remove = async () => {
     if (!item || pending) return
     setPending("delete")
-    // An item with text is also a note or a task: only its block is removed.
-    const hasText = (item.description ?? "").trim() !== ""
+    // An item with text is also a note or a task: only its block is removed. The
+    // item is read as it is stored now, which may be newer than when the form opened.
+    const latest = findItem(item.id) ?? item
+    const hasText = (latest.description ?? "").trim() !== ""
     const removed = hasText
       ? (await onSave(item, {
           timeStart: null,
           timeEnd: null,
           timePlanned: false,
-          description: item.description ?? "",
-          categoryId: item.category?.id ?? null,
+          description: latest.description ?? "",
+          categoryId: latest.category?.id ?? null,
           uid,
         })) !== null
       : await onDelete(item.id)

@@ -21,7 +21,7 @@ import {
   refileAfterGroupResult,
 } from "@/lib/itemGroupActions"
 import { useCallback, useRef } from "react"
-import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { RequestError, getErrorMessage, itemsFetch, readJson } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import { type TextCaptureFormState } from "@/types/items"
 import { updateItemsCacheList, writeItemsCache } from "@/lib/itemsCache"
@@ -37,6 +37,8 @@ import { createEmptyItemDraft } from "@/capabilities/draftParts"
 import { newItemRequestBody, serializeItemDraft } from "@/lib/itemDraft"
 import { newPublicUid } from "@/lib/publicUid"
 import { itemToFormState } from "@/types/items"
+import { timePart } from "@/capabilities/time/draft"
+import { filingPart } from "@/capabilities/taxonomy"
 import {
   type StoredItemChange,
   changesNothing,
@@ -1210,7 +1212,25 @@ export function useTaxonomyActions(
       // nothing, so this attempt's values are sent to that item.
       if (!current && response.status === 200) return send(data.item)
       mergeSavedItem(userId, data.item)
-      applyServerItemToEntry(data.item)
+      // An open entry edited since it was read keeps those edits and takes the block
+      // and the filing this write stored, with the stored item as its new baseline.
+      const entry = useItemsAppStore
+        .getState()
+        .openItems.find((open) => open.itemId === data.item.id)
+      if (entry && isEntryDirty(entry)) {
+        patchEntry(entry.key, {
+          form: {
+            ...entry.form,
+            ...timePart.fromItem(data.item),
+            ...filingPart.fromItem(data.item),
+          },
+          baseTimeModified: data.item.timeModified,
+          savedSignature: serializeItemDraft(data.item.id, itemToFormState(data.item)),
+          categoryInputValue: itemFilingLabel(data.item),
+        })
+      } else {
+        applyServerItemToEntry(data.item)
+      }
       scheduleTaxonomyRefresh(userId)
       return data.item
     }
@@ -1224,8 +1244,15 @@ export function useTaxonomyActions(
     return trackDirectWrite(
       write.then(
         () => true,
-        (error) => {
-          setErrorMessage(getErrorMessage(error))
+        async (error) => {
+          // The item changed elsewhere. Loading it lets a second Save start from the
+          // stored version instead of failing the same way.
+          if (error instanceof RequestError && error.status === 409) {
+            await loadItems(userId).catch(() => undefined)
+            setErrorMessage("This item changed elsewhere. Check it, then save again.")
+          } else {
+            setErrorMessage(getErrorMessage(error))
+          }
           return false
         },
       ),
