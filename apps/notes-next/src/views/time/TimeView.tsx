@@ -23,8 +23,11 @@ import {
   visibleHours,
 } from "./timeLayout"
 
-/** What the form is editing: a stored block, or a new one starting at `start`. */
-type Editing = { item: ItemRecord | null; start: Date }
+/**
+ * What the form is editing: a stored block, or a new one starting at `start`, filed in
+ * `categoryId` when the action that asked for it named a category.
+ */
+type Editing = { item: ItemRecord | null; start: Date; categoryId?: number | null }
 
 const dayLabel = (day: Date) =>
   day.toLocaleDateString(undefined, { weekday: "short", day: "numeric" })
@@ -72,15 +75,25 @@ function TimeViewContent() {
   }, [])
 
   // Opening a block from the sidebar or the header shows it here: the timeline moves
-  // to its day and its form opens. Every such action counts as an open request.
+  // to its day and its form opens. Asking for a new item, from the header or from a
+  // category in the sidebar, opens the form for a new block. Every such action counts
+  // as an open request.
   const openRequestCount = useItemsAppStore((state) => state.openRequestCount)
   const seenOpenRequests = useRef(openRequestCount)
   useEffect(() => {
     if (openRequestCount === seenOpenRequests.current) return
     seenOpenRequests.current = openRequestCount
     const { activeKey, openItems } = useItemsAppStore.getState()
-    const itemId = openItems.find((entry) => entry.key === activeKey)?.itemId
-    const item = viewItems.find((candidate) => candidate.id === itemId)
+    const entry = openItems.find((candidate) => candidate.key === activeKey)
+    if (entry && entry.itemId === null) {
+      setEditing({
+        item: null,
+        start: roundToHalfHour(new Date()),
+        categoryId: entry.form.selectedCategoryId,
+      })
+      return
+    }
+    const item = viewItems.find((candidate) => candidate.id === entry?.itemId)
     if (!item?.timeStart) return
     const start = new Date(item.timeStart)
     setAnchor(start)
@@ -262,7 +275,6 @@ function TimeViewContent() {
           onClose={() => setEditing(null)}
           onSave={handleSaveTimeBlock}
           onDelete={handleDeleteItem}
-          findItem={(itemId) => viewItems.find((candidate) => candidate.id === itemId)}
         />
       )}
     </div>
@@ -344,7 +356,6 @@ function TimeBlockForm({
   onClose,
   onSave,
   onDelete,
-  findItem,
 }: {
   editing: Editing
   categories: { id: number; label: string }[]
@@ -352,8 +363,8 @@ function TimeBlockForm({
   onSave: (
     existing: ItemRecord | null,
     values: {
-      timeStart: string | null
-      timeEnd: string | null
+      timeStart: string
+      timeEnd: string
       timePlanned: boolean
       description: string
       categoryId: number | null
@@ -361,14 +372,15 @@ function TimeBlockForm({
     },
   ) => Promise<ItemRecord | null>
   onDelete: (itemId: number) => Promise<boolean>
-  findItem: (itemId: number) => ItemRecord | undefined
 }) {
   const { item } = editing
   // A new block starts and ends at the same time until the user says otherwise.
   const [start, setStart] = useState(() => toDateTimeLocalValue(item?.timeStart ?? editing.start))
   const [end, setEnd] = useState(() => toDateTimeLocalValue(item?.timeEnd ?? editing.start))
   const [description, setDescription] = useState(item?.description ?? "")
-  const [categoryId, setCategoryId] = useState<number | null>(item?.category?.id ?? null)
+  const [categoryId, setCategoryId] = useState<number | null>(
+    item ? (item.category?.id ?? null) : (editing.categoryId ?? null),
+  )
   // Until the user chooses, a new block is a plan when it starts in the future.
   const [planned, setPlanned] = useState<boolean | null>(item ? item.timePlanned : null)
   const [error, setError] = useState<string | null>(null)
@@ -426,20 +438,9 @@ function TimeBlockForm({
   const remove = async () => {
     if (!item || pending) return
     setPending("delete")
-    // An item with text is also a note or a task: only its block is removed. The
-    // item is read as it is stored now, which may be newer than when the form opened.
-    const latest = findItem(item.id) ?? item
-    const hasText = (latest.description ?? "").trim() !== ""
-    const removed = hasText
-      ? (await onSave(item, {
-          timeStart: null,
-          timeEnd: null,
-          timePlanned: false,
-          description: latest.description ?? "",
-          categoryId: latest.category?.id ?? null,
-          uid,
-        })) !== null
-      : await onDelete(item.id)
+    // Deleting a block deletes the item: its text, filing, and everything else it
+    // holds go to the trash with it, where the whole item can be restored.
+    const removed = await onDelete(item.id)
     if (!mountedRef.current) return
     setPending(null)
     if (removed) onClose()

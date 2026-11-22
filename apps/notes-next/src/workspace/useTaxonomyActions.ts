@@ -1153,9 +1153,8 @@ export function useTaxonomyActions(
   const handleSaveTimeBlock = (
     existing: ItemRecord | null,
     values: {
-      /** Both ends, or both null to remove the block from an item that has other content. */
-      timeStart: string | null
-      timeEnd: string | null
+      timeStart: string
+      timeEnd: string
       timePlanned: boolean
       description: string
       categoryId: number | null
@@ -1169,9 +1168,7 @@ export function useTaxonomyActions(
     clearMessages()
     const send = async (current: ItemRecord | null) => {
       const stored = current ? storedItemFields(current) : null
-      // Removing the block changes nothing else, so the stored filing stays as it is.
-      const categoryId =
-        stored !== null && values.timeStart === null ? stored.categoryId : values.categoryId
+      const { categoryId } = values
       const keepsFiling = stored !== null && stored.categoryId === categoryId
       // The open entry's newer text was saved when `current` was read; the form's copy is
       // older unless the user changed it here.

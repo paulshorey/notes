@@ -153,6 +153,9 @@ between views, so the session, the open-item ring, and pending saves carry acros
   of per-day summaries. A block is created and edited in the view's own form, which has
   a Save button and stores through `handleSaveTimeBlock`: a direct write like a list
   action, after any open edits to the item are saved, naming the version it changes.
+  The form's Delete deletes the item, text and all (`handleDeleteItem`). Asking for a
+  new item while the view is open, from the header or a category in the sidebar, opens
+  the form for a new block in that category.
   The shared editor does not show the time block. Its draft part (`capabilities/time`)
   keeps the block through saves from other views, sends the time fields only for an
   item that has or had a block, and counts as content, so emptying the text of a time

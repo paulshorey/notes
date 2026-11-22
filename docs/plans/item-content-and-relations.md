@@ -16,6 +16,10 @@ removed are added rule by rule as each type is built and tested.
 - **One record, many views.** An item is never converted between types. A view only
   presents items; an edit made in one view is the same edit everywhere.
 - **No stored type.** A kind is computed from what the item holds.
+- **Deleting takes the whole item.** Delete in any view sends the item to the trash
+  with everything it holds: a deleted time block takes its text with it, and a deleted
+  note takes its time block. Taking one thing off an item, such as its status or a
+  date, is an edit and leaves the rest.
 - **Everything stays inside one workspace.** A parent, a link, a category, a status,
   and a tag always belong to the item's workspace, enforced by composite foreign keys.
 - **Declared once.** Every new column or table is declared in
