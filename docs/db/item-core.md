@@ -28,12 +28,12 @@ already has it, because that restore is making a second copy.
 `contracts/item-capabilities.ts` in `@lib/db-items` is the registry of what an item can
 hold beyond identity, workspace, and taxonomy. Each capability has a role.
 
-| Capability | Role    | Stored as                                |
-| ---------- | ------- | ---------------------------------------- |
-| `text`     | content | `description`                            |
-| `time`     | content | `time_start`, `time_end`, `time_planned` |
-| `schedule` | state   | `time_due`, `time_remind`                |
-| `status`   | state   | `status_id` → workspace status           |
+| Capability | Role    | Stored as                      |
+| ---------- | ------- | ------------------------------ |
+| `text`     | content | `description`                  |
+| `time`     | content | `time_start`, `time_end`       |
+| `schedule` | state   | `time_due`, `time_remind`      |
+| `status`   | state   | `status_id` → workspace status |
 
 Content makes an item exist. State describes an item and never keeps it alive, and
 taxonomy organizes content and is not content. A state can require a capability beside
@@ -95,9 +95,7 @@ version.
 A time block is `time_start` and `time_end` on an item, set together and in order; they
 may be the same instant. `normalizeTimeBlock` (`contracts/item-time.ts`) fills in the
 one a request leaves out from the other, in the HTTP parser, the item service, and the
-backup reader. `time_planned` marks a block as a plan not yet confirmed: a block that
-starts in the future is a plan unless the request says otherwise, and an update that
-does not say keeps the stored answer.
+backup reader. A block may lie in the past or the future; nothing stored says which.
 
 A write request that names neither `timeStart` nor `timeEnd` says nothing about the
 time block: a create stores none, and an update leaves the stored one as it is, so a

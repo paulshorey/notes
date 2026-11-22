@@ -441,13 +441,6 @@
           "nullable": true
         },
         {
-          "name": "timePlanned",
-          "optional": false,
-          "kind": "scalar",
-          "type": "boolean",
-          "nullable": false
-        },
-        {
           "name": "timeDue",
           "optional": false,
           "kind": "scalar",
@@ -553,13 +546,6 @@
           "nullable": true
         },
         {
-          "name": "timePlanned",
-          "optional": false,
-          "kind": "scalar",
-          "type": "boolean",
-          "nullable": false
-        },
-        {
           "name": "timeDue",
           "optional": false,
           "kind": "scalar",
@@ -659,13 +645,6 @@
           "optional": true,
           "kind": "scalar",
           "type": "string",
-          "nullable": true
-        },
-        {
-          "name": "timePlanned",
-          "optional": true,
-          "kind": "scalar",
-          "type": "boolean",
           "nullable": true
         },
         {
@@ -2024,13 +2003,6 @@
           "kind": "scalar",
           "type": "string",
           "nullable": true
-        },
-        {
-          "name": "timePlanned",
-          "optional": true,
-          "kind": "scalar",
-          "type": "boolean",
-          "nullable": false
         },
         {
           "name": "timeDue",

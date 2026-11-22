@@ -276,7 +276,6 @@ describe("user backup and restore (DB)", { skip: !testDbUrl }, () => {
       subcategory: null,
       timeStart: null,
       timeEnd: null,
-      timePlanned: false,
     })
     assert.equal(
       restored.workspaces[0]!.categories.some((c) => c.label === "uncategorized"),

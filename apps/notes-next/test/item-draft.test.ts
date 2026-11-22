@@ -31,7 +31,6 @@ const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   description: "Ship the shell\nand the views",
   timeStart: null,
   timeEnd: null,
-  timePlanned: false,
   timeDue: "2026-03-04T15:30:00.000Z",
   timeRemind: null,
   timeCreated: "2026-01-01T00:00:00.000Z",
@@ -51,6 +50,8 @@ test("an empty draft holds every part and nothing to save", () => {
     dueExpanded: false,
     remindExpanded: false,
     timeStart: null,
+    timeEnd: null,
+    timeBlockKnown: false,
   })
 })
 
@@ -66,6 +67,8 @@ test("a stored item fills every part of the draft", () => {
     dueExpanded: true,
     remindExpanded: false,
     timeStart: null,
+    timeEnd: null,
+    timeBlockKnown: false,
   })
   assert.equal(itemDraftFromItem(item({ description: null })).description, "")
 })
@@ -171,7 +174,6 @@ test("the notes view lists everything with text except the kinds left out of it"
     description: "text",
     timeStart: null,
     timeEnd: null,
-    timePlanned: false,
     timeDue: null,
     timeRemind: null,
     timeCreated: "2026-01-01T00:00:00.000Z",
@@ -185,7 +187,7 @@ test("the notes view lists everything with text except the kinds left out of it"
   const all = { notesViewHiddenKinds: [] }
   const withoutTasks = { notesViewHiddenKinds: ["task" as const] }
 
-  assert.deepEqual(notes.optionalKinds, ["task"])
+  assert.deepEqual(notes.optionalKinds, ["task", "time"])
   assert.equal(notes.selects(note, all), true)
   assert.equal(notes.selects(task, all), true, "a task has text, so notes lists it")
   assert.equal(notes.selects(note, withoutTasks), true)
@@ -220,6 +222,8 @@ test("an item with a time block keeps its content when its text is emptied", () 
   })
   const draft = itemDraftFromItem(block)
   assert.equal(draftHoldsContent(draft), true)
-  assert.equal("timeStart" in itemDraftRequest(draft), false)
+  // Its saves name the block, so the server keeps it as the draft holds it.
+  assert.equal(itemDraftRequest(draft).timeStart, block.timeStart)
+  assert.equal(itemDraftRequest(draft).timeEnd, block.timeEnd)
   assert.equal(draftHoldsContent(itemDraftFromItem(item({ description: null }))), false)
 })

@@ -1,4 +1,5 @@
 import { draftHoldsContent } from "@/capabilities/draftParts"
+import { timePart } from "@/capabilities/time/draft"
 import { isPublicUid } from "@lib/db-items/contracts/public-uid"
 import { newPublicUid } from "@/lib/publicUid"
 import { ITEM_KINDS, type ItemKindKey } from "@lib/db-items/contracts/item-kinds"
@@ -474,7 +475,7 @@ export const reconcileOpenItems = (
         key: `draft:${nextDraftSequence}`,
         itemId: null,
         // A new item is created from text; the deleted item's time block is not carried.
-        form: { ...base.form, timeStart: null },
+        form: { ...base.form, ...timePart.empty() },
         // The item is gone; what was typed becomes a new item with its own identity.
         uid: newPublicUid(),
         baseTimeModified: null,

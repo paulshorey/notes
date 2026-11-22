@@ -8,7 +8,7 @@ export class TimeBlockOrderError extends Error {
   }
 }
 
-type TimeBlockFields = Pick<ItemInput, "timeStart" | "timeEnd" | "timePlanned">
+type TimeBlockFields = Pick<ItemInput, "timeStart" | "timeEnd">
 
 /**
  * A time block always has a start and an end, which may be the same instant. Given
@@ -19,8 +19,7 @@ export const normalizeTimeBlock = <Item extends TimeBlockFields>(item: Item): It
   if (item.timeStart === undefined && item.timeEnd === undefined) return item
   const timeStart = item.timeStart ?? item.timeEnd ?? null
   const timeEnd = item.timeEnd ?? item.timeStart ?? null
-  if (timeStart === null || timeEnd === null)
-    return { ...item, timeStart: null, timeEnd: null, timePlanned: false }
+  if (timeStart === null || timeEnd === null) return { ...item, timeStart: null, timeEnd: null }
   if (new Date(timeEnd).getTime() < new Date(timeStart).getTime()) throw new TimeBlockOrderError()
   return { ...item, timeStart, timeEnd }
 }

@@ -95,8 +95,6 @@ export interface ItemRecord {
   /** A time block's start and end. Both are set, or both are null. */
   timeStart: string | null
   timeEnd: string | null
-  /** Whether the time block is a plan not yet confirmed. False without a time block. */
-  timePlanned: boolean
   timeDue: string | null
   timeRemind: string | null
   timeCreated: string
@@ -119,7 +117,6 @@ export interface TrashedItemRecord {
   tags: string[]
   timeStart: string | null
   timeEnd: string | null
-  timePlanned: boolean
   timeDue: string | null
   timeRemind: string | null
 }
@@ -148,8 +145,6 @@ export interface ItemInput {
    */
   timeStart?: string | null
   timeEnd?: string | null
-  /** Left out, a new block is a plan when it starts in the future. */
-  timePlanned?: boolean | null
   timeDue: string | null
   timeRemind: string | null
 }
@@ -490,7 +485,6 @@ export interface BackupItem {
   /** Absent in files written before items had time blocks. */
   timeStart?: string | null
   timeEnd?: string | null
-  timePlanned?: boolean
   timeDue: string | null
   timeRemind: string | null
   timeCreated: string

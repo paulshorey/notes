@@ -53,7 +53,6 @@ const itemFields = (id: number, day: number) => ({
   description: `note ${id}`,
   timeStart: null,
   timeEnd: null,
-  timePlanned: false,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2020-01-01T00:00:00Z",

@@ -21,7 +21,7 @@ import {
   refileAfterGroupResult,
 } from "@/lib/itemGroupActions"
 import { useCallback, useRef } from "react"
-import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { RequestError, getErrorMessage, itemsFetch, readJson } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import { type TextCaptureFormState } from "@/types/items"
 import { updateItemsCacheList, writeItemsCache } from "@/lib/itemsCache"
@@ -37,6 +37,8 @@ import { createEmptyItemDraft } from "@/capabilities/draftParts"
 import { newItemRequestBody, serializeItemDraft } from "@/lib/itemDraft"
 import { newPublicUid } from "@/lib/publicUid"
 import { itemToFormState } from "@/types/items"
+import { timePart } from "@/capabilities/time/draft"
+import { filingPart } from "@/capabilities/taxonomy"
 import {
   type StoredItemChange,
   changesNothing,
@@ -61,6 +63,9 @@ import type { WorkspaceDataOutput } from "./useWorkspaceData"
 import type { ItemSaveEngineOutput } from "./useItemSaveEngine"
 import type { OpenItemEntriesOutput } from "./useOpenItemEntries"
 import type { ItemListsOutput } from "./useItemLists"
+
+/** Browsers refuse a keepalive request whose body is 64 KiB or more; this leaves room. */
+const KEEPALIVE_BODY_LIMIT = 60 * 1024
 
 export function useTaxonomyActions(
   ctx: WorkspaceStateOutput &
@@ -606,6 +611,9 @@ export function useTaxonomyActions(
             workspaceId: activeWorkspaceId,
             ...fields,
             description: item.description ?? "",
+            // Named so an item that is a time block without text still holds content.
+            timeStart: item.timeStart,
+            timeEnd: item.timeEnd,
             timeDue: item.timeDue,
             timeRemind: item.timeRemind,
           },
@@ -1136,6 +1144,128 @@ export function useTaxonomyActions(
   }
 
   /**
+   * Store a time block from the time view's form: a new item, or the block, text, and
+   * filing of an existing one. Like a list action it writes directly, after saving any
+   * open edits to the item, and names the version it changes so it cannot write over
+   * a change made elsewhere. Returns the stored item, or null with a message shown.
+   */
+  const handleSaveTimeBlock = (
+    existing: ItemRecord | null,
+    values: {
+      /** Both ends, or both null to take the block off an item that keeps its text. */
+      timeStart: string | null
+      timeEnd: string | null
+      description: string
+      categoryId: number | null
+      /** The subcategory of a new block. An existing item keeps its own within its category. */
+      subcategoryId?: number | null
+      /** Names the item a create stores, so repeating the create stores it once. */
+      uid: string
+    },
+  ): Promise<ItemRecord | null> => {
+    const workspaceId = activeWorkspaceId
+    if (!user || workspaceId === null) return Promise.resolve(null)
+    const userId = user.id
+    clearMessages()
+    const send = async (current: ItemRecord | null) => {
+      const stored = current ? storedItemFields(current) : null
+      // A category the form did not change gives way to the stored one, which an open
+      // entry's saved edits may have moved since the form opened.
+      const categoryId =
+        stored !== null && values.categoryId === (existing?.category?.id ?? null)
+          ? stored.categoryId
+          : values.categoryId
+      const keepsFiling = stored !== null && stored.categoryId === categoryId
+      // The open entry's newer text was saved when `current` was read; the form's copy is
+      // older unless the user changed it here.
+      const description =
+        current && values.description === (existing?.description ?? "")
+          ? (current.description ?? "")
+          : values.description
+      if (stored?.statusId != null && description.trim() === "")
+        throw new Error("A task needs text. Remove its status before clearing the text.")
+      const body = JSON.stringify({
+        userId,
+        ...(current ? { itemId: current.id, expectedTimeModified: current.timeModified } : {}),
+        item: {
+          ...(current ? {} : { uid: values.uid }),
+          workspaceId,
+          categoryId,
+          subcategoryId: keepsFiling ? stored.subcategoryId : (values.subcategoryId ?? null),
+          statusId: stored?.statusId ?? null,
+          tagIds: stored?.tagIds ?? [],
+          description,
+          timeStart: values.timeStart,
+          timeEnd: values.timeEnd,
+          timeDue: current?.timeDue ?? null,
+          timeRemind: current?.timeRemind ?? null,
+        },
+      })
+      const response = await itemsFetch("/api/items", {
+        method: current ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        // The form's values exist nowhere else, so a request that fits the browser's
+        // keepalive limit outlives a closing page.
+        keepalive: new Blob([body]).size < KEEPALIVE_BODY_LIMIT,
+        body,
+      })
+      const data = await readJson<{ item: ItemRecord }>(response)
+      // A repeated create answers 200 with the item an earlier attempt stored and writes
+      // nothing, so this attempt's values are sent to that item.
+      if (!current && response.status === 200) return send(data.item)
+      mergeSavedItem(userId, data.item)
+      // An open entry edited since it was read keeps those edits and takes the block
+      // and the filing this write stored, with the stored item as its new baseline.
+      const entry = useItemsAppStore
+        .getState()
+        .openItems.find((open) => open.itemId === data.item.id)
+      if (entry && isEntryDirty(entry)) {
+        patchEntry(entry.key, {
+          form: {
+            ...entry.form,
+            ...timePart.fromItem(data.item),
+            ...filingPart.fromItem(data.item),
+          },
+          baseTimeModified: data.item.timeModified,
+          savedSignature: serializeItemDraft(data.item.id, itemToFormState(data.item)),
+          categoryInputValue: itemFilingLabel(data.item),
+        })
+      } else {
+        applyServerItemToEntry(data.item)
+      }
+      scheduleTaxonomyRefresh(userId)
+      return data.item
+    }
+    const write = existing
+      ? enqueueSidebarWrite(existing.id, async () => {
+          const current = await readItemForSidebarWrite(existing)
+          if (!current) throw new Error("This item is no longer here.")
+          return send(current)
+        })
+      : send(null)
+    return trackDirectWrite(
+      write.then(
+        () => true,
+        async (error) => {
+          // The item changed or was deleted elsewhere. Loading the items lets a second
+          // Save start from what is stored instead of failing the same way.
+          if (error instanceof RequestError && (error.status === 409 || error.status === 404)) {
+            await loadItems(userId).catch(() => undefined)
+            setErrorMessage(
+              error.status === 404
+                ? "This item was deleted elsewhere."
+                : "This item changed elsewhere. Check it, then save again.",
+            )
+          } else {
+            setErrorMessage(getErrorMessage(error))
+          }
+          return false
+        },
+      ),
+    ).then(async (stored) => (stored ? await write : null))
+  }
+
+  /**
    * A restored item joins the lists of its workspace. The restore may have created that
    * workspace and the item's vocabulary again, so both are loaded afresh.
    */
@@ -1161,9 +1291,10 @@ export function useTaxonomyActions(
     })()
   }
 
-  const handleDeleteItem = async (itemId: number) => {
+  /** Moves an item to the trash. Resolves true once it is deleted, false otherwise. */
+  const handleDeleteItem = async (itemId: number): Promise<boolean> => {
     const workspaceId = activeWorkspaceId
-    if (!user || workspaceId === null) return
+    if (!user || workspaceId === null) return false
     clearMessages()
     setDeletingItemId(itemId)
     // Marked before the request: a save of the open entry that is answered 404 must not
@@ -1171,14 +1302,16 @@ export function useTaxonomyActions(
     markItemDeletedByUser(itemId)
     try {
       await settlePendingItemWrites()
-      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
+      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId)
+        return false
       const response = await itemsFetch("/api/items", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, itemId, workspaceId }),
       })
       await readJson<{ ok: true }>(response)
-      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId) return
+      if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId)
+        return true
       closeEntriesForItemInStore(itemId)
       for (const [key, entry] of detachedSavesRef.current) {
         if (entry.itemId !== itemId) continue
@@ -1195,9 +1328,11 @@ export function useTaxonomyActions(
       await refreshAfterWorkspaceCleanup(user.id, workspaceId).catch((error) =>
         setErrorMessage(`The item was deleted. ${getErrorMessage(error)}`),
       )
+      return true
     } catch (error) {
       unmarkItemDeletedByUser(itemId)
       setErrorMessage(getErrorMessage(error))
+      return false
     } finally {
       setDeletingItemId(null)
     }
@@ -1233,6 +1368,7 @@ export function useTaxonomyActions(
     handleConfirmDeleteTag,
     handleDeleteItem,
     handleItemRestored,
+    handleSaveTimeBlock,
   }
 }
 

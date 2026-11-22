@@ -82,7 +82,6 @@ export interface WorkspaceItemV1Row {
   uid: string
   time_start: Date | null
   time_end: Date | null
-  time_planned: boolean
 }
 
 export interface WorkspaceStatusV1Row {

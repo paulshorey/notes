@@ -11,6 +11,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     layout.tsx              — ItemsWorkspaceProvider + AppShell around the view's page
     page.tsx                — `/`, the `note` view
     tasks/page.tsx          — `/tasks`, the `task` view
+    time/page.tsx           — `/time`, the `time` view
   providers.tsx             — client-side providers
   globals.css
   embeddings/               — debug page for testing Jina embeddings
@@ -61,11 +62,14 @@ src/                        — non-route code (import with "@/..." alias)
     notes/NotesView.tsx     — the `note` view: the editor for the active entry
     tasks/TasksView.tsx     — the `task` view: board by status, list by due date
     tasks/taskLists.ts      — pure column and ordering rules for the board and list
+    time/TimeView.tsx       — the `time` view: the timeline at four ranges, and the block form
+    time/timeLayout.ts      — pure range, clipping, overlap, and summary rules for the timeline
   capabilities/             — one module per thing an item can hold
     types.ts                — `ItemDraftPart` and `DraftControlProps`
     draftParts.ts           — composes the parts into the draft, the save request, and list labels
     taxonomy.ts             — filing and tags parts
     text/, schedule/, status/ — each capability's draft part and editor control
+    time/                   — the time block's draft part; the time view's form edits it
   components/
     shell/
       AppShell.tsx          — header, sidebar, dialogs, and notifications around a view
@@ -115,14 +119,14 @@ between views, so the session, the open-item ring, and pending saves carry acros
   on hooks earlier in the controller. `workspaceStore` holds everything loaded from the
   server; the workspace hooks are its only writers.
 - **Views.** A view is a screen over some of the workspace's items, named after a kind (`@lib/db-items/contracts/item-kinds`).
-  `src/views/registry.ts` lists them: `note` at `/` and `task` at `/tasks`. To add one,
+  `src/views/registry.ts` lists them: `note` at `/`, `task` at `/tasks`, and `time` at `/time`. To add one,
   give the kind a lowercase, singular name, register its view, and add a page under
   `app/(workspace)/`. The header picker displays each view's kind key. The workspace keeps every item of the active workspace;
   `useItemLists` narrows the lists with the active view's `selects`, so an item appears
   in every view that selects it and opens as the same entry. The `note` view lists
-  everything with text. Its `optionalKinds` (now `task`) are the kinds a user can leave
-  out of it with the "Show tasks in notes" checkbox in the account menu, stored as the
-  `notesApp.notesViewHiddenKinds` preference.
+  everything with text. Its `optionalKinds` (`task` and `time`) are the kinds a user can leave
+  out of it with the "Show tasks in notes" and "Show time blocks in notes" checkboxes
+  in the account menu, stored as the `notesApp.notesViewHiddenKinds` preference.
   Every view edits through `ItemEditor`, bound to the active entry. The `note` view
   always shows it. The `task` view opens it in a dialog over the board when the user
   opens an item. Each view names the parts it prioritizes in `editorProminent`.
@@ -142,6 +146,24 @@ between views, so the session, the open-item ring, and pending saves carry acros
   A quick-add request uses `keepalive`, since its text exists nowhere else.
   A card moves only between statuses: the board's last column, for tasks whose status
   is not in the workspace's list, takes no drop.
+- **Time.** `views/time/timeLayout.ts` decides what the timeline draws: the days of a
+  range (a week starts on Monday, a month shows whole weeks), the hours shown, the part
+  of each block that falls on a day, and the lanes that put overlapping blocks side by
+  side. `TimeView` draws hours, day, and week as one column per day and month as a grid
+  of per-day summaries. A block is created and edited in the view's own form, which has
+  a Save button and stores through `handleSaveTimeBlock`: a direct write like a list
+  action, after any open edits to the item are saved, naming the version it changes.
+  A click on the timeline stores a half-hour block there at once; the form is for
+  its exact times, text, and category. The form's Delete trashes a block without text
+  (`handleDeleteItem`). For a block with text it asks: remove the time and keep the
+  note, or delete the note too. Asking for a new item while the view is open, from the
+  header or a category in the sidebar, opens the form for a new block in that category.
+  A block that starts in the future is drawn with a dashed outline, read from its
+  start; nothing stored marks it.
+  The shared editor does not show the time block. Its draft part (`capabilities/time`)
+  keeps the block through saves from other views, sends the time fields only for an
+  item that has or had a block, and counts as content, so emptying the text of a time
+  block does not delete it.
 - **Capabilities.** Each thing an item can hold has a module in `src/capabilities/`:
   a draft part (`ItemDraftPart`: its form fields, how a stored item fills them, what a
   save sends, and its list label) and an editor control. `draftParts.ts` composes the

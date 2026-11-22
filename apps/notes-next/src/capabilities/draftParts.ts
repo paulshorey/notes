@@ -49,7 +49,7 @@ export const draftHoldsContent = (draft: ItemDraft): boolean =>
   CONTENT_CHECKS.some((part) => part.holds?.(draft) ?? false)
 
 /** Content first: text names an item when it has some, then what else it holds. */
-const LIST_LABEL_PARTS = [textPart, statusPart, schedulePart] as const
+const LIST_LABEL_PARTS = [textPart, timePart, statusPart, schedulePart] as const
 
 /** A one-line label for an item in a list, from the first part that has one. */
 export const itemListLabel = (item: ItemRecord): string => {

@@ -5,8 +5,8 @@ time block, or a journal entry, and so items can relate to each other. It builds
 [item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md), and each
 phase updates those documents when it ships.
 
-Phase 1 is built, and so is the storage half of phase 2: time blocks can be saved,
-backed up, and restored, and the time view is next. [Phases](#phases) lists the order.
+Phases 1 and 2 are built. Phase 3, the journal, is next. [Phases](#phases) lists the
+order.
 
 The structure is the commitment. The detailed rules for what happens when a property is
 removed are added rule by rule as each type is built and tested.
@@ -16,6 +16,10 @@ removed are added rule by rule as each type is built and tested.
 - **One record, many views.** An item is never converted between types. A view only
   presents items; an edit made in one view is the same edit everywhere.
 - **No stored type.** A kind is computed from what the item holds.
+- **Deletion follows what the user meant.** Deleting an item sends all of it to the
+  trash. When a view deletes one part of an item that holds more, as the time view
+  does with the time block of a note, it asks whether to remove that part or delete the
+  whole item. Emptying an item's text is an edit: whatever else it holds stays.
 - **Everything stays inside one workspace.** A parent, a link, a category, a status,
   and a tag always belong to the item's workspace, enforced by composite foreign keys.
 - **Declared once.** Every new column or table is declared in
@@ -67,15 +71,14 @@ item can become invisible.
 
 Columns each phase adds to `workspace_item_v1`:
 
-| Column         | Type        | Purpose                                           | Phase |
-| -------------- | ----------- | ------------------------------------------------- | ----- |
-| `time_start`   | timestamptz | Start of a time block.                            | 2     |
-| `time_end`     | timestamptz | End of a time block; set whenever the start is.   | 2     |
-| `time_planned` | boolean     | A plan not yet confirmed, as opposed to a record. | 2     |
-| `entry_date`   | date        | The calendar day of a journal entry.              | 3     |
-| `parent_id`    | integer     | The item that contains this one.                  | 4     |
-| `position`     | text        | Fractional order key.                             | 4     |
-| `time_done`    | timestamptz | When the item was completed; null while open.     | 4     |
+| Column       | Type        | Purpose                                         | Phase |
+| ------------ | ----------- | ----------------------------------------------- | ----- |
+| `time_start` | timestamptz | Start of a time block.                          | 2     |
+| `time_end`   | timestamptz | End of a time block; set whenever the start is. | 2     |
+| `entry_date` | date        | The calendar day of a journal entry.            | 3     |
+| `parent_id`  | integer     | The item that contains this one.                | 4     |
+| `position`   | text        | Fractional order key.                           | 4     |
+| `time_done`  | timestamptz | When the item was completed; null while open.   | 4     |
 
 Phase 4 also adds `is_done` to `workspace_status_v1`, so a status can mean completed.
 Phase 5 adds the table `item_link_v1`: `from_item_id`, `to_item_id`, `workspace_id`,
@@ -144,18 +147,17 @@ instant: given only one, the other takes its value. A block needs no text, statu
 date, and it is filed like any item. Check constraints keep the two ends together and
 in order. There are no running timers.
 
-- A block created in the future starts as planned; one created in the past starts as a
-  record.
-- Confirming a planned block turns it into a record in place. The plan is not kept.
-- A planned block never becomes a record on its own.
-- Logging a block over an unconfirmed plan offers to replace the plan.
-- Records may overlap and are shown side by side.
+A block may lie in the past or in the future, and nothing stored says which: the two
+ends say it, and a view reads it from them. Blocks may overlap and are shown side by
+side.
 
 The time view shows blocks on a timeline at four fixed ranges: a few hours around now,
 a day, a week that starts on Monday, and a month. Hours, day, and week draw time down
 the page with one column per day. Month is a calendar grid with a summary per day. A
-block is created and edited in a form. It shows its text, or "no text", with its
-category underneath in small print.
+click on the timeline makes a half-hour block there, and a block opens a form for its
+exact times, text, and category. A block shows its text, or "no text", with its
+category underneath in small print. Deleting a block that has text asks whether to
+remove the time and keep the note, or to delete the note too.
 
 From phase 5 a time block can point at a task through a reference link, so trashing
 the task keeps the logged time.
@@ -223,9 +225,9 @@ Each phase is one or more pull requests and leaves the app working.
    - Each view declares its selection, and the notes view has its filter.
    - An update is refused when it would write over a change made elsewhere.
 2. **Time blocks.**
-   - The three time columns, the content and status check constraints, and the `time`
+   - The two time columns, the content and status check constraints, and the `time`
      kind. Built.
-   - The time view: the form, and the hours, day, week, and month ranges.
+   - The time view: the form, and the hours, day, week, and month ranges. Built.
 3. **Journal.** `entry_date`, the `journal` kind, the journal view, combining days.
 4. **Lists.** `parent_id`, `position`, `time_done`, done statuses, the batch route,
    the checklist view, subtasks, list embeddings, two-section backups.

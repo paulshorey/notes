@@ -44,7 +44,6 @@ const sampleItem = {
   description: "The Notes API routes should follow the shared contract.",
   timeStart: null,
   timeEnd: null,
-  timePlanned: false,
   timeDue: "2026-03-18T16:00:00.000Z",
   timeRemind: "2026-03-18T15:30:00.000Z",
   timeCreated: "2026-03-17T10:00:00.000Z",
@@ -109,7 +108,6 @@ export const sampleTrashedItem = {
   tags: ["urgent"],
   timeStart: null,
   timeEnd: null,
-  timePlanned: false,
   timeDue: null,
   timeRemind: null,
 }

@@ -1,0 +1,236 @@
+.view {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+}
+
+.tab {
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--g-color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--g-color-text-primary);
+}
+
+.tabActive {
+  background: var(--g-color-base-generic);
+  color: var(--g-color-text-primary);
+}
+
+.title {
+  margin: 0 8px;
+  color: var(--g-color-text-primary);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.dayHeads {
+  display: flex;
+  flex: 0 0 auto;
+  padding-left: 44px;
+  border-bottom: 1px solid var(--g-color-line-generic);
+}
+
+.dayHead {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--g-color-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.today {
+  color: var(--g-color-text-brand);
+}
+
+.scroller {
+  min-height: 0;
+  flex: 1 1 0;
+  overflow-y: auto;
+}
+
+.grid {
+  position: relative;
+  display: flex;
+  height: calc(var(--hours) * var(--hour-height));
+  min-height: 100%;
+}
+
+.gutter {
+  position: relative;
+  flex: 0 0 44px;
+}
+
+.hourLabel {
+  position: absolute;
+  right: 6px;
+  color: var(--g-color-text-hint);
+  font-size: 11px;
+  transform: translateY(-50%);
+}
+
+.column {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  border-left: 1px solid var(--g-color-line-generic);
+  background-image: linear-gradient(var(--g-color-line-generic) 1px, transparent 1px);
+  background-size: 100% calc(100% / var(--hours));
+  cursor: copy;
+}
+
+.block {
+  position: absolute;
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  padding: 1px 4px;
+  border: 1px solid var(--g-color-line-brand);
+  border-radius: 4px;
+  background: var(--g-color-base-selection);
+  color: var(--g-color-text-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+
+.blockFuture {
+  border-style: dashed;
+  background: transparent;
+}
+
+.blockNoText {
+  color: var(--g-color-text-secondary);
+  font-style: italic;
+}
+
+.blockCategory {
+  color: var(--g-color-text-secondary);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.nowLine {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 0;
+  border-top: 1px solid var(--g-color-text-danger);
+  pointer-events: none;
+}
+
+.month {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 0;
+  grid-auto-rows: 1fr;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  overflow-y: auto;
+}
+
+.monthCell {
+  display: flex;
+  min-height: 64px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px;
+  border: 0;
+  border-top: 1px solid var(--g-color-line-generic);
+  border-left: 1px solid var(--g-color-line-generic);
+  background: transparent;
+  color: var(--g-color-text-primary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.monthCellOutside {
+  color: var(--g-color-text-hint);
+}
+
+.monthSummary {
+  color: var(--g-color-text-secondary);
+}
+
+.form {
+  display: flex;
+  width: min(420px, 92vw);
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--g-color-text-secondary);
+  font-size: 12px;
+}
+
+.times {
+  display: flex;
+  gap: 8px;
+}
+
+.times .field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.input {
+  padding: 5px 8px;
+  border: 1px solid var(--g-color-line-generic);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--g-color-text-primary);
+  font: inherit;
+  font-size: 14px;
+  color-scheme: light dark;
+}
+
+.textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.formActions {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.removal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}

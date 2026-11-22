@@ -34,7 +34,6 @@ const mapTrashedItem = (row: TrashRow): TrashedItemRecord => ({
   tags: labels(row.item.tags),
   timeStart: instant(row.item.timeStart),
   timeEnd: instant(row.item.timeEnd),
-  timePlanned: row.item.timePlanned === true,
   timeDue: text(row.item.timeDue),
   timeRemind: text(row.item.timeRemind),
 })

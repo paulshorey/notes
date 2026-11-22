@@ -2,6 +2,7 @@ import { hasText } from "@lib/db-items/contracts/item-capabilities"
 import type { ItemRecord } from "@lib/db-items"
 import { isKind, type ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { draftHoldsContent, isBlankItemDraft, type ItemDraft } from "@/capabilities/draftParts"
+import { draftHasTimeBlock } from "@/capabilities/time/draft"
 
 /** What a view's selection depends on besides the item itself. */
 export interface ViewSelectionContext {
@@ -67,7 +68,7 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     // user left out.
     selects: (item, { notesViewHiddenKinds }) =>
       isKind(item, "note") && !notesViewHiddenKinds.some((kind) => isKind(item, kind)),
-    optionalKinds: ["task"],
+    optionalKinds: ["task", "time"],
     route: "/",
     // A note starts once the draft has text.
     canCreate: (draft) => hasText(draft.description),
@@ -87,6 +88,16 @@ export const ITEM_VIEWS: readonly ItemView[] = [
     editorProminent: ["status", "schedule"],
     // A card added to a board column starts with that column's status.
     quickAddDefaults: ({ statusId }) => ({ selectedStatusId: statusId }),
+  },
+  {
+    kind: "time",
+    selects: (item) => isKind(item, "time"),
+    optionalKinds: [],
+    route: "/time",
+    // A time block needs no text: its start and end are what it holds.
+    canCreate: draftHasTimeBlock,
+    alwaysShowsEditor: false,
+    editorProminent: ["filing"],
   },
 ]
 
