@@ -306,6 +306,12 @@ describe("journal entries (DB)", { skip: !testDbUrl }, () => {
       (await entries(targetId, destination.id)).map((entry) => entry.text),
       ["Already here\n\nFrom the file"],
     )
+    // Restoring the same file again adds nothing: the day already holds its text.
+    await restoreUserBackup(targetId, backup)
+    assert.deepEqual(
+      (await entries(targetId, destination.id)).map((entry) => entry.text),
+      ["Already here\n\nFrom the file"],
+    )
 
     // A file from before journal days reads without them, and one that names a day
     // twice in a workspace is refused.

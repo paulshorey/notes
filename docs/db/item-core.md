@@ -125,6 +125,7 @@ next is the caller's choice, because combining two days is permanent:
 | Account merge or backup restore meets a day  | Combined without asking, since no one can be asked.               |
 
 Combining (`sql/item/journal.ts`) appends the text after the remaining entry's own,
+unless that entry already holds it, as when one backup is restored twice,
 adds the tags it lacks, and keeps its filing and everything else it holds. The entry
 combined into it is deleted without going to the trash, because its text now lives in
 the other. The remaining entry's embedding is cleared and written again.

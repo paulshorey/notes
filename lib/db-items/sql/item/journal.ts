@@ -4,11 +4,19 @@ import { getDb } from "../../lib/db/postgres"
 import { selectItemById } from "./shared"
 
 /**
+ * True when the source entry adds no text to the destination: it has none, or the
+ * destination already holds it, as when the same backup is restored a second time.
+ */
+const NOTHING_TO_APPEND = `(NULLIF(btrim(s.description),'') IS NULL
+  OR position(btrim(s.description) in COALESCE(d.description,''))>0)`
+
+/**
  * Combine journal entries, given `pairs(source_id,dest_id)`: each destination entry
  * takes the source's text after its own and the source's tags, matched by label in the
  * destination's workspace, and the source entry is deleted. The destination keeps its
- * filing and everything else it holds. Its embedding is cleared, since its text
- * changed; embedding maintenance writes the new one. Returns the destination ids.
+ * filing and everything else it holds. Text the destination already holds is not added
+ * again. When its text changes, its embedding is cleared; embedding maintenance writes
+ * the new one. Returns the destination ids.
  *
  * Combining is permanent: the source does not go to the trash, because its text now
  * lives in the destination.
@@ -16,11 +24,11 @@ import { selectItemById } from "./shared"
 const combineSql = (pairs: string) => `WITH pairs AS MATERIALIZED (${pairs}),
   appended AS (
     UPDATE public.workspace_item_v1 d
-    SET description=CASE WHEN NULLIF(btrim(s.description),'') IS NULL THEN d.description
+    SET description=CASE WHEN ${NOTHING_TO_APPEND} THEN d.description
         ELSE concat_ws(E'\\n\\n',NULLIF(btrim(d.description),''),NULLIF(btrim(s.description),'')) END,
-      description_embedding=CASE WHEN NULLIF(btrim(s.description),'') IS NULL THEN d.description_embedding END,
-      embedding_model=CASE WHEN NULLIF(btrim(s.description),'') IS NULL THEN d.embedding_model END,
-      embedding_updated_at=CASE WHEN NULLIF(btrim(s.description),'') IS NULL THEN d.embedding_updated_at END
+      description_embedding=CASE WHEN ${NOTHING_TO_APPEND} THEN d.description_embedding END,
+      embedding_model=CASE WHEN ${NOTHING_TO_APPEND} THEN d.embedding_model END,
+      embedding_updated_at=CASE WHEN ${NOTHING_TO_APPEND} THEN d.embedding_updated_at END
     FROM pairs p JOIN public.workspace_item_v1 s ON s.id=p.source_id
     WHERE d.id=p.dest_id
   ), tagged AS (
