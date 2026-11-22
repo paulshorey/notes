@@ -2,8 +2,9 @@
 
 This plan extends the item model so one record can be a note, a task, a checklist, a
 time block, or a journal entry, and so items can relate to each other. It builds on
-[item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md). Nothing
-here is built yet; each phase updates those documents when it ships.
+[item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md). Each phase
+updates those documents when it ships. Built so far: the content and state split of
+phase 1, with text as the only content.
 
 The structure is the commitment. The detailed rules for what happens when a property is
 removed are added rule by rule as each type is built and tested.
@@ -28,16 +29,21 @@ What an item holds is split into two groups.
 | Content | text, time block, journal date                                   | An item holds at least one.              |
 | State   | status, done, due date, reminder, parent, position, filing, tags | Describes an item; never keeps it alive. |
 
-Two rules follow, enforced by the item service and by check constraints:
+Two rules follow:
 
 - An item without content is not kept.
 - A status and a parent each require text.
+
+The item service enforces them. Check constraints join it in phase 2, with the second
+content type. While text is the only content, a constraint could only say that text is
+required, and the layers below the service stay free of that assumption so that a time
+block without text needs no change there.
 
 A date alone does not make an item. A location is a later state field that turns a
 dated item into an event.
 
 Production and development hold no item without text (checked 2026-11-21), so the
-constraints need no data migration.
+constraints will need no data migration.
 
 ## Kinds and views
 
@@ -200,13 +206,15 @@ Each phase is one or more pull requests and leaves the app working.
 
 1. **Foundations.**
    - Split the capability registries into content and state; a task requires text and
-     a status; add the check constraints.
+     a status. Built.
+   - Trash. Clearing the text of a task deletes it with its status and dates, so this
+     comes next.
    - Views declare their selection rule; add the notes filter.
    - `revision` conflict check.
-   - Trash.
    - The shared access check and `author_user_id`.
    - `is_done`, `time_done`, and `position`.
-2. **Time blocks.** Columns, the `time` kind, the day timeline, the timer.
+2. **Time blocks.** Columns, the content and status check constraints, the `time`
+   kind, the day timeline, the timer.
 3. **Journal.** `entry_date`, the `journal` kind, the journal view, combining days.
 4. **Lists.** `parent_id`, the batch route, the checklist view, subtasks, list
    embeddings, two-section backups.

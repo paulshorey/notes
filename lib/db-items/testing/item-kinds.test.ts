@@ -42,10 +42,16 @@ test("kind keys are unique and are also the lowercase display names", () => {
 
 test("a kind follows what the item holds", () => {
   assert.deepEqual(itemKinds(source({ description: "Buy milk" })), ["note"])
-  assert.deepEqual(itemKinds(source({ timeDue: due })), ["task"])
-  assert.deepEqual(itemKinds(source({ timeRemind: due })), ["task"])
-  assert.deepEqual(itemKinds(source({ statusId: 4 })), ["task"])
-  assert.deepEqual(itemKinds(record({ status: { id: 4, label: "doing" } })), ["task"])
+  assert.deepEqual(itemKinds(source({ description: "Buy milk", statusId: 4 })), ["note", "task"])
+  // A date describes an item and names no kind.
+  assert.deepEqual(itemKinds(source({ description: "Buy milk", timeDue: due })), ["note"])
+  assert.deepEqual(itemKinds(source({ description: "Buy milk", timeRemind: due })), ["note"])
+})
+
+test("state without text is no kind", () => {
+  assert.deepEqual(itemKinds(source({ timeDue: due })), [])
+  assert.deepEqual(itemKinds(source({ statusId: 4 })), [])
+  assert.deepEqual(itemKinds(record({ status: { id: 4, label: "doing" } })), [])
 })
 
 test("an item can be several kinds at once", () => {
@@ -55,10 +61,10 @@ test("an item can be several kinds at once", () => {
   assert.equal(isKind(item, "task"), true)
 })
 
-test("removing content removes the kind it made, and only that kind", () => {
-  const both = record({ description: "Ship release", timeDue: due })
-  assert.deepEqual(itemKinds({ ...both, timeDue: null }), ["note"])
-  assert.deepEqual(itemKinds({ ...both, description: "   " }), ["task"])
+test("removing a status leaves a note, and removing the text leaves no kind", () => {
+  const both = record({ description: "Ship release", status: { id: 4, label: "doing" } })
+  assert.deepEqual(itemKinds({ ...both, status: null }), ["note"])
+  assert.deepEqual(itemKinds({ ...both, description: "   " }), [])
 })
 
 test("taxonomy gives an item no kind", () => {
@@ -73,8 +79,8 @@ test("taxonomy gives an item no kind", () => {
 test("the note view uses the note kind's selection rule", () => {
   const items = [
     record({ description: "A note" }),
-    record({ description: "A task with text", timeDue: due }),
-    record({ timeDue: due }),
+    record({ description: "A task", status: { id: 4, label: "doing" } }),
+    record({ status: { id: 4, label: "doing" } }),
     record({ description: "  " }),
   ]
   for (const item of items) assert.equal(isTextItem(item), isKind(item, "note"))

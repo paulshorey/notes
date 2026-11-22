@@ -1,4 +1,4 @@
-import type { ItemCapabilityKey } from "../../contracts/item-capabilities"
+import { ITEM_CAPABILITIES, type ItemCapabilityKey } from "../../contracts/item-capabilities"
 
 /**
  * How one part of an item is stored and carried between accounts.
@@ -217,12 +217,13 @@ export const ITEM_STORAGE_OWNERS = {
 }
 
 /**
- * True for an item row `n` that holds at least one capability. An item that holds none
- * is not kept, so a statement that removes content from items deletes the ones it
- * leaves empty.
+ * True for an item row `n` that holds content: at least one capability whose role is
+ * content. It is the save rule (`hasItemContent`) over a stored row.
  */
-export const ITEM_HAS_CONTENT_SQL = `(${Object.values(STORED_ITEM_CAPABILITIES)
-  .map((part) => part.present)
+export const ITEM_HAS_CONTENT_SQL = `(${ITEM_CAPABILITIES.filter(
+  (capability) => capability.role === "content",
+)
+  .map((capability) => STORED_ITEM_CAPABILITIES[capability.key].present)
   .join(" OR ")})`
 
 const quoted = (name: string) => `"${name}"`

@@ -131,11 +131,12 @@ between views, so the session, the open-item ring, and pending saves carry acros
   and registers itself in `directWritesRef`, which `flushAllPendingSaves` waits for.
   List writes to one item run in the order they were asked for, and each is decided
   against the item as stored when it runs (`src/lib/listWrites.ts`): a change that
-  would alter nothing is skipped, and a view's `refuse` rule sees the current item.
+  would alter nothing is skipped.
   When a write lands on an item whose open entry was edited meanwhile, the entry keeps
   those edits and takes only the fields the write changed (`draftAfterListWrite`).
   A quick-add request uses `keepalive`, since its text exists nowhere else.
-  A card dropped on the no-status column keeps its status unless the task has a date.
+  A card moves only between statuses: the board's last column, for tasks whose status
+  is not in the workspace's list, takes no drop.
 - **Capabilities.** Each thing an item can hold has a module in `src/capabilities/`:
   a draft part (`ItemDraftPart`: its form fields, how a stored item fills them, what a
   save sends, and its list label) and an editor control. `draftParts.ts` composes the
@@ -146,14 +147,14 @@ between views, so the session, the open-item ring, and pending saves carry acros
 - **What a save does.** `entrySaveAction` (`src/views/registry.ts`) answers for one
   entry: `create`, `update`, `delete`, or nothing.
   - A never-saved draft is created when the view it was opened in would start an item
-    from it (`canCreate`): Notes needs text, Tasks needs any content. A preset status
+    from it (`canCreate`): Notes and Tasks both need text. A preset status
     or filing alone starts nothing in any view (`isBlankItemDraft`, which
     `isEmptyDraft` also uses).
-  - A stored item's edits are always saved, from every view. Removing a note's text
-    saves that removal: an item that still has a status or a date stays, as a task,
-    and leaves Notes.
-  - An item left with no content at all is deleted, because an item without content
-    is not kept. The entry stays open as an unsaved draft with the same uid, so typing
+  - A stored item's edits are always saved, from every view. Removing a task's
+    status saves that removal and leaves a note.
+  - An item left with no content is deleted, because an item without content is not
+    kept. A status or a date is state, not content, so removing the text of a note or
+    a task deletes it. The entry stays open as an unsaved draft with the same uid, so typing
     again creates the item anew under that uid. The exit keepalive sends the deletion
     too, an answer that the item is already gone counts as done, and a restored entry
     whose item was deleted this way is dropped. A deletion reads the entry again
@@ -295,7 +296,7 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 - This package consumes item contracts; `@lib/db-items` owns migrations.
   The `note` view lists items of the `note` kind and starts a note only from text (its
   `canCreate` in `src/views/registry.ts`). That rule belongs to this view: the item
-  service accepts an item holding any capability, with or without text.
+  service accepts an item holding any content, as the capability registry defines it.
   Canonical requests use `/api/items` and `X-Items-Contract: 2`; the legacy Notes
   HTTP facade and persisted identity/storage names are rollout compatibility boundaries.
   See `docs/db/item-core.md`.

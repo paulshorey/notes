@@ -3,11 +3,14 @@ import type { ItemInput, ItemRecord } from "./items-app"
 /**
  * What an item can hold beyond its identity, workspace, and taxonomy.
  *
- * Every capability is optional and independent, and none is required: an item may hold
- * any combination. Add a capability here once; saving and every other consumer of this
- * registry pick it up. `item-kinds.ts` names the combinations ("note", "task", ...).
+ * A capability is content or state. Content makes an item exist: an item holds at
+ * least one. State describes an item and never keeps it alive, so a status or a date
+ * alone is not an item. Add a capability here once; saving and every other consumer of
+ * this registry pick it up. `item-kinds.ts` names the combinations ("note", "task", ...).
  */
 export type ItemCapabilityKey = "text" | "schedule" | "status"
+
+export type ItemCapabilityRole = "content" | "state"
 
 /** The fields capabilities read. Satisfied by a stored item and by a write request. */
 export type ItemCapabilitySource = Pick<ItemRecord, "description" | "timeDue" | "timeRemind"> &
@@ -15,6 +18,7 @@ export type ItemCapabilitySource = Pick<ItemRecord, "description" | "timeDue" | 
 
 export interface ItemCapability {
   key: ItemCapabilityKey
+  role: ItemCapabilityRole
   isPresent: (item: ItemCapabilitySource) => boolean
 }
 
@@ -22,13 +26,15 @@ export const hasText = (description: string | null | undefined): description is 
   typeof description === "string" && description.trim().length > 0
 
 export const ITEM_CAPABILITIES: readonly ItemCapability[] = [
-  { key: "text", isPresent: (item) => hasText(item.description) },
+  { key: "text", role: "content", isPresent: (item) => hasText(item.description) },
   {
     key: "schedule",
+    role: "state",
     isPresent: (item) => item.timeDue !== null || item.timeRemind !== null,
   },
   {
     key: "status",
+    role: "state",
     isPresent: (item) => ("status" in item ? item.status !== null : item.statusId !== null),
   },
 ]
@@ -43,11 +49,14 @@ export const hasItemCapability = (item: ItemCapabilitySource, key: ItemCapabilit
   ITEM_CAPABILITIES.some((capability) => capability.key === key && capability.isPresent(item))
 
 /**
- * The save rule: an item must hold at least one capability. Taxonomy organizes content
- * and is not content, so a workspace, categories, and tags alone do not make an item.
+ * The save rule: an item must hold content. State and taxonomy describe and organize
+ * content and are not content, so a status, a date, a category, or tags alone do not
+ * make an item.
  */
 export const hasItemContent = (item: ItemCapabilitySource): boolean =>
-  ITEM_CAPABILITIES.some((capability) => capability.isPresent(item))
+  ITEM_CAPABILITIES.some(
+    (capability) => capability.role === "content" && capability.isPresent(item),
+  )
 
 export const ITEM_CONTENT_REQUIRED_ERROR = "An item needs content before it can be saved."
 

@@ -728,26 +728,14 @@ export function useTaxonomyActions(
     return write
   }
 
-  /**
-   * Set or clear an item's status from a list, as a board does when a card moves.
-   * `refuse` is the view's own rule for the move: it sees the item as stored when the
-   * write runs and returns a message to refuse it.
-   */
-  const handleSetItemStatus = (
-    item: ItemRecord,
-    statusId: number | null,
-    refuse?: (current: ItemRecord) => string | null,
-  ) => {
+  /** Set or clear an item's status from a list, as a board does when a card moves. */
+  const handleSetItemStatus = (item: ItemRecord, statusId: number | null) => {
     if (!user) return Promise.resolve(false)
     clearMessages()
     return trackDirectWrite(
       (async () => {
         try {
-          await patchItemFromSidebar(item, (current) => {
-            const reason = refuse?.(current) ?? null
-            if (reason !== null) throw new Error(reason)
-            return { statusId }
-          })
+          await patchItemFromSidebar(item, () => ({ statusId }))
           return true
         } catch (error) {
           setErrorMessage(getErrorMessage(error))

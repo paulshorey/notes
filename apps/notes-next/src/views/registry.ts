@@ -16,9 +16,9 @@ export interface ItemView {
   route: string
   /**
    * Whether this view makes a new item out of a draft. The item service accepts an
-   * item holding any content, so this is the view's own rule about what is worth
-   * starting. It applies to creating only: once an item is stored, its edits are saved
-   * from every view.
+   * item holding any content, so this is the view's own rule about which content
+   * starts one here. It applies to creating only: once an item is stored, its edits are
+   * saved from every view.
    */
   canCreate: (draft: ItemDraft) => boolean
   /**
@@ -57,8 +57,8 @@ export const ITEM_VIEWS: readonly ItemView[] = [
   {
     kind: "task",
     route: "/tasks",
-    // A task may have no text: a date alone is worth starting one.
-    canCreate: draftHoldsContent,
+    // A task is text with a status, so it starts once the draft has text.
+    canCreate: (draft) => hasText(draft.description),
     alwaysShowsEditor: false,
     // A task is tracked by where it stands and when it is due.
     editorProminent: ["status", "schedule"],

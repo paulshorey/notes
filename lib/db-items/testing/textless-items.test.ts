@@ -2,7 +2,6 @@ import assert from "node:assert/strict"
 import { randomUUID } from "node:crypto"
 import { after, describe, test } from "node:test"
 import { ITEM_CONTENT_REQUIRED_ERROR } from "../contracts/item-capabilities"
-import { itemKinds } from "../contracts/item-kinds"
 import type { ItemInput } from "../contracts/items-app"
 import { getDb } from "../lib/db/postgres"
 import { CURRENT_ITEM_EMBEDDING_MODEL } from "../services/item-embeddings"
@@ -23,8 +22,8 @@ if (testDbUrl) process.env.DB_ITEMS_URL = testDbUrl
 
 const due = "2027-01-02T03:04:05.000Z"
 
-/** No layer below the `note` view may require text. Each test runs without an
- * embedding provider key, so a textless save that asked for an embedding would fail. */
+/** The item service requires content, and storage does not name which: listing, group
+ * actions, backup, restore, and account merge carry a stored item without text. */
 describe("items without text (DB)", { skip: !testDbUrl }, () => {
   const userIds: number[] = []
   const savedKey = process.env.JINA_API_KEY
@@ -58,39 +57,29 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     ...values,
   })
 
-  test("the service saves an item that holds only a date or only a status", async () => {
+  /** A stored item without text, written past the service as storage allows. */
+  const seedTextless = async (
+    workspaceId: number,
+    values: { timeDue?: string; timeRemind?: string; statusId?: number },
+  ) =>
+    (
+      await getDb().query<{ id: number }>(
+        `INSERT INTO public.workspace_item_v1(workspace_id,time_due,time_remind,status_id)
+         VALUES($1,$2,$3,$4) RETURNING id`,
+        [workspaceId, values.timeDue ?? null, values.timeRemind ?? null, values.statusId ?? null],
+      )
+    ).rows[0]!.id
+
+  test("the service refuses an item that holds only a date or only a status", async () => {
     const userId = await realUser()
     const workspace = await createWorkspaceForUser(userId, "personal")
     const status = (await createStatusForWorkspace(userId, workspace.id, "doing"))!
 
-    const dated = await createItemForItemsApp({
-      userId,
-      item: input(workspace.id, { timeDue: due }),
-    })
-    assert.equal(dated.item.description, null)
-    assert.equal(dated.item.timeDue, due)
-    assert.deepEqual(itemKinds(dated.item), ["task"])
-
-    const reminded = await createItemForItemsApp({
-      userId,
-      item: input(workspace.id, { timeRemind: due }),
-    })
-    assert.equal(reminded.item.timeRemind, due)
-
-    const staged = await createItemForItemsApp({
-      userId,
-      item: input(workspace.id, { statusId: status.id }),
-    })
-    assert.equal(staged.item.description, null)
-    assert.equal(staged.item.status?.id, status.id)
-    assert.deepEqual(itemKinds(staged.item), ["task"])
-
-    const listed = await listItemsByUser(userId, workspace.id)
-    assert.deepEqual(listed.map((item) => item.id).sort(), [
-      dated.item.id,
-      reminded.item.id,
-      staged.item.id,
-    ])
+    for (const state of [{ timeDue: due }, { timeRemind: due }, { statusId: status.id }])
+      await assert.rejects(createItemForItemsApp({ userId, item: input(workspace.id, state) }), {
+        message: ITEM_CONTENT_REQUIRED_ERROR,
+      })
+    assert.deepEqual(await listItemsByUser(userId, workspace.id), [])
   })
 
   test("the service still refuses an item that holds only taxonomy", async () => {
@@ -110,7 +99,7 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     assert.deepEqual(await listItemsByUser(userId, workspace.id), [])
   })
 
-  test("clearing the text of an item that holds a date keeps the item and drops its embedding", async () => {
+  test("clearing the text of an item that holds a date is refused, and the item is unchanged", async () => {
     const userId = await realUser()
     const workspace = await createWorkspaceForUser(userId, "personal")
     const seeded = await getDb().query<{ id: number }>(
@@ -121,27 +110,18 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     )
     const itemId = seeded.rows[0]!.id
 
-    const updated = await updateItemForItemsApp({
-      userId,
-      itemId,
-      item: input(workspace.id, { description: "", timeDue: due }),
-    })
-    assert.equal(updated?.item.description, null)
-    assert.equal(updated?.item.timeDue, due)
-    assert.deepEqual(itemKinds(updated!.item), ["task"])
-
-    const stored = await getDb().query<{ has_embedding: boolean; embedding_model: string | null }>(
-      `SELECT (description_embedding IS NOT NULL) has_embedding,embedding_model
-       FROM public.workspace_item_v1 WHERE id=$1`,
-      [itemId],
+    // A date is state, so it does not keep an item whose text is removed.
+    await assert.rejects(
+      updateItemForItemsApp({
+        userId,
+        itemId,
+        item: input(workspace.id, { description: "", timeDue: due }),
+      }),
+      { message: ITEM_CONTENT_REQUIRED_ERROR },
     )
-    assert.deepEqual(stored.rows[0], { has_embedding: false, embedding_model: null })
-
-    // Removing the last capability is refused, so the item cannot become empty by an edit.
-    await assert.rejects(updateItemForItemsApp({ userId, itemId, item: input(workspace.id) }), {
-      message: ITEM_CONTENT_REQUIRED_ERROR,
-    })
-    assert.equal((await listItemsByUser(userId, workspace.id))[0]?.timeDue, due)
+    const stored = (await listItemsByUser(userId, workspace.id))[0]
+    assert.equal(stored?.description, "call the bank")
+    assert.equal(stored?.timeDue, due)
   })
 
   test("text search never returns an item without text", async () => {
@@ -168,7 +148,7 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
   test("a group preview counts items without text separately from notes", async () => {
     const userId = await realUser()
     const workspace = await createWorkspaceForUser(userId, "personal")
-    await createItemForItemsApp({ userId, item: input(workspace.id, { timeDue: due }) })
+    await seedTextless(workspace.id, { timeDue: due })
     await getDb().query(
       `INSERT INTO public.workspace_item_v1(workspace_id,description) VALUES($1,'a note')`,
       [workspace.id],
@@ -186,10 +166,7 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     const targetId = await realUser()
     const workspace = await createWorkspaceForUser(sourceId, "errands")
     const status = (await createStatusForWorkspace(sourceId, workspace.id, "doing"))!
-    await createItemForItemsApp({
-      userId: sourceId,
-      item: input(workspace.id, { timeDue: due, statusId: status.id }),
-    })
+    await seedTextless(workspace.id, { timeDue: due, statusId: status.id })
 
     const backup = await exportUserBackup(sourceId)
     const exported = backup.workspaces.find((entry) => entry.label === "errands")!
@@ -226,10 +203,7 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
     const anonymous = await createAnonymousUser()
     userIds.push(anonymous.id)
     const anonymousWorkspace = (await listWorkspacesByUser(anonymous.id))[0]!
-    await createItemForItemsApp({
-      userId: anonymous.id,
-      item: input(anonymousWorkspace.id, { timeRemind: due }),
-    })
+    await seedTextless(anonymousWorkspace.id, { timeRemind: due })
 
     await mergeAnonymousItemsAppSession({ anonUserId: anonymous.id, realUserId })
 

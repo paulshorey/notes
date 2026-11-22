@@ -60,10 +60,13 @@ test("the board has one column per status in position order", () => {
   )
 })
 
-test("tasks with a date and no status get a last column, only when there are some", () => {
-  const dated = task(4, { timeDue: "2026-02-01T00:00:00.000Z" })
+test("tasks whose status is not listed get a last column, only when there are some", () => {
+  const unlisted = task(4, { status: { id: 8, label: "gone" } })
   assert.equal(taskBoardColumns([], [todo]).length, 1)
-  const columns = taskBoardColumns([dated, task(5, { status: { id: 1, label: "todo" } })], [todo])
+  const columns = taskBoardColumns(
+    [unlisted, task(5, { status: { id: 1, label: "todo" } })],
+    [todo],
+  )
   assert.deepEqual(
     columns.map((column) => [column.status?.label ?? null, ids(column.items)]),
     [
@@ -90,20 +93,25 @@ test("a task is overdue once its due date has passed", () => {
   assert.equal(isOverdue(task(3), now), false)
 })
 
-test("a draft holds content when a save would store a capability", () => {
+test("a draft holds content when a save would store text, and state is not content", () => {
   const empty = createEmptyItemDraft()
   assert.equal(draftHoldsContent(empty), false)
   assert.equal(draftHoldsContent({ ...empty, selectedCategoryId: 7, selectedTagIds: [5] }), false)
   assert.equal(draftHoldsContent({ ...empty, description: "x" }), true)
-  assert.equal(draftHoldsContent({ ...empty, selectedStatusId: 4 }), true)
+  assert.equal(draftHoldsContent({ ...empty, selectedStatusId: 4 }), false)
   assert.equal(
     draftHoldsContent({ ...empty, dueExpanded: true, timeDue: "2026-03-04T10:30" }),
-    true,
+    false,
   )
   assert.equal(
-    draftHoldsContent({ ...empty, dueExpanded: false, timeDue: "2026-03-04T10:30" }),
-    false,
-    "a collapsed date is not sent",
+    draftHoldsContent({
+      ...empty,
+      description: "x",
+      selectedStatusId: 4,
+      dueExpanded: true,
+      timeDue: "2026-03-04T10:30",
+    }),
+    true,
   )
 })
 
@@ -114,9 +122,9 @@ test("a stored item's edits are saved from every view, and an emptied one is del
   const dated = { ...empty, dueExpanded: true, timeDue: "2026-03-04T10:30" }
   for (const view of ["note", "task"] as const) {
     assert.equal(entrySaveAction({ view, itemId: 9, form: withText }), "update")
-    // Text removed from an item that still has a status or a date: it stays, as a task.
-    assert.equal(entrySaveAction({ view, itemId: 9, form: statusOnly }), "update")
-    assert.equal(entrySaveAction({ view, itemId: 9, form: dated }), "update")
+    // Text removed from an item that has a status or a date: neither is content.
+    assert.equal(entrySaveAction({ view, itemId: 9, form: statusOnly }), "delete")
+    assert.equal(entrySaveAction({ view, itemId: 9, form: dated }), "delete")
     // Nothing left: an item without content is not kept.
     assert.equal(entrySaveAction({ view, itemId: 9, form: empty }), "delete")
     assert.equal(
@@ -127,11 +135,6 @@ test("a stored item's edits are saved from every view, and an emptied one is del
       }),
       "delete",
       "filing and tags organize content and are not content",
-    )
-    assert.equal(
-      entrySaveAction({ view, itemId: 9, form: { ...dated, dueExpanded: false } }),
-      "delete",
-      "a date that was removed is not content",
     )
     assert.equal(canSaveEntry({ view, itemId: 9, form: empty }), true, "a deletion is a save")
   }
@@ -147,17 +150,14 @@ test("a view decides what it creates, and a blank draft creates nothing in any v
     assert.equal(entrySaveAction({ view, itemId: null, form: preset }), null)
     assert.equal(entrySaveAction({ view, itemId: null, form: written }), "create")
   }
-  assert.equal(
-    entrySaveAction({ view: "task", itemId: null, form: dated }),
-    "create",
-    "a date the user added starts a task",
-  )
-  assert.equal(
-    entrySaveAction({ view: "note", itemId: null, form: dated }),
-    null,
-    "the note view starts a note only from text",
-  )
-  assert.equal(canSaveEntry({ view: "note", itemId: null, form: dated }), false)
+  for (const view of ["note", "task"] as const) {
+    assert.equal(
+      entrySaveAction({ view, itemId: null, form: dated }),
+      null,
+      "a date without text starts nothing",
+    )
+    assert.equal(canSaveEntry({ view, itemId: null, form: dated }), false)
+  }
 })
 
 test("the task view is registered beside note", () => {

@@ -31,9 +31,6 @@ export const schedulePart: ItemDraftPart<ScheduleDraft> = {
     draft.timeDue === null &&
     !draft.remindExpanded &&
     draft.timeRemind === null,
-  holds: (draft) =>
-    (draft.dueExpanded && Boolean(draft.timeDue)) ||
-    (draft.remindExpanded && Boolean(draft.timeRemind)),
   fromItem: (item) => ({
     timeDue: item.timeDue === null ? null : toDateTimeLocalValue(item.timeDue),
     timeRemind: item.timeRemind === null ? null : toDateTimeLocalValue(item.timeRemind),
