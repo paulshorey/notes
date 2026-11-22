@@ -5,8 +5,8 @@ time block, or a journal entry, and so items can relate to each other. It builds
 [item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md), and each
 phase updates those documents when it ships.
 
-Phase 1 is built, and so is the storage half of phase 2: time blocks can be saved,
-backed up, and restored, and the time view is next. [Phases](#phases) lists the order.
+Phase 1 is built, and phase 2 is built except for one prompt, listed under
+[Phases](#phases). Phase 3, the journal, is next.
 
 The structure is the commitment. The detailed rules for what happens when a property is
 removed are added rule by rule as each type is built and tested.
@@ -225,7 +225,8 @@ Each phase is one or more pull requests and leaves the app working.
 2. **Time blocks.**
    - The three time columns, the content and status check constraints, and the `time`
      kind. Built.
-   - The time view: the form, and the hours, day, week, and month ranges.
+   - The time view: the form, and the hours, day, week, and month ranges. Built.
+   - Offering to replace an unconfirmed plan when a record is logged over it.
 3. **Journal.** `entry_date`, the `journal` kind, the journal view, combining days.
 4. **Lists.** `parent_id`, `position`, `time_done`, done statuses, the batch route,
    the checklist view, subtasks, list embeddings, two-section backups.

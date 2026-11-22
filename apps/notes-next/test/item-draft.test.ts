@@ -49,6 +49,10 @@ test("an empty draft holds every part and nothing to save", () => {
     timeRemind: null,
     dueExpanded: false,
     remindExpanded: false,
+    timeStart: null,
+    timeEnd: null,
+    timePlanned: false,
+    timeBlockKnown: false,
   })
 })
 
@@ -63,6 +67,10 @@ test("a stored item fills every part of the draft", () => {
     timeRemind: null,
     dueExpanded: true,
     remindExpanded: false,
+    timeStart: null,
+    timeEnd: null,
+    timePlanned: false,
+    timeBlockKnown: false,
   })
   assert.equal(itemDraftFromItem(item({ description: null })).description, "")
 })
@@ -182,7 +190,7 @@ test("the notes view lists everything with text except the kinds left out of it"
   const all = { notesViewHiddenKinds: [] }
   const withoutTasks = { notesViewHiddenKinds: ["task" as const] }
 
-  assert.deepEqual(notes.optionalKinds, ["task"])
+  assert.deepEqual(notes.optionalKinds, ["task", "time"])
   assert.equal(notes.selects(note, all), true)
   assert.equal(notes.selects(task, all), true, "a task has text, so notes lists it")
   assert.equal(notes.selects(note, withoutTasks), true)

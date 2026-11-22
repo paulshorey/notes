@@ -305,7 +305,7 @@ export function WorkspaceHeader({
       onUpdate={(visible) => onNotesViewKindVisibilityChange(kind, visible)}
       className={styles.userMenuPreference}
     >
-      Show {kind}s in notes
+      Show {kind === "time" ? "time blocks" : `${kind}s`} in notes
     </Checkbox>
   ))
 

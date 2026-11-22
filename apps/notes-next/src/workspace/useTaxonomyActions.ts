@@ -1136,6 +1136,75 @@ export function useTaxonomyActions(
   }
 
   /**
+   * Store a time block from the time view's form: a new item, or the block, text, and
+   * filing of an existing one. Like a list action it writes directly, after saving any
+   * open edits to the item, and names the version it changes so it cannot write over
+   * a change made elsewhere. Returns the stored item, or null with a message shown.
+   */
+  const handleSaveTimeBlock = (
+    existing: ItemRecord | null,
+    values: {
+      timeStart: string
+      timeEnd: string
+      timePlanned: boolean
+      description: string
+      categoryId: number | null
+    },
+  ): Promise<ItemRecord | null> => {
+    const workspaceId = activeWorkspaceId
+    if (!user || workspaceId === null) return Promise.resolve(null)
+    const userId = user.id
+    clearMessages()
+    const send = async (current: ItemRecord | null) => {
+      const stored = current ? storedItemFields(current) : null
+      const keepsFiling = stored !== null && stored.categoryId === values.categoryId
+      const response = await itemsFetch("/api/items", {
+        method: current ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          ...(current ? { itemId: current.id, expectedTimeModified: current.timeModified } : {}),
+          item: {
+            ...(current ? {} : { uid: newPublicUid() }),
+            workspaceId,
+            categoryId: values.categoryId,
+            subcategoryId: keepsFiling ? stored.subcategoryId : null,
+            statusId: stored?.statusId ?? null,
+            tagIds: stored?.tagIds ?? [],
+            description: values.description,
+            timeStart: values.timeStart,
+            timeEnd: values.timeEnd,
+            timePlanned: values.timePlanned,
+            timeDue: current?.timeDue ?? null,
+            timeRemind: current?.timeRemind ?? null,
+          },
+        }),
+      })
+      const data = await readJson<{ item: ItemRecord }>(response)
+      mergeSavedItem(userId, data.item)
+      applyServerItemToEntry(data.item)
+      scheduleTaxonomyRefresh(userId)
+      return data.item
+    }
+    const write = existing
+      ? enqueueSidebarWrite(existing.id, async () => {
+          const current = await readItemForSidebarWrite(existing)
+          if (!current) throw new Error("This item is no longer here.")
+          return send(current)
+        })
+      : send(null)
+    return trackDirectWrite(
+      write.then(
+        () => true,
+        (error) => {
+          setErrorMessage(getErrorMessage(error))
+          return false
+        },
+      ),
+    ).then(async (stored) => (stored ? await write : null))
+  }
+
+  /**
    * A restored item joins the lists of its workspace. The restore may have created that
    * workspace and the item's vocabulary again, so both are loaded afresh.
    */
@@ -1233,6 +1302,7 @@ export function useTaxonomyActions(
     handleConfirmDeleteTag,
     handleDeleteItem,
     handleItemRestored,
+    handleSaveTimeBlock,
   }
 }
 

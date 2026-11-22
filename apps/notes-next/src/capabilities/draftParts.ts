@@ -3,10 +3,16 @@ import { schedulePart, type ScheduleDraft } from "./schedule/draft"
 import { statusPart, type StatusDraft } from "./status/draft"
 import { filingPart, tagsPart, type FilingDraft, type TagsDraft } from "./taxonomy"
 import { textPart, type TextDraft } from "./text/draft"
+import { timePart, type TimeDraft } from "./time/draft"
 import type { ItemDraftPart } from "./types"
 
 /** Everything a form holds for one item: its filing, its tags, and each capability. */
-export type ItemDraft = FilingDraft & StatusDraft & TagsDraft & TextDraft & ScheduleDraft
+export type ItemDraft = FilingDraft &
+  StatusDraft &
+  TagsDraft &
+  TextDraft &
+  ScheduleDraft &
+  TimeDraft
 
 /**
  * The parts of a draft, in the order their request fields are written.
@@ -15,7 +21,7 @@ export type ItemDraft = FilingDraft & StatusDraft & TagsDraft & TextDraft & Sche
  * order, and browsers keep signatures across reloads. Add a new part at the end, so
  * existing signatures still match and no open entry reads as edited after an update.
  */
-const DRAFT_PARTS = [filingPart, statusPart, tagsPart, textPart, schedulePart] as const
+const DRAFT_PARTS = [filingPart, statusPart, tagsPart, textPart, schedulePart, timePart] as const
 
 export const createEmptyItemDraft = (): ItemDraft =>
   Object.assign({}, ...DRAFT_PARTS.map((part) => part.empty())) as ItemDraft
@@ -43,7 +49,7 @@ export const draftHoldsContent = (draft: ItemDraft): boolean =>
   CONTENT_CHECKS.some((part) => part.holds?.(draft) ?? false)
 
 /** Content first: text names an item when it has some, then what else it holds. */
-const LIST_LABEL_PARTS = [textPart, statusPart, schedulePart] as const
+const LIST_LABEL_PARTS = [textPart, timePart, statusPart, schedulePart] as const
 
 /** A one-line label for an item in a list, from the first part that has one. */
 export const itemListLabel = (item: ItemRecord): string => {

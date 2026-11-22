@@ -302,6 +302,10 @@ test("a blank new-note action clears an explicit status when reusing an untouche
     timeRemind: null,
     dueExpanded: false,
     remindExpanded: false,
+    timeStart: null,
+    timeEnd: null,
+    timePlanned: false,
+    timeBlockKnown: false,
   })
   assert.equal(getActiveEntry(reused)?.categoryInputValue, "")
 })

@@ -169,6 +169,7 @@ test("the task view is registered beside note", () => {
     [
       ["note", "/"],
       ["task", "/tasks"],
+      ["time", "/time"],
     ],
   )
   assert.equal(viewForPath("/tasks").kind, "task")
