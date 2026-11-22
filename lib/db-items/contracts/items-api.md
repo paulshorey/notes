@@ -18,17 +18,17 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 
 ## Item operations
 
-| Route                                    | Request                         | Response                                        |
-| ---------------------------------------- | ------------------------------- | ----------------------------------------------- |
-| `GET /api/items?workspaceId=...`         | Authorized workspace            | `{ items: ItemRecord[] }`                       |
-| `POST /api/items`                        | `{ item: ItemInput }`           | `201 { item: ItemRecord }`                      |
-| `PATCH /api/items`                       | `{ itemId, item: ItemInput }`   | `{ item: ItemRecord }`                          |
-| `DELETE /api/items`                      | `{ itemId }`                    | `{ ok: true }`; the item goes to trash          |
-| `GET /api/items/trash`                   | None                            | `{ items: TrashedItemRecord[], retentionDays }` |
-| `POST /api/items/trash`                  | `{ trashId }`                   | `{ item: ItemRecord }`, restored                |
-| `DELETE /api/items/trash`                | `{ trashId? }`                  | `{ ok: true, purged }`                          |
-| `POST /api/items/search`                 | `{ workspaceId, query, limit }` | `{ results: [{ item, similarity }] }`           |
-| `POST /api/items/maintenance/embeddings` | `{ mode, limit }`               | `{ mode, processed, updated, hasMore }`         |
+| Route                                    | Request                                              | Response                                                                      |
+| ---------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `GET /api/items?workspaceId=...`         | Authorized workspace                                 | `{ items: ItemRecord[] }`                                                     |
+| `POST /api/items`                        | `{ item: ItemInput }`                                | `201 { item: ItemRecord }`                                                    |
+| `PATCH /api/items`                       | `{ itemId, item: ItemInput, expectedTimeModified? }` | `{ item: ItemRecord }`, or `409 { error, item }` when the stored item changed |
+| `DELETE /api/items`                      | `{ itemId }`                                         | `{ ok: true }`; the item goes to trash                                        |
+| `GET /api/items/trash`                   | None                                                 | `{ items: TrashedItemRecord[], retentionDays }`                               |
+| `POST /api/items/trash`                  | `{ trashId }`                                        | `{ item: ItemRecord }`, restored                                              |
+| `DELETE /api/items/trash`                | `{ trashId? }`                                       | `{ ok: true, purged }`                                                        |
+| `POST /api/items/search`                 | `{ workspaceId, query, limit }`                      | `{ results: [{ item, similarity }] }`                                         |
+| `POST /api/items/maintenance/embeddings` | `{ mode, limit }`                                    | `{ mode, processed, updated, hasMore }`                                       |
 
 `ItemInput` contains `workspaceId`, nullable `categoryId` and `subcategoryId`, nullable
 `statusId`, `tagIds`, nullable `description`, `timeDue`, and `timeRemind`. A subcategory

@@ -86,6 +86,21 @@ Adding a capability means adding its entry there and in the browser-safe registr
 backup version increases whenever a field is added, and import reads every earlier
 version.
 
+## Concurrent edits
+
+An update may name the version it edited: `expectedTimeModified`, the `timeModified` of
+the item as the caller last saw it. Every write to an item row moves `time_modified`, so
+it identifies a version. When the stored item has moved on, the update writes nothing
+and answers `409` with the stored item (`ItemConflictResponse`). An update that names no
+version is applied over whatever is stored.
+
+The web editor names the version for every open entry. On a `409` it compares the stored
+item with what the entry last saved. If they hold the same content, nothing the user
+would recognize changed, as when only an embedding was refreshed, and the save is sent
+again from that version. Otherwise the entry keeps its draft and a notice offers the
+stored version in a new tab or saving the user's version over it. List actions, an
+entry that left the open ring, and the request sent as the page closes name no version.
+
 ## Trash
 
 Every deletion of an item, single or as part of a group action, moves it to

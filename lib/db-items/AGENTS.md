@@ -36,6 +36,10 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   has text and a status. A kind is
   computed, never stored, and an item can be several kinds. Write a view's selection
   with `isKind` instead of testing fields.
+- `updateItemForItemsApp` accepts `expectedTimeModified`, the version the caller edited.
+  A stale one throws `ItemChangedError` with the stored item (HTTP `409`) and writes
+  nothing; the comparison is part of the `UPDATE`, at millisecond precision. See
+  Concurrent edits in `docs/db/item-core.md`.
 - Deleting an item moves it to `user_item_trash_v1` in the same statement
   (`TRASH_ITEMS_SQL`, used by `sql/item/delete.ts`, the one place items are deleted on
   a user's request). A trash entry is the item's backup fields as JSON, so it is built

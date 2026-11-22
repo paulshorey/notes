@@ -164,6 +164,12 @@ between views, so the session, the open-item ring, and pending saves carry acros
     too, an answer that the item is already gone counts as done, and a restored entry
     whose item was deleted this way is dropped. A deletion reads the entry again
     before it is sent; if the user has typed since, it sends that content instead.
+  - An update of an open entry names the version it began from (`baseTimeModified`).
+    An answer of `409` with the stored item means that item changed elsewhere. When it
+    still holds what the entry last saved, the update is sent again from the stored
+    version. Otherwise the entry keeps its draft, and the conflict notice offers the
+    stored version in a new tab or `keepEntryOverStoredItem`, which saves the draft
+    over it.
   - An update answered `404` means the item was deleted somewhere else. What the user
     is writing is kept: the item is created again under the entry's uid.
   - An entry opened from a stored item starts clean (`savedSignature` is set from the
