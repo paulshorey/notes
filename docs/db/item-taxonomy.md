@@ -62,7 +62,7 @@ embedding.
 
 Signing in to an existing account matches a category by its label and a subcategory by
 its label within the category of the same label, then files each item under the
-account's rows. Backup version 3 nests `subcategories` under each category and stores
+account's rows. A backup nests `subcategories` under each category and stores
 `category` and `subcategory` labels on each item; restore rejects a subcategory outside
 the item's category. An item's duplicate-detection identity includes both labels.
 

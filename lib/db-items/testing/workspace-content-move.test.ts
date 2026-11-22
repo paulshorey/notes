@@ -97,6 +97,10 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
         statusId,
         tagIds,
         description,
+        // An item without text is a time block: text and time are the two contents.
+        ...(description === null
+          ? { timeStart: "2027-01-03T09:00:00Z", timeEnd: "2027-01-03T10:00:00Z" }
+          : {}),
         timeDue: "2027-01-02T00:00:00Z",
         timeRemind: "2027-01-01T00:00:00Z",
       },
@@ -238,11 +242,10 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       const child = await subcategory(parent, "travel")
       const status = (await createStatusForWorkspace(userId, source.id, "verify"))!
       const tagId = await tag(source.id, "expense")
-      const note = await item(userId, source.id, { categoryId: parent })
+      const note = await item(userId, source.id, { categoryId: parent, description: null })
       const task = await item(userId, source.id, {
         categoryId: parent,
         subcategoryId: child,
-        description: null,
         statusId: status.id,
         tagIds: [tagId],
       })

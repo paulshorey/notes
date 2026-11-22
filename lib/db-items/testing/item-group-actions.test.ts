@@ -90,6 +90,10 @@ describe("shared item group actions (DB)", { skip: !testDbUrl }, () => {
           categoryId,
           subcategoryId,
           description,
+          // An item without text is a time block: text and time are the two contents.
+          ...(description === null
+            ? { timeStart: "2027-01-03T09:00:00Z", timeEnd: "2027-01-03T10:00:00Z" }
+            : {}),
           statusId: null,
           tagIds: [],
           timeDue: "2027-01-02T00:00:00Z",

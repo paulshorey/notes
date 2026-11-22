@@ -5,7 +5,8 @@ time block, or a journal entry, and so items can relate to each other. It builds
 [item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md), and each
 phase updates those documents when it ships.
 
-Phase 1 is built. Phase 2, time blocks, is next. [Phases](#phases) lists the order.
+Phase 1 is built, and so is the storage half of phase 2: time blocks can be saved,
+backed up, and restored, and the time view is next. [Phases](#phases) lists the order.
 
 The structure is the commitment. The detailed rules for what happens when a property is
 removed are added rule by rule as each type is built and tested.
@@ -38,12 +39,8 @@ Two rules follow:
 A date alone does not make an item. A location is a later state field that turns a
 dated item into an event.
 
-Text is the only content today, and the item service enforces the first rule. Phase 2
-adds the second content type and, with it, check constraints for both rules. Until
-then a constraint could only say that text is required, and the layers below the
-service stay free of that assumption so that a time block without text needs no change
-there. Production and development hold no item without text (checked 2026-11-21), so
-the constraints need no data migration.
+The item service enforces both rules, and check constraints on the item table repeat
+them, so no path can store an item the rules refuse.
 
 ## Kinds and views
 
@@ -73,7 +70,7 @@ Columns each phase adds to `workspace_item_v1`:
 | Column         | Type        | Purpose                                           | Phase |
 | -------------- | ----------- | ------------------------------------------------- | ----- |
 | `time_start`   | timestamptz | Start of a time block.                            | 2     |
-| `time_end`     | timestamptz | End of a time block; null while a timer runs.     | 2     |
+| `time_end`     | timestamptz | End of a time block; set whenever the start is.   | 2     |
 | `time_planned` | boolean     | A plan not yet confirmed, as opposed to a record. | 2     |
 | `entry_date`   | date        | The calendar day of a journal entry.              | 3     |
 | `parent_id`    | integer     | The item that contains this one.                  | 4     |
@@ -142,8 +139,10 @@ sorts by it, so reordering in one view reorders in the others.
 
 ### Time blocks
 
-A time block has a start, an optional end, and no required text, status, or date. It is
-filed like any item. A check constraint keeps the end after the start.
+A time block is a start and an end on an item. Both are set, and they may be the same
+instant: given only one, the other takes its value. A block needs no text, status, or
+date, and it is filed like any item. Check constraints keep the two ends together and
+in order. There are no running timers.
 
 - A block created in the future starts as planned; one created in the past starts as a
   record.
@@ -151,7 +150,12 @@ filed like any item. A check constraint keeps the end after the start.
 - A planned block never becomes a record on its own.
 - Logging a block over an unconfirmed plan offers to replace the plan.
 - Records may overlap and are shown side by side.
-- A block without an end is a running timer. Starting a timer stops the running one.
+
+The time view shows blocks on a timeline at four fixed ranges: a few hours around now,
+a day, a week that starts on Monday, and a month. Hours, day, and week draw time down
+the page with one column per day. Month is a calendar grid with a summary per day. A
+block is created and edited in a form. It shows its text, or "no text", with its
+category underneath in small print.
 
 From phase 5 a time block can point at a task through a reference link, so trashing
 the task keeps the logged time.
@@ -218,8 +222,10 @@ Each phase is one or more pull requests and leaves the app working.
    - Deleted items go to the trash.
    - Each view declares its selection, and the notes view has its filter.
    - An update is refused when it would write over a change made elsewhere.
-2. **Time blocks.** The three time columns, the content and status check constraints,
-   the `time` kind, the day timeline, the timer.
+2. **Time blocks.**
+   - The three time columns, the content and status check constraints, and the `time`
+     kind. Built.
+   - The time view: the form, and the hours, day, week, and month ranges.
 3. **Journal.** `entry_date`, the `journal` kind, the journal view, combining days.
 4. **Lists.** `parent_id`, `position`, `time_done`, done statuses, the batch route,
    the checklist view, subtasks, list embeddings, two-section backups.

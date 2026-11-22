@@ -31,7 +31,10 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 | `POST /api/items/maintenance/embeddings` | `{ mode, limit }`                                    | `{ mode, processed, updated, hasMore }`                                       |
 
 `ItemInput` contains `workspaceId`, nullable `categoryId` and `subcategoryId`, nullable
-`statusId`, `tagIds`, nullable `description`, `timeDue`, and `timeRemind`. A subcategory
+`statusId`, `tagIds`, nullable `description`, `timeDue`, and `timeRemind`, and the
+optional time block `timeStart`, `timeEnd`, and `timePlanned`. Given one end of a time
+block, the other takes the same instant; given neither field, an update leaves the
+stored block as it is. A subcategory
 that does not belong to the category is cleared, not refused. The HTTP parser accepts
 omitted text as null. `POST` and `PATCH` return `400` when the item would hold no
 capability at all: text, a due or reminder date, or a status each suffice on their own
@@ -71,10 +74,11 @@ GET downloads `jot-new-backup-YYYY-MM-DD.json`, always in the current version. P
 the entire JSON file, without another wrapper, and requires a permanent account.
 Success returns `{ itemsImported, itemsSkipped }` with legacy aliases when needed.
 
-The envelope's stable format is `jot.new-user-backup`. Version 3 nests
-`subcategories` under each category and stores one `category` and `subcategory` per
-item. Import also accepts version 2's list of categories per item, keeping the first,
-and version 1's `workspaces[].notes`. Relationships use workspace-local labels. Files preserve nullable
+The envelope's stable format is `jot.new-user-backup`. Version 4 nests
+`subcategories` under each category, stores one `category` and `subcategory` per item,
+and carries each item's time block. Import also accepts version 3, which has no time
+blocks, version 2's list of categories per item, keeping the first, and version 1's
+`workspaces[].notes`. Relationships use workspace-local labels. Files preserve nullable
 text, dates, timestamps, empty workspaces, unused vocabulary, and preferences;
 they exclude credentials, account identity, vectors, and browser draft/cache state.
 Unknown versions, invalid references, unsafe object keys, excessive nesting, more

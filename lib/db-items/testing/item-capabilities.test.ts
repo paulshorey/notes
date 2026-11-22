@@ -36,6 +36,9 @@ const record = (values: Partial<ItemRecord> = {}): ItemRecord => ({
   status: null,
   tags: [],
   description: null,
+  timeStart: null,
+  timeEnd: null,
+  timePlanned: false,
   timeDue: null,
   timeRemind: null,
   timeCreated: "2027-01-02T03:04:05.000Z",
@@ -86,6 +89,7 @@ test("every capability is content or state, and text is content", () => {
     ITEM_CAPABILITIES.map((capability) => [capability.key, capability.role]),
     [
       ["text", "content"],
+      ["time", "content"],
       ["schedule", "state"],
       ["status", "state"],
     ],

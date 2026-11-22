@@ -38,10 +38,24 @@ export const updateItemForUser = async (
       filing.categoryId,
       filing.subcategoryId,
     ]
+    // A request that names no time block leaves the stored one alone. One that names
+    // a block without saying whether it is a plan keeps the stored answer, and a block
+    // an item did not have before is a plan when it starts in the future.
+    let timeSql = ""
+    if (item.timeStart !== undefined) {
+      values.push(
+        item.timeStart,
+        item.timeEnd ?? null,
+        item.timeStart === null ? false : (item.timePlanned ?? null),
+      )
+      timeSql = `, time_planned=COALESCE($12::boolean,
+          CASE WHEN n.time_start IS NULL THEN $10::timestamptz > now() ELSE n.time_planned END),
+        time_start=$10, time_end=$11`
+    }
+    const next = () => values.length + 1
     let embeddingSql = ""
     if (embeddings !== null) {
-      embeddingSql =
-        ", description_embedding=$10::vector, embedding_model=$11, embedding_updated_at=$12"
+      embeddingSql = `, description_embedding=$${next()}::vector, embedding_model=$${next() + 1}, embedding_updated_at=$${next() + 2}`
       values.push(
         embeddings.descriptionEmbedding,
         embeddings.embeddingModel,
@@ -50,7 +64,7 @@ export const updateItemForUser = async (
     }
     let guard = ""
     if (embeddings === null && expectedDescription !== undefined) {
-      guard = `AND n.description IS NOT DISTINCT FROM $10::text`
+      guard = `AND n.description IS NOT DISTINCT FROM $${next()}::text`
       values.push(toNullableText(expectedDescription ?? ""))
     }
     // The caller edited the item as it was at this modification time. Stored times
@@ -61,7 +75,7 @@ export const updateItemForUser = async (
     }
     const result = await client.query(
       `UPDATE public.workspace_item_v1 n SET workspace_id=$3,status_id=$4,description=$5,time_due=$6,time_remind=$7,
-       category_id=$8,subcategory_id=$9${embeddingSql}
+       category_id=$8,subcategory_id=$9${timeSql}${embeddingSql}
        FROM public.user_workspace_v1 w WHERE n.id=$1 AND w.id=n.workspace_id AND w.user_id=$2 AND w.id=$3 ${guard}`,
       values,
     )

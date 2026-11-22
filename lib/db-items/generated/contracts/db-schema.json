@@ -298,6 +298,21 @@
       "column": "uid",
       "nullable": false,
       "type": "string"
+    },
+    {
+      "column": "time_start",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "time_end",
+      "nullable": true,
+      "type": "Date"
+    },
+    {
+      "column": "time_planned",
+      "nullable": false,
+      "type": "boolean"
     }
   ],
   "workspace_status_v1": [

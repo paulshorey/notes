@@ -142,7 +142,12 @@ describe("workspace note embedding reuse (DB)", { skip: !testDbUrl }, () => {
     const savedKey = process.env.JINA_API_KEY
     delete process.env.JINA_API_KEY
     try {
-      const item = input(row.workspaceId, row.categoryId, "")
+      // The item stays, as a time block, once its text is gone.
+      const item = {
+        ...input(row.workspaceId, row.categoryId, ""),
+        timeStart: "2027-01-03T09:00:00.000Z",
+        timeEnd: "2027-01-03T10:00:00.000Z",
+      }
       await updateItemForUser(
         row.itemId,
         row.userId,

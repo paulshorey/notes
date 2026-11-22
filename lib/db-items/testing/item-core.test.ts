@@ -24,7 +24,7 @@ describe("generic item persistence (DB)", { skip: !testDbUrl }, () => {
   after(async () => {
     await getDb().end()
   })
-  test("an item can carry a date without text while the note client selects only text content", async () => {
+  test("an item can be a time block without text while the note client selects only text content", async () => {
     const userId = (
       await getDb().query<{ id: number }>(
         "INSERT INTO public.user_v1(username,is_anonymous) VALUES($1,true) RETURNING id",
@@ -33,8 +33,10 @@ describe("generic item persistence (DB)", { skip: !testDbUrl }, () => {
     ).rows[0]!.id
     try {
       const workspace = await createWorkspaceForUser(userId, "personal")
-      const input = parseItemInput({ workspaceId: workspace.id, timeDue: "2027-01-02T03:04:05Z" })
+      // Given only a start, a time block ends when it starts.
+      const input = parseItemInput({ workspaceId: workspace.id, timeStart: "2027-01-02T03:04:05Z" })
       assert.equal(input.description, null)
+      assert.equal(input.timeEnd, "2027-01-02T03:04:05.000Z")
       const item = await createItemForUser(userId, input, {
         descriptionEmbedding: null,
         embeddingModel: null,
@@ -43,7 +45,8 @@ describe("generic item persistence (DB)", { skip: !testDbUrl }, () => {
         (row) => row.id === item.id,
       )!
       assert.equal(loaded.description, null)
-      assert.equal(loaded.timeDue, "2027-01-02T03:04:05.000Z")
+      assert.equal(loaded.timeStart, "2027-01-02T03:04:05.000Z")
+      assert.equal(loaded.timeEnd, "2027-01-02T03:04:05.000Z")
       assert.equal(isTextItem(loaded), false)
       assert.equal(isTextItem({ ...loaded, description: "A note" }), true)
     } finally {

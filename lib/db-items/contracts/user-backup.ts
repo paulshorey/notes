@@ -8,12 +8,16 @@ import type {
   UserPreferences,
 } from "./items-app"
 import { UNCATEGORIZED_LABEL } from "./category-name"
+import { hasItemContent, hasText } from "./item-capabilities"
+import { normalizeTimeBlock, TimeBlockOrderError } from "./item-time"
 import { isPublicUid } from "./public-uid"
 
 export const USER_BACKUP_FORMAT = "jot.new-user-backup"
-export const USER_BACKUP_VERSION = 3
+export const USER_BACKUP_VERSION = 4
 /** Versions 1 and 2 list several categories per item and have no subcategories. */
 const FLAT_CATEGORY_VERSIONS = [1, 2]
+/** Version 3 has one category per item and no time blocks, which read as absent. */
+const READABLE_VERSIONS = [...FLAT_CATEGORY_VERSIONS, 3, USER_BACKUP_VERSION]
 export const USER_BACKUP_MAX_BYTES = 50 * 1024 * 1024
 const MAX_RECORDS = 100_000
 
@@ -56,6 +60,20 @@ const timestamp = (value: unknown): string => {
   return new Date(value).toISOString()
 }
 const nullableTimestamp = (value: unknown) => (value === null ? null : timestamp(value))
+/** An item's time block. A file from before time blocks names none. */
+const timeBlock = (item: Record<string, unknown>) => {
+  const optional = (value: unknown) => (value == null ? null : timestamp(value))
+  try {
+    const block = normalizeTimeBlock({
+      timeStart: optional(item.timeStart),
+      timeEnd: optional(item.timeEnd),
+    })
+    return { ...block, timePlanned: block.timeStart != null && item.timePlanned === true }
+  } catch (error) {
+    if (error instanceof TimeBlockOrderError) return fail("Backup contains an invalid time block.")
+    throw error
+  }
+}
 /**
  * A record's uid, as an entry to spread into it. Files written before records had a
  * uid carry none, and the parsed record then has no uid either; restore assigns one.
@@ -96,11 +114,20 @@ const preferences = (value: unknown, depth = 0): unknown => {
   )
 }
 
+/**
+ * Files written under earlier rules can hold an item with only a status or a date, and
+ * a status on an item without text. Neither can be stored, so the first is left out
+ * and the second loses its status.
+ */
+const holdsContent = (item: BackupItem) => hasItemContent({ ...item, statusId: null })
+const withoutUnsupportedState = (item: BackupItem): BackupItem =>
+  item.status !== null && !hasText(item.description) ? { ...item, status: null } : item
+
 /** Validate the entire file before opening a write transaction. Never trust ids from a file. */
 export const parseUserBackup = (value: unknown): UserBackup => {
   const b = object(value)
   const flatCategories = FLAT_CATEGORY_VERSIONS.includes(b.version as number)
-  if (b.format !== USER_BACKUP_FORMAT || (!flatCategories && b.version !== USER_BACKUP_VERSION)) {
+  if (b.format !== USER_BACKUP_FORMAT || !READABLE_VERSIONS.includes(b.version as number)) {
     fail("Unsupported backup format or version. Choose a jot.new backup file.")
   }
   let records = 0
@@ -186,6 +213,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
           subcategory,
           status,
           tags: refs(n.tags, tagLabels),
+          ...timeBlock(n),
           timeDue: nullableTimestamp(n.timeDue),
           timeRemind: nullableTimestamp(n.timeRemind),
           timeCreated: timestamp(n.timeCreated),
@@ -198,7 +226,7 @@ export const parseUserBackup = (value: unknown): UserBackup => {
         categories: categories.filter((category) => category.label !== UNCATEGORIZED_LABEL),
         statuses,
         tags,
-        items,
+        items: items.filter(holdsContent).map(withoutUnsupportedState),
       }
     }),
     (w) => w.label,

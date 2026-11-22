@@ -159,7 +159,15 @@ CREATE TABLE public.workspace_item_v1 (
     category_id integer,
     subcategory_id integer,
     uid uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT workspace_item_v1_subcategory_requires_category_check CHECK (((subcategory_id IS NULL) OR (category_id IS NOT NULL)))
+    time_start timestamp with time zone,
+    time_end timestamp with time zone,
+    time_planned boolean DEFAULT false NOT NULL,
+    CONSTRAINT workspace_item_v1_content_check CHECK (((COALESCE(description, ''::text) ~ '[^\t\n\v\f\r    -     　﻿]'::text) OR (time_start IS NOT NULL))),
+    CONSTRAINT workspace_item_v1_status_requires_text_check CHECK (((status_id IS NULL) OR (COALESCE(description, ''::text) ~ '[^\t\n\v\f\r    -     　﻿]'::text))),
+    CONSTRAINT workspace_item_v1_subcategory_requires_category_check CHECK (((subcategory_id IS NULL) OR (category_id IS NOT NULL))),
+    CONSTRAINT workspace_item_v1_time_block_complete_check CHECK (((time_start IS NULL) = (time_end IS NULL))),
+    CONSTRAINT workspace_item_v1_time_block_order_check CHECK ((time_end >= time_start)),
+    CONSTRAINT workspace_item_v1_time_planned_requires_block_check CHECK (((NOT time_planned) OR (time_start IS NOT NULL)))
 );
 
 
@@ -820,6 +828,13 @@ CREATE INDEX workspace_item_v1_subcategory_id_idx ON public.workspace_item_v1 US
 --
 
 CREATE INDEX workspace_item_v1_workspace_id_idx ON public.workspace_item_v1 USING btree (workspace_id);
+
+
+--
+-- Name: workspace_item_v1_workspace_id_time_start_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX workspace_item_v1_workspace_id_time_start_idx ON public.workspace_item_v1 USING btree (workspace_id, time_start) WHERE (time_start IS NOT NULL);
 
 
 --

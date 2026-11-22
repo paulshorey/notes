@@ -69,8 +69,8 @@ const fixture = async (
       INSERT INTO workspace_subcategory_v1(id,category_id,label) VALUES(35,31,'phase one');
       INSERT INTO workspace_status_v1(id,workspace_id,label,position) VALUES(41,21,'todo',3);
       INSERT INTO workspace_tag_v1(id,workspace_id,label) VALUES(51,21,'important');
-      INSERT INTO workspace_item_v1(id,workspace_id,category_id,subcategory_id,status_id,description,time_due,time_created,time_modified)
-      VALUES(61,21,31,35,41,'Unicode 日本語 and trailing space ','2027-02-03','2020-01-02','2021-02-03'),(62,22,NULL,NULL,NULL,NULL,'2028-01-02','2020-01-02','2021-02-03');
+      INSERT INTO workspace_item_v1(id,workspace_id,category_id,subcategory_id,status_id,description,time_due,time_start,time_end,time_created,time_modified)
+      VALUES(61,21,31,35,41,'Unicode 日本語 and trailing space ','2027-02-03',NULL,NULL,'2020-01-02','2021-02-03'),(62,22,NULL,NULL,NULL,NULL,'2028-01-02','2028-01-02T09:00Z','2028-01-02T10:00Z','2020-01-02','2021-02-03');
       INSERT INTO item_tag_link_v1(item_id,tag_id,workspace_id) VALUES(61,51,21);
       INSERT INTO user_api_token_v1(user_id,token_hash) VALUES(11,'fixture-only-hash');
     `)

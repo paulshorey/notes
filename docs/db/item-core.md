@@ -28,25 +28,29 @@ already has it, because that restore is making a second copy.
 `contracts/item-capabilities.ts` in `@lib/db-items` is the registry of what an item can
 hold beyond identity, workspace, and taxonomy. Each capability has a role.
 
-| Capability | Role    | Stored as                      |
-| ---------- | ------- | ------------------------------ |
-| `text`     | content | `description`                  |
-| `schedule` | state   | `time_due`, `time_remind`      |
-| `status`   | state   | `status_id` → workspace status |
+| Capability | Role    | Stored as                                |
+| ---------- | ------- | ---------------------------------------- |
+| `text`     | content | `description`                            |
+| `time`     | content | `time_start`, `time_end`, `time_planned` |
+| `schedule` | state   | `time_due`, `time_remind`                |
+| `status`   | state   | `status_id` → workspace status           |
 
 Content makes an item exist. State describes an item and never keeps it alive, and
-taxonomy organizes content and is not content. `itemCapabilities(item)` lists the
-capabilities an item holds. `hasItemContent(item)` is the save rule: an item must hold
-content, so a status, a date, a category, or tags alone do not make an item. The item
-service applies the rule on create and update. The tables accept a bare item.
+taxonomy organizes content and is not content. A state can require a capability beside
+it: a status requires text. `itemCapabilities(item)` lists the
+capabilities an item holds. `hasItemContent(item)` is the first save rule: an item must
+hold content, so a status, a date, a category, or tags alone do not make an item.
+`missingRequirement(item)` is the second: a state is refused without what it requires.
+The item service applies both on create and update, and check constraints on
+`workspace_item_v1` repeat them.
 
-No layer below the service names text as the content it expects. Listing, group
-actions, backup, restore, and account merge carry a stored item whatever it holds; text
-search and embeddings skip an item without text.
+No layer names text as the content it expects. Listing, group actions, backup,
+restore, account merge, and the trash carry an item whatever it holds; text search and
+embeddings skip an item without text.
 
 An item without content is not kept. The service refuses to store one, and the web
 client deletes a stored item when an edit removes its content: emptying a note or a task
-deletes it, whatever status or date it has, and the item goes to the [trash](#trash) as
+that has no time block deletes it, whatever status or date it has, and the item goes to the [trash](#trash) as
 it was last stored. Deleting a status clears it from its items and deletes none of them.
 
 Content types use lowercase, singular names. `note` and `task` are computed from
@@ -85,6 +89,23 @@ Four things are generated from those declarations and list no item column themse
 Adding a capability means adding its entry there and in the browser-safe registry. A
 backup version increases whenever a field is added, and import reads every earlier
 version.
+
+## Time blocks
+
+A time block is `time_start` and `time_end` on an item, set together and in order; they
+may be the same instant. `normalizeTimeBlock` (`contracts/item-time.ts`) fills in the
+one a request leaves out from the other, in the HTTP parser, the item service, and the
+backup reader. `time_planned` marks a block as a plan not yet confirmed: a block that
+starts in the future is a plan unless the request says otherwise, and an update that
+does not say keeps the stored answer.
+
+A write request that names neither `timeStart` nor `timeEnd` says nothing about the
+time block: a create stores none, and an update leaves the stored one as it is, so a
+client that does not know about time blocks cannot remove one. Sending `null` removes
+it.
+
+A time block is content, so an item can be one without text. It is then of the `time`
+kind only, takes no status, and has no embedding.
 
 ## Concurrent edits
 
@@ -142,6 +163,7 @@ removed.
 | ------ | ---------------------------------- |
 | `note` | text                               |
 | `task` | text and a status                  |
+| `time` | a time block                       |
 
 `itemKinds(item)` lists an item's kinds and `isKind(item, key)` tests one. `notes-next`
 keeps every item of the workspace, and each view declares which of them it lists in
@@ -198,14 +220,16 @@ Compatibility never makes a client-supplied user ID authoritative.
 - The single existing `user_note_v1_id_seq` keeps its name temporarily because
   old account-merge SQL calls it literally. New code discovers the owning
   sequence with `pg_get_serial_sequence`; no competing allocator is created.
-- Backup version 3 nests subcategories and stores one category per item. Import
-  accepts version 2's category lists and version 1's `workspaces[].notes`, with the
-  reserved-category conversion. Every client downloads version 3.
+- Backup version 4 nests subcategories, stores one category per item, and carries time
+  blocks. Import accepts version 3, which has no time blocks, version 2's category
+  lists, and version 1's `workspaces[].notes`, with the reserved-category conversion.
+  An item an earlier version stored that holds no content is left out, and a status on
+  an item without text is dropped. Every client downloads version 4.
 - Open-item storage uses version 4. Its reader upgrades note-named and category-list
   snapshots, including serialized IDs and clean/dirty signatures. Authored text and
   navigation keys are preserved. Legacy dirty snapshots are not removed if the upgraded
   snapshot cannot be written.
-- The browser's copy of server data uses version 5 and requires a uid on every item.
+- The browser's copy of server data uses version 6 and requires a uid on every item.
   It is never upgraded: a snapshot in another shape is ignored, and the next load
   fetches a fresh one.
 - Existing encrypted cookies with `notesUserId` remain valid. Sessions expose
