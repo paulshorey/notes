@@ -20,6 +20,10 @@ import {
   parseEmbeddingMaintenanceRequest,
   parseCreateItemRequest,
   parseDeleteItemRequest,
+  parsePurgeTrashRequest,
+  parseRestoreTrashedItemRequest,
+  parseTrashRequest,
+  ITEMS_APP_TRASHED_ITEM_NOT_FOUND_ERROR,
   parseItemsRequest,
   parseSearchRequest,
   parseSessionRequest,
@@ -296,6 +300,52 @@ export const createItemsRouteHandlers = (
       return itemJson(request, result)
     } catch (error) {
       return toErrorResponse(error, service.getItemsAppErrorStatus(error))
+    }
+  },
+})
+
+/**
+ * The user's trash: GET lists it, POST restores one entry as an item, and DELETE
+ * removes one entry for good, or every entry when none is named.
+ */
+export const createTrashRouteHandlers = (
+  service: ItemsAppService = itemsAppService,
+  resolveSessionUserId: SessionUserResolver = noSessionUser,
+) => ({
+  GET: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      return NextResponse.json(await service.listTrashForItemsApp(parseTrashRequest(userId)))
+    } catch (error) {
+      return toErrorResponse(error)
+    }
+  },
+  POST: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      const result = await service.restoreTrashedItemForItemsApp(
+        parseRestoreTrashedItemRequest(await readAuthorizedJsonObject(request, userId)),
+      )
+      if (!result)
+        return NextResponse.json({ error: ITEMS_APP_TRASHED_ITEM_NOT_FOUND_ERROR }, { status: 404 })
+      return NextResponse.json(result)
+    } catch (error) {
+      return toErrorResponse(error, service.getItemsAppErrorStatus(error))
+    }
+  },
+  DELETE: async (request: Request) => {
+    try {
+      const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
+      if (userId === null) return unauthorizedResponse()
+      return NextResponse.json(
+        await service.purgeTrashForItemsApp(
+          parsePurgeTrashRequest(await readAuthorizedJsonObject(request, userId)),
+        ),
+      )
+    } catch (error) {
+      return toErrorResponse(error)
     }
   },
 })

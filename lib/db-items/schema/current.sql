@@ -95,6 +95,41 @@ ALTER TABLE public.user_api_token_v1 ALTER COLUMN id ADD GENERATED ALWAYS AS IDE
 
 
 --
+-- Name: user_item_trash_v1; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.user_item_trash_v1 (
+    id integer NOT NULL,
+    user_id integer NOT NULL,
+    workspace_id integer,
+    workspace_label text NOT NULL,
+    item jsonb NOT NULL,
+    time_deleted timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_item_trash_v1_item_object_check CHECK ((jsonb_typeof(item) = 'object'::text))
+);
+
+
+--
+-- Name: user_item_trash_v1_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+CREATE SEQUENCE public.user_item_trash_v1_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: user_item_trash_v1_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
+--
+
+ALTER SEQUENCE public.user_item_trash_v1_id_seq OWNED BY public.user_item_trash_v1.id;
+
+
+--
 -- Name: user_note_tag_link_v1; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -440,6 +475,13 @@ ALTER SEQUENCE public.workspace_tag_v1_id_seq OWNED BY public.workspace_tag_v1.i
 
 
 --
+-- Name: user_item_trash_v1 id; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_item_trash_v1 ALTER COLUMN id SET DEFAULT nextval('public.user_item_trash_v1_id_seq'::regclass);
+
+
+--
 -- Name: user_workspace_v1 id; Type: DEFAULT; Schema: public; Owner: -
 --
 
@@ -503,6 +545,14 @@ ALTER TABLE ONLY public.user_api_token_v1
 
 ALTER TABLE ONLY public.user_api_token_v1
     ADD CONSTRAINT user_api_token_v1_token_hash_key UNIQUE (token_hash);
+
+
+--
+-- Name: user_item_trash_v1 user_item_trash_v1_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_item_trash_v1
+    ADD CONSTRAINT user_item_trash_v1_pkey PRIMARY KEY (id);
 
 
 --
@@ -696,6 +746,20 @@ CREATE INDEX user_api_token_v1_user_id_idx ON public.user_api_token_v1 USING btr
 
 
 --
+-- Name: user_item_trash_v1_user_id_time_deleted_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_item_trash_v1_user_id_time_deleted_idx ON public.user_item_trash_v1 USING btree (user_id, time_deleted DESC, id DESC);
+
+
+--
+-- Name: user_item_trash_v1_workspace_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_item_trash_v1_workspace_id_idx ON public.user_item_trash_v1 USING btree (workspace_id);
+
+
+--
 -- Name: user_v1_is_anonymous_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -850,6 +914,22 @@ ALTER TABLE ONLY public.item_tag_link_v1
 
 ALTER TABLE ONLY public.user_api_token_v1
     ADD CONSTRAINT user_api_token_v1_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_item_trash_v1 user_item_trash_v1_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_item_trash_v1
+    ADD CONSTRAINT user_item_trash_v1_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.user_v1(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_item_trash_v1 user_item_trash_v1_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.user_item_trash_v1
+    ADD CONSTRAINT user_item_trash_v1_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.user_workspace_v1(id) ON DELETE SET NULL;
 
 
 --

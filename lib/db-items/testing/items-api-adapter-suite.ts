@@ -95,6 +95,19 @@ const sampleStatus = {
   lastUsedAt: null,
 }
 
+export const sampleTrashedItem = {
+  id: 12,
+  workspaceLabel: "personal",
+  timeDeleted: "2027-01-03T03:04:05.000Z",
+  description: "An old note",
+  category: "work",
+  subcategory: null,
+  status: null,
+  tags: ["urgent"],
+  timeDue: null,
+  timeRemind: null,
+}
+
 const sampleEmbeddingMaintenanceResponse = {
   mode: "missing",
   processed: 3,
@@ -157,6 +170,9 @@ export const createFakeItemsAppService = (
   createItemForItemsApp: async () => ({ item: sampleItem }),
   updateItemForItemsApp: async () => ({ item: sampleItem }),
   deleteItemForItemsApp: async () => ({ ok: true }),
+  listTrashForItemsApp: async () => ({ items: [sampleTrashedItem], retentionDays: 30 }),
+  restoreTrashedItemForItemsApp: async () => ({ item: sampleItem }),
+  purgeTrashForItemsApp: async () => ({ ok: true, purged: 1 }),
   searchItemsForItemsApp: async () => ({ results: [sampleSearchResult] }),
   maintainItemEmbeddingsForItemsApp: async () => sampleEmbeddingMaintenanceResponse,
   createAnonymousItemsAppSession: async () => ({ user: sampleUser }),
@@ -1134,5 +1150,77 @@ export const registerItemsApiAdapterSuite = (
       hasMore: true,
     })
     assert.deepEqual(requests, [{ userId: 7, mode: "stale", limit: 2 }])
+  })
+
+  test(`${adapterName} lists, restores, and empties the trash`, async (t) => {
+    const requests: unknown[] = []
+    const adapter = await createAdapter(
+      createFakeItemsAppService({
+        listTrashForItemsApp: async (request) => {
+          requests.push(request)
+          return { items: [sampleTrashedItem], retentionDays: 30 }
+        },
+        restoreTrashedItemForItemsApp: async (request) => {
+          requests.push(request)
+          return request.trashId === 12 ? { item: sampleItem } : null
+        },
+        purgeTrashForItemsApp: async (request) => {
+          requests.push(request)
+          return { ok: true, purged: 2 }
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const listed = await adapter.request({
+      method: "GET",
+      path: "/api/items/trash",
+      headers: authHeaders,
+    })
+    assert.equal(listed.status, 200)
+    assert.deepEqual(listed.body, { items: [sampleTrashedItem], retentionDays: 30 })
+
+    const restored = await adapter.request({
+      method: "POST",
+      path: "/api/items/trash",
+      headers: authHeaders,
+      body: { userId: 999999, trashId: 12 },
+    })
+    assert.equal(restored.status, 200)
+    assert.deepEqual(restored.body, { item: sampleItem })
+
+    const gone = await adapter.request({
+      method: "POST",
+      path: "/api/items/trash",
+      headers: authHeaders,
+      body: { trashId: 13 },
+    })
+    assert.equal(gone.status, 404)
+    assert.equal(readError(gone.body), "This item is no longer in the trash.")
+
+    const emptied = await adapter.request({
+      method: "DELETE",
+      path: "/api/items/trash",
+      headers: authHeaders,
+      body: {},
+    })
+    assert.equal(emptied.status, 200)
+    assert.deepEqual(emptied.body, { ok: true, purged: 2 })
+
+    assert.deepEqual(requests, [
+      { userId: sampleUser.id },
+      { userId: sampleUser.id, trashId: 12 },
+      { userId: sampleUser.id, trashId: 13 },
+      { userId: sampleUser.id },
+    ])
+
+    const unauthenticated = await adapter.request({
+      method: "GET",
+      path: "/api/items/trash",
+    })
+    assert.equal(unauthenticated.status, 401)
   })
 }

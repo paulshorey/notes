@@ -410,7 +410,8 @@ export function ItemGroupActionModal({
               </Text>
             )}
             <Text variant="body-1" color="secondary">
-              Deleting items is permanent. Empty taxonomy and an empty source workspace are removed.
+              Deleted items go to the trash. Empty taxonomy and an empty source workspace are
+              removed.
             </Text>
           </>
         )}

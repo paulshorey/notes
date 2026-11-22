@@ -11,6 +11,7 @@ import {
   type SubcategoryRecord,
   type TagRecord,
   type UpdateTagResponse,
+  type WorkspaceRecord,
 } from "@lib/db-items"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
 import { type ItemGroupActionResponse } from "@lib/db-items/contracts/item-group-actions"
@@ -1134,6 +1135,32 @@ export function useTaxonomyActions(
     await performDeleteTag(deletingTag)
   }
 
+  /**
+   * A restored item joins the lists of its workspace. The restore may have created that
+   * workspace and the item's vocabulary again, so both are loaded afresh.
+   */
+  const handleItemRestored = (item: ItemRecord) => {
+    if (!user) return
+    const userId = user.id
+    mergeSavedItem(userId, item)
+    scheduleTaxonomyRefresh(userId)
+    setStatusMessage(
+      item.workspaceId === activeWorkspaceIdRef.current
+        ? "Item restored."
+        : "Item restored to its workspace.",
+    )
+    void (async () => {
+      try {
+        const data = await readJson<{ workspaces: WorkspaceRecord[] }>(
+          await itemsFetch("/api/workspaces", { cache: "no-store" }),
+        )
+        if (userRef.current?.id === userId) setWorkspaces(data.workspaces)
+      } catch {
+        // The workspace list is refreshed by the next load.
+      }
+    })()
+  }
+
   const handleDeleteItem = async (itemId: number) => {
     const workspaceId = activeWorkspaceId
     if (!user || workspaceId === null) return
@@ -1164,7 +1191,7 @@ export function useTaxonomyActions(
       updateItemsCacheList(user.id, workspaceId, "items", latestItems)
       setSearchResults((previous) => previous.filter(({ item }) => item.id !== itemId))
       persistOpenItemsRef.current()
-      setStatusMessage("Item deleted.")
+      setStatusMessage("Item moved to the trash.")
       await refreshAfterWorkspaceCleanup(user.id, workspaceId).catch((error) =>
         setErrorMessage(`The item was deleted. ${getErrorMessage(error)}`),
       )
@@ -1205,6 +1232,7 @@ export function useTaxonomyActions(
     closeDeleteTag,
     handleConfirmDeleteTag,
     handleDeleteItem,
+    handleItemRestored,
   }
 }
 

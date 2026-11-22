@@ -36,6 +36,13 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   has text and a status. A kind is
   computed, never stored, and an item can be several kinds. Select the items of a view
   with `isKind` instead of testing fields.
+- Deleting an item moves it to `user_item_trash_v1` in the same statement
+  (`TRASH_ITEMS_SQL`, used by `sql/item/delete.ts`, the one place items are deleted on
+  a user's request). A trash entry is the item's backup fields as JSON, so it is built
+  from the stored-capability registry and no query over items has to exclude it.
+  `sql/item/trash.ts` lists, restores (an import of that one item, after writing back
+  its workspace and vocabulary by label), and purges. See the Trash section of
+  `docs/db/item-core.md`.
 - `contracts/item-group-actions.ts` defines group selection and tagged actions.
   `sql/item-groups.ts` owns the shared predicate, preview fingerprint, transaction,
   and action registry for category, subcategory, and uncategorized targets.

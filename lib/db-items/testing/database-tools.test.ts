@@ -19,6 +19,7 @@ const tablesWithIdSequence = [
   "workspace_subcategory_v1",
   "workspace_status_v1",
   "workspace_tag_v1",
+  "user_item_trash_v1",
 ]
 const tables = [
   ...tablesWithIdSequence,

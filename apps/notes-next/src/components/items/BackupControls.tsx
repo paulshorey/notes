@@ -13,10 +13,12 @@ export function BackupControls({
   isAnonymous,
   onDownload,
   onOpenRestore,
+  onOpenTrash,
 }: {
   isAnonymous: boolean
   onDownload: () => Promise<void>
   onOpenRestore: () => void
+  onOpenTrash: () => void
 }) {
   const pending = useItemsAppStore((s) => s.backupOperation)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -52,6 +54,9 @@ export function BackupControls({
           Sign in or create an account to restore a backup.
         </Text>
       )}
+      <Button view="flat-secondary" size="s" width="max" onClick={onOpenTrash}>
+        Trash…
+      </Button>
       {downloadError && (
         <Text color="danger" role="alert">
           {downloadError}
