@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg"
 import type { TrashedItemRecord } from "../../contracts/items-app"
 import { getDb } from "../../lib/db/postgres"
-import { createWorkspaceForUserWithClient } from "../workspace"
+import { createWorkspaceForUserWithClient, lockUserWorkspaces } from "../workspace"
 import { IMPORT_ITEMS_SQL } from "./stored-capabilities"
 
 type TrashedFields = Record<string, unknown>
@@ -110,6 +110,9 @@ export const restoreTrashedItemForUser = async (userId: number, trashId: number)
     await client.query("BEGIN")
     // Imports that keep a uid take turns, so each sees the uids the others wrote.
     await client.query(`SELECT pg_advisory_xact_lock(hashtext('items.restore.uid'))`)
+    // A deletion that empties a workspace removes it; waiting here keeps the workspace
+    // this restore picks from disappearing before the item is written.
+    await lockUserWorkspaces(client, userId)
     const taken = await client.query<{
       workspace_id: number | null
       workspace_label: string
