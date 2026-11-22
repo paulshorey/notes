@@ -3,6 +3,7 @@ import test from "node:test"
 import type { ItemRecord } from "@lib/db-items"
 import {
   createEmptyItemDraft,
+  draftHoldsContent,
   isBlankItemDraft,
   itemDraftFromItem,
   itemDraftRequest,
@@ -49,6 +50,7 @@ test("an empty draft holds every part and nothing to save", () => {
     timeRemind: null,
     dueExpanded: false,
     remindExpanded: false,
+    timeStart: null,
   })
 })
 
@@ -63,6 +65,7 @@ test("a stored item fills every part of the draft", () => {
     timeRemind: null,
     dueExpanded: true,
     remindExpanded: false,
+    timeStart: null,
   })
   assert.equal(itemDraftFromItem(item({ description: null })).description, "")
 })
@@ -206,4 +209,17 @@ test("the kinds left out of the notes view are a preference, and unknown names a
     getNotesViewHiddenKindsPreference({ notesApp: { notesViewHiddenKinds: ["journal", "task"] } }),
     ["task"],
   )
+})
+
+test("an item with a time block keeps its content when its text is emptied", () => {
+  const block = item({
+    description: null,
+    status: null,
+    timeStart: "2026-03-04T15:00:00.000Z",
+    timeEnd: "2026-03-04T16:00:00.000Z",
+  })
+  const draft = itemDraftFromItem(block)
+  assert.equal(draftHoldsContent(draft), true)
+  assert.equal("timeStart" in itemDraftRequest(draft), false)
+  assert.equal(draftHoldsContent(itemDraftFromItem(item({ description: null }))), false)
 })
