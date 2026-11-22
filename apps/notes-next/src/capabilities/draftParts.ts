@@ -36,8 +36,8 @@ export const isBlankItemDraft = (draft: ItemDraft): boolean =>
 const CONTENT_CHECKS: readonly Pick<ItemDraftPart<ItemDraft>, "holds">[] = DRAFT_PARTS
 
 /**
- * Whether a save of this draft would store any capability. It is the item service's
- * own rule (`hasItemContent`) applied to a draft.
+ * Whether a save of this draft would store content. It is the item service's own rule
+ * (`hasItemContent`) applied to a draft.
  */
 export const draftHoldsContent = (draft: ItemDraft): boolean =>
   CONTENT_CHECKS.some((part) => part.holds?.(draft) ?? false)

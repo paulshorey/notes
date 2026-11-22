@@ -22,11 +22,12 @@ export const ITEM_KINDS: readonly ItemKind[] = [
   {
     key: "task",
     label: "task",
-    matches: (item) => hasItemCapability(item, "status") || hasItemCapability(item, "schedule"),
+    // A task is text that is tracked: a status on an item with text.
+    matches: (item) => hasItemCapability(item, "text") && hasItemCapability(item, "status"),
   },
 ]
 
-/** The kinds an item is, in registry order. Empty only for an item that holds nothing. */
+/** The kinds an item is, in registry order. */
 export const itemKinds = (item: ItemCapabilitySource): ItemKindKey[] =>
   ITEM_KINDS.filter((kind) => kind.matches(item)).map((kind) => kind.key)
 

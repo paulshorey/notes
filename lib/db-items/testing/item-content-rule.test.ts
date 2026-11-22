@@ -11,7 +11,7 @@ import { createWorkspaceForUser } from "../sql/workspace"
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
 if (testDbUrl) process.env.DB_ITEMS_URL = testDbUrl
 
-describe("an item without content is not kept (DB)", { skip: !testDbUrl }, () => {
+describe("what counts as an item's content (DB)", { skip: !testDbUrl }, () => {
   after(async () => {
     if (testDbUrl) await getDb().end()
   })
@@ -100,18 +100,17 @@ describe("an item without content is not kept (DB)", { skip: !testDbUrl }, () =>
         blankText: false,
         unicodeSpaces: false,
         controlOnly: true,
-        due: true,
-        remind: true,
-        status: true,
+        due: false,
+        remind: false,
+        status: false,
         filedOnly: false,
         nothing: false,
       },
     )
   })
 
-  test("deleting a status deletes the items it leaves with nothing", async () => {
+  test("deleting a status clears it from its items and deletes none of them", async () => {
     const w = await workspace()
-    const statusOnly = await insert(w.workspaceId, { status: w.status, category: w.category })
     const withText = await insert(w.workspaceId, { status: w.status, description: "still a note" })
     const withDate = await insert(w.workspaceId, { status: w.status, due: "2027-01-02T03:04:05Z" })
     const otherStatus = await insert(w.workspaceId, { status: w.other })
@@ -127,9 +126,5 @@ describe("an item without content is not kept (DB)", { skip: !testDbUrl }, () =>
       { id: withDate, status_id: null },
       { id: otherStatus, status_id: w.other },
     ])
-    assert.equal(
-      left.rows.some((row) => row.id === statusOnly),
-      false,
-    )
   })
 })

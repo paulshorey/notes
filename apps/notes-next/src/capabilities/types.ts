@@ -24,8 +24,9 @@ export interface ItemDraftPart<Slice extends object> {
    */
   isBlank?: (draft: Slice) => boolean
   /**
-   * For a capability: whether a save of this draft would store it. Taxonomy parts
-   * leave it out, because filing and tags organize content and are not content.
+   * For content: whether a save of this draft would store it. State and taxonomy
+   * parts leave it out, because a status, a date, filing, and tags describe and
+   * organize content and are not content.
    */
   holds?: (draft: Slice) => boolean
   /** A one-line label for lists, when the item holds this part. */

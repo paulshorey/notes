@@ -72,20 +72,33 @@ test("an item reports each capability it holds, from a record or a write request
   assert.equal(hasItemCapability(input({ statusId: 4 }), "text"), false)
 })
 
-test("any single capability makes an item, and text is never required", () => {
+test("content makes an item, with or without state", () => {
   const savable: ItemCapabilitySource[] = [
     input({ description: " x " }),
-    input({ timeDue: "2027-01-02T03:04:05.000Z" }),
-    input({ timeRemind: "2027-01-02T03:04:05.000Z" }),
-    input({ statusId: 4 }),
-    record({ status: { id: 4, label: "done" } }),
+    input({ description: "x", timeDue: "2027-01-02T03:04:05.000Z", statusId: 4 }),
+    record({ description: "x", status: { id: 4, label: "done" } }),
   ]
   for (const item of savable) assert.equal(hasItemContent(item), true)
 })
 
-test("taxonomy alone does not make an item", () => {
+test("every capability is content or state, and text is content", () => {
+  assert.deepEqual(
+    ITEM_CAPABILITIES.map((capability) => [capability.key, capability.role]),
+    [
+      ["text", "content"],
+      ["schedule", "state"],
+      ["status", "state"],
+    ],
+  )
+})
+
+test("state and taxonomy alone do not make an item", () => {
   const empty: ItemCapabilitySource[] = [
     input(),
+    input({ timeDue: "2027-01-02T03:04:05.000Z" }),
+    input({ timeRemind: "2027-01-02T03:04:05.000Z" }),
+    input({ statusId: 4 }),
+    record({ status: { id: 4, label: "done" } }),
     input({ categoryId: 1, subcategoryId: 3, tagIds: [2] }),
     input({ description: "  \n\t " }),
     record({
@@ -97,7 +110,7 @@ test("taxonomy alone does not make an item", () => {
   for (const item of empty) assert.equal(hasItemContent(item), false)
 })
 
-test("the item service refuses to save an item that holds nothing", async () => {
+test("the item service refuses to save an item that holds no content", async () => {
   // Both calls must fail before any database or embedding-provider access.
   await assert.rejects(
     createItemForItemsApp({
@@ -115,4 +128,12 @@ test("the item service refuses to save an item that holds nothing", async () => 
     updateItemForItemsApp({ userId: 1, itemId: 1, item: input({ description: "   " }) }),
     { message: ITEM_CONTENT_REQUIRED_ERROR },
   )
+  for (const state of [{ statusId: 4 }, { timeDue: "2027-01-02T03:04:05.000Z" }]) {
+    await assert.rejects(createItemForItemsApp({ userId: 1, item: input(state) }), {
+      message: ITEM_CONTENT_REQUIRED_ERROR,
+    })
+    await assert.rejects(updateItemForItemsApp({ userId: 1, itemId: 1, item: input(state) }), {
+      message: ITEM_CONTENT_REQUIRED_ERROR,
+    })
+  }
 })

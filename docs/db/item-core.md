@@ -26,29 +26,28 @@ already has it, because that restore is making a second copy.
 ## Capabilities
 
 `contracts/item-capabilities.ts` in `@lib/db-items` is the registry of what an item can
-hold beyond identity, workspace, and taxonomy:
+hold beyond identity, workspace, and taxonomy. Each capability has a role.
 
-| Capability | Stored as                      |
-| ---------- | ------------------------------ |
-| `text`     | `description`                  |
-| `schedule` | `time_due`, `time_remind`      |
-| `status`   | `status_id` → workspace status |
+| Capability | Role    | Stored as                      |
+| ---------- | ------- | ------------------------------ |
+| `text`     | content | `description`                  |
+| `schedule` | state   | `time_due`, `time_remind`      |
+| `status`   | state   | `status_id` → workspace status |
 
-Every capability is optional and none is required. `itemCapabilities(item)` lists the
+Content makes an item exist. State describes an item and never keeps it alive, and
+taxonomy organizes content and is not content. `itemCapabilities(item)` lists the
 capabilities an item holds. `hasItemContent(item)` is the save rule: an item must hold
-at least one capability, so a date or a status alone makes an item, and categories and
-tags alone do not, because taxonomy organizes content and is not content. The item
+content, so a status, a date, a category, or tags alone do not make an item. The item
 service applies the rule on create and update. The tables accept a bare item.
 
-No layer below the `note` view requires text. Listing, group actions, backup, restore,
-and account merge carry an item without text; text search and embeddings skip it.
-Requiring text to start a note is a rule of the `note` view alone (its `canCreate` in the
-`notes-next` view registry), because that view captures nothing else.
+No layer below the service names text as the content it expects. Listing, group
+actions, backup, restore, and account merge carry a stored item whatever it holds; text
+search and embeddings skip an item without text.
 
 An item without content is not kept. The service refuses to store one, and the web
-client deletes a stored item when an edit removes the last of its content: emptying a
-note deletes it, unless it still has a status or a date, in which case it stays as a
-task. Deleting a status deletes the items whose only content it was.
+client deletes a stored item when an edit removes its content: emptying a note or a task
+deletes it, whatever status or date it has. Deleting a status clears it from its items
+and deletes none of them.
 
 Content types use lowercase, singular names. `note` and `task` are computed from
 the capabilities an item holds. An item can match both types. The type names
@@ -94,10 +93,10 @@ every time and never stored, so it cannot disagree with the content. An item can
 several kinds at once, and it stops being a kind when the content that made it one is
 removed.
 
-| Kind   | An item is this kind when it holds  |
-| ------ | ----------------------------------- |
-| `note` | text                                |
-| `task` | a status, a due date, or a reminder |
+| Kind   | An item is this kind when it holds |
+| ------ | ---------------------------------- |
+| `note` | text                               |
+| `task` | text and a status                  |
 
 `itemKinds(item)` lists an item's kinds and `isKind(item, key)` tests one. Each kind is
 the selection rule of one view: `notes-next` keeps every item of the workspace and each
@@ -133,7 +132,7 @@ without changing the meaning of the item identity established here.
 New data routes are `/api/items`, `/api/items/search`, and
 `/api/items/maintenance/embeddings`. Payloads use `item`, `items`, `itemId`,
 `itemCount`, `itemsImported`, and `itemsSkipped`. Item text is nullable in storage and
-in payloads; the item service refuses to save only an item that holds no capability.
+in payloads; the item service refuses to save an item that holds no content.
 
 The web client sends `X-Items-Contract: 2` on shared routes such as bootstrap,
 vocabulary, and backup. A request that names a contract gets the item payload; a

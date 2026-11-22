@@ -1,7 +1,7 @@
 import type { ItemRecord, StatusRecord } from "@lib/db-items"
 
 export interface TaskColumn {
-  /** null for the column of tasks that have a date and no status. */
+  /** null for the column of tasks whose status is not in the workspace's list. */
   status: StatusRecord | null
   items: ItemRecord[]
 }
@@ -21,9 +21,9 @@ export const compareTasks = (left: ItemRecord, right: ItemRecord): number => {
 }
 
 /**
- * The board: one column per workspace status in position order, then a column for
- * tasks with no status. That last column appears only when it has tasks, because a
- * task enters it by having a date, not by being added there.
+ * The board: one column per workspace status in position order. A task whose status is
+ * missing from that list, as when the list is older than the task, goes in a last
+ * column that appears only then.
  */
 export const taskBoardColumns = (tasks: ItemRecord[], statuses: StatusRecord[]): TaskColumn[] => {
   const columns: TaskColumn[] = [...statuses]
@@ -34,7 +34,7 @@ export const taskBoardColumns = (tasks: ItemRecord[], statuses: StatusRecord[]):
     }))
   const known = new Set(statuses.map((status) => status.id))
   const unsorted = tasks
-    .filter((task) => task.status === null || !known.has(task.status.id))
+    .filter((task) => task.status !== null && !known.has(task.status.id))
     .sort(compareTasks)
   return unsorted.length > 0 ? [...columns, { status: null, items: unsorted }] : columns
 }

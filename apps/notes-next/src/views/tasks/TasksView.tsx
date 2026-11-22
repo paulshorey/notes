@@ -67,15 +67,11 @@ export function TasksView() {
   const openTask = (task: ItemRecord) => handleOpenItemFromResults(task)
   const closeEditor = () => setEditorKey(null)
 
-  // Without a status, only a date keeps an item a task. Clearing the status of an
-  // undated task would take it off the board, which a drag should never do. The rule
-  // is checked against the item as stored when the move runs.
-  const moveTask = (task: ItemRecord, status: StatusRecord | null) =>
-    void handleSetItemStatus(task, status?.id ?? null, (current) =>
-      status === null && current.timeDue === null && current.timeRemind === null
-        ? "Give this task a date before removing its status."
-        : null,
-    )
+  // A status makes a task, so a drag only ever moves a card between statuses. The
+  // last column holds no status to move to.
+  const moveTask = (task: ItemRecord, status: StatusRecord | null) => {
+    if (status !== null) void handleSetItemStatus(task, status.id)
+  }
 
   return (
     <div className={styles.view}>
@@ -161,7 +157,7 @@ function TaskColumnView({
   const [dropTarget, setDropTarget] = useState(false)
   const [quickAddText, setQuickAddText] = useState("")
   const [adding, setAdding] = useState(false)
-  const label = status?.label ?? "No status"
+  const label = status?.label ?? "Other"
 
   const submitQuickAdd = async (event: FormEvent) => {
     event.preventDefault()
@@ -203,7 +199,7 @@ function TaskColumnView({
           <TaskCard key={task.id} task={task} now={now} onOpen={onOpen} draggable />
         ))}
       </div>
-      {/* A task enters the last column by having a date, so nothing is added there. */}
+      {/* The last column has no status to give a new task. */}
       {status && (
         <form className={styles.quickAdd} onSubmit={(event) => void submitQuickAdd(event)}>
           <input

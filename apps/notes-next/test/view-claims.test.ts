@@ -158,6 +158,7 @@ test("a draft is created by the rule of the view it was opened in", () => {
   store().activateEntry(draft.key)
   const taken = store().openItems.find((entry) => entry.key === draft.key)!
   assert.equal(taken.view, "task")
-  assert.equal(canSaveEntry({ ...taken, form: dated }), true, "Tasks starts a task from a date")
+  assert.equal(canSaveEntry({ ...taken, form: dated }), false, "and so does Tasks")
+  assert.equal(canSaveEntry({ ...taken, form: { ...dated, description: "x" } }), true)
   reset()
 })
