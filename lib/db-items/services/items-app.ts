@@ -695,6 +695,11 @@ export const updateItemForItemsApp = async (r: UpdateItemRequest): Promise<ItemR
       expected,
     )
     if (item) return { item }
+    // The guarded update matched no row: report a concurrent change before any provider call.
+    if (expected !== null) {
+      const current = await changedSince(r)
+      if (current) throw new ItemChangedError(current)
+    }
   }
   const item = await updateItemForUser(
     r.itemId,
