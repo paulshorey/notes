@@ -22,6 +22,7 @@ import { type OpenItemEntry, type OpenItemKey } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { canSaveEntry, entrySaveAction } from "@/views/registry"
 import { draftHoldsContent } from "@/capabilities/draftParts"
+import { itemToFormState } from "@/types/items"
 import { type ItemSaveMode, OPEN_ITEMS_PERSIST_DEBOUNCE_MS, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
 import type { WorkspaceDataOutput } from "./useWorkspaceData"
@@ -183,8 +184,19 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId: currentUser.id, ...body }),
           })
-        const update = (id: number) =>
-          send("PATCH", { itemId: id, item: itemRequestBody(formSnapshot, workspaceId) })
+        const update = (id: number, expectedTimeModified?: string | null) =>
+          send("PATCH", {
+            itemId: id,
+            item: itemRequestBody(formSnapshot, workspaceId),
+            ...(expectedTimeModified ? { expectedTimeModified } : {}),
+          })
+        // An open entry edits the item as it was last loaded or saved here, and says
+        // so, which lets the server refuse to write over a change made elsewhere. An
+        // entry that left the ring has no such record and is stored as it is.
+        const liveEntry = () =>
+          detachedSavesRef.current.has(key)
+            ? undefined
+            : useItemsAppStore.getState().openItems.find((item) => item.key === key)
 
         // The edit left the item holding nothing, and an item without content is not
         // kept. The entry stays open as an unsaved draft: if the user types again, it
@@ -224,7 +236,25 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
           send("POST", { item: newItemRequestBody(formSnapshot, workspaceId, source.uid) })
 
         let creating = itemId === null
-        let response = itemId === null ? await create() : await update(itemId)
+        let response =
+          itemId === null ? await create() : await update(itemId, liveEntry()?.baseTimeModified)
+        // The stored item is newer than the one this entry began from. When it still
+        // holds what this entry last saved, nothing the user would recognize changed
+        // (an embedding was refreshed, say), so the edit goes on from that version.
+        // Otherwise the answer stays a conflict and the entry keeps its draft.
+        if (itemId !== null && response.status === 409) {
+          const conflict = (await response
+            .clone()
+            .json()
+            .catch(() => null)) as { item?: ItemRecord } | null
+          const stored = conflict?.item
+          if (
+            stored &&
+            serializeItemDraft(stored.id, itemToFormState(stored)) === liveEntry()?.savedSignature
+          ) {
+            response = await update(itemId, stored.timeModified)
+          }
+        }
         // The item was deleted somewhere else while this entry was open. What the user
         // is writing is kept: it is created again under the entry's uid.
         if (!creating && response.status === 404) {
@@ -398,6 +428,21 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     for (const key of deferred) void saveEntry(key, "detached")
   }, [groupDeferredSaveKeysRef, itemGroupDialog, saveEntry])
 
+  /**
+   * The user chose their own version over the one stored since their edit began. The
+   * entry forgets which version it started from, so its next save is not refused.
+   */
+  const keepEntryOverStoredItem = useCallback(
+    (uid: string) => {
+      setSaveConflictUid(null)
+      const entry = useItemsAppStore.getState().openItems.find((item) => item.uid === uid)
+      if (!entry) return
+      patchEntry(entry.key, { baseTimeModified: null })
+      void saveEntry(entry.key, "flush")
+    },
+    [patchEntry, saveEntry, setSaveConflictUid],
+  )
+
   useOpenItemsAutosave({
     entries: openItems,
     enabled: Boolean(user) && itemGroupDialog === null,
@@ -548,6 +593,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
   ])
 
   return {
+    keepEntryOverStoredItem,
     detachRemovedEntries,
     detachRemovedEntriesRef,
     saveEntry,

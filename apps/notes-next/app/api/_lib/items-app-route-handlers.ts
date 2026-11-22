@@ -20,6 +20,7 @@ import {
   parseEmbeddingMaintenanceRequest,
   parseCreateItemRequest,
   parseDeleteItemRequest,
+  ItemChangedError,
   parsePurgeTrashRequest,
   parseRestoreTrashedItemRequest,
   parseTrashRequest,
@@ -278,6 +279,10 @@ export const createItemsRouteHandlers = (
 
       return itemJson(request, result)
     } catch (error) {
+      // The caller's edit began from an older version. It gets the stored item, so it
+      // can tell a change that matters from one that does not.
+      if (error instanceof ItemChangedError)
+        return itemJson(request, { error: error.message, item: error.item }, { status: 409 })
       return toErrorResponse(error, service.getItemsAppErrorStatus(error))
     }
   },

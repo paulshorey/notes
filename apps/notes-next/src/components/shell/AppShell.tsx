@@ -49,6 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     errorMessage,
     saveConflictUid,
     setSaveConflictUid,
+    keepEntryOverStoredItem,
     fallbackTagId,
     filingLabelFor,
     handleAddItemForCategory,
@@ -162,6 +163,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <FeedbackNotifications
         saveConflictUid={saveConflictUid}
         onDismissConflict={() => setSaveConflictUid(null)}
+        onKeepConflictingEdits={keepEntryOverStoredItem}
         statusMessage={statusMessage}
         errorMessage={errorMessage}
         searchErrorMessage={searchErrorMessage}

@@ -944,6 +944,31 @@
           "kind": "model",
           "type": "ItemInput",
           "nullable": false
+        },
+        {
+          "name": "expectedTimeModified",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        }
+      ]
+    },
+    "ItemConflictResponse": {
+      "fields": [
+        {
+          "name": "error",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "item",
+          "optional": false,
+          "kind": "model",
+          "type": "ItemRecord",
+          "nullable": false
         }
       ]
     },

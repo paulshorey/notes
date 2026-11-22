@@ -12,6 +12,8 @@ import type {
   DeleteCategoryResponse,
   DeleteItemRequest,
   DeleteResponse,
+  ItemRecord,
+  UpdateItemRequest,
   PurgeTrashRequest,
   PurgeTrashResponse,
   RestoreTrashedItemRequest,
@@ -208,7 +210,7 @@ const labelRequest = (value: unknown) => {
   return { ...workspaceRequest(b.userId, b.workspaceId), label: label(b.label) }
 }
 export const getItemsAppErrorStatus = (error: unknown) =>
-  error instanceof ItemGroupConflictError
+  error instanceof ItemGroupConflictError || error instanceof ItemChangedError
     ? 409
     : error instanceof ItemGroupNotFoundError
       ? 404
@@ -324,12 +326,18 @@ export const parseCreateItemRequest = (v: unknown): CreateItemRequest => {
   const b = object(v)
   return { userId: parsePositiveInteger(b.userId, "userId"), item: parseItemInput(b.item) }
 }
-export const parseUpdateItemRequest = (v: unknown) => {
+export const parseUpdateItemRequest = (v: unknown): UpdateItemRequest => {
   const b = object(v)
+  const expected = b.expectedTimeModified
+  if (expected != null && (typeof expected !== "string" || Number.isNaN(Date.parse(expected))))
+    throw new Error("expectedTimeModified must be a valid date.")
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     itemId: parsePositiveInteger(b.itemId, "itemId"),
     item: parseItemInput(b.item),
+    ...(typeof expected === "string"
+      ? { expectedTimeModified: new Date(expected).toISOString() }
+      : {}),
   }
 }
 export const parseDeleteItemRequest = (v: unknown): DeleteItemRequest => {
@@ -645,9 +653,24 @@ const canReuse = (
   (normalized(d) === ""
     ? s.embedding_model === null && !s.has_embedding
     : s.has_embedding && s.embedding_model === CURRENT_ITEM_EMBEDDING_MODEL)
-export const updateItemForItemsApp = async (
-  r: ReturnType<typeof parseUpdateItemRequest>,
-): Promise<ItemResponse | null> => {
+export const ITEM_CHANGED_ERROR = "The saved item changed since this edit began."
+
+/** An update named a modification time the stored item no longer has. */
+export class ItemChangedError extends Error {
+  constructor(readonly item: ItemRecord) {
+    super(ITEM_CHANGED_ERROR)
+    this.name = "ItemChangedError"
+  }
+}
+
+/** The stored item, when it changed since the caller's `expectedTimeModified`. */
+const changedSince = async (r: UpdateItemRequest) => {
+  if (r.expectedTimeModified === undefined) return null
+  const current = await findItemByIdForUser(r.userId, r.itemId)
+  return current && current.timeModified !== r.expectedTimeModified ? current : null
+}
+
+export const updateItemForItemsApp = async (r: UpdateItemRequest): Promise<ItemResponse | null> => {
   assertItemHasContent(r.item)
   const stored = await selectItemEmbeddingStateById(r.itemId, r.userId)
   // A stale editor must see the deletion immediately, before any provider call.
@@ -656,6 +679,12 @@ export const updateItemForItemsApp = async (
     throw new ItemGroupConflictError(
       "This item is in a different workspace. Open it there to edit it.",
     )
+  const expected = r.expectedTimeModified ?? null
+  // Known before any provider call, like the deletion above.
+  if (expected !== null && stored.time_modified.toISOString() !== expected) {
+    const current = await changedSince(r)
+    if (current) throw new ItemChangedError(current)
+  }
   if (canReuse(stored, r.item.description)) {
     const item = await updateItemForUser(
       r.itemId,
@@ -663,6 +692,7 @@ export const updateItemForItemsApp = async (
       r.item,
       null,
       stored?.description ?? null,
+      expected,
     )
     if (item) return { item }
   }
@@ -671,8 +701,14 @@ export const updateItemForItemsApp = async (
     r.userId,
     r.item,
     await createItemEmbeddingInput({ description: r.item.description }),
+    undefined,
+    expected,
   )
-  return item ? { item } : null
+  if (item) return { item }
+  // The update matched no row: the item is gone, or it changed while this ran.
+  const current = await changedSince(r)
+  if (current) throw new ItemChangedError(current)
+  return null
 }
 export const deleteItemForItemsApp = async (
   r: DeleteItemRequest,

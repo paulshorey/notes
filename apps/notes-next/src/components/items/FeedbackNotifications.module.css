@@ -16,3 +16,13 @@
   background: color-mix(in srgb, var(--mantine-color-default) 92%, transparent);
   pointer-events: auto;
 }
+
+.feedbackAction {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

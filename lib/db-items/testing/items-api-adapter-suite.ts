@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import type { ItemsAppService } from "../services/items-app"
+import { ItemChangedError, type ItemsAppService } from "../services/items-app"
 
 type RequestOptions = {
   body?: unknown
@@ -1222,5 +1222,38 @@ export const registerItemsApiAdapterSuite = (
       path: "/api/items/trash",
     })
     assert.equal(unauthenticated.status, 401)
+  })
+
+  test(`${adapterName} answers a stale update with 409 and the stored item`, async (t) => {
+    const requests: unknown[] = []
+    const adapter = await createAdapter(
+      createFakeItemsAppService({
+        updateItemForItemsApp: async (request) => {
+          requests.push(request.expectedTimeModified)
+          throw new ItemChangedError(sampleItem)
+        },
+      }),
+    )
+
+    t.after(async () => {
+      await adapter.close?.()
+    })
+
+    const response = await adapter.request({
+      method: "PATCH",
+      path: "/api/items",
+      headers: authHeaders,
+      body: {
+        itemId: sampleItem.id,
+        item: { workspaceId: 3, description: "mine" },
+        expectedTimeModified: "2027-01-01T00:00:00Z",
+      },
+    })
+    assert.equal(response.status, 409)
+    assert.deepEqual(response.body, {
+      error: "The saved item changed since this edit began.",
+      item: sampleItem,
+    })
+    assert.deepEqual(requests, ["2027-01-01T00:00:00.000Z"])
   })
 }
