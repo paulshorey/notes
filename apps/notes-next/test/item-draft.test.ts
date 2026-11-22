@@ -234,12 +234,13 @@ test("an item with a time block keeps its content when its text is emptied", () 
   assert.equal(draftHoldsContent(itemDraftFromItem(item({ description: null }))), false)
 })
 
-test("a journal entry keeps its content when its text is emptied, and its saves name no day", () => {
+test("a journal entry keeps its content when its text is emptied, and its saves name its day", () => {
   const entry = item({ description: null, status: null, entryDate: "2026-11-25" })
   const draft = itemDraftFromItem(entry)
   assert.equal(draftHoldsContent(draft), true)
-  // The server keeps the stored day when a save leaves it out.
-  assert.equal("entryDate" in itemDraftRequest(draft), false)
+  // A save names the day, so the server sees content even with no text.
+  assert.equal(itemDraftRequest(draft).entryDate, "2026-11-25")
+  assert.equal("entryDate" in itemDraftRequest(createEmptyItemDraft()), false)
   // A journal entry with text is also a note, unless journal entries are left out.
   const written = item({ entryDate: "2026-11-25" })
   const notes = viewForKind("note")

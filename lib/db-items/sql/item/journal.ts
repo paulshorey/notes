@@ -16,10 +16,13 @@ import { selectItemById } from "./shared"
 const combineSql = (pairs: string) => `WITH pairs AS MATERIALIZED (${pairs}),
   appended AS (
     UPDATE public.workspace_item_v1 d
-    SET description=concat_ws(E'\\n\\n',NULLIF(btrim(d.description),''),NULLIF(btrim(s.description),'')),
-      description_embedding=NULL,embedding_model=NULL,embedding_updated_at=NULL
+    SET description=CASE WHEN NULLIF(btrim(s.description),'') IS NULL THEN d.description
+        ELSE concat_ws(E'\\n\\n',NULLIF(btrim(d.description),''),NULLIF(btrim(s.description),'')) END,
+      description_embedding=CASE WHEN NULLIF(btrim(s.description),'') IS NULL THEN d.description_embedding END,
+      embedding_model=CASE WHEN NULLIF(btrim(s.description),'') IS NULL THEN d.embedding_model END,
+      embedding_updated_at=CASE WHEN NULLIF(btrim(s.description),'') IS NULL THEN d.embedding_updated_at END
     FROM pairs p JOIN public.workspace_item_v1 s ON s.id=p.source_id
-    WHERE d.id=p.dest_id AND NULLIF(btrim(s.description),'') IS NOT NULL
+    WHERE d.id=p.dest_id
   ), tagged AS (
     INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
     SELECT p.dest_id,dt.id,d.workspace_id FROM pairs p

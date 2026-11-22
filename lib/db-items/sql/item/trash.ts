@@ -1,4 +1,4 @@
-import { JournalDayTakenError } from "../../contracts/item-journal"
+import { isJournalDayViolation, JournalDayTakenError } from "../../contracts/item-journal"
 import { combineTrashedEntryIntoDay } from "./journal"
 import type { PoolClient } from "pg"
 import type { TrashedItemRecord } from "../../contracts/items-app"
@@ -153,7 +153,6 @@ export const restoreTrashedItemForUser = async (
       entry.workspace_id,
       entry.workspace_label,
     )
-    await restoreVocabulary(client, workspaceId, entry.item)
     const day = text(entry.item.entryDate)
     const dayTaken =
       day !== null &&
@@ -165,6 +164,14 @@ export const restoreTrashedItemForUser = async (
       ).rowCount === 1
     if (dayTaken) {
       if (!combineJournalDay) throw new JournalDayTakenError()
+      // Only the tags join the entry; its filing and status are not restored, so no
+      // empty category or status comes back.
+      await restoreVocabulary(client, workspaceId, {
+        ...entry.item,
+        category: null,
+        subcategory: null,
+        status: null,
+      })
       const combinedId = await combineTrashedEntryIntoDay(
         client,
         workspaceId,
@@ -175,10 +182,18 @@ export const restoreTrashedItemForUser = async (
       await client.query("COMMIT")
       return combinedId
     }
-    const restored = await client.query<{ id: number }>(IMPORT_ITEMS_SQL, [
-      workspaceId,
-      JSON.stringify([entry.item]),
-    ])
+    await restoreVocabulary(client, workspaceId, entry.item)
+    let restored
+    try {
+      restored = await client.query<{ id: number }>(IMPORT_ITEMS_SQL, [
+        workspaceId,
+        JSON.stringify([entry.item]),
+      ])
+    } catch (error) {
+      // Another request took the day after the check above.
+      if (isJournalDayViolation(error)) throw new JournalDayTakenError()
+      throw error
+    }
     await client.query("COMMIT")
     return restored.rows[0]!.id
   } catch (error) {

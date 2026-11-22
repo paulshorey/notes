@@ -216,6 +216,24 @@ describe("journal entries (DB)", { skip: !testDbUrl }, () => {
     )
   })
 
+  test("combining a tag-only entry still advances the target's version", async () => {
+    const userId = await realUser()
+    const workspace = await createWorkspaceForUser(userId, "personal")
+    const target = await seedEntry(workspace.id, "2026-11-25", "Morning")
+    const source = await seedEntry(workspace.id, "2026-11-26", "", { tags: ["busy"] })
+    const read = () =>
+      getDb().query<{ modified: string }>(
+        `SELECT time_modified::text modified FROM public.workspace_item_v1 WHERE id=$1`,
+        [target],
+      )
+    const before = (await read()).rows[0]!.modified
+    await combineJournalDayForItemsApp({ userId, itemId: source, entryDate: "2026-11-25" })
+    assert.notEqual((await read()).rows[0]!.modified, before)
+    assert.deepEqual(await entries(userId, workspace.id), [
+      { day: "2026-11-25", text: "Morning", category: null, tags: ["busy"] },
+    ])
+  })
+
   test("restoring a trashed entry onto a day that has a new one is refused, or combines when asked", async () => {
     const userId = await realUser()
     const workspace = await createWorkspaceForUser(userId, "personal")
