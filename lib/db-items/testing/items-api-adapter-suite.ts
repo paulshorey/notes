@@ -107,6 +107,9 @@ export const sampleTrashedItem = {
   subcategory: null,
   status: null,
   tags: ["urgent"],
+  timeStart: null,
+  timeEnd: null,
+  timePlanned: false,
   timeDue: null,
   timeRemind: null,
 }

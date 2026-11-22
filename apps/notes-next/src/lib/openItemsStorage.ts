@@ -473,6 +473,8 @@ export const reconcileOpenItems = (
         ...base,
         key: `draft:${nextDraftSequence}`,
         itemId: null,
+        // A new item is created from text; the deleted item's time block is not carried.
+        form: { ...base.form, timeStart: null },
         // The item is gone; what was typed becomes a new item with its own identity.
         uid: newPublicUid(),
         baseTimeModified: null,
