@@ -98,8 +98,10 @@ See `docs/db/item-core.md` for the item domain and `docs/db/item-model.md` for t
 - `lib/db/postgres.ts`: process-wide connection pool for app/runtime code. It defaults to one connection so cold, parallel Next.js requests do not burst connections through a remote proxy; set `PG_POOL_MAX` explicitly when a deployment needs more concurrency.
 - `services/items-app.ts`: Item workflow layer used by the web app's API routes.
   `describeItemsAppError` maps every thrown error to a status, an `ErrorCode`
-  (`contracts/items-app.ts`), and a message. A database or program fault is
-  `500 internal` with a generic message; a unique-label violation is `409 conflict`.
+  (`contracts/items-app.ts`), and a message. Throw `InvalidRequestError`
+  (`contracts/request-error.ts`), or a subclass, for anything a caller can correct: it is
+  answered `400` with its message. Every other error is a server fault, answered
+  `500 internal` with a generic message. A unique-label violation is `409 conflict`.
 - `contracts/user-backup.ts`: versioned portable-backup validation and size limits;
   safe to import in the browser.
 - `sql/user/backup.ts`: snapshot export and atomic staged restore. Restore calls

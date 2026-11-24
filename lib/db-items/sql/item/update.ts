@@ -112,29 +112,33 @@ export const updateItemForUser = async (
             given(patch.subcategoryId, stored.subcategory_id),
           )
     const textChanged = next.description !== stored.description
+    // Only the columns the patch names are written, so a stored value the patch says
+    // nothing about is never read into JavaScript and written back.
+    const values: unknown[] = [itemId]
+    const sets: string[] = []
+    const set = (column: string, value: unknown, cast = "") => {
+      values.push(value)
+      sets.push(`${column}=$${values.length}${cast}`)
+    }
+    if (patch.statusId !== undefined) set("status_id", next.statusId)
+    if (patch.description !== undefined) set("description", next.description)
+    if (patch.timeDue !== undefined) set("time_due", next.timeDue)
+    if (patch.timeRemind !== undefined) set("time_remind", next.timeRemind)
+    if (patch.timeStart !== undefined || patch.timeEnd !== undefined) {
+      set("time_start", next.timeStart)
+      set("time_end", next.timeEnd)
+    }
+    if (patch.entryDate !== undefined) set("entry_date", next.entryDate, "::date")
+    if (patch.categoryId !== undefined || patch.subcategoryId !== undefined) {
+      set("category_id", filing.categoryId)
+      set("subcategory_id", filing.subcategoryId)
+    }
+    if (textChanged)
+      sets.push("description_embedding=NULL", "embedding_model=NULL", "embedding_updated_at=NULL")
     // The row is written even when only its tags change, so `time_modified` moves with
     // every change to the item.
-    await client.query(
-      `UPDATE public.workspace_item_v1 SET status_id=$2,description=$3,time_due=$4,time_remind=$5,
-        category_id=$6,subcategory_id=$7,time_start=$8,time_end=$9,entry_date=$10::date,
-        description_embedding=CASE WHEN $11 THEN NULL ELSE description_embedding END,
-        embedding_model=CASE WHEN $11 THEN NULL ELSE embedding_model END,
-        embedding_updated_at=CASE WHEN $11 THEN NULL ELSE embedding_updated_at END
-       WHERE id=$1`,
-      [
-        itemId,
-        next.statusId,
-        next.description,
-        next.timeDue,
-        next.timeRemind,
-        filing.categoryId,
-        filing.subcategoryId,
-        next.timeStart,
-        next.timeEnd,
-        next.entryDate,
-        textChanged,
-      ],
-    )
+    if (sets.length === 0) sets.push("workspace_id=workspace_id")
+    await client.query(`UPDATE public.workspace_item_v1 SET ${sets.join(",")} WHERE id=$1`, values)
     if (patch.tagIds !== undefined)
       await replaceItemTagsForItem(client, itemId, workspaceId, patch.tagIds)
     const updated = await selectItemById(client, itemId, userId)

@@ -54,23 +54,37 @@ export const purgeExpiredTrashWithClient = (client: Pick<PoolClient, "query">, u
 export const TRASH_PAGE_SIZE = 200
 
 /**
+ * Where a page ended: the deletion time, in microseconds, and the id of its last
+ * entry. It names a place in the order, not a row, so the next page is found after the
+ * entry it came from has been restored or purged.
+ */
+export const isTrashCursor = (value: string) => /^\d{1,18}_\d{1,10}$/.test(value)
+
+/**
  * The user's trash, newest first, one page at a time. Entries past the retention are
  * removed first, so the list never shows one that can no longer be restored. `before`
- * is the id of the last entry of the previous page.
+ * is the `nextCursor` of the previous page.
  */
-export const listTrashedItemsByUser = async (userId: number, before: number | null = null) => {
+export const listTrashedItemsByUser = async (userId: number, before: string | null = null) => {
   const db = getDb()
   await purgeExpiredTrashWithClient(db, userId)
-  const { rows } = await db.query<TrashRow>(
-    `SELECT t.id,t.workspace_label,t.item,t.time_deleted FROM public.user_item_trash_v1 t
-     WHERE t.user_id=$1 AND ($3::int IS NULL OR (t.time_deleted,t.id) < (
-       SELECT b.time_deleted,b.id FROM public.user_item_trash_v1 b WHERE b.id=$3 AND b.user_id=$1))
+  const [micros, id] = before === null ? [null, null] : before.split("_")
+  const { rows } = await db.query<TrashRow & { micros: string }>(
+    `SELECT t.id,t.workspace_label,t.item,t.time_deleted,
+       (extract(epoch FROM t.time_deleted)*1000000)::bigint::text AS micros
+     FROM public.user_item_trash_v1 t
+     WHERE t.user_id=$1 AND ($3::bigint IS NULL OR (t.time_deleted,t.id) <
+       ('epoch'::timestamptz + $3::bigint * interval '1 microsecond',$4::int))
      ORDER BY t.time_deleted DESC,t.id DESC LIMIT $2`,
-    [userId, TRASH_PAGE_SIZE + 1, before],
+    [userId, TRASH_PAGE_SIZE + 1, micros, id],
   )
+  const page = rows.slice(0, TRASH_PAGE_SIZE)
+  const last = page.at(-1)
+  const hasMore = rows.length > TRASH_PAGE_SIZE
   return {
-    items: rows.slice(0, TRASH_PAGE_SIZE).map(mapTrashedItem),
-    hasMore: rows.length > TRASH_PAGE_SIZE,
+    items: page.map(mapTrashedItem),
+    hasMore,
+    nextCursor: hasMore && last ? `${last.micros}_${last.id}` : null,
   }
 }
 

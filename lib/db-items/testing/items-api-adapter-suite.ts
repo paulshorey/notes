@@ -187,6 +187,7 @@ export const createFakeItemsAppService = (
     items: [sampleTrashedItem],
     retentionDays: 30,
     hasMore: false,
+    nextCursor: null,
   }),
   restoreTrashedItemForItemsApp: async () => ({ item: sampleItem }),
   combineJournalDayForItemsApp: async () => ({ item: sampleItem }),
@@ -1129,7 +1130,7 @@ export const registerItemsApiAdapterSuite = (
       createFakeItemsAppService({
         listTrashForItemsApp: async (request) => {
           requests.push(request)
-          return { items: [sampleTrashedItem], retentionDays: 30, hasMore: false }
+          return { items: [sampleTrashedItem], retentionDays: 30, hasMore: false, nextCursor: null }
         },
         restoreTrashedItemForItemsApp: async (request) => {
           requests.push(request)
@@ -1152,7 +1153,12 @@ export const registerItemsApiAdapterSuite = (
       headers: authHeaders,
     })
     assert.equal(listed.status, 200)
-    assert.deepEqual(listed.body, { items: [sampleTrashedItem], retentionDays: 30, hasMore: false })
+    assert.deepEqual(listed.body, {
+      items: [sampleTrashedItem],
+      retentionDays: 30,
+      hasMore: false,
+      nextCursor: null,
+    })
 
     const restored = await adapter.request({
       method: "POST",

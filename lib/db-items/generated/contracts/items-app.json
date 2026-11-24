@@ -1164,7 +1164,7 @@
           "name": "before",
           "optional": true,
           "kind": "scalar",
-          "type": "number",
+          "type": "string",
           "nullable": false
         }
       ]
@@ -1867,6 +1867,13 @@
           "kind": "scalar",
           "type": "boolean",
           "nullable": false
+        },
+        {
+          "name": "nextCursor",
+          "optional": false,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
         },
         {
           "name": "retentionDays",

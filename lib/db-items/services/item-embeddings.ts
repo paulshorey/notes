@@ -1,4 +1,5 @@
 import type { ItemEmbeddingWriteInput } from "../sql/item/types"
+import { InvalidRequestError } from "../contracts/request-error"
 
 /**
  * Embedding constants and text-building logic below are shared with
@@ -177,7 +178,7 @@ export const createQueryEmbedding = async (query: string) => {
   const trimmed = normalizeText(query)
 
   if (trimmed === "") {
-    throw new Error("Search query is required.")
+    throw new InvalidRequestError("Search query is required.")
   }
 
   const embeddings = await fetchEmbeddings([trimmed], "retrieval.query")

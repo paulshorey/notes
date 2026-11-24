@@ -1,3 +1,4 @@
+import { InvalidRequestError } from "./request-error"
 export const JOURNAL_DAY_TAKEN_ERROR = "This day already has a journal entry."
 
 /** A write would give a workspace a second journal entry for one day. */
@@ -29,5 +30,5 @@ export const parseEntryDate = (value: unknown): string | null => {
     const date = new Date(`${value}T00:00:00Z`)
     if (!Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value) return value
   }
-  throw new Error("Journal day must be a date such as 2026-11-25.")
+  throw new InvalidRequestError("Journal day must be a date such as 2026-11-25.")
 }

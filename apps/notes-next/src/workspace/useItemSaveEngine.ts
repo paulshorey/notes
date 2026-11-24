@@ -190,6 +190,9 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
       // The stored item of an update refused as a conflict, for the notice.
       let conflicting: ItemRecord | null = null
+      // What this save stored, and whether it went on from the hide-time request.
+      let landedSignature: string | null = null
+      let reconciledExitSave = false
 
       const savePromise = (async () => {
         const send = (method: "POST" | "PATCH" | "DELETE", body: object) =>
@@ -275,6 +278,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
               storedSignature === exitSentSignaturesRef.current.get(key) ||
               storedSignature === serializeItemDraft(itemId, formSnapshot))
           ) {
+            reconciledExitSave = storedSignature === exitSentSignaturesRef.current.get(key)
             response = await update(itemId, stored.timeModified)
           } else {
             conflicting = stored ?? null
@@ -305,7 +309,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         // Write back by key. The old "is this still the note on screen" guard
         // existed only because there was one editor slot; with per-entry state
         // this is correct whether or not the user has moved on.
-        const landedSignature = serializeItemDraft(data.item.id, formSnapshot)
+        landedSignature = serializeItemDraft(data.item.id, formSnapshot)
         patchEntry(key, {
           itemId: data.item.id,
           baseTimeModified: data.item.timeModified,
@@ -333,7 +337,13 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         await savePromise
         persisted = true
         failedSignaturesRef.current.delete(key)
-        exitSentSignaturesRef.current.delete(key)
+        // The hide-time request is settled once a save went on from what it stored, or
+        // stored the same thing. An earlier save finishing says nothing about it.
+        if (
+          reconciledExitSave ||
+          exitSentSignaturesRef.current.get(key) === (landedSignature as string | null)
+        )
+          exitSentSignaturesRef.current.delete(key)
         // A view may be waiting to take this entry until its edits are stored.
         useItemsAppStore.getState().finishViewClaim(key)
         if (userRef.current?.id === currentUser.id && !detached) {

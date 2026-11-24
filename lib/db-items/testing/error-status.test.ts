@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { getItemsAppErrorStatus } from "../services/items-app"
+import { getItemsAppErrorStatus, parsePositiveInteger } from "../services/items-app"
 
 test("database connection failures are reported as service unavailable", () => {
   assert.equal(
@@ -19,5 +19,10 @@ test("database connection failures are reported as service unavailable", () => {
 })
 
 test("ordinary request validation failures remain bad requests", () => {
-  assert.equal(getItemsAppErrorStatus(new Error("workspaceId must be an integer")), 400)
+  assert.throws(
+    () => parsePositiveInteger("x", "workspaceId"),
+    (error: unknown) => getItemsAppErrorStatus(error) === 400,
+  )
+  // An error the service did not raise on purpose is the server's fault.
+  assert.equal(getItemsAppErrorStatus(new Error("something broke")), 500)
 })

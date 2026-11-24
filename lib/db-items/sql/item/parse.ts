@@ -2,6 +2,7 @@ import { parseEntryDate } from "../../contracts/item-journal"
 import { normalizeTimeBlock } from "../../contracts/item-time"
 import { parseOptionalPublicUid } from "../../contracts/public-uid"
 import type { ItemInput, ItemPatch } from "./types"
+import { InvalidRequestError } from "../../contracts/request-error"
 const positiveInt = (value: unknown, field: string): number => {
   const parsed =
     typeof value === "number"
@@ -10,19 +11,19 @@ const positiveInt = (value: unknown, field: string): number => {
         ? Number.parseInt(value, 10)
         : NaN
   if (!Number.isInteger(parsed) || parsed < 1)
-    throw new Error(`${field} must be an integer of at least 1.`)
+    throw new InvalidRequestError(`${field} must be an integer of at least 1.`)
   return parsed
 }
 const ids = (value: unknown, field: string) => {
   if (value == null) return []
-  if (!Array.isArray(value)) throw new Error(`${field} must be an array of integers.`)
+  if (!Array.isArray(value)) throw new InvalidRequestError(`${field} must be an array of integers.`)
   return [...new Set(value.map((item) => positiveInt(item, field)))].sort((a, b) => a - b)
 }
 const timestamp = (value: unknown, field: string) => {
   if (value == null || value === "") return null
-  if (typeof value !== "string") throw new Error(`${field} must be a valid date.`)
+  if (typeof value !== "string") throw new InvalidRequestError(`${field} must be a valid date.`)
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) throw new Error(`${field} must be a valid date.`)
+  if (Number.isNaN(date.getTime())) throw new InvalidRequestError(`${field} must be a valid date.`)
   return date.toISOString()
 }
 const nullableId = (value: unknown, field: string) =>
@@ -30,13 +31,13 @@ const nullableId = (value: unknown, field: string) =>
 
 const record = (value: unknown) => {
   if (typeof value !== "object" || value === null || Array.isArray(value))
-    throw new Error("Item payload is required.")
+    throw new InvalidRequestError("Item payload is required.")
   return value as Record<string, unknown>
 }
 
 const text = (value: unknown) => {
   if (value == null) return null
-  if (typeof value !== "string") throw new Error("description must be text.")
+  if (typeof value !== "string") throw new InvalidRequestError("description must be text.")
   return value
 }
 

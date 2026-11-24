@@ -1,6 +1,7 @@
 import { after, NextResponse } from "next/server"
 import type { ErrorCode } from "@lib/db-items/contracts/items-app"
 import { itemModelDocument } from "@lib/db-items/contracts/item-model"
+import { InvalidRequestError } from "@lib/db-items/contracts/request-error"
 import {
   ITEMS_APP_AUTH_REQUIRED_ERROR,
   ITEMS_APP_CATEGORY_NOT_FOUND_ERROR,
@@ -133,10 +134,10 @@ const readJsonObject = async (request: Request) => {
   try {
     body = await request.json()
   } catch {
-    throw new Error("Request body must be valid JSON.")
+    throw new InvalidRequestError("Request body must be valid JSON.")
   }
   if (typeof body !== "object" || body === null || Array.isArray(body))
-    throw new Error("Request body must be a JSON object.")
+    throw new InvalidRequestError("Request body must be a JSON object.")
   return body as Record<string, unknown>
 }
 

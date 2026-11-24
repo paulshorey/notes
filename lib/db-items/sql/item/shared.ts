@@ -2,6 +2,7 @@ import type { CategoryRef, TagRef, ItemRecord } from "./types"
 import type { PoolClient } from "pg"
 import { assertCategoryNameAllowed } from "../../contracts/category-name"
 import { isJournalDayViolation, JournalDayTakenError } from "../../contracts/item-journal"
+import { InvalidRequestError } from "../../contracts/request-error"
 
 export const itemColumns = `
   n.id, n.uid, n.workspace_id, n.description, n.time_start, n.time_end, n.entry_date::text AS entry_date,
@@ -85,7 +86,7 @@ const ensureIds = async (
     [workspaceId, unique],
   )
   if (rows[0]?.count !== unique.length)
-    throw new Error(`One or more ${label} were not found for this workspace.`)
+    throw new InvalidRequestError(`One or more ${label} were not found for this workspace.`)
   return unique
 }
 
@@ -99,7 +100,8 @@ export const ensureStatusIdForWorkspace = async (
     `SELECT 1 FROM public.workspace_status_v1 WHERE workspace_id=$1 AND id=$2`,
     [workspaceId, statusId],
   )
-  if (result.rowCount !== 1) throw new Error("Status was not found for this workspace.")
+  if (result.rowCount !== 1)
+    throw new InvalidRequestError("Status was not found for this workspace.")
 }
 
 export const CATEGORY_NOT_IN_WORKSPACE_ERROR = "Category was not found for this workspace."
@@ -120,7 +122,7 @@ export const resolveItemFiling = async (
     `SELECT 1 FROM public.workspace_category_v1 WHERE workspace_id=$1 AND id=$2`,
     [workspaceId, categoryId],
   )
-  if (category.rowCount !== 1) throw new Error(CATEGORY_NOT_IN_WORKSPACE_ERROR)
+  if (category.rowCount !== 1) throw new InvalidRequestError(CATEGORY_NOT_IN_WORKSPACE_ERROR)
   if (subcategoryId === null) return { categoryId, subcategoryId: null }
   const subcategory = await client.query(
     `SELECT 1 FROM public.workspace_subcategory_v1 WHERE id=$1 AND category_id=$2`,
@@ -141,7 +143,7 @@ export const rethrowFilingRace = (error: unknown): never => {
     (error.constraint === "workspace_item_v1_category_workspace_fkey" ||
       error.constraint === "workspace_item_v1_subcategory_category_fkey")
   )
-    throw new Error(CATEGORY_NOT_IN_WORKSPACE_ERROR)
+    throw new InvalidRequestError(CATEGORY_NOT_IN_WORKSPACE_ERROR)
   throw error
 }
 

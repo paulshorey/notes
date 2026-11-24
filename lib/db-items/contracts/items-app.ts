@@ -277,8 +277,8 @@ export interface DeleteItemRequest {
 
 export interface TrashRequest {
   userId: number
-  /** The id of the last entry of the previous page. */
-  before?: number
+  /** The `nextCursor` of the previous page. */
+  before?: string
 }
 
 export interface ItemEmbeddingRequest {
@@ -464,8 +464,10 @@ export interface DeleteResponse {
 export interface TrashResponse {
   /** One page, newest first. */
   items: TrashedItemRecord[]
-  /** True when older entries remain; ask for them with `before` set to the last id here. */
+  /** True when older entries remain. */
   hasMore: boolean
+  /** Pass as `before` for the next page. Null on the last page. */
+  nextCursor: string | null
   /** Days a deleted item stays in the trash before it is removed for good. */
   retentionDays: number
 }

@@ -9,6 +9,7 @@ import {
 } from "./shared"
 import { PUBLIC_UID_TAKEN_ERROR } from "../../contracts/public-uid"
 import type { ItemEmbeddingWriteInput, ItemInput } from "./types"
+import { InvalidRequestError } from "../../contracts/request-error"
 
 const NO_EMBEDDING: ItemEmbeddingWriteInput = { descriptionEmbedding: null, embeddingModel: null }
 
@@ -36,7 +37,8 @@ export const createOrFindItemForUser = async (
       `SELECT 1 FROM public.user_workspace_v1 WHERE id=$1 AND user_id=$2`,
       [item.workspaceId, userId],
     )
-    if (owned.rowCount !== 1) throw new Error("Workspace was not found for this user.")
+    if (owned.rowCount !== 1)
+      throw new InvalidRequestError("Workspace was not found for this user.")
     await ensureStatusIdForWorkspace(client, item.workspaceId, item.statusId)
     const filing = await resolveItemFiling(
       client,
@@ -82,9 +84,9 @@ export const createOrFindItemForUser = async (
         [item.uid, item.workspaceId],
       )
       const existingId = existing.rows[0]?.id
-      if (existingId === undefined) throw new Error(PUBLIC_UID_TAKEN_ERROR)
+      if (existingId === undefined) throw new InvalidRequestError(PUBLIC_UID_TAKEN_ERROR)
       const stored = await selectItemById(client, existingId, userId)
-      if (!stored) throw new Error(PUBLIC_UID_TAKEN_ERROR)
+      if (!stored) throw new InvalidRequestError(PUBLIC_UID_TAKEN_ERROR)
       await client.query("COMMIT")
       return { item: stored, created: false }
     }

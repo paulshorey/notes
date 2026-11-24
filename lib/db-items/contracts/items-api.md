@@ -19,19 +19,19 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 
 ## Item operations
 
-| Route                                    | Request                                              | Response                                                 |
-| ---------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------- |
-| `GET /api/items/model`                   | None; no authentication                              | The item model                                           |
-| `GET /api/items?workspaceId=...`         | Authorized workspace                                 | `{ items: ItemRecord[] }`                                |
-| `POST /api/items`                        | `{ item: ItemInput }`                                | `201 { item }`, or `200 { item }` for a uid that exists  |
-| `PATCH /api/items`                       | `{ itemId, item: ItemPatch, expectedTimeModified? }` | `{ item }`, or `409 item_changed` with the stored item   |
-| `DELETE /api/items`                      | `{ itemId }`                                         | `{ ok: true }`; the item goes to trash                   |
-| `POST /api/items/journal`                | `{ itemId, entryDate }`                              | `{ item }`, the entry the item was combined into         |
-| `GET /api/items/trash?before=<id>`       | Optional `before`                                    | `{ items: TrashedItemRecord[], hasMore, retentionDays }` |
-| `POST /api/items/trash`                  | `{ trashId, combineJournalDay? }`                    | `{ item }`, restored                                     |
-| `DELETE /api/items/trash`                | `{ trashId? }`                                       | `{ ok: true, purged }`                                   |
-| `POST /api/items/search`                 | `{ workspaceId, query, limit }`                      | `{ results: [{ item, similarity }] }`                    |
-| `POST /api/items/maintenance/embeddings` | `{ mode, limit }`                                    | `{ mode, processed, updated, hasMore }`                  |
+| Route                                    | Request                                              | Response                                                             |
+| ---------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `GET /api/items/model`                   | None; no authentication                              | The item model                                                       |
+| `GET /api/items?workspaceId=...`         | Authorized workspace                                 | `{ items: ItemRecord[] }`                                            |
+| `POST /api/items`                        | `{ item: ItemInput }`                                | `201 { item }`, or `200 { item }` for a uid that exists              |
+| `PATCH /api/items`                       | `{ itemId, item: ItemPatch, expectedTimeModified? }` | `{ item }`, or `409 item_changed` with the stored item               |
+| `DELETE /api/items`                      | `{ itemId }`                                         | `{ ok: true }`; the item goes to trash                               |
+| `POST /api/items/journal`                | `{ itemId, entryDate }`                              | `{ item }`, the entry the item was combined into                     |
+| `GET /api/items/trash?before=<cursor>`   | Optional `before`                                    | `{ items: TrashedItemRecord[], hasMore, nextCursor, retentionDays }` |
+| `POST /api/items/trash`                  | `{ trashId, combineJournalDay? }`                    | `{ item }`, restored                                                 |
+| `DELETE /api/items/trash`                | `{ trashId? }`                                       | `{ ok: true, purged }`                                               |
+| `POST /api/items/search`                 | `{ workspaceId, query, limit }`                      | `{ results: [{ item, similarity }] }`                                |
+| `POST /api/items/maintenance/embeddings` | `{ mode, limit }`                                    | `{ mode, processed, updated, hasMore }`                              |
 
 `GET /api/items/model` answers what an item can hold, which combinations are which
 kinds, and what a write does (`contracts/item-model.ts`; see
@@ -62,7 +62,8 @@ references, status and tag references, `description`, the time block, the journa
 due and reminder dates, and creation and modification timestamps.
 
 The trash lists pages of 200, newest first. `hasMore` says older entries remain; ask
-for them with `before` set to the last id of the page. Entries older than
+for them with `before` set to the page's `nextCursor`, which stays valid when entries
+of that page are restored or purged. Entries older than
 `retentionDays` are removed before each listing and on each deletion.
 
 A create or update is stored without waiting for the embedding provider; the embedding

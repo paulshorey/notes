@@ -23,6 +23,7 @@
     "./contracts/item-capabilities": "./contracts/item-capabilities.ts",
     "./contracts/item-kinds": "./contracts/item-kinds.ts",
     "./contracts/item-model": "./contracts/item-model.ts",
+    "./contracts/request-error": "./contracts/request-error.ts",
     "./contracts/public-uid": "./contracts/public-uid.ts"
   },
   "scripts": {

@@ -1,14 +1,13 @@
-import { createHash, randomBytes } from "node:crypto";
-import { getDb } from "../../lib/db/postgres";
+import { createHash, randomBytes } from "node:crypto"
+import { getDb } from "../../lib/db/postgres"
 
 // Only a SHA-256 hash of the token is stored, so a database leak does not
 // expose usable credentials. The plaintext token is returned to the client
 // exactly once at login.
-const hashApiToken = (token: string) =>
-  createHash("sha256").update(token).digest("hex");
+const hashApiToken = (token: string) => createHash("sha256").update(token).digest("hex")
 
 export const createApiTokenForUser = async (userId: number, credentialVersion: number) => {
-  const token = `nta_${randomBytes(32).toString("base64url")}`;
+  const token = `nta_${randomBytes(32).toString("base64url")}`
 
   const inserted = await getDb().query(
     `
@@ -17,11 +16,11 @@ export const createApiTokenForUser = async (userId: number, credentialVersion: n
       WHERE id = $1 AND credential_version = $3
       FOR UPDATE
     `,
-    [userId, hashApiToken(token), credentialVersion]
-  );
+    [userId, hashApiToken(token), credentialVersion],
+  )
 
-  return inserted.rowCount === 1 ? token : null;
-};
+  return inserted.rowCount === 1 ? token : null
+}
 
 export const findUserIdByApiToken = async (token: string) => {
   const { rows } = await getDb().query<{ user_id: number }>(
@@ -31,11 +30,11 @@ export const findUserIdByApiToken = async (token: string) => {
       WHERE token_hash = $1
       RETURNING user_id
     `,
-    [hashApiToken(token)]
-  );
+    [hashApiToken(token)],
+  )
 
-  return rows[0]?.user_id ?? null;
-};
+  return rows[0]?.user_id ?? null
+}
 
 export const deleteApiToken = async (token: string) => {
   const result = await getDb().query(
@@ -43,8 +42,8 @@ export const deleteApiToken = async (token: string) => {
       DELETE FROM public.user_api_token_v1
       WHERE token_hash = $1
     `,
-    [hashApiToken(token)]
-  );
+    [hashApiToken(token)],
+  )
 
-  return (result.rowCount ?? 0) > 0;
-};
+  return (result.rowCount ?? 0) > 0
+}

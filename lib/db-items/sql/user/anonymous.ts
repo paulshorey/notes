@@ -8,6 +8,7 @@ import { getDb } from "../../lib/db/postgres"
 import { ensureDefaultWorkspaceForUser } from "../workspace"
 import { hashPassword } from "./password"
 import type { UserSummary } from "./types"
+import { InvalidRequestError } from "../../contracts/request-error"
 
 export const CLAIM_IDENTIFIER_TAKEN_ERROR = "That username or email is already taken."
 export const CLAIM_NOT_ANONYMOUS_ERROR = "Only an anonymous user can be claimed."
@@ -74,7 +75,7 @@ export const claimAnonymousUser = async (
       [anonUserId],
     )
     if (!anonCheck.rows[0]?.is_anonymous) {
-      throw new Error(CLAIM_NOT_ANONYMOUS_ERROR)
+      throw new InvalidRequestError(CLAIM_NOT_ANONYMOUS_ERROR)
     }
 
     // Serialize concurrent claims of the same normalized identifier. The DB
@@ -123,7 +124,7 @@ export const claimAnonymousUser = async (
       [identity.username, usernameDigits, identity.email ?? null, emailDigits],
     )
     if (conflict.rows[0]) {
-      throw new Error(CLAIM_IDENTIFIER_TAKEN_ERROR)
+      throw new InvalidRequestError(CLAIM_IDENTIFIER_TAKEN_ERROR)
     }
 
     const { rows } = await client.query<UserV1Row>(
@@ -148,7 +149,7 @@ export const claimAnonymousUser = async (
       error !== null &&
       (error as { code?: string }).code === "23505"
     ) {
-      throw new Error(CLAIM_IDENTIFIER_TAKEN_ERROR)
+      throw new InvalidRequestError(CLAIM_IDENTIFIER_TAKEN_ERROR)
     }
 
     throw error
@@ -231,7 +232,7 @@ export const mergeAnonymousUserIntoWithClient = async (
     preferences: unknown
   }>(`SELECT is_anonymous, preferences FROM public.user_v1 WHERE id = $1 FOR UPDATE`, [anonUserId])
   if (!anonCheck.rows[0]?.is_anonymous) {
-    throw new Error("Source user is not anonymous.")
+    throw new InvalidRequestError("Source user is not anonymous.")
   }
 
   const realCheck = await client.query<{
@@ -239,7 +240,7 @@ export const mergeAnonymousUserIntoWithClient = async (
     preferences: unknown
   }>(`SELECT is_anonymous, preferences FROM public.user_v1 WHERE id = $1 FOR UPDATE`, [realUserId])
   if (!realCheck.rows[0] || realCheck.rows[0].is_anonymous) {
-    throw new Error("Destination user is anonymous or does not exist.")
+    throw new InvalidRequestError("Destination user is anonymous or does not exist.")
   }
 
   // Carry the visitor's explicitly-set UI preferences into the real account

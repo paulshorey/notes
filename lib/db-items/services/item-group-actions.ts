@@ -7,15 +7,16 @@ import { assertCategoryNameAllowed } from "../contracts/category-name"
 import { executeItemGroupAction, previewItemGroup } from "../sql/item-groups"
 import { ItemGroupConflictError } from "../sql/item-group-errors"
 import { listCategoriesByWorkspace } from "../sql/category"
+import { InvalidRequestError } from "../contracts/request-error"
 
 const object = (value: unknown) => {
   if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error("Expected a JSON object.")
+    throw new InvalidRequestError("Expected a JSON object.")
   return value as Record<string, unknown>
 }
 const id = (value: unknown) => {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1)
-    throw new Error("Expected a positive integer ID.")
+    throw new InvalidRequestError("Expected a positive integer ID.")
   return value
 }
 const selection = (value: unknown): ItemGroupSelection => {
@@ -32,7 +33,7 @@ const selection = (value: unknown): ItemGroupSelection => {
       workspaceId,
       target: { kind: "subcategory", subcategoryId: id(target.subcategoryId) },
     }
-  throw new Error("Unknown item group.")
+  throw new InvalidRequestError("Unknown item group.")
 }
 export const parsePreviewItemGroupRequest = (value: unknown): PreviewItemGroupRequest => {
   const input = object(value)
@@ -45,16 +46,16 @@ export const parseExecuteItemGroupActionRequest = (
   const request = parsePreviewItemGroupRequest(value)
   const action = object(input.action)
   if (typeof input.snapshot !== "string" || !/^[a-f0-9]{64}$/.test(input.snapshot))
-    throw new Error("A current group preview is required.")
+    throw new InvalidRequestError("A current group preview is required.")
   if (action.kind === "move-to-workspace") {
     if (action.destinationWorkspaceLabel !== undefined) {
       if (action.destinationWorkspaceId !== undefined)
-        throw new Error("Choose one destination workspace.")
+        throw new InvalidRequestError("Choose one destination workspace.")
       const destinationWorkspaceLabel =
         typeof action.destinationWorkspaceLabel === "string"
           ? action.destinationWorkspaceLabel.trim().toLocaleLowerCase()
           : ""
-      if (!destinationWorkspaceLabel) throw new Error("Enter a workspace name.")
+      if (!destinationWorkspaceLabel) throw new InvalidRequestError("Enter a workspace name.")
       return {
         ...request,
         snapshot: input.snapshot,
@@ -63,23 +64,26 @@ export const parseExecuteItemGroupActionRequest = (
     }
     const destinationWorkspaceId = id(action.destinationWorkspaceId)
     if (destinationWorkspaceId === request.selection.workspaceId)
-      throw new Error("Choose a different workspace.")
+      throw new InvalidRequestError("Choose a different workspace.")
     return {
       ...request,
       snapshot: input.snapshot,
       action: { kind: "move-to-workspace", destinationWorkspaceId },
     }
   }
-  if (request.selection.target.kind === "item") throw new Error("Choose a workspace for this item.")
+  if (request.selection.target.kind === "item")
+    throw new InvalidRequestError("Choose a workspace for this item.")
   if (action.kind === "rename") {
     const label = typeof action.label === "string" ? action.label.trim().toLocaleLowerCase() : ""
-    if (!label) throw new Error("label is required.")
+    if (!label) throw new InvalidRequestError("label is required.")
     assertCategoryNameAllowed(label)
     return { ...request, snapshot: input.snapshot, action: { kind: "rename", label } }
   }
   if (action.kind === "delete" && typeof action.deleteItems === "boolean") {
     if (request.selection.target.kind === "uncategorized" && !action.deleteItems)
-      throw new Error("Uncategorized items can only be deleted or assigned to a category.")
+      throw new InvalidRequestError(
+        "Uncategorized items can only be deleted or assigned to a category.",
+      )
     return {
       ...request,
       snapshot: input.snapshot,
@@ -89,15 +93,15 @@ export const parseExecuteItemGroupActionRequest = (
   if (action.kind === "move") {
     const target = request.selection.target
     if (target.kind === "uncategorized")
-      throw new Error("Uncategorized items are filed by naming a category for them.")
+      throw new InvalidRequestError("Uncategorized items are filed by naming a category for them.")
     const categoryId = action.categoryId === null ? null : id(action.categoryId)
     if (target.kind === "category" && categoryId === null)
-      throw new Error("This group is already a category.")
+      throw new InvalidRequestError("This group is already a category.")
     if (target.kind === "category" && categoryId === target.categoryId)
-      throw new Error("A category cannot be moved into itself.")
+      throw new InvalidRequestError("A category cannot be moved into itself.")
     return { ...request, snapshot: input.snapshot, action: { kind: "move", categoryId } }
   }
-  throw new Error("Unknown item group action.")
+  throw new InvalidRequestError("Unknown item group action.")
 }
 export const previewItemGroupForItemsApp = (request: PreviewItemGroupRequest) =>
   previewItemGroup(request.userId, request.selection)

@@ -47,12 +47,18 @@ describe("operator password recovery (DB)", { skip: !testDbUrl }, () => {
       const otherReference = randomUUID()
       const otherDelivery = await reservePasswordReset(otherUsername, otherReference)
       assert.ok(otherDelivery)
-      assert.equal(await resetPasswordWithCode(otherReference, delivery.code, "new password"), false)
+      assert.equal(
+        await resetPasswordWithCode(otherReference, delivery.code, "new password"),
+        false,
+      )
       await getDb().query(
         "UPDATE public.user_password_reset_v1 SET requested_at = now() - interval '31 minutes' WHERE request_id = $1",
         [otherReference],
       )
-      assert.equal(await resetPasswordWithCode(otherReference, otherDelivery.code, "new password"), false)
+      assert.equal(
+        await resetPasswordWithCode(otherReference, otherDelivery.code, "new password"),
+        false,
+      )
 
       const results = await Promise.all([
         resetPasswordWithCode(reference, delivery.code, "new password"),
@@ -68,7 +74,9 @@ describe("operator password recovery (DB)", { skip: !testDbUrl }, () => {
       assert.equal(await createApiTokenForUser(userId, 0), null)
       assert.ok(await createApiTokenForUser(userId, 1))
     } finally {
-      await getDb().query("DELETE FROM public.user_v1 WHERE id = ANY($1::integer[])", [rows.map(({ id }) => id)])
+      await getDb().query("DELETE FROM public.user_v1 WHERE id = ANY($1::integer[])", [
+        rows.map(({ id }) => id),
+      ])
     }
   })
 
@@ -80,10 +88,14 @@ describe("operator password recovery (DB)", { skip: !testDbUrl }, () => {
       [usernames],
     )
     try {
-      const attempts = await Promise.all(usernames.map((username) => reservePasswordReset(username, randomUUID())))
+      const attempts = await Promise.all(
+        usernames.map((username) => reservePasswordReset(username, randomUUID())),
+      )
       assert.equal(attempts.filter(Boolean).length, 5)
     } finally {
-      await getDb().query("DELETE FROM public.user_v1 WHERE id = ANY($1::integer[])", [rows.map(({ id }) => id)])
+      await getDb().query("DELETE FROM public.user_v1 WHERE id = ANY($1::integer[])", [
+        rows.map(({ id }) => id),
+      ])
     }
   })
 })

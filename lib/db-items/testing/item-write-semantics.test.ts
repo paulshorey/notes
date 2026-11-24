@@ -4,18 +4,23 @@ import { after, describe, test } from "node:test"
 import { getDb } from "../lib/db/postgres"
 import { ITEM_CONTENT_REQUIRED_ERROR, ItemRequirementError } from "../contracts/item-capabilities"
 import { itemCapabilityRemovals } from "../contracts/item-model"
+import { InvalidRequestError } from "../contracts/request-error"
 import { CURRENT_ITEM_EMBEDDING_MODEL } from "../services/item-embeddings"
 import {
   createItemForItemsApp,
   deleteItemForItemsApp,
+  deleteStatusForItemsApp,
   describeItemsAppError,
   embedItemForItemsApp,
   listStatusesForItemsApp,
+  listTrashForItemsApp,
+  purgeTrashForItemsApp,
   listCategoriesForItemsApp,
   parseUpdateItemRequest,
   updateItemForItemsApp,
 } from "../services/items-app"
 import { updateItemEmbeddingsForUser } from "../sql/item"
+import { updateTagEmbeddingById } from "../sql/tag"
 import { createWorkspaceForUser } from "../sql/workspace"
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
@@ -44,7 +49,14 @@ test("a server fault is reported without its detail", () => {
     message: "Unexpected server error.",
     internal: true,
   })
-  assert.equal(describeItemsAppError(new Error("label is required.")).status, 400)
+  // A plain error is a fault too; only a request the service refused keeps its sentence.
+  assert.deepEqual(describeItemsAppError(new Error("DB_ITEMS_URL environment variable not set")), {
+    status: 500,
+    code: "internal",
+    message: "Unexpected server error.",
+    internal: true,
+  })
+  assert.equal(describeItemsAppError(new InvalidRequestError("label is required.")).status, 400)
   assert.equal(
     describeItemsAppError(Object.assign(new Error("dup"), { code: "23505" })).status,
     409,
@@ -235,6 +247,103 @@ describe("item writes (DB)", { skip: !testDbUrl }, () => {
         statuses.some((status) => status.id === row.statusId),
         true,
       )
+    } finally {
+      await row.drop()
+    }
+  })
+
+  test("a repeated create is answered even when what it named is gone", async () => {
+    const row = await seed()
+    try {
+      const uid = randomUUID()
+      const request = {
+        userId: row.userId,
+        item: {
+          uid,
+          workspaceId: row.workspaceId,
+          categoryId: null,
+          subcategoryId: null,
+          statusId: row.statusId,
+          tagIds: [],
+          description: "sent twice",
+          timeDue: null,
+          timeRemind: null,
+        },
+      }
+      const first = await createItemForItemsApp(request)
+      await deleteStatusForItemsApp({
+        userId: row.userId,
+        workspaceId: row.workspaceId,
+        statusId: row.statusId,
+      })
+      const again = await createItemForItemsApp(request)
+      assert.equal(again.created, false)
+      assert.equal(again.item.id, first.item.id)
+      assert.equal(again.item.status, null)
+    } finally {
+      await row.drop()
+    }
+  })
+
+  test("a patch leaves the columns it does not name exactly as stored", async () => {
+    const row = await seed()
+    try {
+      const item = await create(row)
+      await getDb().query(
+        `UPDATE public.workspace_item_v1 SET time_due='2027-01-03 11:00:00.123456+00' WHERE id=$1`,
+        [item.id],
+      )
+      await updateItemForItemsApp({
+        userId: row.userId,
+        itemId: item.id,
+        item: { description: "edited" },
+      })
+      const { rows } = await getDb().query<{ due: string }>(
+        `SELECT to_char(time_due AT TIME ZONE 'UTC','HH24:MI:SS.US') due
+         FROM public.workspace_item_v1 WHERE id=$1`,
+        [item.id],
+      )
+      assert.equal(rows[0]!.due, "11:00:00.123456")
+    } finally {
+      await row.drop()
+    }
+  })
+
+  test("the next trash page is found after the last entry of a page is purged", async () => {
+    const row = await seed()
+    try {
+      await getDb().query(
+        `INSERT INTO public.user_item_trash_v1(user_id,workspace_id,workspace_label,item,time_deleted)
+         SELECT $1,$2,'personal',jsonb_build_object('description','t'||n),
+           now() - make_interval(secs => n) FROM generate_series(1,201) n`,
+        [row.userId, row.workspaceId],
+      )
+      const first = await listTrashForItemsApp({ userId: row.userId })
+      assert.equal(first.items.length, 200)
+      assert.equal(first.hasMore, true)
+      await purgeTrashForItemsApp({ userId: row.userId, trashId: first.items.at(-1)!.id })
+      const second = await listTrashForItemsApp({ userId: row.userId, before: first.nextCursor! })
+      assert.deepEqual(
+        second.items.map((entry) => entry.description),
+        ["t201"],
+      )
+      assert.equal(second.nextCursor, null)
+    } finally {
+      await row.drop()
+    }
+  })
+
+  test("a label embedding does not land on a renamed tag", async () => {
+    const row = await seed()
+    try {
+      const { rows } = await getDb().query<{ label: string }>(
+        `SELECT label FROM public.workspace_tag_v1 WHERE id=$1`,
+        [row.tagId],
+      )
+      const write = (label: string) =>
+        updateTagEmbeddingById(row.userId, row.tagId, VECTOR, CURRENT_ITEM_EMBEDDING_MODEL, label)
+      assert.equal(await write("the label it had before a rename"), false)
+      assert.equal(await write(rows[0]!.label), true)
     } finally {
       await row.drop()
     }

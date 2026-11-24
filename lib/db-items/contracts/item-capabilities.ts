@@ -1,3 +1,4 @@
+import { InvalidRequestError } from "./request-error"
 import type { ItemInput, ItemRecord } from "./items-app"
 import {
   ITEM_MODEL,
@@ -86,7 +87,7 @@ export const missingRequirement = (
 
 export const ITEM_CONTENT_REQUIRED_ERROR = "An item needs content before it can be saved."
 
-export class ItemRequirementError extends Error {
+export class ItemRequirementError extends InvalidRequestError {
   constructor(
     readonly capability: ItemCapabilityKey,
     readonly requires: ItemCapabilityKey,
@@ -95,7 +96,7 @@ export class ItemRequirementError extends Error {
   }
 }
 
-export class ItemContentRequiredError extends Error {
+export class ItemContentRequiredError extends InvalidRequestError {
   constructor() {
     super(ITEM_CONTENT_REQUIRED_ERROR)
   }

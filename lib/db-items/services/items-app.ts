@@ -61,6 +61,7 @@ import {
   executeItemGroupActionForItemsApp,
   previewItemGroupForItemsApp,
 } from "./item-group-actions"
+import { InvalidRequestError } from "../contracts/request-error"
 export {
   parseExecuteItemGroupActionRequest,
   parsePreviewItemGroupRequest,
@@ -81,7 +82,9 @@ import {
   createOrFindItemForUser,
   deleteItemForUser,
   findItemByIdForUser,
+  findItemByUidInWorkspace,
   listTrashedItemsByUser,
+  isTrashCursor,
   purgeTrashedItemsForUser,
   restoreTrashedItemForUser,
   TRASH_RETENTION_DAYS,
@@ -169,7 +172,7 @@ export const ITEMS_APP_EMBEDDING_MAINTENANCE_STALE_MODE = "stale"
 
 const object = (value: unknown) => {
   if (typeof value !== "object" || value === null || Array.isArray(value))
-    throw new Error("Request body must be a JSON object.")
+    throw new InvalidRequestError("Request body must be a JSON object.")
   return value as Record<string, unknown>
 }
 const label = (value: unknown) =>
@@ -186,7 +189,7 @@ export const parsePositiveInteger = (
         ? Number.parseInt(value, 10)
         : NaN
   if (!Number.isInteger(parsed) || parsed < min || (max !== undefined && parsed > max))
-    throw new Error(
+    throw new InvalidRequestError(
       `${field} must be an integer of at least ${min}${max !== undefined ? ` and at most ${max}` : ""}.`,
     )
   return parsed
@@ -223,16 +226,6 @@ const errorCodeOf = (error: unknown) =>
   typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
     ? error.code
     : null
-
-/** A PostgreSQL error, as opposed to a request the service refused. */
-const isDatabaseError = (error: unknown) => /^[0-9A-Z]{5}$/.test(errorCodeOf(error) ?? "")
-
-/** A fault in the program itself: never the caller's doing, never shown to the caller. */
-const isProgramError = (error: unknown) =>
-  error instanceof TypeError ||
-  error instanceof RangeError ||
-  error instanceof ReferenceError ||
-  error instanceof SyntaxError
 
 export interface ItemsAppErrorDescription {
   status: number
@@ -289,9 +282,9 @@ export const describeItemsAppError = (error: unknown): ItemsAppErrorDescription 
       message: "That name is already in use.",
       internal: false,
     }
-  if (isDatabaseError(error) || isProgramError(error) || !(error instanceof Error))
-    return { status: 500, code: "internal", message: "Unexpected server error.", internal: true }
-  return refused(400, "invalid_request", error)
+  if (error instanceof InvalidRequestError) return refused(400, "invalid_request", error)
+  // Anything the service did not refuse on purpose is a fault of the server.
+  return { status: 500, code: "internal", message: "Unexpected server error.", internal: true }
 }
 export const getItemsAppErrorStatus = (error: unknown) => describeItemsAppError(error).status
 export const parseSessionRequest = (userId: unknown): SessionRequest => ({
@@ -382,7 +375,7 @@ export const parseDeleteStatusRequest = (v: unknown): DeleteStatusRequest => {
 export const parseDeleteWorkspaceRequest = (v: unknown): DeleteWorkspaceRequest => {
   const b = object(v)
   if (b.confirmation !== "delete-workspace")
-    throw new Error('confirmation must be "delete-workspace".')
+    throw new InvalidRequestError('confirmation must be "delete-workspace".')
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     workspaceId: parsePositiveInteger(b.workspaceId, "workspaceId"),
@@ -397,7 +390,7 @@ export const parseUpdateItemRequest = (v: unknown): UpdateItemRequest => {
   const b = object(v)
   const expected = b.expectedTimeModified
   if (expected != null && (typeof expected !== "string" || Number.isNaN(Date.parse(expected))))
-    throw new Error("expectedTimeModified must be a valid date.")
+    throw new InvalidRequestError("expectedTimeModified must be a valid date.")
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     itemId: parsePositiveInteger(b.itemId, "itemId"),
@@ -417,10 +410,14 @@ export const parseDeleteItemRequest = (v: unknown): DeleteItemRequest => {
       : { workspaceId: parsePositiveInteger(b.workspaceId, "workspaceId") }),
   }
 }
-export const parseTrashRequest = (userId: unknown, before?: unknown): TrashRequest => ({
-  userId: parsePositiveInteger(userId, "userId"),
-  ...(before == null || before === "" ? {} : { before: parsePositiveInteger(before, "before") }),
-})
+export const parseTrashRequest = (userId: unknown, before?: unknown): TrashRequest => {
+  if (before != null && before !== "" && !(typeof before === "string" && isTrashCursor(before)))
+    throw new InvalidRequestError("before must be the nextCursor of an earlier page.")
+  return {
+    userId: parsePositiveInteger(userId, "userId"),
+    ...(typeof before === "string" && before !== "" ? { before } : {}),
+  }
+}
 export const parseRestoreTrashedItemRequest = (v: unknown): RestoreTrashedItemRequest => {
   const b = object(v)
   return {
@@ -432,7 +429,7 @@ export const parseRestoreTrashedItemRequest = (v: unknown): RestoreTrashedItemRe
 export const parseCombineJournalDayRequest = (v: unknown): CombineJournalDayRequest => {
   const b = object(v)
   const entryDate = parseEntryDate(b.entryDate)
-  if (entryDate === null) throw new Error("Journal day is required.")
+  if (entryDate === null) throw new InvalidRequestError("Journal day is required.")
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     itemId: parsePositiveInteger(b.itemId, "itemId"),
@@ -449,7 +446,7 @@ export const parsePurgeTrashRequest = (v: unknown): PurgeTrashRequest => {
 export const parseSearchRequest = (v: unknown): SearchRequest => {
   const b = object(v)
   const query = label(b.query)
-  if (!query) throw new Error("Search query is required.")
+  if (!query) throw new InvalidRequestError("Search query is required.")
   return {
     ...workspaceRequest(b.userId, b.workspaceId),
     query,
@@ -468,7 +465,7 @@ export const parseTokenLoginRequest = (v: unknown): TokenLoginRequest => {
 export const parseUpdateUserPreferencesRequest = (v: unknown): UpdateUserPreferencesRequest => {
   const b = object(v)
   if (typeof b.preferences !== "object" || b.preferences === null || Array.isArray(b.preferences))
-    throw new Error("preferences must be a JSON object.")
+    throw new InvalidRequestError("preferences must be a JSON object.")
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     preferences: b.preferences as UserPreferences,
@@ -483,16 +480,18 @@ export const parseClaimAnonymousSessionRequest = (v: unknown): ClaimAnonymousSes
   const b = object(v)
   const username = typeof b.username === "string" ? b.username.trim() : ""
   const password = typeof b.password === "string" ? b.password : ""
-  if (!username) throw new Error("username is required.")
-  if (password.length < 8) throw new Error("password must be at least 8 characters.")
+  if (!username) throw new InvalidRequestError("username is required.")
+  if (password.length < 8) throw new InvalidRequestError("password must be at least 8 characters.")
   const email = typeof b.email === "string" && b.email.trim() ? b.email.trim() : undefined
-  if (email && !email.includes("@")) throw new Error("email must be a valid email address.")
+  if (email && !email.includes("@"))
+    throw new InvalidRequestError("email must be a valid email address.")
   return { username, password, ...(email ? { email } : {}) }
 }
 export const parseEmbeddingMaintenanceRequest = (v: unknown): EmbeddingMaintenanceRequest => {
   const b = object(v)
   const mode = typeof b.mode === "string" ? b.mode.toLowerCase() : ""
-  if (mode !== "missing" && mode !== "stale") throw new Error('mode must be "missing" or "stale".')
+  if (mode !== "missing" && mode !== "stale")
+    throw new InvalidRequestError('mode must be "missing" or "stale".')
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     mode,
@@ -545,13 +544,13 @@ export const listWorkspacesForItemsApp = async (
 export const createWorkspaceForItemsApp = async (
   r: CreateWorkspaceRequest,
 ): Promise<WorkspaceResponse> => {
-  if (!r.label) throw new Error("label is required.")
+  if (!r.label) throw new InvalidRequestError("label is required.")
   return { workspace: await createWorkspaceForUser(r.userId, r.label) }
 }
 export const updateWorkspaceForItemsApp = async (
   r: UpdateWorkspaceRequest,
 ): Promise<WorkspaceResponse | null> => {
-  if (!r.label) throw new Error("label is required.")
+  if (!r.label) throw new InvalidRequestError("label is required.")
   const workspace = await updateWorkspaceForUser(r.userId, r.workspaceId, r.label)
   return workspace ? { workspace } : null
 }
@@ -582,8 +581,9 @@ const createLabelEntity = async (
   workspaceId: number,
   value: string,
 ) => {
-  if (!value) throw new Error("label is required.")
-  if (!(await getWorkspaceByIdForUser(userId, workspaceId))) throw new Error("Workspace not found.")
+  if (!value) throw new InvalidRequestError("label is required.")
+  if (!(await getWorkspaceByIdForUser(userId, workspaceId)))
+    throw new InvalidRequestError("Workspace not found.")
   const client = await getDb().connect()
   try {
     const id =
@@ -601,14 +601,14 @@ export const createCategoryForItemsApp = async (
 ): Promise<CreateCategoryResponse> => {
   assertCategoryNameAllowed(r.label)
   if (r.categoryId !== undefined) {
-    if (!r.label) throw new Error("label is required.")
+    if (!r.label) throw new InvalidRequestError("label is required.")
     const created = await createSubcategoryForWorkspace(
       r.userId,
       r.workspaceId,
       r.categoryId,
       r.label,
     )
-    if (!created) throw new Error(ITEMS_APP_CATEGORY_NOT_FOUND_ERROR)
+    if (!created) throw new InvalidRequestError(ITEMS_APP_CATEGORY_NOT_FOUND_ERROR)
     return created
   }
   const id = await createLabelEntity("category", r.userId, r.workspaceId, r.label)
@@ -623,16 +623,16 @@ export const createTagForItemsApp = async (r: CreateTagRequest): Promise<CreateT
   return { tag }
 }
 export const createStatusForItemsApp = async (r: CreateStatusRequest): Promise<StatusResponse> => {
-  if (!r.label) throw new Error("label is required.")
+  if (!r.label) throw new InvalidRequestError("label is required.")
   const status = await createStatusForWorkspace(r.userId, r.workspaceId, r.label)
-  if (!status) throw new Error("Workspace not found.")
+  if (!status) throw new InvalidRequestError("Workspace not found.")
   return { status }
 }
 export const updateCategoryForItemsApp = async (
   r: UpdateCategoryRequest,
 ): Promise<UpdateCategoryResponse | null> => {
   assertCategoryNameAllowed(r.label)
-  if (!r.label) throw new Error("label is required.")
+  if (!r.label) throw new InvalidRequestError("label is required.")
   const category = await updateCategoryLabelForWorkspace(
     r.userId,
     r.workspaceId,
@@ -646,7 +646,7 @@ export const updateCategoryForItemsApp = async (
 export const updateTagForItemsApp = async (
   r: UpdateTagRequest,
 ): Promise<UpdateTagResponse | null> => {
-  if (!r.label) throw new Error("label is required.")
+  if (!r.label) throw new InvalidRequestError("label is required.")
   const tag = await updateTagLabelForWorkspace(
     r.userId,
     r.workspaceId,
@@ -660,7 +660,7 @@ export const updateTagForItemsApp = async (
 export const updateStatusForItemsApp = async (
   r: UpdateStatusRequest,
 ): Promise<StatusResponse | null> => {
-  if (!r.label) throw new Error("label is required.")
+  if (!r.label) throw new InvalidRequestError("label is required.")
   const status = await updateStatusForWorkspace(
     r.userId,
     r.workspaceId,
@@ -696,6 +696,12 @@ export const createItemForItemsApp = async (
 ): Promise<CreateItemResponse> => {
   const r = { ...request, item: normalizeTimeBlock(request.item) }
   assertItemHasContent(r.item)
+  // A repeated create is answered before anything it names is checked: the status or
+  // category it carried may be gone by now, and the caller still gets its item back.
+  if (r.item.uid) {
+    const stored = await findItemByUidInWorkspace(r.userId, r.item.workspaceId, r.item.uid)
+    if (stored) return { item: stored, created: false }
+  }
   return createOrFindItemForUser(r.userId, r.item)
 }
 
@@ -781,6 +787,10 @@ export const searchItemsForItemsApp = async (r: SearchRequest): Promise<SearchRe
   ),
 })
 
+/** The label a row had when it was read for embedding. */
+const labelOf = (rows: Array<{ id: number; label: string }>, id: number) =>
+  rows.find((row) => row.id === id)?.label ?? ""
+
 export const maintainItemEmbeddingsForItemsApp = async (
   r: EmbeddingMaintenanceRequest,
 ): Promise<EmbeddingMaintenanceResponse> => {
@@ -791,7 +801,13 @@ export const maintainItemEmbeddingsForItemsApp = async (
   let categoriesUpdated = 0
   for (const job of await createBackfillTagEmbeddings(categories)) {
     if (
-      await updateCategoryEmbeddingById(r.userId, job.tagId, job.vectorLiteral, job.embeddingModel)
+      await updateCategoryEmbeddingById(
+        r.userId,
+        job.tagId,
+        job.vectorLiteral,
+        job.embeddingModel,
+        labelOf(categories, job.tagId),
+      )
     )
       categoriesUpdated++
   }
@@ -801,7 +817,15 @@ export const maintainItemEmbeddingsForItemsApp = async (
   )
   let tagsUpdated = 0
   for (const job of await createBackfillTagEmbeddings(tags)) {
-    if (await updateTagEmbeddingById(r.userId, job.tagId, job.vectorLiteral, job.embeddingModel))
+    if (
+      await updateTagEmbeddingById(
+        r.userId,
+        job.tagId,
+        job.vectorLiteral,
+        job.embeddingModel,
+        labelOf(tags, job.tagId),
+      )
+    )
       tagsUpdated++
   }
   const items = await (stale ? listItemsStaleEmbeddingsByUser : listItemsMissingEmbeddingsByUser)(

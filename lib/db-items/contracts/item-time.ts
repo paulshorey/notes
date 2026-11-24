@@ -1,8 +1,9 @@
+import { InvalidRequestError } from "./request-error"
 import type { ItemPatch } from "./items-app"
 
 export const TIME_BLOCK_ORDER_ERROR = "A time block cannot end before it starts."
 
-export class TimeBlockOrderError extends Error {
+export class TimeBlockOrderError extends InvalidRequestError {
   constructor() {
     super(TIME_BLOCK_ORDER_ERROR)
   }

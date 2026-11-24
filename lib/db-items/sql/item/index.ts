@@ -1,6 +1,7 @@
 export { createItemForUser, createOrFindItemForUser } from "./add"
 export { deleteItemForUser } from "./delete"
 export {
+  isTrashCursor,
   listTrashedItemsByUser,
   purgeTrashedItemsForUser,
   restoreTrashedItemForUser,

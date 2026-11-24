@@ -184,14 +184,15 @@ any more, and a workspace left with no items (`sql/workspace-cleanup.ts`). Statu
 kept. The trash therefore belongs to the user, not the workspace: an entry remembers
 its workspace by id while that exists and by label after.
 
-| Action                | Route                              | What happens                                          |
-| --------------------- | ---------------------------------- | ----------------------------------------------------- |
-| List                  | `GET /api/items/trash?before=<id>` | A page of 200 entries, newest first, with `hasMore`.  |
-| Restore               | `POST /api/items/trash`            | The entry becomes an item again and leaves the trash. |
-| Delete forever, empty | `DELETE /api/items/trash`          | One entry, or all of them, is removed for good.       |
+| Action                | Route                                  | What happens                                            |
+| --------------------- | -------------------------------------- | ------------------------------------------------------- |
+| List                  | `GET /api/items/trash?before=<cursor>` | A page of 200 entries, newest first, with `nextCursor`. |
+| Restore               | `POST /api/items/trash`                | The entry becomes an item again and leaves the trash.   |
+| Delete forever, empty | `DELETE /api/items/trash`              | One entry, or all of them, is removed for good.         |
 
-`before` is the id of the last entry of the previous page. The list also answers
-`retentionDays`.
+`before` is the `nextCursor` of the previous page. The cursor names a place in the order,
+not an entry, so the next page is found after entries of the last one were restored or
+purged. The list also answers `hasMore` and `retentionDays`.
 
 Restoring is an import of one item (`sql/item/trash.ts`). It goes to the workspace it
 was deleted from, or the user's workspace of the same label, which is created when
@@ -254,9 +255,10 @@ vocabulary, and workspace routes go through one wrapper (`route()` in
 and error answers are the same and each answer carries `Cache-Control: no-store`. An
 error body is `{ error, code }`: a sentence for a person and one of the `ErrorCode`
 values of `contracts/items-app.ts` for a program (`describeItemsAppError`). A stale
-update adds the stored `item`. A database or program fault answers `500 internal` with
-a generic message and is logged on the server. Bootstrap and backup have their own
-handlers and error bodies.
+update adds the stored `item`. The service throws `InvalidRequestError`
+(`contracts/request-error.ts`), or a subclass, for a request it refuses. Any other error
+is a server fault: it answers `500 internal` with a generic message and is logged on the
+server. Bootstrap and backup have their own handlers and answer the same body.
 
 ## Stored formats and environment
 

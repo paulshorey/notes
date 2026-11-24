@@ -130,5 +130,6 @@ program.
 2. Add the field, capability, or kind to `item-model.ts`.
 3. Add the field to `ItemInput`, `ItemPatch`, and `ItemRecord` in
    `contracts/items-app.ts`, to `parseNamedFields` in `sql/item/parse.ts`, and to the
-   insert and update statements in `sql/item/add.ts` and `sql/item/update.ts`.
+   insert and update statements in `sql/item/add.ts` and `sql/item/update.ts`. The
+   update writes only the columns a patch names.
 4. Regenerate with `pnpm --filter @lib/db-items db:sync`.

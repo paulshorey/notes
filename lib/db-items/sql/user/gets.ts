@@ -2,6 +2,7 @@ import type { UserV1Row } from "../../generated/typescript/db-types"
 import { getDb } from "../../lib/db/postgres"
 import { hashPassword, isHashedPassword, verifyPassword } from "./password"
 import type { UserPreferences, UserSummary } from "./types"
+import { InvalidRequestError } from "../../contracts/request-error"
 
 const userSelect = `
   SELECT id, username, email, phone, preferences
@@ -42,7 +43,7 @@ const byIdentifier = `
 
 function identifierParams(identifier: string) {
   const trimmed = identifier.trim()
-  if (trimmed === "") throw new Error("Username, email, or phone is required.")
+  if (trimmed === "") throw new InvalidRequestError("Username, email, or phone is required.")
   return [trimmed, trimmed.replace(/\D/g, "")]
 }
 
@@ -55,7 +56,7 @@ export const findUserCredentials = async (identifier: string) => {
 }
 
 export const verifyUserCredentials = async (identifier: string, password: string) => {
-  if (password === "") throw new Error("Password is required.")
+  if (password === "") throw new InvalidRequestError("Password is required.")
 
   const row = await findUserCredentials(identifier)
   if (!row || !verifyPassword(password, row.password)) return null
