@@ -23,7 +23,11 @@ import {
 } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { existingFiling, filingLabel, isSameFiling, itemFilingLabel } from "@/lib/itemFiling"
-import { readItemTarget, readItemsUrlSelection, writeItemsUrlSelection } from "@/lib/itemsUrlSelection"
+import {
+  readItemTarget,
+  readItemsUrlSelection,
+  writeItemsUrlSelection,
+} from "@/lib/itemsUrlSelection"
 import { getMaxOpenItemsPreference, withMaxOpenItemsPreference } from "@/lib/userPreferences"
 import { EMPTY_ITEM_FORM, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
@@ -66,18 +70,25 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
       // otherwise the editor shows stale text and the next keystroke saves
       // over what the user wrote.
       const key = itemEntryKey(item.id)
-      const detached = detachedSavesRef.current.get(key)
+      // The record is kept under the key the entry had when it left the ring. An item
+      // created in this session left as a draft, so it is found by its item, not by key.
+      const detachedKey =
+        [...detachedSavesRef.current].find(([, record]) => record.itemId === item.id)?.[0] ?? key
+      const detached = detachedSavesRef.current.get(detachedKey)
 
       detachRemovedEntries(openExistingItemInStore(item))
 
       if (!detached) return
 
-      // Ownership returns to the ring. Any still in-flight save is keyed the
-      // same way, so it writes its result back into this entry.
-      detachedSavesRef.current.delete(key)
+      // Ownership returns to the ring: the reopened entry holds the text, so the record
+      // is dropped and nothing sends the older copy again.
+      detachedSavesRef.current.delete(detachedKey)
       patchEntry(key, {
         form: detached.form,
         savedSignature: detached.savedSignature,
+        // This text is newer than the listed copy and its save may still be landing,
+        // so the next save does not name the listed version.
+        baseTimeModified: null,
       })
     },
     [detachRemovedEntries, detachedSavesRef, openExistingItemInStore, patchEntry],

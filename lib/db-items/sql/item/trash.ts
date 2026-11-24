@@ -5,6 +5,7 @@ import type { TrashedItemRecord } from "../../contracts/items-app"
 import { getDb } from "../../lib/db/postgres"
 import { createWorkspaceForUserWithClient, lockUserWorkspaces } from "../workspace"
 import { IMPORT_ITEMS_SQL } from "./stored-capabilities"
+import { TRASH_RETENTION_DAYS } from "../../contracts/item-model"
 
 type TrashedFields = Record<string, unknown>
 
@@ -37,20 +38,40 @@ const mapTrashedItem = (row: TrashRow): TrashedItemRecord => ({
   timeStart: instant(row.item.timeStart),
   timeEnd: instant(row.item.timeEnd),
   entryDate: text(row.item.entryDate),
-  timeDue: text(row.item.timeDue),
-  timeRemind: text(row.item.timeRemind),
+  timeDue: instant(row.item.timeDue),
+  timeRemind: instant(row.item.timeRemind),
 })
 
-/** The trash list shows the most recent deletions; older ones stay until they expire. */
-export const TRASH_LIST_LIMIT = 200
-
-export const listTrashedItemsByUser = async (userId: number) => {
-  const { rows } = await getDb().query<TrashRow>(
-    `SELECT id,workspace_label,item,time_deleted FROM public.user_item_trash_v1
-     WHERE user_id=$1 ORDER BY time_deleted DESC,id DESC LIMIT $2`,
-    [userId, TRASH_LIST_LIMIT],
+/** Remove the user's trash entries that have outlived the retention. */
+export const purgeExpiredTrashWithClient = (client: Pick<PoolClient, "query">, userId: number) =>
+  client.query(
+    `DELETE FROM public.user_item_trash_v1
+     WHERE user_id=$1 AND time_deleted < now() - make_interval(days => $2)`,
+    [userId, TRASH_RETENTION_DAYS],
   )
-  return rows.map(mapTrashedItem)
+
+/** One page of the trash. */
+export const TRASH_PAGE_SIZE = 200
+
+/**
+ * The user's trash, newest first, one page at a time. Entries past the retention are
+ * removed first, so the list never shows one that can no longer be restored. `before`
+ * is the id of the last entry of the previous page.
+ */
+export const listTrashedItemsByUser = async (userId: number, before: number | null = null) => {
+  const db = getDb()
+  await purgeExpiredTrashWithClient(db, userId)
+  const { rows } = await db.query<TrashRow>(
+    `SELECT t.id,t.workspace_label,t.item,t.time_deleted FROM public.user_item_trash_v1 t
+     WHERE t.user_id=$1 AND ($3::int IS NULL OR (t.time_deleted,t.id) < (
+       SELECT b.time_deleted,b.id FROM public.user_item_trash_v1 b WHERE b.id=$3 AND b.user_id=$1))
+     ORDER BY t.time_deleted DESC,t.id DESC LIMIT $2`,
+    [userId, TRASH_PAGE_SIZE + 1, before],
+  )
+  return {
+    items: rows.slice(0, TRASH_PAGE_SIZE).map(mapTrashedItem),
+    hasMore: rows.length > TRASH_PAGE_SIZE,
+  }
 }
 
 /**

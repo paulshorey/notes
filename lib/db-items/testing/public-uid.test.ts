@@ -185,10 +185,6 @@ describe("public uid (DB)", { skip: !testDbUrl }, () => {
     const savedKey = process.env.JINA_API_KEY
     delete process.env.JINA_API_KEY
     try {
-      // Without a key a new item with text cannot be created at all.
-      await assert.rejects(
-        createItemForItemsApp({ userId, item: input(workspaceId, "new text", randomUUID()) }),
-      )
       const repeated = await createItemForItemsApp({
         userId,
         item: input(workspaceId, "sent again, with more", uid),

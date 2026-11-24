@@ -130,17 +130,6 @@ ALTER SEQUENCE public.user_item_trash_v1_id_seq OWNED BY public.user_item_trash_
 
 
 --
--- Name: user_note_tag_link_v1; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.user_note_tag_link_v1 AS
- SELECT item_id AS note_id,
-    tag_id,
-    workspace_id
-   FROM public.item_tag_link_v1;
-
-
---
 -- Name: workspace_item_v1; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -168,25 +157,6 @@ CREATE TABLE public.workspace_item_v1 (
     CONSTRAINT workspace_item_v1_time_block_complete_check CHECK (((time_start IS NULL) = (time_end IS NULL))),
     CONSTRAINT workspace_item_v1_time_block_order_check CHECK ((time_end >= time_start))
 );
-
-
---
--- Name: user_note_v1; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.user_note_v1 AS
- SELECT id,
-    workspace_id,
-    status_id,
-    description,
-    time_due,
-    time_remind,
-    description_embedding,
-    embedding_model,
-    embedding_updated_at,
-    time_created,
-    time_modified
-   FROM public.workspace_item_v1;
 
 
 --
@@ -329,22 +299,6 @@ ALTER SEQUENCE public.workspace_category_v1_id_seq OWNED BY public.workspace_cat
 
 
 --
--- Name: workspace_note_category_v1; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.workspace_note_category_v1 AS
- SELECT id,
-    workspace_id,
-    label,
-    category_embedding,
-    embedding_model,
-    embedding_updated_at,
-    time_created,
-    time_modified
-   FROM public.workspace_category_v1;
-
-
---
 -- Name: workspace_status_v1; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -358,53 +312,6 @@ CREATE TABLE public.workspace_status_v1 (
     CONSTRAINT workspace_status_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label))))),
     CONSTRAINT workspace_status_v1_position_check CHECK (("position" >= 0))
 );
-
-
---
--- Name: workspace_note_status_v1; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.workspace_note_status_v1 AS
- SELECT id,
-    workspace_id,
-    label,
-    "position",
-    time_created,
-    time_modified
-   FROM public.workspace_status_v1;
-
-
---
--- Name: workspace_tag_v1; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.workspace_tag_v1 (
-    id integer NOT NULL,
-    workspace_id integer NOT NULL,
-    label text NOT NULL,
-    tag_embedding public.vector(1024),
-    embedding_model text,
-    embedding_updated_at timestamp with time zone,
-    time_created timestamp with time zone DEFAULT now() NOT NULL,
-    time_modified timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workspace_tag_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
-);
-
-
---
--- Name: workspace_note_tag_v1; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.workspace_note_tag_v1 AS
- SELECT id,
-    workspace_id,
-    label,
-    tag_embedding,
-    embedding_model,
-    embedding_updated_at,
-    time_created,
-    time_modified
-   FROM public.workspace_tag_v1;
 
 
 --
@@ -459,6 +366,23 @@ CREATE SEQUENCE public.workspace_subcategory_v1_id_seq
 --
 
 ALTER SEQUENCE public.workspace_subcategory_v1_id_seq OWNED BY public.workspace_subcategory_v1.id;
+
+
+--
+-- Name: workspace_tag_v1; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.workspace_tag_v1 (
+    id integer NOT NULL,
+    workspace_id integer NOT NULL,
+    label text NOT NULL,
+    tag_embedding public.vector(1024),
+    embedding_model text,
+    embedding_updated_at timestamp with time zone,
+    time_created timestamp with time zone DEFAULT now() NOT NULL,
+    time_modified timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT workspace_tag_v1_label_normalized_check CHECK (((label <> ''::text) AND (label = lower(btrim(label)))))
+);
 
 
 --

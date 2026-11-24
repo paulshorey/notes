@@ -9,13 +9,13 @@ import type {
   TrashResponse,
 } from "@lib/db-items/contracts/items-app"
 import { useEffect, useState } from "react"
-import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { getErrorMessage, readJson } from "@/lib/api"
 import { itemHeadline } from "@/lib/strings"
 import { trashedItemDetail } from "@/lib/trash"
 import styles from "./TrashModal.module.css"
 
 const send = (method: "POST" | "DELETE", body: Record<string, unknown>) =>
-  itemsFetch("/api/items/trash", {
+  fetch("/api/items/trash", {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -44,7 +44,7 @@ export function TrashModal({
     void (async () => {
       try {
         const data = await readJson<TrashResponse>(
-          await itemsFetch("/api/items/trash", { cache: "no-store" }),
+          await fetch("/api/items/trash", { cache: "no-store" }),
         )
         if (current) setTrash(data)
       } catch (loadError) {

@@ -43,7 +43,7 @@ describe("optional categories (DB)", { skip: !testDbUrl }, () => {
           [workspace.id],
         )
       ).rows.map((row) => row.id)
-      await updateItemForUser(item.id, userId, { ...input, categoryId: ids[1]! }, null)
+      await updateItemForUser(item.id, userId, { ...input, categoryId: ids[1]! })
       // Deleting a category the item is not filed in leaves its filing alone.
       assert.equal(await deleteCategoryForWorkspace(userId, workspace.id, ids[0]!), true)
       assert.equal((await listItemsByUser(userId, workspace.id))[0]!.category?.id, ids[1])
@@ -60,12 +60,10 @@ describe("optional categories (DB)", { skip: !testDbUrl }, () => {
       assert.equal(stored.id, item.id)
       assert.equal(stored.description, input.description)
       assert.equal(stored.category, null)
-      const updated = await updateItemForUser(
-        item.id,
-        userId,
-        { ...input, description: "still saveable" },
-        null,
-      )
+      const updated = await updateItemForUser(item.id, userId, {
+        ...input,
+        description: "still saveable",
+      })
       assert.equal(updated!.description, "still saveable")
       assert.equal(updated!.category, null)
     } finally {

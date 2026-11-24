@@ -1,6 +1,6 @@
 // A signed, short-lived token captured while the browser is still an anonymous
-// session. It is stashed here across the sign-in transition (including an OAuth
-// redirect) so the single post-login loader can merge the anonymous account.
+// session. It is stashed here across the sign-in transition so the single post-login
+// loader can merge the anonymous account.
 const PENDING_MERGE_TOKEN_KEY = "notes-pending-merge-token"
 
 export const readPendingMergeToken = (): string | null => {

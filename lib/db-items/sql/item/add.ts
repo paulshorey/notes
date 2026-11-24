@@ -10,21 +10,24 @@ import {
 import { PUBLIC_UID_TAKEN_ERROR } from "../../contracts/public-uid"
 import type { ItemEmbeddingWriteInput, ItemInput } from "./types"
 
+const NO_EMBEDDING: ItemEmbeddingWriteInput = { descriptionEmbedding: null, embeddingModel: null }
+
 export const createItemForUser = async (
   userId: number,
   item: ItemInput,
-  embeddings: ItemEmbeddingWriteInput,
+  embeddings: ItemEmbeddingWriteInput = NO_EMBEDDING,
 ) => (await createOrFindItemForUser(userId, item, embeddings)).item
 
 /**
  * Create the item, or find the one an earlier create with the same uid stored.
  * `created` says which happened, so a caller can tell that what it sent was not
- * written and send it again as an update.
+ * written and send it again as an update. A new item is stored without an embedding
+ * unless one is given; the item service writes it afterwards.
  */
 export const createOrFindItemForUser = async (
   userId: number,
   item: ItemInput,
-  embeddings: ItemEmbeddingWriteInput,
+  embeddings: ItemEmbeddingWriteInput = NO_EMBEDDING,
 ) => {
   const client = await getDb().connect()
   try {

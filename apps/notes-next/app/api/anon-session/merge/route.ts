@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { errorJson, errorResponse } from "../../_lib/items-app-route-handlers"
 import { getVerifiedSession } from "@/auth"
 import { verifyMergeToken } from "@/lib/anonymousMergeToken"
 import { mergeAnonymousItemsAppSession } from "@lib/db-items/services/items-app"
@@ -8,13 +9,14 @@ export const POST = async (request: Request) => {
   try {
     session = await getVerifiedSession()
   } catch {
-    return NextResponse.json({ error: "Notes is temporarily unavailable." }, { status: 503 })
+    return errorJson(503, "unavailable", "Notes is temporarily unavailable.")
   }
 
   if (!session?.user?.itemsUserId || session.user.isAnonymous) {
-    return NextResponse.json(
-      { error: "Must be authenticated as a real (non-anonymous) user." },
-      { status: 401 },
+    return errorJson(
+      401,
+      "unauthenticated",
+      "Must be authenticated as a real (non-anonymous) user.",
     )
   }
 
@@ -22,7 +24,7 @@ export const POST = async (request: Request) => {
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 })
+    return errorJson(400, "invalid_request", "Request body must be valid JSON.")
   }
 
   const mergeToken =
@@ -31,12 +33,12 @@ export const POST = async (request: Request) => {
       : undefined
 
   if (typeof mergeToken !== "string" || mergeToken === "") {
-    return NextResponse.json({ error: "mergeToken is required." }, { status: 400 })
+    return errorJson(400, "invalid_request", "mergeToken is required.")
   }
 
   const verified = verifyMergeToken(mergeToken)
   if (!verified) {
-    return NextResponse.json({ error: "Invalid or expired merge token." }, { status: 403 })
+    return errorJson(403, "invalid_request", "Invalid or expired merge token.")
   }
 
   try {
@@ -46,9 +48,6 @@ export const POST = async (request: Request) => {
     })
     return NextResponse.json(result)
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Merge failed." },
-      { status: 400 },
-    )
+    return errorResponse(error)
   }
 }

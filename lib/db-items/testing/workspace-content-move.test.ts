@@ -221,7 +221,9 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
         (await listTagsByWorkspace(userId, source.id)).map(({ id }) => id),
         [oldTag],
       )
-      assert.deepEqual(await listStatusesByWorkspace(userId, source.id), [])
+      // Statuses are a workflow's columns, so they stay when their items leave.
+      const statusesLeft = await listStatusesByWorkspace(userId, source.id)
+      assert.ok(statusesLeft.length > 0)
       assert.ok(
         (await listWorkspacesForItemsApp({ userId })).workspaces.some(
           ({ id }) => id === keepWorkspace.id,
@@ -229,8 +231,8 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       )
       assert.deepEqual(
         await listStatusesByWorkspace(userId, source.id),
-        [],
-        "bootstrap leaves cleaned taxonomy empty",
+        statusesLeft,
+        "bootstrap leaves the workspace's vocabulary as it was",
       )
     }))
 
@@ -377,7 +379,10 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       assert.equal(await deleteItemForUser(removed.id, userId), true)
       assert.equal((await listCategoriesByWorkspace(userId, source.id))[0]?.id, parent)
       assert.deepEqual((await listCategoriesByWorkspace(userId, source.id))[0]?.subcategories, [])
-      assert.deepEqual(await listStatusesByWorkspace(userId, source.id), [])
+      // The status no item holds any more is still a column of the workflow.
+      assert.ok(
+        (await listStatusesByWorkspace(userId, source.id)).some(({ id }) => id === status.id),
+      )
       assert.deepEqual(
         (await listTagsByWorkspace(userId, source.id)).map(({ id }) => id),
         [tagId],

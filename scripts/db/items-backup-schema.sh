@@ -97,12 +97,6 @@ dump_args=(
 while IFS= read -r -d '' flag; do
   dump_args+=("$flag")
 done < <(items_db_pg_dump_table_flags "${tables[@]}")
-for table in "${tables[@]}"; do
-  view="$(items_db_compatibility_view "$table")"
-  if [[ -n "$view" ]]; then
-    dump_args+=("--table=public.${view}")
-  fi
-done
 
 tmp_err="$(mktemp)"
 tmp_sql="$(mktemp)"

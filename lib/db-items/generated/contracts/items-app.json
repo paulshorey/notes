@@ -684,6 +684,90 @@
         }
       ]
     },
+    "ItemPatch": {
+      "fields": [
+        {
+          "name": "workspaceId",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "categoryId",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "subcategoryId",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "statusId",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "tagIds",
+          "optional": true,
+          "kind": "array",
+          "items": {
+            "kind": "scalar",
+            "type": "number"
+          },
+          "nullable": false
+        },
+        {
+          "name": "description",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeStart",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeEnd",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "entryDate",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeDue",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        },
+        {
+          "name": "timeRemind",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": true
+        }
+      ]
+    },
     "SessionRequest": {
       "fields": [
         {
@@ -1005,7 +1089,7 @@
           "name": "item",
           "optional": false,
           "kind": "model",
-          "type": "ItemInput",
+          "type": "ItemPatch",
           "nullable": false
         },
         {
@@ -1024,6 +1108,13 @@
           "optional": false,
           "kind": "scalar",
           "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "code",
+          "optional": false,
+          "kind": "model",
+          "type": "ErrorCode",
           "nullable": false
         },
         {
@@ -1064,6 +1155,31 @@
       "fields": [
         {
           "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "before",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        }
+      ]
+    },
+    "ItemEmbeddingRequest": {
+      "fields": [
+        {
+          "name": "userId",
+          "optional": false,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
+        },
+        {
+          "name": "itemId",
           "optional": false,
           "kind": "scalar",
           "type": "number",
@@ -1746,6 +1862,13 @@
           "nullable": false
         },
         {
+          "name": "hasMore",
+          "optional": false,
+          "kind": "scalar",
+          "type": "boolean",
+          "nullable": false
+        },
+        {
           "name": "retentionDays",
           "optional": false,
           "kind": "scalar",
@@ -1779,6 +1902,13 @@
           "optional": false,
           "kind": "scalar",
           "type": "string",
+          "nullable": false
+        },
+        {
+          "name": "code",
+          "optional": false,
+          "kind": "model",
+          "type": "ErrorCode",
           "nullable": false
         }
       ]
@@ -2129,6 +2259,56 @@
           "nullable": false
         }
       ]
+    },
+    "ErrorCode": {
+      "kind": "union",
+      "variants": [
+        {
+          "kind": "literal",
+          "value": "invalid_request"
+        },
+        {
+          "kind": "literal",
+          "value": "unauthenticated"
+        },
+        {
+          "kind": "literal",
+          "value": "not_found"
+        },
+        {
+          "kind": "literal",
+          "value": "conflict"
+        },
+        {
+          "kind": "literal",
+          "value": "item_changed"
+        },
+        {
+          "kind": "literal",
+          "value": "journal_day_taken"
+        },
+        {
+          "kind": "literal",
+          "value": "content_required"
+        },
+        {
+          "kind": "literal",
+          "value": "requirement_missing"
+        },
+        {
+          "kind": "literal",
+          "value": "search_unavailable"
+        },
+        {
+          "kind": "literal",
+          "value": "unavailable"
+        },
+        {
+          "kind": "literal",
+          "value": "internal"
+        }
+      ],
+      "nullable": false
     },
     "CategoryItemGroupTarget": {
       "fields": [

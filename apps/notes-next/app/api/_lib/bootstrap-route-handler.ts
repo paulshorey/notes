@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server"
-import { itemJson } from "./legacy-note-contract"
 import { readItemTarget } from "@/lib/itemsUrlSelection"
 import { itemsAppService, type ItemsAppService } from "@lib/db-items/services/items-app"
-import { resolveRequestUserId, type SessionUserResolver } from "./items-app-route-handlers"
+import {
+  errorJson,
+  resolveRequestUserId,
+  type SessionUserResolver,
+} from "./items-app-route-handlers"
 
 /**
  * One startup request rather than four independently authenticated requests.
@@ -18,7 +21,7 @@ export const createBootstrapRouteHandler =
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
       if (userId === null) {
-        return NextResponse.json({ error: "Authentication is required." }, { status: 401 })
+        return errorJson(401, "unauthenticated", "Authentication is required.")
       }
 
       // A signed cookie can outlive its user. Validate before workspace loading,
@@ -26,15 +29,14 @@ export const createBootstrapRouteHandler =
       const session = await service.getItemsAppSession({ userId })
 
       if (!session) {
-        return NextResponse.json({ error: "The session is no longer valid." }, { status: 401 })
+        return errorJson(401, "unauthenticated", "The session is no longer valid.")
       }
 
       const workspaceResult = await service.listWorkspacesForItemsApp({ userId })
       const params = new URL(request.url).searchParams
       const requested = Number.parseInt(params.get("workspaceId") ?? "", 10)
       const { hasItemTarget, itemUid, itemId } = readItemTarget(params)
-      const unavailable = () =>
-        NextResponse.json({ error: "This item is unavailable." }, { status: 404 })
+      const unavailable = () => errorJson(404, "not_found", "This item is unavailable.")
       const target = itemUid ?? itemId
       const linkedWorkspace =
         target !== null ? await service.findItemWorkspaceForItemsApp({ userId, target }) : null
@@ -58,24 +60,27 @@ export const createBootstrapRouteHandler =
         !items.items.some((item) => (itemUid !== null ? item.uid === itemUid : item.id === itemId))
       )
         return unavailable()
-      return itemJson(request, {
-        ...session,
-        ...workspaceResult,
-        activeWorkspaceId: active.id,
-        ...items,
-        ...categories,
-        ...statuses,
-        ...tags,
-      })
+      return NextResponse.json(
+        {
+          ...session,
+          ...workspaceResult,
+          activeWorkspaceId: active.id,
+          ...items,
+          ...categories,
+          ...statuses,
+          ...tags,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      )
     } catch (error) {
       console.error("Notes bootstrap failed:", error)
       return NextResponse.json(
         {
           error: "Notes is temporarily unavailable.",
-          code: "STARTUP_UNAVAILABLE",
+          code: "unavailable",
           retryable: true,
         },
-        { status: 503 },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
       )
     }
   }

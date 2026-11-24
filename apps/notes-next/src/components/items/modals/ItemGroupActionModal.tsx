@@ -10,7 +10,7 @@ import type {
   ItemGroupSelection,
 } from "@lib/db-items/contracts/item-group-actions"
 import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
-import { itemsFetch, readJson, getErrorMessage, RequestError } from "@/lib/api"
+import { readJson, getErrorMessage, RequestError } from "@/lib/api"
 import {
   FilterablePickerPopup,
   type FilterablePickerOption,
@@ -43,7 +43,7 @@ async function submitItemGroupAction(
   action: ItemGroupAction,
   signal?: AbortSignal,
 ) {
-  const response = await itemsFetch("/api/item-groups", {
+  const response = await fetch("/api/item-groups", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ selection, snapshot, action }),
@@ -134,7 +134,7 @@ export function ItemGroupActionModal({
     void (async () => {
       await prepareRef.current(controller?.signal)
       if (!isCurrent()) return
-      const response = await itemsFetch("/api/item-groups", {
+      const response = await fetch("/api/item-groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ selection }),

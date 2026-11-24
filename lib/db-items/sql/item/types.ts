@@ -2,6 +2,7 @@ export type {
   CategoryRef,
   TagRef,
   ItemInput,
+  ItemPatch,
   ItemRecord,
   SemanticSearchResult,
 } from "../../contracts/items-app"

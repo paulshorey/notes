@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { ItemChangedError, type ItemsAppService } from "../services/items-app"
+import {
+  describeItemsAppError,
+  EmbeddingRequestError,
+  ItemChangedError,
+  type ItemsAppService,
+} from "../services/items-app"
 
 type RequestOptions = {
   body?: unknown
@@ -150,6 +155,8 @@ export const createFakeItemsAppService = (
   },
   restoreUserBackup: async () => ({ itemsImported: 0, itemsSkipped: 0 }),
   getItemsAppErrorStatus: () => 400,
+  describeItemsAppError,
+  embedItemForItemsApp: async () => false,
   getItemsAppSession: async () => ({ user: sampleUser }),
   findItemWorkspaceForItemsApp: async () => null,
   loginItemsAppUser: async () => ({ token: sampleApiToken, user: sampleUser }),
@@ -176,7 +183,11 @@ export const createFakeItemsAppService = (
   createItemForItemsApp: async () => ({ item: sampleItem }),
   updateItemForItemsApp: async () => ({ item: sampleItem }),
   deleteItemForItemsApp: async () => ({ ok: true }),
-  listTrashForItemsApp: async () => ({ items: [sampleTrashedItem], retentionDays: 30 }),
+  listTrashForItemsApp: async () => ({
+    items: [sampleTrashedItem],
+    retentionDays: 30,
+    hasMore: false,
+  }),
   restoreTrashedItemForItemsApp: async () => ({ item: sampleItem }),
   combineJournalDayForItemsApp: async () => ({ item: sampleItem }),
   purgeTrashForItemsApp: async () => ({ ok: true, purged: 1 }),
@@ -893,46 +904,7 @@ export const registerItemsApiAdapterSuite = (
       },
     })
     assert.equal(response.status, 400)
-    assert.deepEqual(response.body, { error: "uid must be a UUID." })
-    assert.equal(writes, 0)
-  })
-
-  test(`${adapterName} refuses a save from a page that still lists several categories`, async (t) => {
-    let writes = 0
-    const adapter = await createAdapter(
-      createFakeItemsAppService({
-        createItemForItemsApp: async () => {
-          writes += 1
-          return { item: sampleItem }
-        },
-        updateItemForItemsApp: async () => {
-          writes += 1
-          return { item: sampleItem }
-        },
-      }),
-    )
-    t.after(async () => adapter.close?.())
-    const item = {
-      workspaceId: 3,
-      categoryIds: [5],
-      statusId: null,
-      tagIds: [12],
-      description: "Typed in a page loaded before items had one category.",
-    }
-    for (const [method, body] of [
-      ["POST", { item }],
-      ["PATCH", { itemId: 41, item }],
-    ] as const) {
-      const response = await adapter.request({
-        method,
-        path: "/api/items",
-        headers: authHeaders,
-        body,
-      })
-      // Saving would unfile the item, so the page is told to reload and keeps its draft.
-      assert.equal(response.status, 400)
-      assert.match(String(readError(response.body)), /out of date\. Reload/)
-    }
+    assert.deepEqual(response.body, { error: "uid must be a UUID.", code: "invalid_request" })
     assert.equal(writes, 0)
   })
 
@@ -995,34 +967,26 @@ export const registerItemsApiAdapterSuite = (
     assert.equal(readError(response.body), "Item not found.")
   })
 
-  test(`${adapterName} maps search failures through the shared status helper`, async (t) => {
+  test(`${adapterName} reports a failed search without the provider's detail`, async (t) => {
     const adapter = await createAdapter(
       createFakeItemsAppService({
-        getItemsAppErrorStatus: () => 502,
         searchItemsForItemsApp: async () => {
-          throw new Error("Embedding provider failed.")
+          throw new EmbeddingRequestError("provider detail", 429)
         },
       }),
     )
-
-    t.after(async () => {
-      await adapter.close?.()
-    })
-
+    t.after(async () => adapter.close?.())
     const response = await adapter.request({
       method: "POST",
       path: "/api/items/search",
       headers: authHeaders,
-      body: {
-        userId: 7,
-        workspaceId: 3,
-        query: "adapter parity",
-        limit: 12,
-      },
+      body: { workspaceId: 3, query: "adapter parity", limit: 12 },
     })
-
-    assert.equal(response.status, 502)
-    assert.equal(readError(response.body), "Embedding provider failed.")
+    assert.equal(response.status, 503)
+    assert.deepEqual(response.body, {
+      error: "Search is temporarily unavailable.",
+      code: "search_unavailable",
+    })
   })
 
   test(`${adapterName} lowercases search queries`, async (t) => {
@@ -1165,7 +1129,7 @@ export const registerItemsApiAdapterSuite = (
       createFakeItemsAppService({
         listTrashForItemsApp: async (request) => {
           requests.push(request)
-          return { items: [sampleTrashedItem], retentionDays: 30 }
+          return { items: [sampleTrashedItem], retentionDays: 30, hasMore: false }
         },
         restoreTrashedItemForItemsApp: async (request) => {
           requests.push(request)
@@ -1188,7 +1152,7 @@ export const registerItemsApiAdapterSuite = (
       headers: authHeaders,
     })
     assert.equal(listed.status, 200)
-    assert.deepEqual(listed.body, { items: [sampleTrashedItem], retentionDays: 30 })
+    assert.deepEqual(listed.body, { items: [sampleTrashedItem], retentionDays: 30, hasMore: false })
 
     const restored = await adapter.request({
       method: "POST",
@@ -1259,6 +1223,7 @@ export const registerItemsApiAdapterSuite = (
     assert.equal(response.status, 409)
     assert.deepEqual(response.body, {
       error: "The saved item changed since this edit began.",
+      code: "item_changed",
       item: sampleItem,
     })
     assert.deepEqual(requests, ["2027-01-01T00:00:00.000Z"])

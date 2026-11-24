@@ -1,7 +1,7 @@
 import { parseEntryDate } from "../../contracts/item-journal"
 import { normalizeTimeBlock } from "../../contracts/item-time"
 import { parseOptionalPublicUid } from "../../contracts/public-uid"
-import type { ItemInput } from "./types"
+import type { ItemInput, ItemPatch } from "./types"
 const positiveInt = (value: unknown, field: string): number => {
   const parsed =
     typeof value === "number"
@@ -28,44 +28,57 @@ const timestamp = (value: unknown, field: string) => {
 const nullableId = (value: unknown, field: string) =>
   value == null || value === "" ? null : positiveInt(value, field)
 
-export const OUTDATED_ITEM_REQUEST_ERROR =
-  "This page is out of date. Reload it to keep saving; your text is kept."
+const record = (value: unknown) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error("Item payload is required.")
+  return value as Record<string, unknown>
+}
+
+const text = (value: unknown) => {
+  if (value == null) return null
+  if (typeof value !== "string") throw new Error("description must be text.")
+  return value
+}
 
 /**
- * A request that lists `categoryIds` comes from a page loaded before items had one
- * category. Saving it would unfile the item, so it is refused and the page keeps its
- * draft until it is reloaded.
+ * The fields of an item write that a request names. A field that is absent is left
+ * out of the result, which is how a request says nothing about it.
  */
-const categoryId = (record: Record<string, unknown>) => {
-  if (record.categoryId === undefined && record.categoryIds !== undefined)
-    throw new Error(OUTDATED_ITEM_REQUEST_ERROR)
-  return nullableId(record.categoryId, "categoryId")
+const parseNamedFields = (fields: Record<string, unknown>): ItemPatch => {
+  const named = <Value>(field: keyof ItemPatch, parse: (raw: unknown) => Value) =>
+    fields[field] === undefined ? {} : { [field]: parse(fields[field]) }
+  return {
+    ...named("workspaceId", (raw) => positiveInt(raw, "workspaceId")),
+    ...named("categoryId", (raw) => nullableId(raw, "categoryId")),
+    ...named("subcategoryId", (raw) => nullableId(raw, "subcategoryId")),
+    ...named("statusId", (raw) => nullableId(raw, "statusId")),
+    ...named("tagIds", (raw) => ids(raw, "tagIds")),
+    ...named("description", text),
+    ...named("timeStart", (raw) => timestamp(raw, "Start time")),
+    ...named("timeEnd", (raw) => timestamp(raw, "End time")),
+    ...named("entryDate", parseEntryDate),
+    ...named("timeDue", (raw) => timestamp(raw, "Due time")),
+    ...named("timeRemind", (raw) => timestamp(raw, "Reminder time")),
+  }
 }
 
+/** A new item: every field it does not name is empty. */
 export const parseItemInput = (value: unknown): ItemInput => {
-  if (typeof value !== "object" || value === null) throw new Error("Item payload is required.")
-  const record = value as Record<string, unknown>
-  // A field that is absent is left out, which is how a request says nothing about it.
-  const optional = <Value>(field: string, parse: (raw: unknown) => Value) =>
-    record[field] === undefined ? {} : { [field]: parse(record[field]) }
+  const fields = record(value)
   return normalizeTimeBlock({
-    uid: parseOptionalPublicUid(record.uid),
-    workspaceId: positiveInt(record.workspaceId, "workspaceId"),
-    categoryId: categoryId(record),
-    subcategoryId: nullableId(record.subcategoryId, "subcategoryId"),
-    statusId:
-      record.statusId == null || record.statusId === ""
-        ? null
-        : positiveInt(record.statusId, "statusId"),
-    tagIds: ids(record.tagIds, "tagIds"),
-    description: typeof record.description === "string" ? record.description : null,
-    ...(optional("timeStart", (raw) => timestamp(raw, "Start time")) as Pick<
-      ItemInput,
-      "timeStart"
-    >),
-    ...(optional("timeEnd", (raw) => timestamp(raw, "End time")) as Pick<ItemInput, "timeEnd">),
-    ...(optional("entryDate", parseEntryDate) as Pick<ItemInput, "entryDate">),
-    timeDue: timestamp(record.timeDue, "Due time"),
-    timeRemind: timestamp(record.timeRemind, "Reminder time"),
+    uid: parseOptionalPublicUid(fields.uid),
+    categoryId: null,
+    subcategoryId: null,
+    statusId: null,
+    tagIds: [],
+    description: null,
+    timeDue: null,
+    timeRemind: null,
+    ...parseNamedFields(fields),
+    workspaceId: positiveInt(fields.workspaceId, "workspaceId"),
   })
 }
+
+/** A change to a stored item: only the fields the request names. */
+export const parseItemPatch = (value: unknown): ItemPatch =>
+  normalizeTimeBlock(parseNamedFields(record(value)))

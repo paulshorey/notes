@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
+import { errorJson, errorResponse } from "../../_lib/items-app-route-handlers"
 import { getVerifiedSession } from "@/auth"
 import {
   claimAnonymousItemsAppSession,
-  getItemsAppErrorStatus,
   parseClaimAnonymousSessionRequest,
 } from "@lib/db-items/services/items-app"
 
@@ -11,21 +11,18 @@ export const POST = async (request: Request) => {
   try {
     session = await getVerifiedSession()
   } catch {
-    return NextResponse.json({ error: "Notes is temporarily unavailable." }, { status: 503 })
+    return errorJson(503, "unavailable", "Notes is temporarily unavailable.")
   }
 
   if (!session?.user?.itemsUserId || !session.user.isAnonymous) {
-    return NextResponse.json(
-      { error: "Must be authenticated as an anonymous user." },
-      { status: 401 },
-    )
+    return errorJson(401, "unauthenticated", "Must be authenticated as an anonymous user.")
   }
 
   let body: unknown
   try {
     body = await request.json()
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 })
+    return errorJson(400, "invalid_request", "Request body must be valid JSON.")
   }
 
   try {
@@ -36,9 +33,6 @@ export const POST = async (request: Request) => {
     })
     return NextResponse.json(result)
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Claim failed." },
-      { status: getItemsAppErrorStatus(error) },
-    )
+    return errorResponse(error)
   }
 }

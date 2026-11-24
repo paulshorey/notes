@@ -12,6 +12,8 @@ import type {
   DeleteCategoryResponse,
   CombineJournalDayRequest,
   DeleteItemRequest,
+  ErrorCode,
+  ItemEmbeddingRequest,
   DeleteResponse,
   ItemRecord,
   UpdateItemRequest,
@@ -64,7 +66,11 @@ export {
   parsePreviewItemGroupRequest,
 } from "./item-group-actions"
 import { assertCategoryNameAllowed } from "../contracts/category-name"
-import { assertItemHasContent } from "../contracts/item-capabilities"
+import {
+  assertItemHasContent,
+  ItemContentRequiredError,
+  ItemRequirementError,
+} from "../contracts/item-capabilities"
 import { JournalDayTakenError, parseEntryDate } from "../contracts/item-journal"
 import { normalizeTimeBlock } from "../contracts/item-time"
 import { combineItemIntoJournalDay } from "../sql/item/journal"
@@ -75,16 +81,17 @@ import {
   createOrFindItemForUser,
   deleteItemForUser,
   findItemByIdForUser,
-  findItemByUidInWorkspace,
   listTrashedItemsByUser,
   purgeTrashedItemsForUser,
   restoreTrashedItemForUser,
   TRASH_RETENTION_DAYS,
+  ItemChangedError,
   findWorkspaceIdByItem,
   listItemsByUser,
   listItemsMissingEmbeddingsByUser,
   listItemsStaleEmbeddingsByUser,
   parseItemInput,
+  parseItemPatch,
   searchItemsByEmbedding,
   selectItemEmbeddingStateById,
   updateItemEmbeddingsForUser,
@@ -143,7 +150,6 @@ import {
   createBackfillTagEmbeddings,
   createItemEmbeddingInput,
   createQueryEmbedding,
-  createTagLabelEmbedding,
   CURRENT_ITEM_EMBEDDING_MODEL,
   EmbeddingConfigurationError,
   EmbeddingRequestError,
@@ -213,26 +219,81 @@ const labelRequest = (value: unknown) => {
   const b = object(value)
   return { ...workspaceRequest(b.userId, b.workspaceId), label: label(b.label) }
 }
-export const getItemsAppErrorStatus = (error: unknown) =>
-  error instanceof ItemGroupConflictError ||
-  error instanceof ItemChangedError ||
-  error instanceof JournalDayTakenError
-    ? 409
-    : error instanceof ItemGroupNotFoundError
-      ? 404
-      : isDatabaseAvailabilityError(error)
-        ? 503
-        : error instanceof EmbeddingConfigurationError
-          ? 500
-          : error instanceof EmbeddingRequestError
-            ? error.status >= 400 && error.status < 500
-              ? 502
-              : error.status
-            : error instanceof Error &&
-                (error.message === CLAIM_IDENTIFIER_TAKEN_ERROR ||
-                  error.message === PUBLIC_UID_TAKEN_ERROR)
-              ? 409
-              : 400
+const errorCodeOf = (error: unknown) =>
+  typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+    ? error.code
+    : null
+
+/** A PostgreSQL error, as opposed to a request the service refused. */
+const isDatabaseError = (error: unknown) => /^[0-9A-Z]{5}$/.test(errorCodeOf(error) ?? "")
+
+/** A fault in the program itself: never the caller's doing, never shown to the caller. */
+const isProgramError = (error: unknown) =>
+  error instanceof TypeError ||
+  error instanceof RangeError ||
+  error instanceof ReferenceError ||
+  error instanceof SyntaxError
+
+export interface ItemsAppErrorDescription {
+  status: number
+  code: ErrorCode
+  /** The sentence the caller is shown. */
+  message: string
+  /** True when the cause is the server's and belongs in its log, not in the answer. */
+  internal: boolean
+}
+
+const refused = (status: number, code: ErrorCode, error: unknown): ItemsAppErrorDescription => ({
+  status,
+  code,
+  message: error instanceof Error ? error.message : "The request was refused.",
+  internal: false,
+})
+
+/**
+ * What an error thrown by this service means to a caller. A request the service
+ * refused keeps its sentence. A database or program fault is reported without its
+ * detail, which stays in the server log.
+ */
+export const describeItemsAppError = (error: unknown): ItemsAppErrorDescription => {
+  if (error instanceof ItemChangedError) return refused(409, "item_changed", error)
+  if (error instanceof JournalDayTakenError) return refused(409, "journal_day_taken", error)
+  if (error instanceof ItemGroupConflictError) return refused(409, "conflict", error)
+  if (error instanceof ItemGroupNotFoundError) return refused(404, "not_found", error)
+  if (error instanceof ItemContentRequiredError) return refused(400, "content_required", error)
+  if (error instanceof ItemRequirementError) return refused(400, "requirement_missing", error)
+  if (
+    error instanceof Error &&
+    (error.message === CLAIM_IDENTIFIER_TAKEN_ERROR || error.message === PUBLIC_UID_TAKEN_ERROR)
+  )
+    return refused(409, "conflict", error)
+  if (error instanceof EmbeddingConfigurationError || error instanceof EmbeddingRequestError)
+    return {
+      status: 503,
+      code: "search_unavailable",
+      message: "Search is temporarily unavailable.",
+      internal: true,
+    }
+  if (isDatabaseAvailabilityError(error))
+    return {
+      status: 503,
+      code: "unavailable",
+      message: "The database is unavailable. Please retry.",
+      internal: true,
+    }
+  // A label that is already taken, reported by the unique index that keeps it so.
+  if (errorCodeOf(error) === "23505")
+    return {
+      status: 409,
+      code: "conflict",
+      message: "That name is already in use.",
+      internal: false,
+    }
+  if (isDatabaseError(error) || isProgramError(error) || !(error instanceof Error))
+    return { status: 500, code: "internal", message: "Unexpected server error.", internal: true }
+  return refused(400, "invalid_request", error)
+}
+export const getItemsAppErrorStatus = (error: unknown) => describeItemsAppError(error).status
 export const parseSessionRequest = (userId: unknown): SessionRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
 })
@@ -340,7 +401,7 @@ export const parseUpdateItemRequest = (v: unknown): UpdateItemRequest => {
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     itemId: parsePositiveInteger(b.itemId, "itemId"),
-    item: parseItemInput(b.item),
+    item: parseItemPatch(b.item),
     ...(typeof expected === "string"
       ? { expectedTimeModified: new Date(expected).toISOString() }
       : {}),
@@ -356,8 +417,9 @@ export const parseDeleteItemRequest = (v: unknown): DeleteItemRequest => {
       : { workspaceId: parsePositiveInteger(b.workspaceId, "workspaceId") }),
   }
 }
-export const parseTrashRequest = (userId: unknown): TrashRequest => ({
+export const parseTrashRequest = (userId: unknown, before?: unknown): TrashRequest => ({
   userId: parsePositiveInteger(userId, "userId"),
+  ...(before == null || before === "" ? {} : { before: parsePositiveInteger(before, "before") }),
 })
 export const parseRestoreTrashedItemRequest = (v: unknown): RestoreTrashedItemRequest => {
   const b = object(v)
@@ -512,6 +574,8 @@ export const listStatusesForItemsApp = async (r: StatusesRequest): Promise<Statu
   statuses: await listStatusesByWorkspace(r.userId, r.workspaceId),
 })
 
+// A label is stored without an embedding; embedding maintenance writes it afterwards,
+// so creating or renaming a category or tag never waits on the provider.
 const createLabelEntity = async (
   kind: "category" | "tag",
   userId: number,
@@ -520,35 +584,14 @@ const createLabelEntity = async (
 ) => {
   if (!value) throw new Error("label is required.")
   if (!(await getWorkspaceByIdForUser(userId, workspaceId))) throw new Error("Workspace not found.")
-  // Embedding generation is an external request and may take tens of seconds.
-  // Finish it before checking out a client so the small DB pool remains
-  // available to ordinary item reads and writes while that request is pending.
-  const e = await createTagLabelEmbedding(value)
   const client = await getDb().connect()
   try {
-    await client.query("BEGIN")
     const id =
       kind === "category"
         ? await resolveCategoryIdForWorkspace(client, workspaceId, value)
         : await resolveTagIdForWorkspace(client, workspaceId, value)
     if (!id) throw new Error("Failed to resolve label.")
-    const table = kind === "category" ? "workspace_category_v1" : "workspace_tag_v1"
-    const column = kind === "category" ? "category_embedding" : "tag_embedding"
-    await client.query(
-      `UPDATE public.${table} SET ${column}=$1::vector,embedding_model=$2,embedding_updated_at=$3 WHERE id=$4 AND workspace_id=$5`,
-      [
-        e.vectorLiteral,
-        e.embeddingModel,
-        e.embeddingModel ? new Date().toISOString() : null,
-        id,
-        workspaceId,
-      ],
-    )
-    await client.query("COMMIT")
     return id
-  } catch (e) {
-    await client.query("ROLLBACK")
-    throw e
   } finally {
     client.release()
   }
@@ -590,14 +633,13 @@ export const updateCategoryForItemsApp = async (
 ): Promise<UpdateCategoryResponse | null> => {
   assertCategoryNameAllowed(r.label)
   if (!r.label) throw new Error("label is required.")
-  const e = await createTagLabelEmbedding(r.label)
   const category = await updateCategoryLabelForWorkspace(
     r.userId,
     r.workspaceId,
     r.categoryId,
     r.label,
-    e.vectorLiteral,
-    e.embeddingModel,
+    null,
+    null,
   )
   return category ? { category } : null
 }
@@ -605,14 +647,13 @@ export const updateTagForItemsApp = async (
   r: UpdateTagRequest,
 ): Promise<UpdateTagResponse | null> => {
   if (!r.label) throw new Error("label is required.")
-  const e = await createTagLabelEmbedding(r.label)
   const tag = await updateTagLabelForWorkspace(
     r.userId,
     r.workspaceId,
     r.tagId,
     r.label,
-    e.vectorLiteral,
-    e.embeddingModel,
+    null,
+    null,
   )
   return tag ? { tag } : null
 }
@@ -644,101 +685,49 @@ export const deleteStatusForItemsApp = async (
 ): Promise<DeleteResponse | null> =>
   (await deleteStatusForWorkspace(r.userId, r.workspaceId, r.statusId)) ? { ok: true } : null
 // Storage accepts a bare item. The service refuses an item that holds no content, which
-// the capability registry defines; nothing here names a field.
+// the item model defines; nothing here names a field.
+//
+// An item write never waits on the embedding provider. A new item, or one whose text
+// changed, is stored without an embedding, and `embedItemForItemsApp` writes it
+// afterwards. Until then search does not rank the item; when the provider is down,
+// embedding maintenance writes it later.
 export const createItemForItemsApp = async (
   request: CreateItemRequest,
 ): Promise<CreateItemResponse> => {
   const r = { ...request, item: normalizeTimeBlock(request.item) }
   assertItemHasContent(r.item)
-  // A repeated create is answered before anything else is asked for. The text is not
-  // written again, so it needs no embedding, and the caller gets its item back even
-  // while the embedding provider is unavailable.
-  if (r.item.uid) {
-    const stored = await findItemByUidInWorkspace(r.userId, r.item.workspaceId, r.item.uid)
-    if (stored) return { item: stored, created: false }
-  }
-  return createOrFindItemForUser(
-    r.userId,
-    r.item,
-    await createItemEmbeddingInput({ description: r.item.description }),
-  )
-}
-const normalized = (v: string | null | undefined) => (v ?? "").trim()
-const canReuse = (
-  s: { description: string | null; has_embedding: boolean; embedding_model: string | null } | null,
-  d: string | null,
-) =>
-  !!s &&
-  normalized(s.description) === normalized(d) &&
-  (normalized(d) === ""
-    ? s.embedding_model === null && !s.has_embedding
-    : s.has_embedding && s.embedding_model === CURRENT_ITEM_EMBEDDING_MODEL)
-export const ITEM_CHANGED_ERROR = "The saved item changed since this edit began."
-
-/** An update named a modification time the stored item no longer has. */
-export class ItemChangedError extends Error {
-  constructor(readonly item: ItemRecord) {
-    super(ITEM_CHANGED_ERROR)
-    this.name = "ItemChangedError"
-  }
+  return createOrFindItemForUser(r.userId, r.item)
 }
 
-/** The stored item, when it changed since the caller's `expectedTimeModified`. */
-const changedSince = async (r: UpdateItemRequest) => {
-  if (r.expectedTimeModified === undefined) return null
-  const current = await findItemByIdForUser(r.userId, r.itemId)
-  return current && current.timeModified !== r.expectedTimeModified ? current : null
+export { ITEM_CHANGED_ERROR, ItemChangedError } from "../sql/item"
+
+/**
+ * Apply a patch to an item: the fields it names are written and the rest stay as
+ * stored. Returns null when the user has no such item.
+ */
+export const updateItemForItemsApp = async (r: UpdateItemRequest): Promise<ItemResponse | null> => {
+  const item = await updateItemForUser(r.itemId, r.userId, normalizeTimeBlock(r.item), {
+    expectedTimeModified: r.expectedTimeModified ?? null,
+  })
+  return item ? { item } : null
 }
 
-export const updateItemForItemsApp = async (
-  request: UpdateItemRequest,
-): Promise<ItemResponse | null> => {
-  const r = { ...request, item: normalizeTimeBlock(request.item) }
-  // A request that names no time block is judged by what else it holds: it cannot
-  // rely on a stored block it does not know about.
-  assertItemHasContent(r.item)
+/**
+ * Write the embedding of an item's text when it has none or an outdated one. Call it
+ * after a write that may have changed the text; it does nothing for an item that is
+ * already embedded, has no text, or is gone. Returns whether an embedding was stored.
+ * It throws when the provider fails, which leaves the item to embedding maintenance.
+ */
+export const embedItemForItemsApp = async (r: ItemEmbeddingRequest): Promise<boolean> => {
   const stored = await selectItemEmbeddingStateById(r.itemId, r.userId)
-  // A stale editor must see the deletion immediately, before any provider call.
-  if (!stored) return null
-  if (stored.workspace_id !== r.item.workspaceId)
-    throw new ItemGroupConflictError(
-      "This item is in a different workspace. Open it there to edit it.",
-    )
-  const expected = r.expectedTimeModified ?? null
-  // Known before any provider call, like the deletion above.
-  if (expected !== null && stored.time_modified.toISOString() !== expected) {
-    const current = await changedSince(r)
-    if (current) throw new ItemChangedError(current)
-  }
-  if (canReuse(stored, r.item.description)) {
-    const item = await updateItemForUser(
-      r.itemId,
-      r.userId,
-      r.item,
-      null,
-      stored?.description ?? null,
-      expected,
-    )
-    if (item) return { item }
-    // The guarded update matched no row: report a concurrent change before any provider call.
-    if (expected !== null) {
-      const current = await changedSince(r)
-      if (current) throw new ItemChangedError(current)
-    }
-  }
-  const item = await updateItemForUser(
+  if (!stored || (stored.description ?? "").trim() === "") return false
+  if (stored.has_embedding && stored.embedding_model === CURRENT_ITEM_EMBEDDING_MODEL) return false
+  return updateItemEmbeddingsForUser(
     r.itemId,
     r.userId,
-    r.item,
-    await createItemEmbeddingInput({ description: r.item.description }),
-    undefined,
-    expected,
+    await createItemEmbeddingInput({ description: stored.description }),
+    stored.description,
   )
-  if (item) return { item }
-  // The update matched no row: the item is gone, or it changed while this ran.
-  const current = await changedSince(r)
-  if (current) throw new ItemChangedError(current)
-  return null
 }
 export const deleteItemForItemsApp = async (
   r: DeleteItemRequest,
@@ -753,9 +742,10 @@ export const deleteItemForItemsApp = async (
   return null
 }
 export const listTrashForItemsApp = async (r: TrashRequest): Promise<TrashResponse> => ({
-  items: await listTrashedItemsByUser(r.userId),
+  ...(await listTrashedItemsByUser(r.userId, r.before ?? null)),
   retentionDays: TRASH_RETENTION_DAYS,
 })
+/** The restored item has no embedding; the caller follows with `embedItemForItemsApp`. */
 export const restoreTrashedItemForItemsApp = async (
   r: RestoreTrashedItemRequest,
 ): Promise<ItemResponse | null> => {
@@ -764,42 +754,19 @@ export const restoreTrashedItemForItemsApp = async (
   })
   if (itemId === null) return null
   const item = await findItemByIdForUser(r.userId, itemId)
-  if (!item) return null
-  // Derived data is not kept in the trash, so search needs the text embedded again.
-  // The item is already back; if the provider is unavailable, embedding maintenance
-  // picks it up as an item with a missing embedding.
-  try {
-    await updateItemEmbeddingsForUser(
-      itemId,
-      r.userId,
-      await createItemEmbeddingInput({ description: item.description }),
-    )
-  } catch {
-    // Left for embedding maintenance.
-  }
-  return { item }
+  return item ? { item } : null
 }
 /**
  * Combining two journal days is permanent: the item's text and tags join the entry the
- * day already has, and the item is deleted without going to the trash.
+ * day already has, and the item is deleted without going to the trash. The entry's
+ * embedding is cleared when its text changes; the caller follows with
+ * `embedItemForItemsApp`.
  */
 export const combineJournalDayForItemsApp = async (
   r: CombineJournalDayRequest,
 ): Promise<ItemResponse | null> => {
   const item = await combineItemIntoJournalDay(r.userId, r.itemId, r.entryDate)
-  if (!item) return null
-  // The entry's text changed, so its embedding was cleared. A provider failure leaves
-  // the new one to embedding maintenance.
-  try {
-    await updateItemEmbeddingsForUser(
-      item.id,
-      r.userId,
-      await createItemEmbeddingInput({ description: item.description }),
-    )
-  } catch {
-    // Left for embedding maintenance.
-  }
-  return { item }
+  return item ? { item } : null
 }
 export const purgeTrashForItemsApp = async (r: PurgeTrashRequest): Promise<PurgeTrashResponse> => ({
   ok: true,
@@ -841,10 +808,19 @@ export const maintainItemEmbeddingsForItemsApp = async (
     r.userId,
     r.limit,
   )
+  const textById = new Map(items.map((item) => [item.id, item.description]))
   let updated = 0
   for (const job of await createBackfillEmbeddingInputs(items)) {
-    await updateItemEmbeddingsForUser(job.itemId, r.userId, job.input)
-    updated++
+    // An item edited while the provider answered keeps no embedding of its old text.
+    if (
+      await updateItemEmbeddingsForUser(
+        job.itemId,
+        r.userId,
+        job.input,
+        textById.get(job.itemId) ?? null,
+      )
+    )
+      updated++
   }
   return {
     mode: r.mode,
@@ -886,6 +862,7 @@ export const itemsAppService = {
   exportUserBackup,
   restoreUserBackup,
   getItemsAppErrorStatus,
+  describeItemsAppError,
   getItemsAppSession,
   loginItemsAppUser,
   getItemsAppUserIdForToken,
@@ -911,6 +888,7 @@ export const itemsAppService = {
   deleteTagForItemsApp,
   createItemForItemsApp,
   updateItemForItemsApp,
+  embedItemForItemsApp,
   deleteItemForItemsApp,
   listTrashForItemsApp,
   restoreTrashedItemForItemsApp,

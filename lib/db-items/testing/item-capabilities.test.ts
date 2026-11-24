@@ -9,11 +9,7 @@ import {
   type ItemCapabilitySource,
 } from "../contracts/item-capabilities"
 import type { ItemInput, ItemRecord } from "../contracts/items-app"
-import {
-  createItemForItemsApp,
-  getItemsAppErrorStatus,
-  updateItemForItemsApp,
-} from "../services/items-app"
+import { createItemForItemsApp, getItemsAppErrorStatus } from "../services/items-app"
 
 const input = (values: Partial<ItemInput> = {}): ItemInput => ({
   workspaceId: 1,
@@ -116,7 +112,7 @@ test("state and taxonomy alone do not make an item", () => {
 })
 
 test("the item service refuses to save an item that holds no content", async () => {
-  // Both calls must fail before any database or embedding-provider access.
+  // A create must fail before any database access.
   await assert.rejects(
     createItemForItemsApp({
       userId: 1,
@@ -129,16 +125,8 @@ test("the item service refuses to save an item that holds no content", async () 
       return true
     },
   )
-  await assert.rejects(
-    updateItemForItemsApp({ userId: 1, itemId: 1, item: input({ description: "   " }) }),
-    { message: ITEM_CONTENT_REQUIRED_ERROR },
-  )
-  for (const state of [{ statusId: 4 }, { timeDue: "2027-01-02T03:04:05.000Z" }]) {
+  for (const state of [{ statusId: 4 }, { timeDue: "2027-01-02T03:04:05.000Z" }])
     await assert.rejects(createItemForItemsApp({ userId: 1, item: input(state) }), {
       message: ITEM_CONTENT_REQUIRED_ERROR,
     })
-    await assert.rejects(updateItemForItemsApp({ userId: 1, itemId: 1, item: input(state) }), {
-      message: ITEM_CONTENT_REQUIRED_ERROR,
-    })
-  }
 })

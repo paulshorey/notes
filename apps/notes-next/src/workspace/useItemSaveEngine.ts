@@ -2,7 +2,7 @@
 
 import { type ItemRecord } from "@lib/db-items"
 import { useCallback, useEffect, useRef } from "react"
-import { RequestError, getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { RequestError, getErrorMessage, readJson } from "@/lib/api"
 import { wasItemDeletedByUser } from "@/lib/userDeletedItems"
 import { useOpenItemsAutosave } from "@/hooks/useOpenItemsAutosave"
 import {
@@ -26,6 +26,9 @@ import { itemToFormState } from "@/types/items"
 import { type ItemSaveMode, OPEN_ITEMS_PERSIST_DEBOUNCE_MS, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
 import type { WorkspaceDataOutput } from "./useWorkspaceData"
+
+/** How long a save waits for its answer before it counts as failed. */
+const ITEM_SAVE_TIMEOUT_MS = 30_000
 
 export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutput) {
   const {
@@ -52,6 +55,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     scheduleTaxonomyRefresh,
     setErrorMessage,
     setSaveConflictUid,
+    setSaveConflictText,
     setMaxOpenItemsInStore,
     setStatusMessage,
     user,
@@ -83,6 +87,13 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
   )
 
   const detachRemovedEntriesRef = useRef(detachRemovedEntries)
+
+  // What the request sent as the page was hidden held, by entry. That request's answer
+  // is not waited for, so a later save may find the stored item already holds it.
+  const exitSentSignaturesRef = useRef(new Map<OpenItemKey, string>())
+  // The draft a failed save could not store, by entry. Its status stays "error" until
+  // the draft changes or a save succeeds.
+  const failedSignaturesRef = useRef(new Map<OpenItemKey, string>())
 
   detachRemovedEntriesRef.current = detachRemovedEntries
 
@@ -177,12 +188,18 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
       if (!detached) patchEntry(key, { saveStatus: "saving" })
 
+      // The stored item of an update refused as a conflict, for the notice.
+      let conflicting: ItemRecord | null = null
+
       const savePromise = (async () => {
         const send = (method: "POST" | "PATCH" | "DELETE", body: object) =>
-          itemsFetch("/api/items", {
+          fetch("/api/items", {
             method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userId: currentUser.id, ...body }),
+            // A request that never answers would hold every later save of this entry
+            // behind it. Ending it reports a failed save, which is tried again.
+            signal: AbortSignal.timeout(ITEM_SAVE_TIMEOUT_MS),
           })
         const update = (id: number, expectedTimeModified?: string | null) =>
           send("PATCH", {
@@ -238,21 +255,29 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         let creating = itemId === null
         let response =
           itemId === null ? await create() : await update(itemId, liveEntry()?.baseTimeModified)
-        // The stored item is newer than the one this entry began from. When it still
-        // holds what this entry last saved, nothing the user would recognize changed
-        // (an embedding was refreshed, say), so the edit goes on from that version.
-        // Otherwise the answer stays a conflict and the entry keeps its draft.
+        // The stored item is newer than the one this entry began from. When it holds
+        // what this entry last saved, or what this page itself sent as it was hidden,
+        // nothing changed that the user did not write here, so the edit goes on from
+        // that version. Otherwise the answer stays a conflict and the entry keeps its
+        // draft.
         if (itemId !== null && response.status === 409) {
           const conflict = (await response
             .clone()
             .json()
             .catch(() => null)) as { item?: ItemRecord } | null
           const stored = conflict?.item
+          const storedSignature = stored
+            ? serializeItemDraft(stored.id, itemToFormState(stored))
+            : null
           if (
             stored &&
-            serializeItemDraft(stored.id, itemToFormState(stored)) === liveEntry()?.savedSignature
+            (storedSignature === liveEntry()?.savedSignature ||
+              storedSignature === exitSentSignaturesRef.current.get(key) ||
+              storedSignature === serializeItemDraft(itemId, formSnapshot))
           ) {
             response = await update(itemId, stored.timeModified)
+          } else {
+            conflicting = stored ?? null
           }
         }
         // The item was deleted somewhere else while this entry was open. What the user
@@ -307,6 +332,8 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       try {
         await savePromise
         persisted = true
+        failedSignaturesRef.current.delete(key)
+        exitSentSignaturesRef.current.delete(key)
         // A view may be waiting to take this entry until its edits are stored.
         useItemsAppStore.getState().finishViewClaim(key)
         if (userRef.current?.id === currentUser.id && !detached) {
@@ -326,11 +353,15 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         if (userRef.current?.id === currentUser.id) {
           if (error instanceof RequestError && error.status === 409 && itemId !== null) {
             persistOpenItemsRef.current()
+            setSaveConflictText((conflicting as ItemRecord | null)?.description ?? null)
             setSaveConflictUid(source.uid)
           } else {
             setErrorMessage(getErrorMessage(error))
           }
-          if (!detached) patchEntry(key, { saveStatus: "error" })
+          if (!detached) {
+            failedSignaturesRef.current.set(key, draftSignature)
+            patchEntry(key, { saveStatus: "error" })
+          }
         }
       } finally {
         if (saveInFlightRef.current.get(key) === savePromise) {
@@ -364,6 +395,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       scheduleTaxonomyRefresh,
       persistOpenItemsRef,
       setSaveConflictUid,
+      setSaveConflictText,
       setErrorMessage,
       setStatusMessage,
       userRef,
@@ -457,6 +489,12 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
 
     for (const entry of openItems) {
       if (saveInFlightRef.current.has(entry.key)) continue
+      // A save of this very draft failed; say so until the draft changes.
+      if (
+        entry.saveStatus === "error" &&
+        failedSignaturesRef.current.get(entry.key) === serializeItemDraft(entry.itemId, entry.form)
+      )
+        continue
 
       const next =
         entry.itemId === null && !canSaveEntry(entry)
@@ -498,6 +536,8 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         // The same three outcomes as a save: a new item, an update, or the deletion of
         // an item whose content was removed.
         const removing = itemId !== null && !draftHoldsContent(form)
+        if (itemId !== null && !removing)
+          exitSentSignaturesRef.current.set(key, serializeItemDraft(itemId, form))
         const requestBody =
           itemId === null
             ? { userId: currentUser.id, item: newItemRequestBody(form, workspaceId, uid) }
@@ -506,7 +546,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
               : { userId: currentUser.id, itemId, item: itemRequestBody(form, workspaceId) }
 
         try {
-          void itemsFetch("/api/items", {
+          void fetch("/api/items", {
             method: itemId === null ? "POST" : removing ? "DELETE" : "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(requestBody),

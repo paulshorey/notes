@@ -134,22 +134,16 @@ describe("workspace-scoped note model (DB)", { skip: !testDbUrl }, () => {
         `SELECT id FROM public.workspace_tag_v1 WHERE workspace_id=$1 LIMIT 1`,
         [personal.id],
       )
-      const updated = await updateItemForUser(
-        item.id,
-        userId,
-        {
-          workspaceId: personal.id,
-          categoryId: categories.rows[0]!.id,
-          subcategoryId: null,
-          statusId: null,
-          tagIds: [personalTag.rows[0]!.id],
-          description: item.description ?? "",
-          timeDue: null,
-          timeRemind: null,
-        },
-        null,
-        item.description,
-      )
+      const updated = await updateItemForUser(item.id, userId, {
+        workspaceId: personal.id,
+        categoryId: categories.rows[0]!.id,
+        subcategoryId: null,
+        statusId: null,
+        tagIds: [personalTag.rows[0]!.id],
+        description: item.description ?? "",
+        timeDue: null,
+        timeRemind: null,
+      })
       assert.equal(updated?.category?.id, categories.rows[0]!.id)
       assert.equal(updated?.status, null)
       assert.deepEqual(

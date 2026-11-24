@@ -2,7 +2,10 @@ import type { PoolClient } from "pg"
 import { ensureDefaultWorkspaceForUser } from "./workspace"
 
 /**
- * Prune an affected workspace after moving, deleting, or unfiling its items.
+ * Prune an affected workspace after moving, deleting, or unfiling its items: the
+ * categories, subcategories, and tags no item uses any more are removed, and so is a
+ * workspace left with no items. Statuses are kept, because they are the columns of a
+ * workflow whether or not a task is in each one.
  * Run in a repeatable-read transaction. PostgreSQL rejects a cascading delete
  * if a concurrent foreign-key writer added a referencing row outside its snapshot.
  */
@@ -26,11 +29,6 @@ export const pruneEmptyWorkspaceTaxonomy = async (
   await client.query(
     `DELETE FROM public.workspace_tag_v1 t WHERE t.workspace_id=$1
        AND NOT EXISTS (SELECT 1 FROM public.item_tag_link_v1 l WHERE l.tag_id=t.id)`,
-    args,
-  )
-  await client.query(
-    `DELETE FROM public.workspace_status_v1 s WHERE s.workspace_id=$1
-       AND NOT EXISTS (SELECT 1 FROM public.workspace_item_v1 n WHERE n.status_id=s.id)`,
     args,
   )
   const workspace = await client.query(

@@ -26,7 +26,10 @@ test("a deleted cookie user returns 401 without attempting workspace creation", 
 
   assert.equal(response.status, 401)
   assert.equal(workspaceCalls, 0, "a deleted user must never reach the workspace insert")
-  assert.deepEqual(await response.json(), { error: "The session is no longer valid." })
+  assert.deepEqual(await response.json(), {
+    error: "The session is no longer valid.",
+    code: "unauthenticated",
+  })
 })
 
 test("a deleted session recovers through the real bootstrap response and client error parser", async () => {
@@ -95,7 +98,7 @@ test("database failures remain 503 and do not invalidate the session", async (t)
   })
   const response = await createBootstrapRouteHandler(service, async () => 7)(request())
   assert.equal(response.status, 503)
-  assert.equal((await response.json()).code, "STARTUP_UNAVAILABLE")
+  assert.equal((await response.json()).code, "unavailable")
 })
 
 for (const error of [
@@ -220,7 +223,10 @@ test("a link to an item opens the workspace that holds it", async () => {
       async () => 7,
     )(new Request(`https://notes.test/api/bootstrap${query}`))
     if (response.status === 404) {
-      assert.deepEqual(await response.json(), { error: "This item is unavailable." })
+      assert.deepEqual(await response.json(), {
+        error: "This item is unavailable.",
+        code: "not_found",
+      })
       return null
     }
     assert.equal(response.status, 200)

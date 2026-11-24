@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { errorJson } from "../../_lib/items-app-route-handlers"
 import { getVerifiedSession } from "@/auth"
 import { createMergeToken } from "@/lib/anonymousMergeToken"
 
@@ -7,14 +8,11 @@ export const POST = async () => {
   try {
     session = await getVerifiedSession()
   } catch {
-    return NextResponse.json({ error: "Notes is temporarily unavailable." }, { status: 503 })
+    return errorJson(503, "unavailable", "Notes is temporarily unavailable.")
   }
 
   if (!session?.user?.itemsUserId || !session.user.isAnonymous) {
-    return NextResponse.json(
-      { error: "Must be authenticated as an anonymous user." },
-      { status: 400 },
-    )
+    return errorJson(401, "unauthenticated", "Must be authenticated as an anonymous user.")
   }
 
   const mergeToken = createMergeToken(session.user.itemsUserId)

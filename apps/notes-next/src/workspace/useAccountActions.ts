@@ -10,7 +10,7 @@ import { type RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
 import { type FormEvent } from "react"
 import { signIn, signOut } from "next-auth/react"
 import { STORAGE_KEY } from "@/constants/items"
-import { fetchWithTimeout, getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { fetchWithTimeout, getErrorMessage, readJson } from "@/lib/api"
 import { type EmbeddingMaintenanceMode } from "@/types/items"
 import { clearItemsCache, writeItemsCache } from "@/lib/itemsCache"
 import { clearOpenItemsSnapshot } from "@/lib/openItemsStorage"
@@ -84,7 +84,7 @@ export function useAccountActions(
     clearMessages()
     setEmbeddingMaintenancePending(mode)
     try {
-      const response = await itemsFetch("/api/items/maintenance/embeddings", {
+      const response = await fetch("/api/items/maintenance/embeddings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,7 +139,7 @@ export function useAccountActions(
       if (authSession?.user?.isAnonymous && authSession.user.itemsUserId) {
         let mergeTokenCaptured = false
         try {
-          const tokenResponse = await itemsFetch("/api/anon-session/merge-token", {
+          const tokenResponse = await fetch("/api/anon-session/merge-token", {
             method: "POST",
           })
           if (tokenResponse.ok) {
@@ -225,7 +225,7 @@ export function useAccountActions(
       // Claim the anonymous row in place: same user_id, identity + password set,
       // is_anonymous flipped to false. Nothing moves between users, so there is
       // no merge token and no race in this path.
-      const claimResponse = await itemsFetch("/api/anon-session/claim", {
+      const claimResponse = await fetch("/api/anon-session/claim", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -329,7 +329,7 @@ export function useAccountActions(
     const preferences = userPreferencesRef.current
     if (serializeUserPreferences(preferences) !== lastSavedPreferencesRef.current) {
       const data = await readJson<SessionResponse>(
-        await itemsFetch("/api/session", {
+        await fetch("/api/session", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ preferences }),
@@ -382,7 +382,7 @@ export function useAccountActions(
       // entry. Refresh server data and cache without tearing down draft storage.
       try {
         const data = await readJson<BootstrapResponse>(
-          await itemsFetch(`/api/bootstrap?workspaceId=${activeWorkspaceIdRef.current}`, {
+          await fetch(`/api/bootstrap?workspaceId=${activeWorkspaceIdRef.current}`, {
             cache: "no-store",
           }),
         )
@@ -426,7 +426,7 @@ export function useAccountActions(
     persistOpenItems()
     setItemsLoading(true)
     try {
-      const response = await itemsFetch(`/api/bootstrap?workspaceId=${workspaceId}`, {
+      const response = await fetch(`/api/bootstrap?workspaceId=${workspaceId}`, {
         cache: "no-store",
       })
       const data = await readJson<BootstrapResponse>(response)
@@ -487,7 +487,7 @@ export function useAccountActions(
     const label = rawLabel.trim().toLocaleLowerCase()
     if (!label) return
     try {
-      const response = await itemsFetch("/api/workspaces", {
+      const response = await fetch("/api/workspaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, label }),

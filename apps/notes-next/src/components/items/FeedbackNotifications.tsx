@@ -1,10 +1,13 @@
 "use client"
 
 import { Notification } from "@mantine/core"
+import { useState } from "react"
 import styles from "./FeedbackNotifications.module.css"
 
 interface FeedbackNotificationsProps {
   saveConflictUid: string | null
+  /** The text stored for the conflicting item, as the server answered it. */
+  saveConflictText: string | null
   onDismissConflict: () => void
   onKeepConflictingEdits: (uid: string) => void
   statusMessage: string | null
@@ -17,6 +20,7 @@ interface FeedbackNotificationsProps {
 
 export function FeedbackNotifications({
   saveConflictUid,
+  saveConflictText,
   onDismissConflict,
   onKeepConflictingEdits,
   statusMessage,
@@ -26,6 +30,8 @@ export function FeedbackNotifications({
   onDismissError,
   onDismissSearchError,
 }: FeedbackNotificationsProps) {
+  const [showsSavedText, setShowsSavedText] = useState(false)
+
   if (!saveConflictUid && !statusMessage && !errorMessage && !searchErrorMessage) {
     return null
   }
@@ -41,9 +47,13 @@ export function FeedbackNotifications({
           onClose={onDismissConflict}
         >
           The saved item changed.{" "}
-          <a href={`?item=${saveConflictUid}`} target="_blank" rel="noopener noreferrer">
-            Open the current version in a new tab
-          </a>{" "}
+          <button
+            type="button"
+            className={styles.feedbackAction}
+            onClick={() => setShowsSavedText((shown) => !shown)}
+          >
+            {showsSavedText ? "Hide the saved version" : "Show the saved version"}
+          </button>{" "}
           to compare your edits, or{" "}
           <button
             type="button"
@@ -53,6 +63,9 @@ export function FeedbackNotifications({
             save your version over it
           </button>
           .
+          {showsSavedText && (
+            <pre className={styles.savedText}>{saveConflictText?.trim() || "(no text)"}</pre>
+          )}
         </Notification>
       )}
       {statusMessage && (

@@ -55,18 +55,6 @@ items_db_pg_dump_table_flags() {
   done
 }
 
-# Known dependent views are part of an item table's schema backup. They contain
-# no separate rows and must be dropped/recreated alongside that table.
-items_db_compatibility_view() {
-  case "$1" in
-    workspace_item_v1) printf '%s' user_note_v1 ;;
-    workspace_category_v1) printf '%s' workspace_note_category_v1 ;;
-    workspace_status_v1) printf '%s' workspace_note_status_v1 ;;
-    workspace_tag_v1) printf '%s' workspace_note_tag_v1 ;;
-    item_tag_link_v1) printf '%s' user_note_tag_link_v1 ;;
-  esac
-}
-
 # pg_dump --table deliberately omits dependencies outside selected relations.
 # Include the item schema's extension and trigger function when selected tables
 # actually use them, so the dump also restores into an empty database.

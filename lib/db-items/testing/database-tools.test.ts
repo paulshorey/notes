@@ -125,25 +125,16 @@ const makeBackup = (url: string, folder: string, legacy = false) => {
 }
 
 test(
-  "CLI backup restores all item rows, relationships, vectors, triggers, aliases and sequences into an empty database",
+  "CLI backup restores all item rows, relationships, vectors, triggers and sequences into an empty database",
   { skip: !testDbUrl },
   async () => {
     await fixture(async (source, target, sourceUrl, targetUrl, folder) => {
       const before = await dumpRows(source)
       const { schema, data } = makeBackup(sourceUrl, folder, true)
       assert.match(await readFile(data, "utf8"), /COPY public\.workspace_item_v1/)
-      assert.doesNotMatch(await readFile(data, "utf8"), /COPY public\.user_note_v1/)
       successful(script("restore-schema", targetUrl, ["-y", schema]))
       successful(script("restore-data", targetUrl, ["-y", data]))
       assert.deepEqual(await dumpRows(target), before)
-      assert.equal(
-        (
-          await target.query(
-            "SELECT count(*)::int n FROM information_schema.views WHERE table_schema='public' AND is_updatable='YES'",
-          )
-        ).rows[0]!.n,
-        5,
-      )
       const created = (
         await target.query(
           "INSERT INTO workspace_item_v1(workspace_id,description) VALUES(21,'after restore') RETURNING id,time_created,time_modified",
@@ -153,17 +144,16 @@ test(
       assert.ok(created.time_created)
       assert.ok(created.time_modified)
       await target.query("UPDATE workspace_item_v1 SET description='changed' WHERE id=61")
-      assert.equal((await target.query("SELECT count(*)::int n FROM user_note_v1")).rows[0]!.n, 3)
       await assert.rejects(
         target.query("UPDATE workspace_item_v1 SET category_id=31 WHERE id=62"),
         /foreign key/,
       )
-      // An already migrated destination must also replace/recreate its aliases.
+      // Restoring into an already populated destination replaces its tables.
       successful(script("restore-schema", targetUrl, ["-y", schema]))
       successful(script("restore-data", targetUrl, ["-y", data]))
       assert.deepEqual(await dumpRows(target), before)
 
-      // A selected leaf relation carries its alias without copying parent tables.
+      // A selected leaf relation restores without copying parent tables.
       const leafSchema = join(folder, "links-schema.sql")
       const leafData = join(folder, "links-data.sql")
       successful(script("backup-schema", sourceUrl, ["-t", "item_tag_link_v1", leafSchema]))
@@ -171,10 +161,6 @@ test(
       successful(script("restore-schema", targetUrl, ["-y", "-t", "item_tag_link_v1", leafSchema]))
       successful(script("restore-data", targetUrl, ["-y", "-t", "item_tag_link_v1", leafData]))
       assert.deepEqual(await dumpRows(target), before)
-      assert.equal(
-        (await target.query("SELECT count(*)::int n FROM user_note_tag_link_v1")).rows[0]!.n,
-        1,
-      )
       const after = await dumpRows(source)
       assert.deepEqual(after, before, "backup commands never mutate the source")
     })
@@ -182,7 +168,7 @@ test(
 )
 
 test(
-  "CLI restore failure rolls back existing schema, data, aliases and ID sequence state",
+  "CLI restore failure rolls back existing schema, data and ID sequence state",
   { skip: !testDbUrl },
   async () => {
     await fixture(async (source, _target, sourceUrl, _targetUrl, folder) => {
@@ -211,7 +197,10 @@ test(
       await writeFile(brokenSchema, (await readFile(schema, "utf8")) + "\nSELECT 1 / 0;\n")
       assert.notEqual(script("restore-schema", sourceUrl, ["-y", brokenSchema]).status, 0)
       assert.deepEqual(await dumpRows(source), before)
-      assert.equal((await source.query("SELECT count(*)::int n FROM user_note_v1")).rows[0]!.n, 2)
+      assert.equal(
+        (await source.query("SELECT count(*)::int n FROM workspace_item_v1")).rows[0]!.n,
+        2,
+      )
     })
   },
 )

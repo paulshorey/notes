@@ -1,16 +1,19 @@
 import type { ItemInput, ItemRecord } from "./items-app"
+import {
+  ITEM_MODEL,
+  type ItemCapabilityKey,
+  type ItemCapabilityRole,
+  type ItemModelField,
+  type ItemPresenceTest,
+} from "./item-model"
 
 /**
- * What an item can hold beyond its identity, workspace, and taxonomy.
- *
- * A capability is content or state. Content makes an item exist: an item holds at
- * least one. State describes an item and never keeps it alive, so a status or a date
- * alone is not an item. Add a capability here once; saving and every other consumer of
- * this registry pick it up. `item-kinds.ts` names the combinations ("note", "task", ...).
+ * What an item can hold beyond its identity, workspace, and taxonomy, read from
+ * `item-model.ts`. A capability is content or state. Content makes an item exist: an
+ * item holds at least one. State describes an item and never keeps it alive, so a
+ * status or a date alone is not an item. `item-kinds.ts` names the combinations.
  */
-export type ItemCapabilityKey = "text" | "time" | "day" | "schedule" | "status"
-
-export type ItemCapabilityRole = "content" | "state"
+export type { ItemCapabilityKey, ItemCapabilityRole } from "./item-model"
 
 /** The fields capabilities read. Satisfied by a stored item and by a write request. */
 export type ItemCapabilitySource = Pick<ItemRecord, "description" | "timeDue" | "timeRemind"> & {
@@ -23,31 +26,32 @@ export interface ItemCapability {
   role: ItemCapabilityRole
   isPresent: (item: ItemCapabilitySource) => boolean
   /** Capabilities this one needs beside it. State without them is refused. */
-  requires?: readonly ItemCapabilityKey[]
+  requires: readonly ItemCapabilityKey[]
 }
 
 export const hasText = (description: string | null | undefined): description is string =>
   typeof description === "string" && description.trim().length > 0
 
-export const ITEM_CAPABILITIES: readonly ItemCapability[] = [
-  { key: "text", role: "content", isPresent: (item) => hasText(item.description) },
-  // A time block: a start and an end, which are set together.
-  { key: "time", role: "content", isPresent: (item) => item.timeStart != null },
-  // The calendar day of a journal entry.
-  { key: "day", role: "content", isPresent: (item) => item.entryDate != null },
-  {
-    key: "schedule",
-    role: "state",
-    isPresent: (item) => item.timeDue !== null || item.timeRemind !== null,
-  },
-  {
-    key: "status",
-    role: "state",
-    isPresent: (item) => ("status" in item ? item.status !== null : item.statusId !== null),
-    // A status tracks something written down, so a time block alone takes none.
-    requires: ["text"],
-  },
-]
+/** A model field's value on a stored item or a write request. */
+const fieldValue = (item: ItemCapabilitySource, field: ItemModelField): unknown => {
+  const values = item as unknown as Record<string, unknown>
+  // A stored item names its status as a reference; a request names its id.
+  if (field === "statusId" && "status" in item) return item.status
+  return values[field]
+}
+
+const passes = (value: unknown, test: ItemPresenceTest) =>
+  test === "nonblank" ? hasText(value as string | null | undefined) : value != null
+
+export const ITEM_CAPABILITIES: readonly ItemCapability[] = ITEM_MODEL.capabilities.map(
+  (capability) => ({
+    key: capability.key,
+    role: capability.role,
+    requires: capability.requires,
+    isPresent: (item) =>
+      capability.presentWhenAny.some(({ field, test }) => passes(fieldValue(item, field), test)),
+  }),
+)
 
 /** The capabilities an item holds, in registry order. */
 export const itemCapabilities = (item: ItemCapabilitySource): ItemCapabilityKey[] =>
@@ -73,7 +77,7 @@ export const missingRequirement = (
   item: ItemCapabilitySource,
 ): { key: ItemCapabilityKey; requires: ItemCapabilityKey } | null => {
   for (const capability of ITEM_CAPABILITIES) {
-    if (!capability.requires || !capability.isPresent(item)) continue
+    if (!capability.isPresent(item)) continue
     const missing = capability.requires.find((key) => !hasItemCapability(item, key))
     if (missing) return { key: capability.key, requires: missing }
   }
@@ -83,8 +87,11 @@ export const missingRequirement = (
 export const ITEM_CONTENT_REQUIRED_ERROR = "An item needs content before it can be saved."
 
 export class ItemRequirementError extends Error {
-  constructor(key: ItemCapabilityKey, requires: ItemCapabilityKey) {
-    super(`An item needs ${requires} to have a ${key}.`)
+  constructor(
+    readonly capability: ItemCapabilityKey,
+    readonly requires: ItemCapabilityKey,
+  ) {
+    super(`An item needs ${requires} to have a ${capability}.`)
   }
 }
 

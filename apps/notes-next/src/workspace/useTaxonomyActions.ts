@@ -21,7 +21,7 @@ import {
   refileAfterGroupResult,
 } from "@/lib/itemGroupActions"
 import { useCallback, useRef } from "react"
-import { RequestError, getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { RequestError, getErrorMessage, readJson } from "@/lib/api"
 import { normalizeLabel } from "@/lib/strings"
 import { type TextCaptureFormState } from "@/types/items"
 import { updateItemsCacheList, writeItemsCache } from "@/lib/itemsCache"
@@ -194,7 +194,7 @@ export function useTaxonomyActions(
     }
     setCreateStatusPending(true)
     try {
-      const response = await itemsFetch("/api/statuses", {
+      const response = await fetch("/api/statuses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
@@ -347,7 +347,7 @@ export function useTaxonomyActions(
     creatingTagLabelsRef.current.add(normalizedLabel)
     setCreateTagPending(true)
     try {
-      const response = await itemsFetch("/api/tags", {
+      const response = await fetch("/api/tags", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
@@ -399,7 +399,7 @@ export function useTaxonomyActions(
     clearMessages()
     setCreateCategoryPending(true)
     const request = (async () => {
-      const response = await itemsFetch("/api/categories", {
+      const response = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, workspaceId, label }),
@@ -488,7 +488,7 @@ export function useTaxonomyActions(
     clearMessages()
     setCreateCategoryPending(true)
     try {
-      const response = await itemsFetch("/api/categories", {
+      const response = await fetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -525,7 +525,7 @@ export function useTaxonomyActions(
       return existingTag
     }
 
-    const response = await itemsFetch("/api/tags", {
+    const response = await fetch("/api/tags", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
@@ -598,26 +598,16 @@ export function useTaxonomyActions(
     // action started: an earlier write or a saved edit may have changed it since.
     const changed = change(item)
     if (changesNothing(item, changed)) return item
-    const fields = { ...storedItemFields(item), ...changed }
-
     const request = (async () => {
-      const response = await itemsFetch("/api/items", {
+      const response = await fetch("/api/items", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
           itemId: item.id,
-          item: {
-            workspaceId: activeWorkspaceId,
-            ...fields,
-            description: item.description ?? "",
-            // Named so an item that is a time block without text still holds content.
-            timeStart: item.timeStart,
-            timeEnd: item.timeEnd,
-            entryDate: item.entryDate,
-            timeDue: item.timeDue,
-            timeRemind: item.timeRemind,
-          },
+          // Only the fields the action changes: the item's text and everything else
+          // stay as stored, whatever this page last loaded.
+          item: { workspaceId: activeWorkspaceId, ...changed },
         }),
       })
       return readJson<{ item: ItemRecord }>(response)
@@ -778,7 +768,7 @@ export function useTaxonomyActions(
           // The text lives only in the list's input, so the request must outlive the
           // page if the tab closes right after Enter. It is sent once and never
           // replayed from a snapshot, so keepalive cannot create a second item.
-          const response = await itemsFetch("/api/items", {
+          const response = await fetch("/api/items", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -858,7 +848,7 @@ export function useTaxonomyActions(
       let data: BootstrapResponse
       try {
         data = await readJson<BootstrapResponse>(
-          await itemsFetch(`/api/bootstrap?workspaceId=${destinationId ?? workspaceId}`, {
+          await fetch(`/api/bootstrap?workspaceId=${destinationId ?? workspaceId}`, {
             cache: "no-store",
             signal,
           }),
@@ -1061,7 +1051,7 @@ export function useTaxonomyActions(
     clearMessages()
     setEditTagPending(true)
     try {
-      const response = await itemsFetch("/api/tags", {
+      const response = await fetch("/api/tags", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1092,7 +1082,7 @@ export function useTaxonomyActions(
     clearMessages()
     setDeleteTagPending(true)
     try {
-      const response = await itemsFetch("/api/tags", {
+      const response = await fetch("/api/tags", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1202,7 +1192,7 @@ export function useTaxonomyActions(
           timeRemind: current?.timeRemind ?? null,
         },
       })
-      const response = await itemsFetch("/api/items", {
+      const response = await fetch("/api/items", {
         method: current ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         // The form's values exist nowhere else, so a request that fits the browser's
@@ -1283,7 +1273,7 @@ export function useTaxonomyActions(
     void (async () => {
       try {
         const data = await readJson<{ workspaces: WorkspaceRecord[] }>(
-          await itemsFetch("/api/workspaces", { cache: "no-store" }),
+          await fetch("/api/workspaces", { cache: "no-store" }),
         )
         if (userRef.current?.id === userId) setWorkspaces(data.workspaces)
       } catch {
@@ -1305,7 +1295,7 @@ export function useTaxonomyActions(
       await settlePendingItemWrites()
       if (userRef.current?.id !== user.id || activeWorkspaceIdRef.current !== workspaceId)
         return false
-      const response = await itemsFetch("/api/items", {
+      const response = await fetch("/api/items", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id, itemId, workspaceId }),

@@ -7,7 +7,6 @@ import { assertCategoryNameAllowed } from "../contracts/category-name"
 import { executeItemGroupAction, previewItemGroup } from "../sql/item-groups"
 import { ItemGroupConflictError } from "../sql/item-group-errors"
 import { listCategoriesByWorkspace } from "../sql/category"
-import { createTagLabelEmbedding } from "./item-embeddings"
 
 const object = (value: unknown) => {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -114,25 +113,5 @@ export const executeItemGroupActionForItemsApp = async (input: ExecuteItemGroupA
     request.action.kind === "rename"
   )
     throw new ItemGroupConflictError("This group is empty. There are no items to categorize.")
-  let embedding
-  // Only category labels carry an embedding; a subcategory rename needs no provider.
-  if (request.action.kind === "rename" && request.selection.target.kind !== "subcategory") {
-    const label = request.action.label
-    const categories = await listCategoriesByWorkspace(
-      request.userId,
-      request.selection.workspaceId,
-    )
-    const existing = categories.find((category) => category.label === label)
-    // Reusing a category must not depend on the embedding provider. For a new
-    // label, do the external work before acquiring the transactional DB client.
-    if (request.selection.target.kind === "category" || !existing)
-      embedding = await createTagLabelEmbedding(label)
-  }
-  return executeItemGroupAction(
-    request.userId,
-    request.selection,
-    request.action,
-    request.snapshot,
-    embedding,
-  )
+  return executeItemGroupAction(request.userId, request.selection, request.action, request.snapshot)
 }

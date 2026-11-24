@@ -3,7 +3,7 @@
 import { type ItemRecord, type SearchResponse } from "@lib/db-items"
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
 import { useCallback, useEffect, useMemo } from "react"
-import { getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { getErrorMessage, readJson } from "@/lib/api"
 import { updateItemsCacheList } from "@/lib/itemsCache"
 import {
   type DisplayItemItem,
@@ -65,7 +65,7 @@ export function useItemLists(
       setSearchLoading(true)
       setSearchErrorMessage(null)
 
-      void itemsFetch("/api/items/search", {
+      void fetch("/api/items/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -211,7 +211,7 @@ export function useItemLists(
         loadItems(userId),
         loadCategories(userId),
         loadTags(userId),
-        itemsFetch(`/api/statuses?workspaceId=${workspaceId}`, { cache: "no-store" }).then(
+        fetch(`/api/statuses?workspaceId=${workspaceId}`, { cache: "no-store" }).then(
           readJson<import("@lib/db-items").StatusesResponse>,
         ),
       ])

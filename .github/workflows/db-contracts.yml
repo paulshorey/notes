@@ -10,7 +10,6 @@ on:
       - "scripts/db/**"
       - "scripts/check-postgres-client-version.sh"
       - "lib/db-items/**"
-      - "lib/db-notes/**"
       - "apps/notes-next/**"
   push:
     branches:
@@ -23,7 +22,6 @@ on:
       - "scripts/db/**"
       - "scripts/check-postgres-client-version.sh"
       - "lib/db-items/**"
-      - "lib/db-notes/**"
       - "apps/notes-next/**"
   workflow_dispatch:
 
