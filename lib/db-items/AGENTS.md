@@ -4,8 +4,8 @@
 - Use extensionless relative imports in `.ts` files. Do not add `.js` suffixes unless the package starts emitting build artifacts.
 - Keep database helpers here only when they are reused across apps in this repo.
 
-Database-first package for the `DB_ITEMS_URL` database (`DB_NOTES_URL` is a rollout fallback).
-See `docs/db/item-core.md` for the item domain and compatibility boundaries.
+Database-first package for the `DB_ITEMS_URL` database (`DB_NOTES_URL` is read when it is unset).
+See `docs/db/item-core.md` for the item domain and `docs/db/item-model.md` for the item model.
 
 ## Workspace ownership model
 
@@ -18,46 +18,58 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - Every item has one `workspace_id`, one nullable `category_id`, one nullable `subcategory_id`, one nullable `status_id`, and zero or more tag links. See `docs/db/item-taxonomy.md`.
 - A subcategory (`workspace_subcategory_v1`) belongs to one category and is unique by label within it. The hierarchy is exactly two levels. Categories, statuses, and tags are unique by normalized label within a workspace, and status and tags are not part of the hierarchy.
 - An item's subcategory always belongs to its category: composite foreign keys enforce it, and `resolveItemFiling` (`sql/item/shared.ts`) clears a subcategory that does not fit instead of failing the save. The item foreign keys take no delete action, so remove a category or subcategory only through the group engine, never with a bare `DELETE`.
-- Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for an item with no category. Use `contracts/category-name.ts` for category create/rename validation; backup parsing converts the legacy literal category after validating references. See `docs/operations/category-cleanup.md` for the ordered rollout.
+- Categories have no seeded default or protected row. `uncategorized` is a reserved, display-only label for an item with no category. Use `contracts/category-name.ts` for category create/rename validation; backup parsing drops a category with that literal label after validating references. See `docs/operations/category-cleanup.md`.
 - Composite foreign keys enforce that every item relation comes from the item's own workspace.
-- `contracts/item-capabilities.ts` is the registry of what an item can hold. Each
-  capability has a role: content (text, time, day) makes an item exist, and state (schedule,
-  status) describes one and never keeps it alive. A state may name what it `requires`:
-  a status requires text. Declare a new capability there instead of branching on
-  fields.
+- `contracts/item-model.ts` declares the item model as data: capabilities, taxonomy
+  fields, kinds, and write rules. Each capability has a role: content (text, time, day)
+  makes an item exist, and state (schedule, status) describes one and never keeps it
+  alive. A state may name what it `requires`: a status requires text. Declare a new
+  field, capability, or kind there instead of branching on fields;
+  `contracts/item-capabilities.ts` and `contracts/item-kinds.ts` derive from it.
+  `itemModelDocument()` is served at `GET /api/items/model` and committed as
+  `generated/contracts/item-model.json`, which `app:contract:generate` writes and
+  `app:contract:check` checks (`scripts/generate-item-model.ts`).
   `assertItemHasContent` applies the save rules (`hasItemContent`: at least one content
   capability; `missingRequirement`: each state has what it requires) in
-  `createItemForItemsApp` and `updateItemForItemsApp`, and the check constraints
-  `workspace_item_v1_content_check` and `workspace_item_v1_status_requires_text_check`
-  repeat them, so a test or script cannot insert an item the rules refuse.
+  `createItemForItemsApp` and, to the merged result, in `updateItemForUser`. The check
+  constraints `workspace_item_v1_content_check` and
+  `workspace_item_v1_status_requires_text_check` repeat them, so a test or script cannot
+  insert an item the rules refuse.
   `ITEM_HAS_CONTENT_SQL` (`sql/item/stored-capabilities.ts`) is the content rule over
   an item row. Listing, group actions, backup, restore, account merge, and the trash
   carry an item whatever content it holds: no layer may name text as the content it
   expects. Deleting a status clears it from its items and deletes none.
+- A create takes a whole `ItemInput`: a field it omits is empty (`sql/item/parse.ts`).
+  An update takes an `ItemPatch`: an absent field is left as stored, `null` clears it,
+  and `tagIds: []` removes every tag. `workspaceId` is optional in a patch and must be
+  the item's workspace. `updateItemForUser` (`sql/item/update.ts`) locks the row, merges
+  the patch, and applies the save rules to the result.
 - A time block is `time_start` and `time_end`, set together. `normalizeTimeBlock`
-  (`contracts/item-time.ts`) fills in a missing end from the other. `ItemInput` leaves
-  the time fields optional: an update that names neither keeps the stored block, and
-  `null` removes it. See Time blocks in `docs/db/item-core.md`.
+  (`contracts/item-time.ts`) fills in a missing end from the other. An update that
+  names neither time field keeps the stored block, and `null` removes it. See Time blocks in `docs/db/item-core.md`.
 - A journal entry is an item with an `entry_date`, a plain date read and written as
   `YYYY-MM-DD` text, never through a driver `Date`. One entry per workspace and day is
   kept by a unique index, and a write that breaks it throws `JournalDayTakenError`
   (HTTP `409`). `sql/item/journal.ts` combines two entries: account merge and backup
-  restore do it without asking, and a user-driven write does it only when asked. See
+  restore do it without asking and remove the entry they combine, and a user-driven
+  write does it only when asked and keeps the entry the text came from, emptied. See
   Journal entries in `docs/db/item-core.md`.
-- `contracts/item-kinds.ts` names what an item holds: a `note` has text, a `task` has
-  text and a status, a `time` item has a time block, and a `journal` item has a day. A kind is
-  computed, never stored, and an item can be several kinds. Write a view's selection
-  with `isKind` instead of testing fields.
+- A kind (`note`, `task`, `time`, `journal`) names what an item holds. It is computed
+  by `contracts/item-kinds.ts` from the item model, never stored, and an item can be
+  several kinds. Write a view's selection with `isKind` instead of testing fields.
 - `updateItemForItemsApp` accepts `expectedTimeModified`, the version the caller edited.
-  A stale one throws `ItemChangedError` with the stored item (HTTP `409`) and writes
-  nothing; the comparison is part of the `UPDATE`, at millisecond precision. See
+  A stale one throws `ItemChangedError` with the stored item (HTTP `409 item_changed`)
+  and writes nothing; the comparison is made on the locked row, at millisecond precision. See
   Concurrent edits in `docs/db/item-core.md`.
 - Deleting an item moves it to `user_item_trash_v1` in the same statement
   (`TRASH_ITEMS_SQL`, used by `sql/item/delete.ts`, the one place items are deleted on
   a user's request). A trash entry is the item's backup fields as JSON, so it is built
   from the stored-capability registry and no query over items has to exclude it.
-  `sql/item/trash.ts` lists, restores (an import of that one item, after writing back
-  its workspace and vocabulary by label), and purges. See the Trash section of
+  `sql/item/trash.ts` lists in pages of 200, restores (an import of that one item,
+  after writing back its workspace and vocabulary by label), and purges. Entries older
+  than `TRASH_RETENTION_DAYS` (`contracts/item-model.ts`) are removed on every list and
+  every delete. `deleteItemForUser` retries a serialization failure up to three times
+  before throwing a conflict. See the Trash section of
   `docs/db/item-core.md`.
 - `contracts/item-group-actions.ts` defines group selection and tagged actions.
   `sql/item-groups.ts` owns the shared predicate, preview fingerprint, transaction,
@@ -68,22 +80,31 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   Lock item rows in ID order before category and subcategory rows, and unfile or
   delete items before removing the row that files them. Single and bulk item
   deletion share `sql/item/delete.ts`. Deletions and workspace moves run
-  `sql/workspace-cleanup.ts` in the same transaction. Provider
-  requests finish before acquiring the transaction client. See
+  `sql/workspace-cleanup.ts` in the same transaction: it removes the categories,
+  subcategories, and tags no item uses, and keeps statuses and the workspace itself.
+  Only `deleteWorkspaceForUser` (`sql/workspace-delete.ts`) removes a workspace: it
+  sends the workspace's items to the trash first and refuses when the caller's
+  `expectedItemCount` does not match. Group actions call no embedding provider. See
   `docs/db/item-group-actions.md` at the repository root for semantics and limits.
 
 ## Source of truth
 
 - `migrations/`: canonical schema change history
 - `schema/current.sql`: generated snapshot of expected schema
-- `queries/`: language-agnostic SQL query contracts
+- `queries/`: the place for SQL query contracts shared across runtimes; it holds none
 - `contracts/items-app.ts`: canonical app-facing item contract
-- `generated/contracts/items-app.json`: generated item contract artifact
+- `contracts/item-model.ts`: the item model
+- `generated/contracts/items-app.json`, `generated/contracts/item-model.json`: generated contract artifacts
 
 ## TypeScript adapter
 
 - `lib/db/postgres.ts`: process-wide connection pool for app/runtime code. It defaults to one connection so cold, parallel Next.js requests do not burst connections through a remote proxy; set `PG_POOL_MAX` explicitly when a deployment needs more concurrency.
-- `services/items-app.ts`: Item workflow layer used by the web app's API routes
+- `services/items-app.ts`: Item workflow layer used by the web app's API routes.
+  `describeItemsAppError` maps every thrown error to a status, an `ErrorCode`
+  (`contracts/items-app.ts`), and a message. Throw `InvalidRequestError`
+  (`contracts/request-error.ts`), or a subclass, for anything a caller can correct: it is
+  answered `400` with its message. Every other error is a server fault, answered
+  `500 internal` with a generic message. A unique-label violation is `409 conflict`.
 - `contracts/user-backup.ts`: versioned portable-backup validation and size limits;
   safe to import in the browser.
 - `sql/user/backup.ts`: snapshot export and atomic staged restore. Restore calls
@@ -148,7 +169,7 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   means "customized", key absence means "still default".
 - Tests: `pnpm --filter @lib/db-items test` (node test runner via tsx).
   DB regression suites only touch
-  a database when `DB_ITEMS_TEST_URL` (or legacy `DB_NOTES_TEST_URL`) is set;
+  a database when `DB_ITEMS_TEST_URL` (or `DB_NOTES_TEST_URL`) is set;
   they connect only to that explicit test URL. Cursor Cloud and CI use local
   throwaway databases. CI runs the `verify-items` job.
 - Users, workspaces, workspace vocabulary, and items share the `apply_row_timestamps_v1()` trigger
@@ -157,9 +178,9 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
   keep `time_created` stable.
 - Fresh empty DB: run `pnpm --filter @lib/db-items db:migrate`, then
   `db:verify`.
-- Existing pre-migration DB with baseline schema already present: run
+- A database that has the baseline schema but no migration ledger: run
   `db:migrate:baseline` once, then `db:migrate`, then `db:verify`.
-- `db:migrate:baseline` is a legacy recovery tool, not a standard release step.
+- `db:migrate:baseline` is a recovery tool, not a standard release step.
 - `db:verify` is not read-only; it runs `db:migrate` first.
 - Only run `db:migrate` / `db:verify` against a deployed remote DB when the
   user explicitly requests it. Check connectivity and pending migrations first.
@@ -168,12 +189,11 @@ See `docs/db/item-core.md` for the item domain and compatibility boundaries.
 - For populated tables, migrations must explicitly backfill data and explicitly
   convert types with `USING` where needed.
 - After schema changes, keep `migrations/`, `schema/current.sql`, generated
-  artifacts, app contracts, and query contracts in sync.
+  artifacts, and app contracts in sync.
 - **`scripts/verify-contract.mjs` must be updated alongside every migration.**
   When adding columns/indexes/constraints, add corresponding assertions. When
   dropping columns/indexes/constraints, replace "must exist" assertions with
-  "must be absent" assertions. Failure to update this script is the most common
-  cause of `db:verify` failures after merging.
+  "must be absent" assertions.
 - Always run `db:verify` on the feature branch before merging to confirm the
   migration, verify script, and generated artifacts are all consistent.
 - For Notes production rollout, verify code first and deploy `notes-next`.
@@ -188,12 +208,15 @@ Provider: **Jina AI** — Model: `jina-embeddings-v5-text-small` (1024 dims, nor
 ### Key files
 
 - `services/item-embeddings.ts` — canonical Jina client, embedding constants, and text builders
-- `services/items-app.ts` — orchestrates embed-on-write (items, categories, tags) and search
+- `services/items-app.ts` — `embedItemForItemsApp`, embedding maintenance, and search
 - `sql/item/gets.ts` — `searchItemsByEmbedding` SQL: cosine similarity of query vs item `description_embedding`
 - `scripts/regenerate-embeddings.mjs` — CLI bulk regeneration (must stay in sync with `item-embeddings.ts`)
 
 ### How it works
 
+- **Writes never wait on the provider.** A new item, or one whose text changed, is stored with no embedding (`description_embedding`, `embedding_model`, and `embedding_updated_at` are cleared). The route handler calls `embedItemForItemsApp` after the response is sent, for a create, an update, a trash restore, and a journal combine. When the provider fails the item stays unembedded and `POST /api/items/maintenance/embeddings` repairs it.
+- `updateItemEmbeddingsForUser` stores an embedding only while the item still holds the embedded text, and sets `app.keep_time_modified` so `time_modified` does not move.
+- Category and tag labels are stored without an embedding on create, and a rename clears it. Only embedding maintenance writes label embeddings.
 - **Storing** item descriptions, category labels, and tag labels: Jina API with `task: "retrieval.passage"` → `vector(1024)` in PostgreSQL (HNSW cosine index).
 - **Searching**: user query embedded with `task: "retrieval.query"` → cosine similarity against item `description_embedding` in SQL.
 - **No text prefix** is added to inputs. Jina v5's `task` parameter selects the asymmetric LoRA adapter internally — manual `Query:`/`Document:` prefixes are unnecessary and harmful when using the API.
@@ -204,4 +227,4 @@ Provider: **Jina AI** — Model: `jina-embeddings-v5-text-small` (1024 dims, nor
 
 ### Environment
 
-Requires `JINA_API_KEY`. Missing key → `EmbeddingConfigurationError` (500).
+`JINA_API_KEY` is needed for search and embedding maintenance; saving works without it. A missing key or a provider failure on those routes answers `503 search_unavailable`.

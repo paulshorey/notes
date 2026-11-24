@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server"
-import { itemJson } from "./legacy-note-contract"
 import {
   BackupAccountError,
   itemsAppService,
@@ -19,18 +18,18 @@ const json = (body: unknown, status = 200) =>
     headers: { "Cache-Control": "no-store" },
   })
 const errorResponse = (error: unknown, service: ItemsAppService) => {
-  if (error instanceof BackupTooLargeError) return json({ error: error.message }, 413)
-  if (error instanceof BackupValidationError) return json({ error: error.message }, 400)
-  if (error instanceof BackupAccountError) return json({ error: error.message }, error.status)
+  const refused = (status: number) =>
+    json({ error: (error as Error).message, code: "invalid_request" }, status)
+  if (error instanceof BackupTooLargeError) return refused(413)
+  if (error instanceof BackupValidationError) return refused(400)
+  if (error instanceof BackupAccountError) return refused(error.status)
   const status = service.getItemsAppErrorStatus(error) === 503 ? 503 : 500
   // Do not expose SQL, table names, connection details, or uploaded text.
+  console.error("Backup request failed:", error)
   return json(
-    {
-      error:
-        status === 503
-          ? "The database is unavailable. Please retry."
-          : "Unable to complete the backup operation. Please retry.",
-    },
+    status === 503
+      ? { error: "The database is unavailable. Please retry.", code: "unavailable" }
+      : { error: "Unable to complete the backup operation. Please retry.", code: "internal" },
     status,
   )
 }
@@ -73,7 +72,8 @@ export const createBackupRouteHandlers = (
   GET: async (request: Request) => {
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
-      if (userId === null) return json({ error: "Authentication required." }, 401)
+      if (userId === null)
+        return json({ error: "Authentication required.", code: "unauthenticated" }, 401)
       const exported = await service.exportUserBackup(userId)
       const body = JSON.stringify(exported)
       // Never download a file that this restore endpoint cannot accept.
@@ -97,16 +97,18 @@ export const createBackupRouteHandlers = (
   POST: async (request: Request) => {
     try {
       const userId = await resolveRequestUserId(request, service, resolveSessionUserId)
-      if (userId === null) return json({ error: "Authentication required." }, 401)
+      if (userId === null)
+        return json({ error: "Authentication required.", code: "unauthenticated" }, 401)
       if (
         request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !==
         "application/json"
       ) {
-        return json({ error: "Upload the backup as application/json." }, 415)
+        return json(
+          { error: "Upload the backup as application/json.", code: "invalid_request" },
+          415,
+        )
       }
-      return itemJson(request, await service.restoreUserBackup(userId, await readBackup(request)), {
-        headers: { "Cache-Control": "no-store" },
-      })
+      return json(await service.restoreUserBackup(userId, await readBackup(request)))
     } catch (error) {
       return errorResponse(error, service)
     }

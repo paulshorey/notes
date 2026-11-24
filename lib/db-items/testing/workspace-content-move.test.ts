@@ -22,12 +22,9 @@ import { ItemGroupConflictError, ItemGroupNotFoundError } from "../sql/item-grou
 import { previewItemGroup } from "../sql/item-groups"
 import { createStatusForWorkspace, listStatusesByWorkspace } from "../sql/status"
 import { listTagsByWorkspace } from "../sql/tag"
-import {
-  createWorkspaceForUser,
-  deleteWorkspaceForUser,
-  listWorkspacesByUser,
-  lockUserWorkspaces,
-} from "../sql/workspace"
+import { createWorkspaceForUser, listWorkspacesByUser, lockUserWorkspaces } from "../sql/workspace"
+import { deleteWorkspaceForUser } from "../sql/workspace-delete"
+import { listTrashedItemsByUser } from "../sql/item/trash"
 import { pruneEmptyWorkspaceTaxonomy } from "../sql/workspace-cleanup"
 
 const testDbUrl = process.env.DB_ITEMS_TEST_URL ?? process.env.DB_NOTES_TEST_URL
@@ -221,7 +218,9 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
         (await listTagsByWorkspace(userId, source.id)).map(({ id }) => id),
         [oldTag],
       )
-      assert.deepEqual(await listStatusesByWorkspace(userId, source.id), [])
+      // Statuses are a workflow's columns, so they stay when their items leave.
+      const statusesLeft = await listStatusesByWorkspace(userId, source.id)
+      assert.ok(statusesLeft.length > 0)
       assert.ok(
         (await listWorkspacesForItemsApp({ userId })).workspaces.some(
           ({ id }) => id === keepWorkspace.id,
@@ -229,12 +228,12 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       )
       assert.deepEqual(
         await listStatusesByWorkspace(userId, source.id),
-        [],
-        "bootstrap leaves cleaned taxonomy empty",
+        statusesLeft,
+        "bootstrap leaves the workspace's vocabulary as it was",
       )
     }))
 
-  test("moving a category moves every item kind, creates missing vocabulary, and removes the emptied workspace", () =>
+  test("moving a category moves every item kind, creates missing vocabulary, and keeps the emptied workspace", () =>
     withUser(async (userId) => {
       const source = await createWorkspaceForUser(userId, "source")
       const destination = await createWorkspaceForUser(userId, "destination")
@@ -274,11 +273,12 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
 
       const result = await move(userId, selection, destination.id)
       assert.deepEqual(result.workspaceMove?.itemIds, [note.id, task.id, late.id])
-      assert.equal(result.cleanup?.workspaceRemoved, true)
+      assert.equal(result.cleanup?.workspaceRemoved, false)
       assert.deepEqual(
-        (await listWorkspacesByUser(userId)).map(({ id }) => id),
-        [destination.id],
+        (await listWorkspacesByUser(userId)).map(({ id }) => id).sort((a, b) => a - b),
+        [source.id, destination.id].sort((a, b) => a - b),
       )
+      assert.deepEqual(await listItemsByUser(userId, source.id), [])
       const saved = (await listItemsByUser(userId, destination.id)).find(
         ({ id }) => id === task.id,
       )!
@@ -349,18 +349,20 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
         snapshot,
       })
 
-      const [destination] = await listWorkspacesByUser(userId)
-      assert.equal(destination?.label, "new destination")
+      const destination = (await listWorkspacesByUser(userId)).find(
+        ({ label }) => label === "new destination",
+      )!
+      assert.ok(destination)
       assert.deepEqual(result.workspaceMove, {
         destinationWorkspaceId: destination.id,
         itemIds: [original.id, late.id],
       })
-      assert.equal(result.cleanup?.workspaceRemoved, true)
+      assert.equal(result.cleanup?.workspaceRemoved, false)
       const items = await listItemsByUser(userId, destination.id)
       assert.equal(items.find(({ uid }) => uid === original.uid)?.subcategory?.label, "child")
     }))
 
-  test("individual deletion prunes only empty taxonomy and removes an empty workspace", () =>
+  test("individual deletion prunes only empty taxonomy and keeps an empty workspace", () =>
     withUser(async (userId) => {
       const source = await createWorkspaceForUser(userId, "source")
       const parent = await category(source.id, "parent")
@@ -377,56 +379,42 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       assert.equal(await deleteItemForUser(removed.id, userId), true)
       assert.equal((await listCategoriesByWorkspace(userId, source.id))[0]?.id, parent)
       assert.deepEqual((await listCategoriesByWorkspace(userId, source.id))[0]?.subcategories, [])
-      assert.deepEqual(await listStatusesByWorkspace(userId, source.id), [])
+      // The status no item holds any more is still a column of the workflow.
+      assert.ok(
+        (await listStatusesByWorkspace(userId, source.id)).some(({ id }) => id === status.id),
+      )
       assert.deepEqual(
         (await listTagsByWorkspace(userId, source.id)).map(({ id }) => id),
         [tagId],
       )
       assert.equal(await deleteItemForUser(retained.id, userId), true)
-      const workspaces = await listWorkspacesByUser(userId)
-      assert.equal(workspaces.length, 1)
-      assert.notEqual(workspaces[0]?.id, source.id)
+      // Only the user deletes a workspace: one left with no items stays.
+      assert.ok((await listWorkspacesByUser(userId)).some(({ id }) => id === source.id))
     }))
 
-  test("explicit workspace deletion preserves the last workspace after concurrent cleanup", () =>
+  test("deleting a workspace trashes its items, checks the reviewed count, and leaves a workspace", () =>
     withUser(async (userId) => {
-      const retained = await createWorkspaceForUser(userId, "other workspace")
-      const removed = await createWorkspaceForUser(userId, "source")
-      const pool = new Pool({ connectionString: testDbUrl })
-      const cleanup = await pool.connect()
-      try {
-        await cleanup.query("BEGIN ISOLATION LEVEL REPEATABLE READ")
-        await lockUserWorkspaces(cleanup, userId)
-        const deletion = deleteWorkspaceForUser(userId, retained.id)
-        try {
-          let waiting = false
-          for (let attempt = 0; attempt < 300 && !waiting; attempt++) {
-            const { rows } = await cleanup.query<{ waiting: boolean }>(
-              `SELECT EXISTS (
-                SELECT 1 FROM pg_stat_activity WHERE pg_backend_pid()=ANY(pg_blocking_pids(pid))
-              ) AS waiting`,
-            )
-            waiting = rows[0]!.waiting
-            if (!waiting) await setTimeout(10)
-          }
-          assert.ok(waiting, "explicit deletion should wait for cleanup's workspace locks")
-          assert.equal(await pruneEmptyWorkspaceTaxonomy(cleanup, userId, removed.id), true)
-          await cleanup.query("COMMIT")
-        } finally {
-          await cleanup.query("ROLLBACK")
-        }
-        assert.equal(await deletion, false)
-        assert.deepEqual(
-          (await listWorkspacesByUser(userId)).map(({ id }) => id),
-          [retained.id],
-        )
-      } finally {
-        cleanup.release()
-        await pool.end()
-      }
+      const source = await createWorkspaceForUser(userId, "source")
+      const kept = await item(userId, source.id, {})
+      // The caller reviewed an empty workspace, and it is not empty.
+      await assert.rejects(deleteWorkspaceForUser(userId, source.id, 0), ItemGroupConflictError)
+      assert.equal((await listItemsByUser(userId, source.id)).length, 1)
+
+      assert.equal(await deleteWorkspaceForUser(userId, source.id, 1), true)
+      const trash = await listTrashedItemsByUser(userId)
+      assert.deepEqual(
+        trash.items.map((entry) => [entry.workspaceLabel, entry.description]),
+        [["source", kept.description]],
+      )
+      assert.equal(await deleteWorkspaceForUser(userId, source.id), false)
+
+      // Deleting every workspace leaves a fresh one to capture into.
+      for (const workspace of await listWorkspacesByUser(userId))
+        assert.equal(await deleteWorkspaceForUser(userId, workspace.id), true)
+      assert.equal((await listWorkspacesByUser(userId)).length, 1)
     }))
 
-  test("deleting an empty category cleans its source workspace and preserves other workspaces", () =>
+  test("deleting an empty category leaves every workspace in place", () =>
     withUser(async (userId) => {
       const source = await createWorkspaceForUser(userId, "source")
       const retained = await createWorkspaceForUser(userId, "other workspace")
@@ -434,7 +422,7 @@ describe("workspace content moves and cleanup (DB)", { skip: !testDbUrl }, () =>
       assert.equal(await deleteCategoryForWorkspace(userId, source.id, empty), true)
       assert.deepEqual(
         (await listWorkspacesByUser(userId)).map(({ id }) => id),
-        [retained.id],
+        [source.id, retained.id],
       )
     }))
 

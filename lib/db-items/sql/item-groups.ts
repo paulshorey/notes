@@ -16,6 +16,7 @@ import { deleteItemsForUserWithClient } from "./item/delete"
 import { moveWorkspaceItems } from "./item/workspace-move"
 import { createWorkspaceForUserWithClient, lockUserWorkspaces } from "./workspace"
 import { pruneEmptyWorkspaceTaxonomy } from "./workspace-cleanup"
+import { InvalidRequestError } from "../contracts/request-error"
 
 interface GroupRow {
   id: number
@@ -189,7 +190,7 @@ const withGroup = async <T>(
       if (!workspaceIds.has(selection.workspaceId)) throw new ItemGroupNotFoundError()
       if (action.kind === "move-to-workspace" && action.destinationWorkspaceId !== undefined) {
         if (selection.workspaceId === action.destinationWorkspaceId)
-          throw new Error("Choose a different workspace.")
+          throw new InvalidRequestError("Choose a different workspace.")
         if (!workspaceIds.has(action.destinationWorkspaceId)) throw new ItemGroupNotFoundError()
       }
     }
@@ -250,7 +251,7 @@ const actions: {
     if (!state.category && ids.length === 0)
       throw new ItemGroupConflictError("This group is empty. There are no items to categorize.")
     assertCategoryNameAllowed(action.label)
-    if (!action.label.trim()) throw new Error("label is required.")
+    if (!action.label.trim()) throw new InvalidRequestError("label is required.")
     const label = action.label.trim().toLocaleLowerCase()
     const unchanged = { removedCategoryId: null, removedSubcategoryId: null, deletedItemIds: [] }
     if (state.subcategory) {
@@ -289,7 +290,9 @@ const actions: {
   },
   delete: async ({ client, userId, selection, state, ids }, action) => {
     if (!state.category && !action.deleteItems)
-      throw new Error("Uncategorized items can only be deleted or assigned to a category.")
+      throw new InvalidRequestError(
+        "Uncategorized items can only be deleted or assigned to a category.",
+      )
     // Items are deleted or unfiled first: the item foreign keys take no delete action,
     // so a category or subcategory that still files an item cannot be removed.
     if (action.deleteItems) {
@@ -337,7 +340,8 @@ const actions: {
       (action.destinationWorkspaceLabel
         ? await createWorkspaceForUserWithClient(client, userId, action.destinationWorkspaceLabel)
         : undefined)
-    if (destinationWorkspaceId === undefined) throw new Error("Choose a destination workspace.")
+    if (destinationWorkspaceId === undefined)
+      throw new InvalidRequestError("Choose a destination workspace.")
     const itemIds = await moveWorkspaceItems(
       client,
       selection.workspaceId,
@@ -356,7 +360,7 @@ const actions: {
   },
   move: async ({ client, selection, state, ids }, action) => {
     if (!state.category)
-      throw new Error("Uncategorized items are filed by naming a category for them.")
+      throw new InvalidRequestError("Uncategorized items are filed by naming a category for them.")
     const source = state.category
     // Every branch refiles the same items; nothing is deleted except the row that
     // is replaced by its counterpart on the other level.
@@ -403,7 +407,8 @@ const actions: {
         deletedItemIds: [],
       }
     }
-    if (action.categoryId === null) throw new Error("This group is already a category.")
+    if (action.categoryId === null)
+      throw new InvalidRequestError("This group is already a category.")
     if (action.categoryId === source.id)
       throw new ItemGroupConflictError("A category cannot be moved into itself.")
     if (state.subcategories.length > 0)

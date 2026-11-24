@@ -16,7 +16,6 @@ import {
   parsePreviewItemGroupRequest,
 } from "../services/item-group-actions"
 import { createItemForUser, listItemsByUser, parseItemInput, updateItemForUser } from "../sql/item"
-import { OUTDATED_ITEM_REQUEST_ERROR } from "../sql/item/parse"
 import { executeItemGroupAction, previewItemGroup } from "../sql/item-groups"
 import { ItemGroupConflictError, ItemGroupNotFoundError } from "../sql/item-group-errors"
 import { createAnonymousUser } from "../sql/user/anonymous"
@@ -35,13 +34,6 @@ test("an item request names one category, and a request that lists several is re
   )
   assert.equal(parseItemInput(base).categoryId, null)
   assert.equal(parseItemInput(base).subcategoryId, null)
-  // A page loaded before items had one category would unfile the item by saving it.
-  for (const categoryIds of [[7, 3], [7], []])
-    assert.throws(() => parseItemInput({ ...base, categoryIds }), {
-      message: OUTDATED_ITEM_REQUEST_ERROR,
-    })
-  // A request that names the single field is current, whatever else it carries.
-  assert.equal(parseItemInput({ ...base, categoryId: null, categoryIds: [7] }).categoryId, null)
   assert.throws(() => parseItemInput({ ...base, categoryId: 0 }))
 })
 
@@ -128,7 +120,7 @@ describe("one category and one subcategory per item (DB)", { skip: !testDbUrl },
     const item = (values: Partial<ItemInput> = {}) =>
       createItemForUser(userId, input(values), noEmbedding)
     const update = (itemId: number, values: Partial<ItemInput> = {}) =>
-      updateItemForUser(itemId, userId, input(values), null)
+      updateItemForUser(itemId, userId, input(values))
     const stored = async (itemId: number) =>
       (await listItemsByUser(userId, workspace.id)).find((row) => row.id === itemId)!
     const categories = async () =>

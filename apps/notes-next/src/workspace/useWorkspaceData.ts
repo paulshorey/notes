@@ -11,7 +11,7 @@ import {
 import { ITEMS_APP_SEARCH_MAX_RESULTS } from "@lib/db-items/item-search-constants"
 import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
 import { useCallback, useMemo, useRef } from "react"
-import { itemsFetch, readJson } from "@/lib/api"
+import { readJson } from "@/lib/api"
 import { updateItemsCacheList, updateItemsCacheUser } from "@/lib/itemsCache"
 import { RESULTS_COLUMN_DEFAULT_WIDTH } from "@/lib/resultsColumn"
 import {
@@ -123,7 +123,7 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
       if (showLoadingIndicator) setItemsLoading(true)
       const request = (latestItemsRequestRef.current += 1)
       try {
-        const response = await itemsFetch(`/api/items?workspaceId=${workspaceId}`, {
+        const response = await fetch(`/api/items?workspaceId=${workspaceId}`, {
           cache: "no-store",
         })
         const data = await readJson<ItemsResponse>(response)
@@ -144,7 +144,7 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
   const loadCategories = useCallback(
     async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
       if (workspaceId === null) return []
-      const response = await itemsFetch(`/api/categories?workspaceId=${workspaceId}`, {
+      const response = await fetch(`/api/categories?workspaceId=${workspaceId}`, {
         cache: "no-store",
       })
       const data = await readJson<CategoriesResponse>(response)
@@ -159,7 +159,7 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
   const loadTags = useCallback(
     async (userId: number, workspaceId = activeWorkspaceIdRef.current) => {
       if (workspaceId === null) return []
-      const response = await itemsFetch(`/api/tags?workspaceId=${workspaceId}`, {
+      const response = await fetch(`/api/tags?workspaceId=${workspaceId}`, {
         cache: "no-store",
       })
       const data = await readJson<TagsResponse>(response)
@@ -175,7 +175,7 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
     async (userId: number, query: string, limit: number) => {
       const workspaceId = activeWorkspaceIdRef.current
       if (workspaceId === null) return []
-      const response = await itemsFetch("/api/items/search", {
+      const response = await fetch("/api/items/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -205,7 +205,7 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
           void Promise.all([
             loadCategories(userId, workspaceId),
             loadTags(userId, workspaceId),
-            itemsFetch(`/api/statuses?workspaceId=${workspaceId}`, { cache: "no-store" })
+            fetch(`/api/statuses?workspaceId=${workspaceId}`, { cache: "no-store" })
               .then(readJson<import("@lib/db-items").StatusesResponse>)
               .then((data) => {
                 if (activeWorkspaceIdRef.current !== workspaceId) return

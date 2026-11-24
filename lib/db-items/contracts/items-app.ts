@@ -129,10 +129,11 @@ export interface SemanticSearchResult {
   similarity: number
 }
 
+/** A new item. It must hold content: text, a time block, or a journal day. */
 export interface ItemInput {
   /**
-   * On create, the uid the new item takes. A create repeated with the same uid returns
-   * the item the first one stored. Ignored on update.
+   * The uid the new item takes. A create repeated with the same uid returns the item
+   * the first one stored.
    */
   uid?: string | null
   workspaceId: number
@@ -141,20 +142,34 @@ export interface ItemInput {
   statusId: number | null
   tagIds: number[]
   description: string | null
-  /**
-   * The time block. Given only one of the two, the other takes the same instant. A
-   * request that names neither field leaves a stored item's time block as it is, so a
-   * client that does not know about time blocks cannot remove one.
-   */
+  /** The time block. Given only one of the two, the other takes the same instant. */
   timeStart?: string | null
   timeEnd?: string | null
-  /**
-   * The journal day, as `YYYY-MM-DD`. Like the time block, a request that leaves it out
-   * says nothing about it, and `null` removes it. A workspace has one entry per day.
-   */
+  /** The journal day, as `YYYY-MM-DD`. A workspace has one entry per day. */
   entryDate?: string | null
   timeDue: string | null
   timeRemind: string | null
+}
+
+/**
+ * A change to a stored item. A field that is absent is left as stored, and `null`
+ * clears it (`tagIds: []` removes every tag). The result must still hold content, and
+ * each state it holds must have what it requires; see `contracts/item-model.ts`.
+ */
+export interface ItemPatch {
+  /** When given, it must be the workspace the item is in. An update never moves an item. */
+  workspaceId?: number
+  categoryId?: number | null
+  subcategoryId?: number | null
+  statusId?: number | null
+  tagIds?: number[]
+  description?: string | null
+  /** Given only one of the two, the other takes the same instant. */
+  timeStart?: string | null
+  timeEnd?: string | null
+  entryDate?: string | null
+  timeDue?: string | null
+  timeRemind?: string | null
 }
 
 export interface SessionRequest {
@@ -237,7 +252,7 @@ export interface CreateItemRequest {
 export interface UpdateItemRequest {
   userId: number
   itemId: number
-  item: ItemInput
+  item: ItemPatch
   /**
    * The `timeModified` of the item as the caller last saw it. When the stored item has
    * changed since, the update is refused with `409` and an `ItemConflictResponse`.
@@ -249,6 +264,7 @@ export interface UpdateItemRequest {
 /** The body of a `409` for an update that named a stale `expectedTimeModified`. */
 export interface ItemConflictResponse {
   error: string
+  code: ErrorCode
   /** The item as it is stored now. */
   item: ItemRecord
 }
@@ -261,6 +277,13 @@ export interface DeleteItemRequest {
 
 export interface TrashRequest {
   userId: number
+  /** The `nextCursor` of the previous page. */
+  before?: string
+}
+
+export interface ItemEmbeddingRequest {
+  userId: number
+  itemId: number
 }
 
 export interface RestoreTrashedItemRequest {
@@ -274,11 +297,21 @@ export interface RestoreTrashedItemRequest {
   combineJournalDay?: boolean
 }
 
-/** Give an item a journal day another entry already has, by combining it into that entry. */
+/** Move an item's text into the journal entry that `entryDate` already has. */
 export interface CombineJournalDayRequest {
   userId: number
   itemId: number
   entryDate: string
+}
+
+export interface CombineJournalDayResponse {
+  /** The day's entry, now holding the text. */
+  item: ItemRecord
+  /**
+   * The item the text came from, emptied of it. Null when the text was all it held: it
+   * could not be kept and is in the trash.
+   */
+  source: ItemRecord | null
 }
 
 /** Without a `trashId`, the user's whole trash is emptied. */
@@ -342,7 +375,13 @@ export interface UpdateWorkspaceRequest {
 export interface DeleteWorkspaceRequest {
   userId: number
   workspaceId: number
+  /** Always `"delete-workspace"`. */
   confirmation: string
+  /**
+   * The number of items the caller reviewed. When the workspace holds a different
+   * number, the deletion is refused with `409` and nothing is deleted.
+   */
+  expectedItemCount?: number
 }
 export interface CreateStatusRequest {
   userId: number
@@ -439,7 +478,12 @@ export interface DeleteResponse {
 }
 
 export interface TrashResponse {
+  /** One page, newest first. */
   items: TrashedItemRecord[]
+  /** True when older entries remain. */
+  hasMore: boolean
+  /** Pass as `before` for the next page. Null on the last page. */
+  nextCursor: string | null
   /** Days a deleted item stays in the trash before it is removed for good. */
   retentionDays: number
 }
@@ -449,8 +493,23 @@ export interface PurgeTrashResponse {
   purged: number
 }
 
+/** Why a request failed, for a program. `error` is the sentence for a person. */
+export type ErrorCode =
+  | "invalid_request"
+  | "unauthenticated"
+  | "not_found"
+  | "conflict"
+  | "item_changed"
+  | "journal_day_taken"
+  | "content_required"
+  | "requirement_missing"
+  | "search_unavailable"
+  | "unavailable"
+  | "internal"
+
 export interface ErrorResponse {
   error: string
+  code: ErrorCode
 }
 
 /** Portable user data; credentials and generated search vectors are excluded. */

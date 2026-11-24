@@ -8,7 +8,7 @@ set -u
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-base_url="${NOTES_BASE_URL:-http://localhost:5500}"
+base_url="${NOTES_BASE_URL:-http://localhost:4100}"
 base_url_was_explicit=0
 skip_db=0
 warning_count=0
@@ -26,7 +26,7 @@ Read-only checks for the Notes git checkout, app health, database schema and
 migration ledger, GitHub PR checks, and optional Railway CLI linkage.
 
 Options:
-  --base-url URL  Check URL/api/health (default: http://localhost:5500)
+  --base-url URL  Check URL/api/health (default: http://localhost:4100)
   --skip-db       Do not connect to the configured item database
   --help          Show this help
 
@@ -279,7 +279,7 @@ if command -v curl >/dev/null 2>&1; then
     if [[ $base_url_was_explicit -eq 1 ]]; then
       fail "$health_url did not respond"
     else
-      warn "$health_url did not respond; start it with pnpm run dev:app"
+      warn "$health_url did not respond; start it with pnpm run dev"
     fi
   else
     fail "$health_url returned HTTP $health_status"

@@ -153,3 +153,36 @@
   color: var(--g-color-text-secondary, rgba(255, 255, 255, 0.62));
   font-size: 1rem;
 }
+
+.optionRow {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.optionRow .option {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.optionDelete {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--g-color-text-secondary, rgba(255, 255, 255, 0.62));
+  cursor: pointer;
+}
+
+.optionDelete:hover,
+.optionDelete:focus-visible {
+  background: var(--g-color-base-generic-hover, rgba(255, 255, 255, 0.08));
+  color: var(--g-color-text-danger, #e5484d);
+  outline: none;
+}

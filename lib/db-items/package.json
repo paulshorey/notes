@@ -22,11 +22,13 @@
     "./contracts/item-content": "./contracts/item-content.ts",
     "./contracts/item-capabilities": "./contracts/item-capabilities.ts",
     "./contracts/item-kinds": "./contracts/item-kinds.ts",
+    "./contracts/item-model": "./contracts/item-model.ts",
+    "./contracts/request-error": "./contracts/request-error.ts",
     "./contracts/public-uid": "./contracts/public-uid.ts"
   },
   "scripts": {
-    "app:contract:check": "node scripts/generate-app-contract.mjs --check",
-    "app:contract:generate": "node scripts/generate-app-contract.mjs --write",
+    "app:contract:check": "node scripts/generate-app-contract.mjs --check && node --import tsx scripts/generate-item-model.ts --check",
+    "app:contract:generate": "node scripts/generate-app-contract.mjs --write && node --import tsx scripts/generate-item-model.ts --write",
     "check-types": "tsc --noEmit && pnpm app:contract:check",
     "db:schema:snapshot": "bash scripts/snapshot-schema.sh",
     "db:types:generate": "node scripts/generate-types.mjs",

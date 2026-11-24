@@ -47,7 +47,6 @@ export default defineRailway((ctx) => {
       watchPatterns: [
         "apps/notes-next/**",
         "lib/db-items/**",
-        "lib/db-notes/**",
         "lib/atomic-editor/**",
         "lib/config/**",
         "package.json",

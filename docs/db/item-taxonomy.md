@@ -66,13 +66,10 @@ account's rows. A backup nests `subcategories` under each category and stores
 `category` and `subcategory` labels on each item; restore rejects a subcategory outside
 the item's category. An item's duplicate-detection identity includes both labels.
 
-## Earlier clients and files
+## Stored formats
 
-- **Requests.** An item request that lists `categoryIds` without `categoryId` comes
-  from a page loaded before items had one category. Saving it would unfile the item, so
-  it is refused with a message to reload, and the page keeps its draft.
 - **Backups.** Every client downloads the current version. Versions 1 and 2 list
   several categories per item; import keeps the first one listed.
-- **Browser storage.** The server-data cache and open-item snapshots are schema
-  version 4. Readers upgrade a stored list of categories to its first entry, and a clean
-  entry stays clean so the upgrade is never saved back as an edit.
+- **Browser storage.** Open-item snapshots are schema version 4. The reader upgrades a
+  stored list of categories to its first entry, and a clean entry stays clean so the
+  upgrade is never saved back as an edit.

@@ -1,6 +1,7 @@
 export { createItemForUser, createOrFindItemForUser } from "./add"
-export { deleteItemForUser, TRASH_RETENTION_DAYS } from "./delete"
+export { deleteItemForUser } from "./delete"
 export {
+  isTrashCursor,
   listTrashedItemsByUser,
   purgeTrashedItemsForUser,
   restoreTrashedItemForUser,
@@ -15,13 +16,20 @@ export {
   searchItemsByEmbedding,
   selectItemEmbeddingStateById,
 } from "./gets"
-export { parseItemInput } from "./parse"
-export { updateItemEmbeddingsForUser, updateItemForUser } from "./update"
+export { parseItemInput, parseItemPatch } from "./parse"
+export {
+  ITEM_CHANGED_ERROR,
+  ItemChangedError,
+  updateItemEmbeddingsForUser,
+  updateItemForUser,
+} from "./update"
 export type {
   CategoryRef,
   ItemEmbeddingBackfillRow,
   ItemEmbeddingWriteInput,
   ItemInput,
+  ItemPatch,
   ItemRecord,
   SemanticSearchResult,
 } from "./types"
+export { TRASH_RETENTION_DAYS } from "../../contracts/item-model"

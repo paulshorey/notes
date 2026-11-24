@@ -1,7 +1,11 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { readItemsUserId } from "./lib/sessionIdentity"
-import { createAnonymousUser, isCurrentCredentialVersion, verifyUserCredentials } from "@lib/db-items/sql/user"
+import {
+  createAnonymousUser,
+  isCurrentCredentialVersion,
+  verifyUserCredentials,
+} from "@lib/db-items/sql/user"
 import { authConfig } from "./auth.config"
 
 export const { auth, handlers, signIn, signOut } = NextAuth({
@@ -60,7 +64,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
       delete token.credentialCheckUnavailable
       if (user?.itemsUserId) {
         token.itemsUserId = user.itemsUserId
-        token.notesUserId = user.itemsUserId
         token.isAnonymous = user.isAnonymous ?? false
         token.credentialVersion = user.credentialVersion ?? 0
         return token
@@ -76,7 +79,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           token.credentialCheckUnavailable = true
         }
         token.itemsUserId = existingId
-        token.notesUserId = existingId
       }
       return token
     },
@@ -86,7 +88,6 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         const userId = readItemsUserId(token)
         if (userId !== null) {
           session.user.itemsUserId = userId
-          session.user.notesUserId = userId
         }
         session.user.isAnonymous = (token.isAnonymous as boolean | undefined) ?? false
       }

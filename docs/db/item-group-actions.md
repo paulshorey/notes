@@ -59,10 +59,9 @@ destination reuses categories, subcategories, tags, and statuses with the same
 label. A subcategory match is scoped to its parent category. The move creates missing
 labels from the source, preserving taxonomy metadata for those new rows.
 
-An item or group deletion and a workspace move prune unreferenced categories,
-subcategories, tags, and statuses in the affected source workspace, inside the
-same transaction. If it has no items left, cleanup removes the workspace. The
-account gets a fresh starter workspace when it has no other workspace for capture.
+An item or group deletion and a workspace move prune the categories,
+subcategories, and tags no item uses in the affected source workspace, inside the
+same transaction. Statuses are kept, and so is a workspace left with no items.
 
 Actions cover the whole group in one workspace, including non-text items and
 items hidden by presentation filters. The preview reports the item count, the text
@@ -99,11 +98,9 @@ target's lock return 409; no mutation is automatically retried against a
 new selection. A timeout or lost response requires a new preview and explicit
 confirmation. Newly arrived items are never swept into a replay of an old preview.
 
-Rename preparation validates authorization and snapshot before provider work.
-Reusing an existing category does not call Jina. A new or renamed category label
-uses the embedding service before acquiring the transaction client; execution then
-checks the snapshot again. A subcategory label has no embedding and needs no
-provider. Item text embeddings are preserved.
+No group action calls the embedding provider. A new or renamed category label is
+stored without an embedding, which the next embedding maintenance run writes. A
+subcategory label has no embedding. Item text embeddings are preserved.
 
 To add a member action, extend the tagged contract, strict request parser, and
 registry handler, then regenerate the contract and add database/HTTP coverage.

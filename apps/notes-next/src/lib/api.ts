@@ -1,5 +1,9 @@
 export const getErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Unexpected request error."
+  error instanceof Error
+    ? error.name === "TimeoutError"
+      ? "The server took too long to respond. Check the connection."
+      : error.message
+    : "Unexpected request error."
 
 export class RequestError extends Error {
   readonly status: number
@@ -20,7 +24,7 @@ export const fetchWithTimeout = async (
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    return await itemsFetch(input, { ...init, signal: controller.signal })
+    return await fetch(input, { ...init, signal: controller.signal })
   } catch (error) {
     if (controller.signal.aborted) {
       throw new RequestError("Notes took too long to respond. Check the connection and retry.", 408)
@@ -43,12 +47,4 @@ export const readJson = async <T>(response: Response) => {
   }
 
   return payload as T
-}
-/** Select the current item contract on routes that also serve earlier web builds. */
-export const itemsFetch: typeof fetch = (input, init) => {
-  const headers = new Headers(
-    init?.headers ?? (input instanceof Request ? input.headers : undefined),
-  )
-  headers.set("X-Items-Contract", "2")
-  return fetch(input, { ...init, headers })
 }

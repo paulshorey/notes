@@ -4,9 +4,7 @@ import { lockUserWorkspaces } from "../workspace"
 import { pruneEmptyWorkspaceTaxonomy } from "../workspace-cleanup"
 import { ItemGroupConflictError } from "../item-group-errors"
 import { TRASH_ITEMS_SQL } from "./stored-capabilities"
-
-/** Deleted items are kept in the trash this long, then removed for good. */
-export const TRASH_RETENTION_DAYS = 30
+import { purgeExpiredTrashWithClient } from "./trash"
 
 /**
  * Single and bulk deletion share ownership checks. Every deleted item goes to the
@@ -19,18 +17,39 @@ export const deleteItemsForUserWithClient = async (
   workspaceId: number | null = null,
 ) => {
   const result = await client.query<{ id: number }>(TRASH_ITEMS_SQL, [itemIds, userId, workspaceId])
-  await client.query(
-    `DELETE FROM public.user_item_trash_v1
-     WHERE user_id=$1 AND time_deleted < now() - make_interval(days => $2)`,
-    [userId, TRASH_RETENTION_DAYS],
-  )
+  await purgeExpiredTrashWithClient(client, userId)
   return result.rows.map((row) => row.id).sort((a, b) => a - b)
 }
+
+const isSerializationFailure = (error: unknown) =>
+  typeof error === "object" &&
+  error !== null &&
+  "code" in error &&
+  (error.code === "40001" || error.code === "40P01")
+
+/** Two deletions in one account wait on each other; the one that lost starts again. */
+const DELETE_ATTEMPTS = 3
 
 export const deleteItemForUser = async (
   itemId: number,
   userId: number,
   expectedWorkspaceId: number | null = null,
+) => {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await deleteItemOnce(itemId, userId, expectedWorkspaceId)
+    } catch (error) {
+      if (!isSerializationFailure(error)) throw error
+      if (attempt === DELETE_ATTEMPTS)
+        throw new ItemGroupConflictError("The workspace changed. Try deleting the item again.")
+    }
+  }
+}
+
+const deleteItemOnce = async (
+  itemId: number,
+  userId: number,
+  expectedWorkspaceId: number | null,
 ) => {
   const client = await getDb().connect()
   try {
@@ -51,13 +70,6 @@ export const deleteItemForUser = async (
     return deleted
   } catch (error) {
     await client.query("ROLLBACK")
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error.code === "40001" || error.code === "40P01")
-    )
-      throw new ItemGroupConflictError("The workspace changed. Try deleting the item again.")
     throw error
   } finally {
     client.release()

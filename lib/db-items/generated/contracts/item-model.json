@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "capabilities": [
+    {
+      "key": "text",
+      "role": "content",
+      "fields": [
+        "description"
+      ],
+      "presentWhenAny": [
+        {
+          "field": "description",
+          "test": "nonblank"
+        }
+      ],
+      "requires": [],
+      "description": "Authored text."
+    },
+    {
+      "key": "time",
+      "role": "content",
+      "fields": [
+        "timeStart",
+        "timeEnd"
+      ],
+      "presentWhenAny": [
+        {
+          "field": "timeStart",
+          "test": "set"
+        }
+      ],
+      "requires": [],
+      "description": "A time block: a start and an end, set together and in order. Given one, the other takes its value."
+    },
+    {
+      "key": "day",
+      "role": "content",
+      "fields": [
+        "entryDate"
+      ],
+      "presentWhenAny": [
+        {
+          "field": "entryDate",
+          "test": "set"
+        }
+      ],
+      "requires": [],
+      "description": "The calendar day of a journal entry. A workspace has one entry per day."
+    },
+    {
+      "key": "schedule",
+      "role": "state",
+      "fields": [
+        "timeDue",
+        "timeRemind"
+      ],
+      "presentWhenAny": [
+        {
+          "field": "timeDue",
+          "test": "set"
+        },
+        {
+          "field": "timeRemind",
+          "test": "set"
+        }
+      ],
+      "requires": [],
+      "description": "A due time, a reminder time, or both."
+    },
+    {
+      "key": "status",
+      "role": "state",
+      "fields": [
+        "statusId"
+      ],
+      "presentWhenAny": [
+        {
+          "field": "statusId",
+          "test": "set"
+        }
+      ],
+      "requires": [
+        "text"
+      ],
+      "description": "One of the workspace's statuses. It tracks something written down."
+    }
+  ],
+  "taxonomy": {
+    "fields": [
+      "categoryId",
+      "subcategoryId",
+      "tagIds"
+    ],
+    "description": "At most one category, at most one subcategory of that category, and any number of tags, all from the item's workspace."
+  },
+  "kinds": [
+    {
+      "key": "note",
+      "holdsAll": [
+        "text"
+      ],
+      "description": "An item with text."
+    },
+    {
+      "key": "task",
+      "holdsAll": [
+        "text",
+        "status"
+      ],
+      "description": "Text that is tracked by a status."
+    },
+    {
+      "key": "time",
+      "holdsAll": [
+        "time"
+      ],
+      "description": "An item with a time block."
+    },
+    {
+      "key": "journal",
+      "holdsAll": [
+        "day"
+      ],
+      "description": "The journal entry of one day."
+    }
+  ],
+  "rules": {
+    "kinds": "A kind is computed from what the item holds and never stored. An item can be several kinds at once, and it stops being a kind when a capability that kind holds is removed.",
+    "create": {
+      "contentRequired": true,
+      "idempotency": "A create may name the item's uid. Repeating it stores nothing and answers 200 with the stored item instead of 201."
+    },
+    "update": {
+      "absentField": "unchanged",
+      "nullField": "cleared",
+      "version": "expectedTimeModified names the timeModified the caller last saw. A stale one writes nothing and answers 409 with the stored item.",
+      "contentRequired": "An update that would leave the item with no content is refused with content_required. Delete the item instead.",
+      "requirementMissing": "An update that would leave a state without a capability it requires is refused with requirement_missing. Clear that state in the same request."
+    },
+    "delete": {
+      "destination": "trash",
+      "retentionDays": 30,
+      "vocabulary": "Deleting an item removes each category, subcategory, and tag that no item uses any more. Statuses and the workspace are kept."
+    }
+  },
+  "removals": [
+    {
+      "capability": "text",
+      "clearFields": [
+        "description"
+      ],
+      "kindsLost": [
+        "note",
+        "task"
+      ],
+      "refusedWhileHolding": [
+        "status"
+      ],
+      "refusedWhenLastContent": true
+    },
+    {
+      "capability": "time",
+      "clearFields": [
+        "timeStart",
+        "timeEnd"
+      ],
+      "kindsLost": [
+        "time"
+      ],
+      "refusedWhileHolding": [],
+      "refusedWhenLastContent": true
+    },
+    {
+      "capability": "day",
+      "clearFields": [
+        "entryDate"
+      ],
+      "kindsLost": [
+        "journal"
+      ],
+      "refusedWhileHolding": [],
+      "refusedWhenLastContent": true
+    },
+    {
+      "capability": "schedule",
+      "clearFields": [
+        "timeDue",
+        "timeRemind"
+      ],
+      "kindsLost": [],
+      "refusedWhileHolding": [],
+      "refusedWhenLastContent": false
+    },
+    {
+      "capability": "status",
+      "clearFields": [
+        "statusId"
+      ],
+      "kindsLost": [
+        "task"
+      ],
+      "refusedWhileHolding": [],
+      "refusedWhenLastContent": false
+    }
+  ]
+}

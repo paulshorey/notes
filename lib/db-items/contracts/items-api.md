@@ -1,7 +1,8 @@
 # Item API
 
-`apps/notes-next` serves these authenticated routes over the canonical item
-service. The current web UI edits text items and calls them notes.
+`apps/notes-next` serves these routes over the item service. All but
+`GET /api/items/model` are authenticated. The web UI edits text items and calls them
+notes.
 
 ## Source of truth and identity
 
@@ -18,65 +19,98 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 
 ## Item operations
 
-| Route                                    | Request                                              | Response                                                                      |
-| ---------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `GET /api/items?workspaceId=...`         | Authorized workspace                                 | `{ items: ItemRecord[] }`                                                     |
-| `POST /api/items`                        | `{ item: ItemInput }`                                | `201 { item: ItemRecord }`                                                    |
-| `PATCH /api/items`                       | `{ itemId, item: ItemInput, expectedTimeModified? }` | `{ item: ItemRecord }`, or `409 { error, item }` when the stored item changed |
-| `DELETE /api/items`                      | `{ itemId }`                                         | `{ ok: true }`; the item goes to trash                                        |
-| `GET /api/items/trash`                   | None                                                 | `{ items: TrashedItemRecord[], retentionDays }`                               |
-| `POST /api/items/trash`                  | `{ trashId }`                                        | `{ item: ItemRecord }`, restored                                              |
-| `DELETE /api/items/trash`                | `{ trashId? }`                                       | `{ ok: true, purged }`                                                        |
-| `POST /api/items/search`                 | `{ workspaceId, query, limit }`                      | `{ results: [{ item, similarity }] }`                                         |
-| `POST /api/items/maintenance/embeddings` | `{ mode, limit }`                                    | `{ mode, processed, updated, hasMore }`                                       |
+| Route                                    | Request                                              | Response                                                             |
+| ---------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `GET /api/items/model`                   | None; no authentication                              | The item model                                                       |
+| `GET /api/items?workspaceId=...`         | Authorized workspace                                 | `{ items: ItemRecord[] }`                                            |
+| `POST /api/items`                        | `{ item: ItemInput }`                                | `201 { item }`, or `200 { item }` for a uid that exists              |
+| `PATCH /api/items`                       | `{ itemId, item: ItemPatch, expectedTimeModified? }` | `{ item }`, or `409 item_changed` with the stored item               |
+| `DELETE /api/items`                      | `{ itemId }`                                         | `{ ok: true }`; the item goes to trash                               |
+| `POST /api/items/journal`                | `{ itemId, entryDate }`                              | `{ item, source }`: the day's entry, and the emptied item or `null`  |
+| `GET /api/items/trash?before=<cursor>`   | Optional `before`                                    | `{ items: TrashedItemRecord[], hasMore, nextCursor, retentionDays }` |
+| `POST /api/items/trash`                  | `{ trashId, combineJournalDay? }`                    | `{ item }`, restored                                                 |
+| `DELETE /api/items/trash`                | `{ trashId? }`                                       | `{ ok: true, purged }`                                               |
+| `POST /api/items/search`                 | `{ workspaceId, query, limit }`                      | `{ results: [{ item, similarity }] }`                                |
+| `POST /api/items/maintenance/embeddings` | `{ mode, limit }`                                    | `{ mode, processed, updated, hasMore }`                              |
 
-`ItemInput` contains `workspaceId`, nullable `categoryId` and `subcategoryId`, nullable
-`statusId`, `tagIds`, nullable `description`, `timeDue`, and `timeRemind`, and the
-optional time block `timeStart` and `timeEnd`. Given one end of a time
-block, the other takes the same instant; given neither field, an update leaves the
-stored block as it is. `entryDate` is the optional journal day as `YYYY-MM-DD`, and is
-left as stored when omitted; a day another entry of the workspace has is refused with
-`409`, and `POST /api/items/journal` with `{ itemId, entryDate }` combines the item
-into that entry and returns it. A subcategory
-that does not belong to the category is cleared, not refused. The HTTP parser accepts
-omitted text as null. `POST` and `PATCH` return `400` when the item would hold no
-content: text, a time block, or a journal day. A due or reminder date, a status, a category, or tags
-describe content and never make an item, and a status requires text
-(`contracts/item-capabilities.ts`). Search returns only items with text.
-`ItemRecord` returns `id`, `workspaceId`, nullable `category` and `subcategory`
-references, status and tag references, `description`, the time block (`timeStart`,
-`timeEnd`), due/reminder dates, and creation/modification timestamps. An item has one workspace; relationship IDs must
-belong to that workspace. A new item needs no category. There is no `type` field.
-See `docs/db/item-taxonomy.md`.
+`GET /api/items/model` answers what an item can hold, which combinations are which
+kinds, and what a write does (`contracts/item-model.ts`; see
+`docs/db/item-model.md`). Read it instead of assuming the rules below.
 
-Search ranks query embeddings against item description embeddings. Maintenance
-modes are `missing` and `stale`. Search does not implicitly repair embeddings.
+`ItemInput` is a whole item: `workspaceId`, an optional `uid`, nullable `categoryId`,
+`subcategoryId`, and `statusId`, `tagIds`, nullable `description`, `timeDue`,
+`timeRemind`, the time block `timeStart` and `timeEnd`, and the journal day `entryDate`
+as `YYYY-MM-DD`. A field a create leaves out is empty.
 
-## Shared routes and older clients
+`ItemPatch` has the same fields, all optional, and no `uid`. A field absent from the
+patch is left as stored, `null` clears it, and `tagIds: []` removes every tag.
+`workspaceId` must name the item's workspace when given. The save rules apply to the
+merged result: `400 content_required` when it would hold no content (text, a time
+block, or a journal day), and `400 requirement_missing` when a state lacks what it
+requires, as a status without text does. `expectedTimeModified` is the `timeModified`
+the caller last saw; when the stored item is newer, nothing is written.
+
+Given one end of a time block, the other takes the same instant. A journal day another
+entry of the workspace has is refused with `409 journal_day_taken`, and
+`POST /api/items/journal` moves the item's text into that entry and keeps the item. A subcategory that does
+not belong to the category is cleared, not refused. An item has one workspace, and
+relationship ids must belong to it. A new item needs no category. There is no `type`
+field. See `docs/db/item-taxonomy.md`.
+
+`ItemRecord` returns `id`, `uid`, `workspaceId`, nullable `category` and `subcategory`
+references, status and tag references, `description`, the time block, the journal day,
+due and reminder dates, and creation and modification timestamps.
+
+The trash lists pages of 200, newest first. `hasMore` says older entries remain; ask
+for them with `before` set to the page's `nextCursor`, which stays valid when entries
+of that page are restored or purged. Entries older than
+`retentionDays` are removed before each listing and on each deletion.
+
+A create or update is stored without waiting for the embedding provider; the embedding
+is written after the response, or by maintenance when the provider fails. Search ranks
+query embeddings against item description embeddings and returns only items with
+text. Maintenance modes are `missing` and `stale`. Search does not repair embeddings.
+
+## Errors
+
+These routes, `/api/item-groups`, and the shared routes below answer with
+`Cache-Control: no-store`. An error body is `{ error, code }`: `error` is a sentence
+for a person and `code` is for a program.
+
+| Code                  | Status | Meaning                                                       |
+| --------------------- | ------ | ------------------------------------------------------------- |
+| `invalid_request`     | 400    | The request is malformed or refused by a validation rule.     |
+| `content_required`    | 400    | The item would hold no content.                               |
+| `requirement_missing` | 400    | A state would lack a capability it requires.                  |
+| `unauthenticated`     | 401    | No valid session or token.                                    |
+| `not_found`           | 404    | The user has no such record.                                  |
+| `conflict`            | 409    | A label, uid, or identifier is taken, or the target changed.  |
+| `item_changed`        | 409    | The stored item is newer; the body also carries `item`.       |
+| `journal_day_taken`   | 409    | Another entry of the workspace has that day.                  |
+| `search_unavailable`  | 503    | The embedding provider failed or is not configured.           |
+| `unavailable`         | 503    | The database is unavailable.                                  |
+| `internal`            | 500    | A server fault. The message is generic; the detail is logged. |
+
+## Shared routes
 
 `/api/bootstrap` loads the user, workspaces, and active workspace's items,
 categories, statuses, and tags. `/api/session` reads the user and updates
-preferences; `/api/workspaces`, `/api/categories`, `/api/statuses`, and `/api/tags`
+preferences. `DELETE /api/workspaces` takes `{ workspaceId, confirmation:
+"delete-workspace", expectedItemCount? }`, sends the workspace's items to the trash, and
+answers `409` when the workspace holds a different number of items than
+`expectedItemCount`. `/api/workspaces`, `/api/categories`, `/api/statuses`, and `/api/tags`
 manage the corresponding workspace-owned structures.
 
 `POST /api/categories` with a `categoryId` creates a subcategory of that category and
 returns `{ category, subcategory }`, where `category` is the refreshed parent. Category
 records nest their `subcategories`.
 
-The client sends `X-Items-Contract: 2` on shared routes. A shared route with no
-contract header also includes legacy field aliases (`notes`, `noteCount`, and import
-counts) for older loaded clients. An item request that lists `categoryIds` without
-`categoryId` returns `400` with a message to reload the page. `/api/notes`, `/api/notes/search`, and
-`/api/notes/maintenance/embeddings` remain thin authenticated facades that translate
-old `note`/`noteId` payloads into the same item service and return old field names.
-Preferences and authored text are never mechanically rewritten.
-
 ## Portable backup and restore
 
 Both methods use `/api/backup`, authenticated by the same cookie or bearer token.
 GET downloads `jot-new-backup-YYYY-MM-DD.json`, always in the current version. POST takes
 the entire JSON file, without another wrapper, and requires a permanent account.
-Success returns `{ itemsImported, itemsSkipped }` with legacy aliases when needed.
+Success returns `{ itemsImported, itemsSkipped }`.
 
 The envelope's stable format is `jot.new-user-backup`. Version 5 nests
 `subcategories` under each category, stores one `category` and `subcategory` per item,
@@ -96,14 +130,13 @@ versions are added alongside existing items. Preference leaves from the backup
 win while account-only keys survive. Restore needs no Jina connection; missing
 vectors can be repaired later through embedding maintenance.
 
-Routes use `Cache-Control: no-store`. Invalid content returns `400`, unauthenticated
-identity `401`, anonymous restore destination `403`, oversized content `413`,
-incorrect content type `415`, unavailable database `503`, and unexpected failures
-`500`. SQL and credentials are not exposed in error responses.
+Backup answers use `Cache-Control: no-store` and the same `{ error, code }` body. Invalid content
+returns `400`, unauthenticated identity `401`, anonymous restore destination `403`,
+oversized content `413`, incorrect content type `415`, unavailable database `503`, and
+unexpected failures `500`. SQL and credentials are not exposed in error responses.
 
 ## Verification
 
 Use `pnpm run db:verify` on an isolated database, the item database regression
-suite, and `pnpm run release:notes:prepare`. Compatibility tests cover older HTTP
-payloads, version-one backups, signed identity fields, and browser storage. See
-[the item-core design](../../../docs/db/item-core.md) for the database rollout.
+suite, and `pnpm run release:notes:prepare`. See
+[the item-core design](../../../docs/db/item-core.md) for the item domain.

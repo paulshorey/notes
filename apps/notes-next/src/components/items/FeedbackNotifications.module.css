@@ -26,3 +26,12 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+.savedText {
+  max-height: 40vh;
+  margin: 8px 0 0;
+  overflow: auto;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

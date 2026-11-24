@@ -98,10 +98,9 @@ persistent environments by ID. Omitting `source.branch` can clear the selected b
 so preview evaluation fails until `RAILWAY_IAC_BRANCH` is provided. Preserve the current
 branch; never silently replace a preview with `main`.
 
-The pre-deploy command is `pnpm --filter @lib/db-items db:migrate`. `@lib/db-notes`
-only forwards migration commands to `@lib/db-items`; both package paths are build
-watches. Railway provides the database URL as `DB_NOTES_URL`; the item service reads
-`DB_ITEMS_URL` first and falls back to it. See [item core](../docs/db/item-core.md).
+The pre-deploy command is `pnpm --filter @lib/db-items db:migrate`. Railway provides
+the database URL as `DB_NOTES_URL`; the item service reads `DB_ITEMS_URL` first and
+falls back to it. See [item core](../docs/db/item-core.md).
 
 The backend migrations are a pre-deploy step and the `/api/health` readiness endpoint
 must return 200. Watch paths include the app, shared libraries, lockfile, and workspace

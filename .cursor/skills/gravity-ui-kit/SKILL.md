@@ -9,7 +9,7 @@ description: Use when building React UIs with @gravity-ui/uikit. Covers imports,
 
 Docs: https://gravity-ui.com/components/uikit
 Storybook: https://preview.gravity-ui.com/uikit/
-Icons showcase: https://gravity-ui.com/icons
+Icons: https://phosphoricons.com
 
 ## Imports
 
@@ -19,19 +19,12 @@ Every component is a named export from the package root:
 import {Button, TextInput, Select, Dialog, Text, Label} from '@gravity-ui/uikit';
 ```
 
-Icons come from a separate package:
+Icons come from `@phosphor-icons/react`, which the app uses. Each icon is a component:
 
 ```tsx
-import {Gear, TrashBin, Pencil} from '@gravity-ui/icons';
-```
+import {Gear} from '@phosphor-icons/react';
 
-Use the `Icon` wrapper from uikit to render them:
-
-```tsx
-import {Icon} from '@gravity-ui/uikit';
-import {Gear} from '@gravity-ui/icons';
-
-<Icon data={Gear} size={16} />
+<Gear size={16} weight="regular" />
 ```
 
 ## Required Setup
@@ -118,7 +111,7 @@ TextInput, TextArea, Select, NumberInput, PasswordInput, PinInput all share:
 <Button view="action" size="l">Submit</Button>
 <Button view="outlined-danger" size="m" loading>Deleting…</Button>
 <Button view="flat" size="s">
-  <Icon data={Gear} size={16} />
+  <Gear size={16} />
   Settings
 </Button>
 ```
@@ -148,7 +141,7 @@ Colors: `primary`, `secondary`, `complementary`, `hint`, `info`, `positive`, `wa
   placeholder="Enter name"
   label="Name"
   hasClear
-  startContent={<Icon data={Magnifier} size={16} />}
+  startContent={<MagnifyingGlass size={16} />}
   onUpdate={(value) => setValue(value)}
 />
 ```
@@ -266,4 +259,4 @@ Requires `ToasterProvider` wrapping the app. See `.cursor/skills/gravity-ui-over
 6. **Table via HOCs**: Table features (sorting, selection, actions, copy, settings) are composed via HOCs like `withTableSorting(Table)` rather than props.
 7. **Toaster is imperative**: Uses `useToaster().add()` / `new Toaster()` rather than declarative `<Toast>` components.
 8. **ThemeProvider is mandatory**: Since v6, components require ThemeProvider at the tree root. CSS classes alone are insufficient.
-9. **Icons are a separate package**: `@gravity-ui/icons` provides SVGs; UIKit's `<Icon data={...}>` renders them.
+9. **Icons are a separate package**: use `@phosphor-icons/react` components; `@gravity-ui/icons` is not installed.

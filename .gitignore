@@ -31,7 +31,7 @@ build
 dist
 
 # Generated Next.js app declarations and TypeScript build caches.
-# Keep the root custom declarations and the create-next-app template tracked.
+# Keep the root custom declarations tracked.
 /apps/*/next-env.d.ts
 *.tsbuildinfo
 

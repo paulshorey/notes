@@ -65,7 +65,10 @@ export async function resetPasswordWithCode(requestId: string, code: string, pas
     )
     const user = rows[0]
     if (user) {
-      await client.query("UPDATE public.user_password_reset_v1 SET code_hash = NULL WHERE user_id = $1", [user.id])
+      await client.query(
+        "UPDATE public.user_password_reset_v1 SET code_hash = NULL WHERE user_id = $1",
+        [user.id],
+      )
       await client.query("DELETE FROM public.user_api_token_v1 WHERE user_id = $1", [user.id])
     }
     await client.query("COMMIT")

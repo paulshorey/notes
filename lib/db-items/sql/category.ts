@@ -85,11 +85,13 @@ export const updateCategoryEmbeddingById = async (
   id: number,
   embedding: string | null,
   model: string | null,
+  embeddedLabel: string,
 ) => {
+  // Stored only while the category still has the label that was embedded.
   const result = await getDb().query(
     `UPDATE public.workspace_category_v1 c SET category_embedding=$3::vector,embedding_model=$4,embedding_updated_at=now()
-    FROM public.user_workspace_v1 w WHERE c.id=$1 AND w.id=c.workspace_id AND w.user_id=$2`,
-    [id, userId, embedding, model],
+    FROM public.user_workspace_v1 w WHERE c.id=$1 AND w.id=c.workspace_id AND w.user_id=$2 AND c.label=$5`,
+    [id, userId, embedding, model, embeddedLabel],
   )
   return result.rowCount === 1
 }

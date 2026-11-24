@@ -1,14 +1,15 @@
-import type { ItemInput } from "./items-app"
+import { InvalidRequestError } from "./request-error"
+import type { ItemPatch } from "./items-app"
 
 export const TIME_BLOCK_ORDER_ERROR = "A time block cannot end before it starts."
 
-export class TimeBlockOrderError extends Error {
+export class TimeBlockOrderError extends InvalidRequestError {
   constructor() {
     super(TIME_BLOCK_ORDER_ERROR)
   }
 }
 
-type TimeBlockFields = Pick<ItemInput, "timeStart" | "timeEnd">
+type TimeBlockFields = Pick<ItemPatch, "timeStart" | "timeEnd">
 
 /**
  * A time block always has a start and an end, which may be the same instant. Given

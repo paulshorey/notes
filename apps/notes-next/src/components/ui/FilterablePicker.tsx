@@ -14,6 +14,9 @@ export interface FilterablePickerProps {
   onSelectOption: (option: FilterablePickerOption) => void | Promise<void>
   /** Omit for a picker with a fixed list of options and no text field. */
   onCreateOption?: (label: string) => void | Promise<void>
+  /** Adds a delete button beside each option. The popup closes and the caller takes over. */
+  onDeleteOption?: (option: FilterablePickerOption) => void
+  deleteOptionAriaLabel?: (option: FilterablePickerOption) => string
   triggerClassName?: string
   triggerLabel?: string
   triggerSuffix?: string
@@ -45,6 +48,8 @@ export function FilterablePicker({
   listboxAriaLabel,
   onSelectOption,
   onCreateOption,
+  onDeleteOption,
+  deleteOptionAriaLabel,
   triggerClassName,
   triggerLabel,
   triggerSuffix,
@@ -205,6 +210,15 @@ export function FilterablePicker({
             : undefined
         }
         onSelectOption={selectOption}
+        onDeleteOption={
+          onDeleteOption
+            ? (option) => {
+                setOpen(false)
+                onDeleteOption(option)
+              }
+            : undefined
+        }
+        deleteOptionAriaLabel={deleteOptionAriaLabel}
         showOptionCheckboxes={multiple}
         isOptionActive={(option) => selectedIdSet.has(String(option.id))}
         isOptionSelected={(option) => selectedIdSet.has(String(option.id))}

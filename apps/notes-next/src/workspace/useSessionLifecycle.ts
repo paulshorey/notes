@@ -5,7 +5,7 @@ import { type BootstrapResponse, type SessionResponse } from "@lib/db-items"
 import { useEffect } from "react"
 import { signIn, signOut } from "next-auth/react"
 import { STORAGE_KEY } from "@/constants/items"
-import { RequestError, fetchWithTimeout, getErrorMessage, itemsFetch, readJson } from "@/lib/api"
+import { RequestError, fetchWithTimeout, getErrorMessage, readJson } from "@/lib/api"
 import { recoverExpiredSession } from "@/lib/sessionRecovery"
 import {
   clearItemsCache,
@@ -245,7 +245,7 @@ export function useSessionLifecycle(
         try {
           let mergeResponse: Response | null = null
           try {
-            mergeResponse = await itemsFetch("/api/anon-session/merge", {
+            mergeResponse = await fetch("/api/anon-session/merge", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ mergeToken: pendingMergeToken }),
@@ -442,7 +442,7 @@ export function useSessionLifecycle(
 
     const timeoutId = window.setTimeout(() => {
       if (useItemsAppStore.getState().backupOperation !== null) return
-      const pendingSave = itemsFetch("/api/session", {
+      const pendingSave = fetch("/api/session", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

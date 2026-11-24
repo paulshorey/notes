@@ -310,7 +310,7 @@ describe("items without text (DB)", { skip: !testDbUrl }, () => {
       item: input(workspace.id, block),
     })
     await deleteItemForItemsApp({ userId, itemId: item.id })
-    const [entry] = await listTrashedItemsByUser(userId)
+    const [entry] = (await listTrashedItemsByUser(userId)).items
     assert.equal(entry!.description, null)
     assert.equal(entry!.timeStart, block.timeStart)
     assert.equal(entry!.timeEnd, block.timeEnd)

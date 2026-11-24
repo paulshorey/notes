@@ -20,10 +20,9 @@ Embeddings are stored on three entity types:
 | Category | `workspace_category_v1` | `label`       | `category_embedding`    |
 | Tag      | `workspace_tag_v1`      | `label`       | `tag_embedding`         |
 
-Every note belongs to one workspace, may have zero or more categories, may have
-one status, and may have zero or more tags.
-Category and tag labels are still embedded on write, but search ranking uses
-only the note's description embedding.
+Every note belongs to one workspace, may have one category, one status, and zero or
+more tags. Category and tag labels have embeddings, which embedding maintenance
+writes, but search ranking uses only the note's description embedding.
 
 ## PostgreSQL: pgvector extension
 
@@ -140,49 +139,38 @@ Relevant columns on each table:
 | `embedding_model`      | `text`         | model version tag |
 | `embedding_updated_at` | `timestamptz`  | last write        |
 
-### Schema history (brief)
-
-Embeddings evolved through several migrations:
-
-1. **202603151000** — Initial pgvector setup (OpenAI `text-embedding-3-small`,
-   1536 dims) on `title_embedding` and `content_embedding`.
-2. **202603251200** — Per-column embeddings (`summary_embedding`,
-   `description_embedding`).
-3. **202604081200** — Switched to Jina v5 at 1024 dims; nulled all existing
-   embeddings for regeneration.
-4. **202604081300** — Dropped unused `content_embedding` (computed but never
-   queried).
-5. **202604221200+** — Category/tag taxonomy tables gained their own embedding
-   columns.
-
-Only `description_embedding` is embedded per note today. Category and tag
-labels are embedded on their respective taxonomy rows.
+Only `description_embedding` is embedded per note. Category and tag labels are
+embedded on their respective taxonomy rows.
 
 ## Embedding lifecycle
 
 ### On note create / update
 
-`services/items-app.ts` calls `createNoteEmbeddingInput()` before writing to
-the database. This function:
+A write never waits on Jina. A new note, or one whose text changed, is stored with
+`description_embedding`, `embedding_model`, and `embedding_updated_at` empty. After
+the response is sent, the route handler calls `embedItemForItemsApp`
+(`services/items-app.ts`), which does nothing for an item that has no text or already
+has a current embedding. Otherwise `createItemEmbeddingInput()`:
 
 1. Normalizes the description (trim whitespace, normalize line endings).
-2. Skips the Jina call if the description is empty (embeddings set to `NULL`).
-3. Otherwise sends the description to Jina with `task: "retrieval.passage"`.
-4. Returns a `NoteEmbeddingWriteInput` with a JSON-serialized vector literal
-   and the current model tag.
+2. Sends it to Jina with `task: "retrieval.passage"`.
+3. Returns a JSON-serialized vector literal and the current model tag.
 
-INSERT/UPDATE queries cast the literal to `::vector` and set
-`embedding_updated_at`.
+`updateItemEmbeddingsForUser` casts the literal to `::vector`, sets
+`embedding_updated_at`, and leaves `time_modified` unchanged. It stores the embedding
+only while the item still holds the text that was embedded. A trash restore and a
+journal combine are followed by the same call. When Jina fails, the item stays without
+an embedding until the maintenance endpoint writes it.
 
 ### On category / tag create / update
 
-Creating or renaming a category or tag calls `createTagLabelEmbedding()` with
-the normalized label and `task: "retrieval.passage"`, then writes the vector to
-`category_embedding` or `tag_embedding` respectively.
+A category or tag is created without an embedding, and a rename clears the one it
+had. The maintenance endpoint embeds labels with `task: "retrieval.passage"` and
+writes `category_embedding` or `tag_embedding`.
 
 ### On search
 
-`searchNotesForItemsApp()` embeds the query and runs the ranking SQL. **Search
+`searchItemsForItemsApp()` embeds the query and runs the ranking SQL. **Search
 does not backfill missing embeddings.** Notes with a `NULL` description
 embedding score 0 but still appear in results (ranked lower).
 
@@ -250,7 +238,7 @@ Request body:
 }
 ```
 
-`limit` defaults to 20 and accepts 1–20 (`NOTES_APP_SEARCH_MAX_RESULTS`).
+`limit` defaults to 20 and accepts 1–20 (`ITEMS_APP_SEARCH_MAX_RESULTS`).
 
 ### Processing steps
 
@@ -307,11 +295,12 @@ The app can also trigger embedding maintenance from the UI.
 
 | Variable       | Required          | Purpose                                             |
 | -------------- | ----------------- | --------------------------------------------------- |
-| `JINA_API_KEY` | Yes               | Jina AI API authentication                          |
+| `JINA_API_KEY` | Search, embedding | Jina AI API authentication                          |
 | `DB_ITEMS_URL` | Yes (script only) | Postgres connection for `regenerate-embeddings.mjs` |
 
-If `JINA_API_KEY` is missing, search and note/taxonomy writes that require
-embedding return a 500 with "JINA_API_KEY environment variable not set."
+`JINA_API_KEY` is needed for search and embedding maintenance; saving works without
+it. When it is missing or Jina fails, those two routes answer `503` with code
+`search_unavailable`.
 
 ## Architecture diagram
 
@@ -328,27 +317,25 @@ embedding return a 500 with "JINA_API_KEY environment variable not set."
                                                │
                     retrieval.passage          │ stored vectors
 ┌─────────────┐                          ┌─────┴────────┐
-│ Note CRUD   │ ──embed on write───────▶│  Jina AI API │
-│ Category/   │                          └────────────┘
-│ Tag CRUD    │
+│ Note saved  │ ──embed after response─▶│  Jina AI API │
+│ Maintenance │                          └────────────┘
 └─────────────┘
 ```
 
 ## Key source files
 
-| Path                                                                | Role                                                        |
-| ------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `lib/db-items/services/item-embeddings.ts`                          | Jina API calls, text normalization, vector generation       |
-| `lib/db-items/services/items-app.ts`                                | Orchestrates embed-then-write for CRUD, search, maintenance |
-| `lib/db-items/sql/item/gets.ts`                                     | Search SQL with pgvector `<=>` ranking                      |
-| `lib/db-items/sql/item/add.ts`                                      | INSERT with `description_embedding`                         |
-| `lib/db-items/sql/item/update.ts`                                   | UPDATE with embeddings, backfill UPDATE                     |
-| `lib/db-items/sql/category.ts`                                      | Category embedding backfill queries                         |
-| `lib/db-items/sql/tag.ts`                                           | Tag embedding backfill queries                              |
-| `lib/db-items/item-search-constants.ts`                             | `NOTES_APP_SEARCH_MAX_RESULTS` (20)                         |
-| `lib/db-items/migrations/202603151000__note_embeddings.sql`         | `CREATE EXTENSION vector`, initial indexes                  |
-| `lib/db-items/migrations/202604081200__jina_embeddings_v5_1024.sql` | Jina v5 / 1024-dim migration                                |
-| `lib/db-items/scripts/regenerate-embeddings.mjs`                    | Bulk offline regeneration                                   |
-| `apps/notes-next/app/api/items/search/route.ts`                     | Next.js search route                                        |
-| `apps/notes-next/app/api/items/maintenance/embeddings/route.ts`     | Maintenance route                                           |
-| `apps/notes-next/src/workspace/useItemLists.ts`                     | Client search UI and debounce                               |
+| Path                                                                | Role                                                      |
+| ------------------------------------------------------------------- | --------------------------------------------------------- |
+| `lib/db-items/services/item-embeddings.ts`                          | Jina API calls, text normalization, vector generation     |
+| `lib/db-items/services/items-app.ts`                                | `embedItemForItemsApp`, search, and embedding maintenance |
+| `lib/db-items/sql/item/gets.ts`                                     | Search SQL with pgvector `<=>` ranking                    |
+| `lib/db-items/sql/item/update.ts`                                   | Clears the embedding on changed text; embedding UPDATE    |
+| `lib/db-items/sql/category.ts`                                      | Category embedding backfill queries                       |
+| `lib/db-items/sql/tag.ts`                                           | Tag embedding backfill queries                            |
+| `lib/db-items/item-search-constants.ts`                             | `ITEMS_APP_SEARCH_MAX_RESULTS` (20)                       |
+| `lib/db-items/migrations/202603151000__note_embeddings.sql`         | `CREATE EXTENSION vector`, initial indexes                |
+| `lib/db-items/migrations/202604081200__jina_embeddings_v5_1024.sql` | Jina v5 / 1024-dim migration                              |
+| `lib/db-items/scripts/regenerate-embeddings.mjs`                    | Bulk offline regeneration                                 |
+| `apps/notes-next/app/api/items/search/route.ts`                     | Next.js search route                                      |
+| `apps/notes-next/app/api/items/maintenance/embeddings/route.ts`     | Maintenance route                                         |
+| `apps/notes-next/src/workspace/useItemLists.ts`                     | Client search UI and debounce                             |

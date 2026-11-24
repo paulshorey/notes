@@ -144,14 +144,14 @@ describe("the trash keeps deleted items (DB)", { skip: !testDbUrl }, () => {
     assert.equal((await listItemsByUser(userId, s.workspaceId)).length, 2)
   })
 
-  test("restoring the last item of a workspace brings the workspace and its vocabulary back", async () => {
+  test("restoring the last item of a workspace brings its vocabulary back", async () => {
     const userId = await realUser()
     const s = await seed(userId, "errands")
     await deleteItemForItemsApp({ userId, itemId: s.item.id })
-    // Deleting the last item removed the workspace and the vocabulary only it used.
+    // Deleting the last item removed the vocabulary only it used. The workspace stays.
     assert.equal(
       (await listWorkspacesByUser(userId)).some((workspace) => workspace.label === "errands"),
-      false,
+      true,
     )
 
     const trash = (await listTrashForItemsApp({ userId })).items

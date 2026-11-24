@@ -22,8 +22,13 @@ import {
   itemEntryKey,
 } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
+import { useWorkspaceStore } from "@/stores/workspaceStore"
 import { existingFiling, filingLabel, isSameFiling, itemFilingLabel } from "@/lib/itemFiling"
-import { readItemTarget, readItemsUrlSelection, writeItemsUrlSelection } from "@/lib/itemsUrlSelection"
+import {
+  readItemTarget,
+  readItemsUrlSelection,
+  writeItemsUrlSelection,
+} from "@/lib/itemsUrlSelection"
 import { getMaxOpenItemsPreference, withMaxOpenItemsPreference } from "@/lib/userPreferences"
 import { EMPTY_ITEM_FORM, isEntryDirty } from "@/workspace/shared"
 import type { WorkspaceStateOutput } from "./useWorkspaceState"
@@ -48,6 +53,9 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
     openNewDraftInStore,
     patchEntry,
     patchEntryForm,
+    queuedAutosaveKeysRef,
+    saveEntryRef,
+    saveInFlightRef,
     patchEveryEntry,
     replaceOpenItems,
     setItemsUrlSelectionReady,
@@ -66,21 +74,57 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
       // otherwise the editor shows stale text and the next keystroke saves
       // over what the user wrote.
       const key = itemEntryKey(item.id)
-      const detached = detachedSavesRef.current.get(key)
+      // The record is kept under the key the entry had when it left the ring. An item
+      // created in this session left as a draft, so it is found by its item, not by key.
+      const detachedKey =
+        [...detachedSavesRef.current].find(([, record]) => record.itemId === item.id)?.[0] ?? key
+      const detached = detachedSavesRef.current.get(detachedKey)
 
       detachRemovedEntries(openExistingItemInStore(item))
 
       if (!detached) return
 
-      // Ownership returns to the ring. Any still in-flight save is keyed the
-      // same way, so it writes its result back into this entry.
-      detachedSavesRef.current.delete(key)
-      patchEntry(key, {
-        form: detached.form,
-        savedSignature: detached.savedSignature,
-      })
+      // Ownership returns to the ring: the reopened entry holds the text, so the record
+      // is dropped and nothing sends the older copy again.
+      detachedSavesRef.current.delete(detachedKey)
+      if (detachedKey === key) {
+        // A save still in flight is keyed the same way and writes its result back
+        // into this entry.
+        patchEntry(key, { form: detached.form, savedSignature: detached.savedSignature })
+        return
+      }
+
+      // The entry is the item as last known here, holding the text that left the ring.
+      // Its saves name that version, so a change made elsewhere is never written over.
+      patchEntry(key, { form: detached.form })
+      const inFlight = saveInFlightRef.current.get(detachedKey)
+      if (!inFlight) return
+
+      // The record's save is still landing under its old key. This entry's saves wait
+      // for it and then go on from the version it stored.
+      const settled: Promise<void> = inFlight
+        .catch(() => undefined)
+        .then(() => {
+          const stored = useWorkspaceStore.getState().items.find((known) => known.id === item.id)
+          if (stored)
+            patchEntry(key, {
+              baseTimeModified: stored.timeModified,
+              savedSignature: serializeItemDraft(stored.id, itemToFormState(stored)),
+            })
+          if (saveInFlightRef.current.get(key) === settled) saveInFlightRef.current.delete(key)
+          if (queuedAutosaveKeysRef.current.delete(key)) void saveEntryRef.current(key, "autosave")
+        })
+      saveInFlightRef.current.set(key, settled)
     },
-    [detachRemovedEntries, detachedSavesRef, openExistingItemInStore, patchEntry],
+    [
+      detachRemovedEntries,
+      detachedSavesRef,
+      openExistingItemInStore,
+      patchEntry,
+      queuedAutosaveKeysRef,
+      saveEntryRef,
+      saveInFlightRef,
+    ],
   )
 
   const openDraftEntry = useCallback(

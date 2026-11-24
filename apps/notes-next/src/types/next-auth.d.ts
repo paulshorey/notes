@@ -11,8 +11,6 @@ declare module "next-auth" {
     credentialCheckUnavailable?: true
     user: {
       itemsUserId?: number
-      /** Compatibility for already-loaded text clients. */
-      notesUserId?: number
       isAnonymous?: boolean
     } & DefaultSession["user"]
   }
@@ -23,7 +21,7 @@ declare module "@auth/core/jwt" {
     credentialCheckUnavailable?: true
     credentialVersion?: number
     itemsUserId?: number
-    /** Compatibility with existing encrypted cookies and older server builds. */
+    /** The name a session cookie issued before `itemsUserId` holds the user id under. */
     notesUserId?: number
     isAnonymous?: boolean
   }

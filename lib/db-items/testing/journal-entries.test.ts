@@ -174,7 +174,7 @@ describe("journal entries (DB)", { skip: !testDbUrl }, () => {
     assert.equal((await entries(userId, other.id)).length, 1)
   })
 
-  test("combining a day appends the text, unions the tags, keeps the target's filing, and is permanent", async () => {
+  test("combining moves the text and tags to the day's entry and keeps the entry they came from", async () => {
     const userId = await realUser()
     const workspace = await createWorkspaceForUser(userId, "personal")
     const target = await seedEntry(workspace.id, "2026-11-25", "Morning", {
@@ -191,25 +191,35 @@ describe("journal entries (DB)", { skip: !testDbUrl }, () => {
       entryDate: "2026-11-25",
     })
     assert.equal(combined?.item.id, target)
-    assert.deepEqual(await entries(userId, workspace.id), [
-      { day: "2026-11-25", text: "Morning\n\nEvening", category: "home", tags: ["busy", "calm"] },
-    ])
+    // The entry the text came from keeps its own day and filing, ready to be written in.
+    assert.equal(combined?.source?.id, source)
+    assert.deepEqual(
+      (await entries(userId, workspace.id)).sort((a, b) => a.day!.localeCompare(b.day!)),
+      [
+        { day: "2026-11-25", text: "Morning\n\nEvening", category: "home", tags: ["busy", "calm"] },
+        { day: "2026-11-26", text: null, category: "work", tags: ["busy", "calm"] },
+      ],
+    )
     assert.deepEqual((await listTrashForItemsApp({ userId })).items, [])
     const stored = await getDb().query<{ embedded: boolean }>(
-      `SELECT (description_embedding IS NOT NULL) embedded FROM public.workspace_item_v1 WHERE id=$1`,
-      [target],
+      `SELECT (description_embedding IS NOT NULL) embedded FROM public.workspace_item_v1
+       WHERE id=ANY($1::int[])`,
+      [[target, source]],
     )
-    assert.equal(stored.rows[0]!.embedded, false, "the old embedding no longer matches the text")
+    assert.deepEqual(
+      stored.rows.map((row) => row.embedded),
+      [false, false],
+      "neither old embedding matches its text any more",
+    )
+    const dayText = async () =>
+      (await entries(userId, workspace.id)).find((entry) => entry.day === "2026-11-25")!.text
     // Text that only appears inside the day's text is still new, and is appended.
     const short = await seedEntry(workspace.id, "2026-11-27", "Morn")
     await combineJournalDayForItemsApp({ userId, itemId: short, entryDate: "2026-11-25" })
     // A block the day already holds is not added again.
     const repeat = await seedEntry(workspace.id, "2026-11-28", "Evening")
     await combineJournalDayForItemsApp({ userId, itemId: repeat, entryDate: "2026-11-25" })
-    assert.deepEqual(
-      (await entries(userId, workspace.id)).map((entry) => entry.text),
-      ["Morning\n\nEvening\n\nMorn"],
-    )
+    assert.equal(await dayText(), "Morning\n\nEvening\n\nMorn")
     // A day without an entry has nothing to combine with.
     assert.equal(
       await combineJournalDayForItemsApp({ userId, itemId: target, entryDate: "2026-12-01" }),
@@ -226,6 +236,38 @@ describe("journal entries (DB)", { skip: !testDbUrl }, () => {
     )
   })
 
+  test("combining takes a status the day lacks and trashes an item left with nothing", async () => {
+    const userId = await realUser()
+    const workspace = await createWorkspaceForUser(userId, "personal")
+    const target = await seedEntry(workspace.id, "2026-11-25", "Morning")
+    const status = await getDb().query<{ id: number }>(
+      `INSERT INTO public.workspace_status_v1(workspace_id,label,position) VALUES($1,'doing',9)
+       RETURNING id`,
+      [workspace.id],
+    )
+    // A task with no day or time block of its own: its text is all the content it holds.
+    const { item: task } = await createItemForItemsApp({
+      userId,
+      item: input(workspace.id, { description: "Call the bank", statusId: status.rows[0]!.id }),
+    })
+    const combined = await combineJournalDayForItemsApp({
+      userId,
+      itemId: task.id,
+      entryDate: "2026-11-25",
+    })
+    assert.equal(combined?.item.id, target)
+    assert.equal(combined?.item.description, "Morning\n\nCall the bank")
+    assert.equal(combined?.item.status?.label, "doing")
+    assert.equal(combined?.source, null)
+    assert.deepEqual(
+      (await listTrashForItemsApp({ userId })).items.map((entry) => [
+        entry.description,
+        entry.status,
+      ]),
+      [["Call the bank", "doing"]],
+    )
+  })
+
   test("combining a tag-only entry still advances the target's version", async () => {
     const userId = await realUser()
     const workspace = await createWorkspaceForUser(userId, "personal")
@@ -239,9 +281,10 @@ describe("journal entries (DB)", { skip: !testDbUrl }, () => {
     const before = (await read()).rows[0]!.modified
     await combineJournalDayForItemsApp({ userId, itemId: source, entryDate: "2026-11-25" })
     assert.notEqual((await read()).rows[0]!.modified, before)
-    assert.deepEqual(await entries(userId, workspace.id), [
+    assert.deepEqual(
+      (await entries(userId, workspace.id)).find((entry) => entry.day === "2026-11-25"),
       { day: "2026-11-25", text: "Morning", category: null, tags: ["busy"] },
-    ])
+    )
   })
 
   test("restoring a trashed entry onto a day that has a new one is refused, or combines when asked", async () => {

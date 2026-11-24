@@ -23,7 +23,6 @@
     "cloud:install": "bash scripts/cloud-agent-install.sh",
     "cloud:start": "bash scripts/cloud-agent-start.sh",
     "agent:setup": "bash scripts/agent-env-setup.sh",
-    "create:next-app": "node scripts/create-next-app.js",
     "railway:config:check": "tsc --noEmit --strict --skipLibCheck --target es2022 --module nodenext --moduleResolution nodenext .railway/railway.ts",
     "railway:config:plan": "railway config plan --file .railway/railway.ts",
     "railway:config:apply": "railway config apply --file .railway/railway.ts",
@@ -38,13 +37,10 @@
     "prettier": "^3.6.2",
     "railway": "3.11.0",
     "turbo": "^2.5.5",
-    "typescript": "5.8.3"
+    "typescript": "5.9.2"
   },
   "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=20"
-  },
-  "dependencies": {
-    "@tailwindcss/postcss": "^4.1.11"
   }
 }

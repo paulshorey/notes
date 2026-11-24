@@ -5,6 +5,7 @@ import type { TrashedItemRecord } from "../../contracts/items-app"
 import { getDb } from "../../lib/db/postgres"
 import { createWorkspaceForUserWithClient, lockUserWorkspaces } from "../workspace"
 import { IMPORT_ITEMS_SQL } from "./stored-capabilities"
+import { TRASH_RETENTION_DAYS } from "../../contracts/item-model"
 
 type TrashedFields = Record<string, unknown>
 
@@ -37,20 +38,54 @@ const mapTrashedItem = (row: TrashRow): TrashedItemRecord => ({
   timeStart: instant(row.item.timeStart),
   timeEnd: instant(row.item.timeEnd),
   entryDate: text(row.item.entryDate),
-  timeDue: text(row.item.timeDue),
-  timeRemind: text(row.item.timeRemind),
+  timeDue: instant(row.item.timeDue),
+  timeRemind: instant(row.item.timeRemind),
 })
 
-/** The trash list shows the most recent deletions; older ones stay until they expire. */
-export const TRASH_LIST_LIMIT = 200
-
-export const listTrashedItemsByUser = async (userId: number) => {
-  const { rows } = await getDb().query<TrashRow>(
-    `SELECT id,workspace_label,item,time_deleted FROM public.user_item_trash_v1
-     WHERE user_id=$1 ORDER BY time_deleted DESC,id DESC LIMIT $2`,
-    [userId, TRASH_LIST_LIMIT],
+/** Remove the user's trash entries that have outlived the retention. */
+export const purgeExpiredTrashWithClient = (client: Pick<PoolClient, "query">, userId: number) =>
+  client.query(
+    `DELETE FROM public.user_item_trash_v1
+     WHERE user_id=$1 AND time_deleted < now() - make_interval(days => $2)`,
+    [userId, TRASH_RETENTION_DAYS],
   )
-  return rows.map(mapTrashedItem)
+
+/** One page of the trash. */
+export const TRASH_PAGE_SIZE = 200
+
+/**
+ * Where a page ended: the deletion time, in microseconds, and the id of its last
+ * entry. It names a place in the order, not a row, so the next page is found after the
+ * entry it came from has been restored or purged.
+ */
+export const isTrashCursor = (value: string) => /^\d{1,18}_\d{1,10}$/.test(value)
+
+/**
+ * The user's trash, newest first, one page at a time. Entries past the retention are
+ * removed first, so the list never shows one that can no longer be restored. `before`
+ * is the `nextCursor` of the previous page.
+ */
+export const listTrashedItemsByUser = async (userId: number, before: string | null = null) => {
+  const db = getDb()
+  await purgeExpiredTrashWithClient(db, userId)
+  const [micros, id] = before === null ? [null, null] : before.split("_")
+  const { rows } = await db.query<TrashRow & { micros: string }>(
+    `SELECT t.id,t.workspace_label,t.item,t.time_deleted,
+       (extract(epoch FROM t.time_deleted)*1000000)::bigint::text AS micros
+     FROM public.user_item_trash_v1 t
+     WHERE t.user_id=$1 AND ($3::bigint IS NULL OR (t.time_deleted,t.id) <
+       ('epoch'::timestamptz + $3::bigint * interval '1 microsecond',$4::int))
+     ORDER BY t.time_deleted DESC,t.id DESC LIMIT $2`,
+    [userId, TRASH_PAGE_SIZE + 1, micros, id],
+  )
+  const page = rows.slice(0, TRASH_PAGE_SIZE)
+  const last = page.at(-1)
+  const hasMore = rows.length > TRASH_PAGE_SIZE
+  return {
+    items: page.map(mapTrashedItem),
+    hasMore,
+    nextCursor: hasMore && last ? `${last.micros}_${last.id}` : null,
+  }
 }
 
 /**

@@ -21,8 +21,12 @@ using it. After merging a PR, return the primary checkout to `main` and run
 An item belongs to one workspace, has a nullable description, and stores no exclusive
 content-type discriminator. A note is an item with nonblank text. Use item terminology
 in generic backend/state/API code; retain note wording in the text capture UI.
-See [item boundaries](docs/db/item-core.md). Keep historical migrations immutable;
-legacy views, session fields, backup formats, and `DB_NOTES_URL` remain compatibility protocols.
+See [item boundaries](docs/db/item-core.md). [The item model](docs/db/item-model.md)
+defines what an item can hold, which combinations are which kinds, and what each write
+does; `lib/db-items/contracts/item-model.ts` is its source, served at
+`GET /api/items/model`. Keep historical migrations immutable. Earlier backup file
+versions, the `notesUserId` field of an existing session cookie, and `DB_NOTES_URL`
+are still read.
 Categories are optional with no default/protected rows; `uncategorized` is display text.
 
 ## Editor and working conventions
@@ -119,5 +123,7 @@ Consider what was recently done, what is in progress, and how it serves the goal
 Decide and recommend what to do next.
 [The item content and relations plan](docs/plans/item-content-and-relations.md) sets
 the order of work on content types; follow its phases.
+[Hardening and the agent API](docs/plans/hardening-and-agent-api.md) lists the
+reliability and API work beside it; do its first section before the lists phase.
 
 **Goal:** Unify notes, knowledge, tasks, and website content for the user, treat anonymous and signed in users the same, and let anonymous users merge temporary content with their permanent account.
