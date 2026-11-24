@@ -297,11 +297,21 @@ export interface RestoreTrashedItemRequest {
   combineJournalDay?: boolean
 }
 
-/** Give an item a journal day another entry already has, by combining it into that entry. */
+/** Move an item's text into the journal entry that `entryDate` already has. */
 export interface CombineJournalDayRequest {
   userId: number
   itemId: number
   entryDate: string
+}
+
+export interface CombineJournalDayResponse {
+  /** The day's entry, now holding the text. */
+  item: ItemRecord
+  /**
+   * The item the text came from, emptied of it. Null when the text was all it held: it
+   * could not be kept and is in the trash.
+   */
+  source: ItemRecord | null
 }
 
 /** Without a `trashId`, the user's whole trash is emptied. */

@@ -51,7 +51,8 @@ See `docs/db/item-core.md` for the item domain and `docs/db/item-model.md` for t
   `YYYY-MM-DD` text, never through a driver `Date`. One entry per workspace and day is
   kept by a unique index, and a write that breaks it throws `JournalDayTakenError`
   (HTTP `409`). `sql/item/journal.ts` combines two entries: account merge and backup
-  restore do it without asking, and a user-driven write does it only when asked. See
+  restore do it without asking and remove the entry they combine, and a user-driven
+  write does it only when asked and keeps the entry the text came from, emptied. See
   Journal entries in `docs/db/item-core.md`.
 - A kind (`note`, `task`, `time`, `journal`) names what an item holds. It is computed
   by `contracts/item-kinds.ts` from the item model, never stored, and an item can be

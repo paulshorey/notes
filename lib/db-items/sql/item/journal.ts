@@ -2,6 +2,7 @@ import type { PoolClient } from "pg"
 import { JournalDayTakenError } from "../../contracts/item-journal"
 import { getDb } from "../../lib/db/postgres"
 import { selectItemById } from "./shared"
+import { TRASH_ITEMS_SQL } from "./stored-capabilities"
 
 /**
  * True when the source entry adds no text to the destination: it has none, or the
@@ -59,39 +60,85 @@ export const COMBINE_MOVING_JOURNAL_DAYS_SQL = combineSql(
      AND ($3::int[] IS NULL OR s.id=ANY($3)) AND s.id<>ALL($4::int[])`,
 )
 
-const COMBINE_ENTRY_INTO_DAY_SQL = combineSql(
-  `SELECT s.id source_id,d.id dest_id FROM public.workspace_item_v1 s
-   JOIN public.workspace_item_v1 d ON d.workspace_id=s.workspace_id AND d.entry_date=$2::date
-   WHERE s.id=$1 AND d.id<>s.id`,
-)
-
 /**
- * Move the user's item to a journal day that another entry of its workspace already
- * has, by combining it into that entry. Returns the entry that now holds both, or null
- * when the item is not the user's or the day has no entry to combine with.
+ * Move the text of the user's item into the journal entry that another entry of its
+ * workspace already has for `day`. Returns the entry that now holds the text and the
+ * item it came from, or null when the item is not the user's or the day has no entry.
+ *
+ * Nothing is lost. The day's entry takes the item's text after its own, unless it
+ * already holds it, and the tags it lacks. Because a status needs text beside it, the
+ * item's status goes with the text when the day's entry has none. The item itself stays
+ * where it was: a journal entry keeps its own day and a time block keeps its times, so
+ * the user can write in it again or delete it. An item left holding no content, which
+ * cannot be kept, goes to the trash as it was before its text moved.
+ *
+ * Both embeddings are cleared when their text changes; the caller writes them again.
  */
 export const combineItemIntoJournalDay = async (userId: number, itemId: number, day: string) => {
   const client = await getDb().connect()
   try {
     await client.query("BEGIN")
-    const owned = await client.query(
-      `SELECT 1 FROM public.workspace_item_v1 n JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
+    const owned = await client.query<{
+      workspace_id: number
+      description: string | null
+      status_id: number | null
+      keeps_content: boolean
+    }>(
+      `SELECT n.workspace_id,n.description,n.status_id,
+         (n.entry_date IS NOT NULL OR n.time_start IS NOT NULL) keeps_content
+       FROM public.workspace_item_v1 n JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
        WHERE n.id=$1 AND w.user_id=$2 FOR UPDATE OF n`,
       [itemId, userId],
     )
-    if (owned.rowCount !== 1) {
+    const source = owned.rows[0]
+    const target =
+      source &&
+      (
+        await client.query<{ id: number }>(
+          `SELECT id FROM public.workspace_item_v1
+           WHERE workspace_id=$1 AND entry_date=$2::date AND id<>$3 FOR UPDATE`,
+          [source.workspace_id, day, itemId],
+        )
+      ).rows[0]
+    if (!source || !target) {
       await client.query("ROLLBACK")
       return null
     }
-    const combined = await client.query<{ dest_id: number }>(COMBINE_ENTRY_INTO_DAY_SQL, [
-      itemId,
-      day,
-    ])
-    const destinationId = combined.rows[0]?.dest_id
-    const item =
-      destinationId === undefined ? null : await selectItemById(client, destinationId, userId)
-    await client.query(item ? "COMMIT" : "ROLLBACK")
-    return item
+    // `s` is the text being moved, so the same rule as every other combine decides
+    // whether the day's entry already holds it.
+    await client.query(
+      `UPDATE public.workspace_item_v1 d
+       SET description=CASE WHEN ${NOTHING_TO_APPEND} THEN d.description
+           ELSE concat_ws(E'\\n\\n',NULLIF(btrim(d.description),''),NULLIF(btrim(s.description),'')) END,
+         description_embedding=CASE WHEN ${NOTHING_TO_APPEND} THEN d.description_embedding END,
+         embedding_model=CASE WHEN ${NOTHING_TO_APPEND} THEN d.embedding_model END,
+         embedding_updated_at=CASE WHEN ${NOTHING_TO_APPEND} THEN d.embedding_updated_at END,
+         status_id=CASE WHEN NULLIF(btrim(concat(d.description,s.description)),'') IS NULL
+           THEN d.status_id ELSE COALESCE(d.status_id,s.status_id) END
+       FROM (SELECT $2::text AS description,$3::int AS status_id) s WHERE d.id=$1`,
+      [target.id, source.description, source.status_id],
+    )
+    await client.query(
+      `INSERT INTO public.item_tag_link_v1(item_id,tag_id,workspace_id)
+       SELECT $1,l.tag_id,l.workspace_id FROM public.item_tag_link_v1 l WHERE l.item_id=$2
+       ON CONFLICT DO NOTHING`,
+      [target.id, itemId],
+    )
+    if (source.keeps_content) {
+      await client.query(
+        `UPDATE public.workspace_item_v1 SET description=NULL,status_id=NULL,
+           description_embedding=NULL,embedding_model=NULL,embedding_updated_at=NULL
+         WHERE id=$1`,
+        [itemId],
+      )
+    } else {
+      await client.query(TRASH_ITEMS_SQL, [[itemId], userId, source.workspace_id])
+    }
+    const item = await selectItemById(client, target.id, userId)
+    if (!item) throw new Error("Failed to load the combined journal entry.")
+    const remaining = source.keeps_content ? await selectItemById(client, itemId, userId) : null
+    await client.query("COMMIT")
+    return { item, source: remaining }
   } catch (error) {
     await client.query("ROLLBACK")
     throw error

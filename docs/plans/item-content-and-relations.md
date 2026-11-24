@@ -176,9 +176,10 @@ A journal entry is an item with an `entry_date`, and a workspace has one entry p
 It needs no text. A new entry takes today's date, and the date can be edited.
 
 Changing a date to a day that already has an entry asks whether to combine the two.
-Combining appends the text, unions the tags, keeps the target day's filing, moves the
-links, and deletes the emptied entry; it is permanent and the prompt says so. Declining
-rejects the date change. Restoring a trashed entry onto a day that has gained a new
+Combining moves the text to that day's entry, after its own, and adds the tags it
+lacks; the day's entry keeps its filing. The entry the text came from is not deleted:
+it stays on its own day, empty, so the user can write in it again or delete it.
+Declining rejects the date change. Restoring a trashed entry onto a day that has gained a new
 entry asks the same question; declining leaves it in the trash. Account merge and
 backup restore combine same-day entries without asking. Moving an entry to a workspace
 that already has its day is refused.

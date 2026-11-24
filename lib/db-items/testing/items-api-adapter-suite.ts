@@ -190,7 +190,7 @@ export const createFakeItemsAppService = (
     nextCursor: null,
   }),
   restoreTrashedItemForItemsApp: async () => ({ item: sampleItem }),
-  combineJournalDayForItemsApp: async () => ({ item: sampleItem }),
+  combineJournalDayForItemsApp: async () => ({ item: sampleItem, source: null }),
   purgeTrashForItemsApp: async () => ({ ok: true, purged: 1 }),
   searchItemsForItemsApp: async () => ({ results: [sampleSearchResult] }),
   maintainItemEmbeddingsForItemsApp: async () => sampleEmbeddingMaintenanceResponse,
@@ -1241,7 +1241,7 @@ export const registerItemsApiAdapterSuite = (
       createFakeItemsAppService({
         combineJournalDayForItemsApp: async (request) => {
           requests.push(request)
-          return request.itemId === 41 ? { item: sampleItem } : null
+          return request.itemId === 41 ? { item: sampleItem, source: null } : null
         },
       }),
     )
@@ -1257,7 +1257,7 @@ export const registerItemsApiAdapterSuite = (
       body: { userId: 999999, itemId: 41, entryDate: "2026-11-25" },
     })
     assert.equal(combined.status, 200)
-    assert.deepEqual(combined.body, { item: sampleItem })
+    assert.deepEqual(combined.body, { item: sampleItem, source: null })
     assert.deepEqual(requests, [{ userId: sampleUser.id, itemId: 41, entryDate: "2026-11-25" }])
 
     const missing = await adapter.request({

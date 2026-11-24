@@ -26,7 +26,7 @@ presented token. Token hashes are stored in `user_api_token_v1`.
 | `POST /api/items`                        | `{ item: ItemInput }`                                | `201 { item }`, or `200 { item }` for a uid that exists              |
 | `PATCH /api/items`                       | `{ itemId, item: ItemPatch, expectedTimeModified? }` | `{ item }`, or `409 item_changed` with the stored item               |
 | `DELETE /api/items`                      | `{ itemId }`                                         | `{ ok: true }`; the item goes to trash                               |
-| `POST /api/items/journal`                | `{ itemId, entryDate }`                              | `{ item }`, the entry the item was combined into                     |
+| `POST /api/items/journal`                | `{ itemId, entryDate }`                              | `{ item, source }`: the day's entry, and the emptied item or `null`  |
 | `GET /api/items/trash?before=<cursor>`   | Optional `before`                                    | `{ items: TrashedItemRecord[], hasMore, nextCursor, retentionDays }` |
 | `POST /api/items/trash`                  | `{ trashId, combineJournalDay? }`                    | `{ item }`, restored                                                 |
 | `DELETE /api/items/trash`                | `{ trashId? }`                                       | `{ ok: true, purged }`                                               |
@@ -52,7 +52,7 @@ the caller last saw; when the stored item is newer, nothing is written.
 
 Given one end of a time block, the other takes the same instant. A journal day another
 entry of the workspace has is refused with `409 journal_day_taken`, and
-`POST /api/items/journal` combines the item into that entry. A subcategory that does
+`POST /api/items/journal` moves the item's text into that entry and keeps the item. A subcategory that does
 not belong to the category is cleared, not refused. An item has one workspace, and
 relationship ids must belong to it. A new item needs no category. There is no `type`
 field. See `docs/db/item-taxonomy.md`.
@@ -95,7 +95,10 @@ for a person and `code` is for a program.
 
 `/api/bootstrap` loads the user, workspaces, and active workspace's items,
 categories, statuses, and tags. `/api/session` reads the user and updates
-preferences; `/api/workspaces`, `/api/categories`, `/api/statuses`, and `/api/tags`
+preferences. `DELETE /api/workspaces` takes `{ workspaceId, confirmation:
+"delete-workspace", expectedItemCount? }`, sends the workspace's items to the trash, and
+answers `409` when the workspace holds a different number of items than
+`expectedItemCount`. `/api/workspaces`, `/api/categories`, `/api/statuses`, and `/api/tags`
 manage the corresponding workspace-owned structures.
 
 `POST /api/categories` with a `categoryId` creates a subcategory of that category and

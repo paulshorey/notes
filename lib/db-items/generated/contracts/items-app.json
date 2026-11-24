@@ -1237,6 +1237,24 @@
         }
       ]
     },
+    "CombineJournalDayResponse": {
+      "fields": [
+        {
+          "name": "item",
+          "optional": false,
+          "kind": "model",
+          "type": "ItemRecord",
+          "nullable": false
+        },
+        {
+          "name": "source",
+          "optional": false,
+          "kind": "model",
+          "type": "ItemRecord",
+          "nullable": true
+        }
+      ]
+    },
     "PurgeTrashRequest": {
       "fields": [
         {

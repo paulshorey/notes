@@ -33,7 +33,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     items/                  — GET (list), POST (create), PATCH (patch the named fields), DELETE (to the trash)
     items/model/            — GET (the item model; public)
     items/trash/            — GET (a page), POST (restore one), DELETE (purge one or all)
-    items/journal/          — POST (combine an item into the entry its journal day already has)
+    items/journal/          — POST (move an item's text into the entry its journal day already has)
     tags/                   — GET (list), POST (create)
     categories/             — GET (list), POST (create), PATCH, DELETE
     statuses/               — workspace-scoped GET/POST/PATCH/DELETE

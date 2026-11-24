@@ -11,6 +11,7 @@ import type {
   DeleteCategoryRequest,
   DeleteCategoryResponse,
   CombineJournalDayRequest,
+  CombineJournalDayResponse,
   DeleteItemRequest,
   ErrorCode,
   ItemEmbeddingRequest,
@@ -772,17 +773,14 @@ export const restoreTrashedItemForItemsApp = async (
   return item ? { item } : null
 }
 /**
- * Combining two journal days is permanent: the item's text and tags join the entry the
- * day already has, and the item is deleted without going to the trash. The entry's
- * embedding is cleared when its text changes; the caller follows with
- * `embedItemForItemsApp`.
+ * Move an item's text into the entry its journal day already has. The item stays, with
+ * its day or time block, unless the text was all it held. Both texts changed, so both
+ * embeddings are cleared; the caller follows with `embedItemForItemsApp` for the entry.
  */
 export const combineJournalDayForItemsApp = async (
   r: CombineJournalDayRequest,
-): Promise<ItemResponse | null> => {
-  const item = await combineItemIntoJournalDay(r.userId, r.itemId, r.entryDate)
-  return item ? { item } : null
-}
+): Promise<CombineJournalDayResponse | null> =>
+  combineItemIntoJournalDay(r.userId, r.itemId, r.entryDate)
 export const purgeTrashForItemsApp = async (r: PurgeTrashRequest): Promise<PurgeTrashResponse> => ({
   ok: true,
   purged: await purgeTrashedItemsForUser(r.userId, r.trashId ?? null),

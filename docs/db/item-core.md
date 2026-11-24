@@ -106,21 +106,30 @@ has one entry per day, kept by the unique index `workspace_item_v1_journal_day_k
 Like every field of an update, `entryDate` left out is left as stored, and `null`
 removes it. A write that would give a workspace a
 second entry for a day is refused with `409` (`JournalDayTakenError`). What happens
-next is the caller's choice, because combining two days is permanent:
+next is the caller's choice:
 
 | Situation                                    | Outcome                                                           |
 | -------------------------------------------- | ----------------------------------------------------------------- |
-| An item is given a day another entry has     | Refused. `POST /api/items/journal` combines it into that entry.   |
+| An item is given a day another entry has     | Refused. `POST /api/items/journal` moves its text to that entry.  |
 | A trashed entry is restored onto a taken day | Refused and left in the trash, unless `combineJournalDay` is set. |
 | An entry moves to a workspace with its day   | Refused.                                                          |
 | Account merge or backup restore meets a day  | Combined without asking, since no one can be asked.               |
 
-Combining (`sql/item/journal.ts`) appends the text after the remaining entry's own,
-unless that entry already holds it, as when one backup is restored twice,
-adds the tags it lacks, and keeps its filing and everything else it holds. The entry
-combined into it is deleted without going to the trash, because its text now lives in
-the other. When its text changed, the remaining entry's [embedding](#embeddings) is
-cleared and written again.
+Combining (`sql/item/journal.ts`) appends the text after the day's entry's own,
+unless that entry already holds it, as when one backup is restored twice, and
+adds the tags it lacks. The day's entry keeps its filing and everything else it holds.
+When its text changed, its [embedding](#embeddings) is cleared and written again.
+
+What happens to the entry the text came from depends on who asked:
+
+- **`POST /api/items/journal`** keeps it. Its text is cleared and it stays on its own
+  day, or with its own time block, so the user can write in it again or delete it. A
+  status needs text, so the item's status goes with the text when the day's entry has
+  none. An item whose text was all it held cannot be kept and goes to the trash as it
+  was. The answer is `{ item, source }`: the day's entry, and the emptied item or `null`.
+- **A trash restore, account merge, or backup restore** has two entries for one day in
+  one workspace, which cannot both stay. The one combined into the other is removed
+  without going to the trash, because its text now lives in the other.
 
 A backup file that names one day twice in a workspace is refused.
 
