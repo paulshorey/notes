@@ -7,12 +7,7 @@ or sign in to an existing one.
 
 For implementation details inside the app package, see
 `apps/notes-next/AGENTS.md` (especially "Anonymous → permanent account" and "Note
-saving lifecycle"). For the original design history, see:
-
-- `.cursor/plans/anonymous_account_architecture_4d7e2b10.plan.md` — Phase 1
-  (merge race fix) and Phase 2 (claim-in-place signup, password hashing)
-- `.cursor/plans/anonymous_merge_sync_fix_8f2c1a90.plan.md` — merge hardening
-  (flush before login, merge-failure UX, embedding backfill, preferences)
+saving lifecycle").
 
 ## Overview
 
@@ -85,15 +80,15 @@ store).
 | `anonymous`   | Auto sign-in for new visitors             |
 | `credentials` | Username / email / phone + password login |
 
-OAuth/social login was removed as unfinished (Phase 2). API clients can use
-`POST /api/auth/token` (bearer tokens) with the same `verifyUserCredentials`
-path.
+There is no OAuth or social login. API clients can use `POST /api/auth/token`
+(bearer tokens) with the same `verifyUserCredentials` path.
 
 ### JWT / session fields
 
 The `jwt` and `session` callbacks attach:
 
-- `session.user.notesUserId` — the `user_v1.id` used by all Notes API routes
+- `session.user.itemsUserId` — the `user_v1.id` used by all API routes. A cookie
+  that names it `notesUserId` is also read (`src/lib/sessionIdentity.ts`).
 - `session.user.isAnonymous` — `true` for visitor sessions, `false` after claim
   or credentials login
 
@@ -154,12 +149,12 @@ optional email must contain `@` if present.
 
 ### Client (`handleSignup` in `src/workspace/useAccountActions.ts`)
 
-1. `await flushPendingNoteSave()` — persist any debounced draft on the same row
+1. `await flushAllPendingSaves()` — persist any debounced draft on the same row
 2. `POST /api/anon-session/claim` with form fields
 3. On success, `applyLoadedUser(claimData.user)` so the header shows the new
    username immediately
 4. `signIn("credentials", { identifier: username, password })` — re-mints JWT
-   with `isAnonymous = false` for the **same** `notesUserId`
+   with `isAnonymous = false` for the **same** `itemsUserId`
 5. `restoreSession` re-runs, finds no pending merge token, refreshes data
    (cache-first is safe because `user_id` is unchanged)
 
@@ -176,7 +171,7 @@ roll back the claim.
 Two users genuinely exist (anonymous row + permanent row), so data must be
 reconciled server-side.
 
-### Critical invariant (Phase 1)
+### Critical invariant
 
 > **There is exactly one writer of post-login session data:** the
 > `restoreSession` effect in `src/workspace/useSessionLifecycle.ts`.
@@ -233,7 +228,7 @@ Anonymous data remains on the orphaned row for manual recovery or cleanup.
 
 ### Client login sequence (`handleLogin`)
 
-1. `await flushPendingNoteSave()`
+1. `await flushAllPendingSaves()`
 2. If anonymous: fetch merge token → stash in `sessionStorage`
 3. `signIn("credentials", { identifier, password, redirect: false })`
 4. On failure: clear stashed token, show login error
@@ -250,7 +245,7 @@ change:
 - Otherwise uses stale-while-revalidate from `localStorage` notes cache
 - Fetches workspace-aware `/api/bootstrap` once
 
-Dependencies include `authSession.user.notesUserId` and
+Dependencies include `authSession.user.itemsUserId` and
 `authSession.user.isAnonymous`, so claim and login both trigger a refresh.
 
 ## API reference (auth-related)
@@ -286,166 +281,12 @@ A successful reset revokes existing session access and bearer tokens.
 
 Permanent users see account info, debug embedding actions, and Sign out.
 
-## Shipped vs. unfinished work
+## Open work
 
-### Shipped (Phase 1 + Phase 2)
+| Item                           | Notes                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Embedding backfill after merge | Call `maintainItemEmbeddingsForItemsApp({ mode: "missing" })` after merge so merged categories/tags are searchable |
+| Preferences on merge           | Anon `preferences` are discarded when the anon row is deleted; product decision needed                             |
+| Automated merge tests          | No harness coverage for anonymous → permanent flows                                                                |
 
-- Anonymous auto sign-in on first visit
-- Single post-login loader (`restoreSession`) with merge-before-load
-- Claim-in-place signup with scrypt password hashing
-- Existing-account merge with HMAC token
-- Flush pending note save before login, signup, and logout
-- Merge failure warning (non-blocking)
-- Merge SQL fix for extraneous bind params on tag-link remap
-- `MERGE_TABLE_STRATEGIES` schema-coverage guard in `db:verify`
-- OAuth removal
-
-### Still open (from merge sync plan)
-
-| Item                           | Status  | Notes                                                                                                              |
-| ------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------ |
-| Embedding backfill after merge | Pending | Call `maintainNoteEmbeddingsForItemsApp({ mode: "missing" })` after merge so merged categories/tags are searchable |
-| Preferences on merge           | Pending | Anon `preferences` are discarded when anon row is deleted; product decision needed                                 |
-| Automated merge tests          | Pending | No harness coverage for anonymous → permanent flows yet                                                            |
-
-Claim-in-place signup **does** preserve preferences automatically (same row).
-
----
-
-## Known bug: "Create account" toggle fires claim prematurely
-
-### Symptom
-
-When an anonymous user opens the header popup and clicks the secondary **Create
-account** button on the default **Sign in** form, the browser immediately sends
-`POST /api/anon-session/claim` with empty `username` / `password`. The request
-fails validation (`400`). Only after opening the popup again does the user see
-the signup form, fill it in, and complete account creation successfully.
-
-### Root cause
-
-The sign-in and signup UIs are **two separate `<form>` elements** toggled by
-local `authMode` state (`"signin" | "signup"`). The intended behavior of the
-secondary **Create account** button on the sign-in form is **UI-only**: switch
-`authMode` to `"signup"` so the user can enter credentials.
-
-The bug is a classic HTML form issue combined with React's synchronous re-render
-on click:
-
-1. The **Create account** toggle sits **inside** the sign-in `<form>`.
-2. Gravity UI `<Button>` does not set `type="button"` on mode-switch buttons
-   (only the primary action sets `type="submit"` explicitly).
-3. A `<button>` inside a form defaults to `type="submit"`.
-4. On click, `onClick` runs `setAuthMode("signup")`. React re-renders and
-   mounts the signup form in place of the sign-in form.
-5. The implicit form submit still fires against the **new** signup form's
-   `onSubmit`, which calls `onSignupSubmit` → `handleSignup` →
-   `POST /api/anon-session/claim` with empty field state.
-
-So the first click both switches the UI **and** submits the signup form before
-the user has typed anything.
-
-Relevant code today:
-
-```184:192:apps/notes-next/src/components/items/WorkspaceHeader.tsx
-                <Button
-                  view="flat"
-                  size="m"
-                  width="max"
-                  disabled={authPending}
-                  onClick={() => setAuthMode("signup")}
-                >
-                  Create account
-                </Button>
-```
-
-The signup form submit handler (correct for the primary **Create account**
-button, incorrect when triggered by the toggle):
-
-```206:214:apps/notes-next/src/components/items/WorkspaceHeader.tsx
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  onSignupSubmit({
-                    username: signupUsername,
-                    email: signupEmail,
-                    password: signupPassword,
-                  })
-                  setMenuOpen(false)
-                }}
-```
-
-### Fix plan — finish the signup UX
-
-Goal: clicking **Create account** on the sign-in view must **only** switch to
-the signup form. No network requests until the user submits the signup form with
-valid input.
-
-#### 1. Prevent implicit form submission on mode toggles (required)
-
-Add `type="button"` to both mode-switch buttons:
-
-- Sign-in view: **Create account** → `setAuthMode("signup")`
-- Signup view: **I already have an account** → `setAuthMode("signin")`
-
-This is the minimal, correct HTML fix. Optionally also call
-`event.preventDefault()` in each toggle's `onClick` as defense in depth.
-
-#### 2. Reset popup state on close (recommended)
-
-When the user menu popup closes (`onClose` / `setMenuOpen(false)`):
-
-- Reset `authMode` to `"signin"` so reopening always starts on the sign-in form
-- Clear signup field state (`signupUsername`, `signupEmail`, `signupPassword`)
-  and any displayed auth error
-
-This avoids showing a half-filled signup form or stale errors on the next open.
-
-#### 3. Client-side guard before claim (recommended)
-
-In `handleSignup`, validate fields before `fetch("/api/anon-session/claim")`:
-
-- Trim username; require non-empty
-- Require password length ≥ 8 (match server rules)
-
-Return early with a friendly inline error instead of hitting the API with empty
-bodies. This does not replace fix (1) but prevents confusing `400` responses if
-submit is triggered unexpectedly again.
-
-#### 4. Keep popup open on auth failure (recommended)
-
-Today both forms call `setMenuOpen(false)` on submit regardless of outcome
-(sign-in form closes even when login fails, because close is in `onSubmit` before
-async handler completes). For signup, only close the popup after **successful**
-claim + credentials sign-in. On validation or `409` conflict, keep the popup
-open on the signup form so the user can correct input or switch to sign-in.
-
-Wire this by moving `setMenuOpen(false)` into the success paths of
-`handleLogin` / `handleSignup` in `useAccountActions.ts` (or returning success/failure
-from handlers to `WorkspaceHeader`).
-
-#### 5. Verification checklist
-
-Manual:
-
-1. Open anonymous session, create a note
-2. Open user popup → click **Create account** (secondary, sign-in view)
-3. **Expect:** signup form appears; **no** network call to `/api/anon-session/claim`
-4. Fill username + password → click **Create account** (primary)
-5. **Expect:** claim → credentials sign-in → same note visible, header shows new username
-6. Repeat with duplicate username → `409`, popup stays open with error
-7. Toggle **I already have an account** → back to sign-in, no network calls
-
-Automated (follow-up): a component test that clicks the toggle and asserts
-`handleSignup` / claim fetch is not invoked.
-
-### Files to touch
-
-| File                                                       | Change                                                                                                           |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `apps/notes-next/src/components/items/WorkspaceHeader.tsx` | `type="button"` on toggles; popup close resets `authMode` + signup fields; defer menu close to parent on success |
-| `apps/notes-next/src/workspace/useAccountActions.ts`       | Optional client validation in `handleSignup`; close popup only on success                                        |
-| `apps/notes-next/AGENTS.md`                                | Note the sign-in/signup toggle behavior once fixed                                                               |
-
-No server or schema changes are required for this fix — it is purely client-side
-form behavior.
+Claim-in-place signup preserves preferences automatically (same row).

@@ -15,7 +15,7 @@ app/                        — Next.js App Router: pages, layouts, API routes o
   providers.tsx             — client-side providers
   globals.css
   embeddings/               — debug page for testing Jina embeddings
-  search/                   — legacy redirect -> /
+  search/                   — redirect -> /
   api/
     _lib/
       items-app-route-handlers.ts   — shared route handler factories (auth-bound)
@@ -30,10 +30,10 @@ app/                        — Next.js App Router: pages, layouts, API routes o
     bootstrap/              — GET (user/workspaces + one workspace snapshot for startup/switching)
     backup/                 — GET (JSON download), POST (validated atomic merge into permanent account)
     session/                — GET (authenticated user), PATCH (preferences)
-    items/                  — GET (list), POST (create), PATCH (update), DELETE (to the trash)
-    items/trash/            — GET (list), POST (restore one), DELETE (purge one or all)
+    items/                  — GET (list), POST (create), PATCH (patch the named fields), DELETE (to the trash)
+    items/model/            — GET (the item model; public)
+    items/trash/            — GET (a page), POST (restore one), DELETE (purge one or all)
     items/journal/          — POST (combine an item into the entry its journal day already has)
-    notes/                  — legacy payload facade over the item routes
     tags/                   — GET (list), POST (create)
     categories/             — GET (list), POST (create), PATCH, DELETE
     statuses/               — workspace-scoped GET/POST/PATCH/DELETE
@@ -136,7 +136,8 @@ between views, so the session, the open-item ring, and pending saves carry acros
   position order, then a column for dated tasks with no status) and the due-date list.
   Dragging a card calls `handleSetItemStatus`; a column's quick-add calls
   `handleQuickAddItem`, which applies the view's `quickAddDefaults`. Both store
-  directly without opening the item. A list action first saves the item's open,
+  directly without opening the item. A list action sends only the fields it changes
+  (`patchStoredItem`), so the text and everything else stay as stored. It first saves the item's open,
   unsaved edits (`settleOpenEntryFor`), so it never overwrites what the user typed,
   and registers itself in `directWritesRef`, which `flushAllPendingSaves` waits for.
   List writes to one item run in the order they were asked for, and each is decided
@@ -189,9 +190,10 @@ between views, so the session, the open-item ring, and pending saves carry acros
     before it is sent; if the user has typed since, it sends that content instead.
   - An update of an open entry names the version it began from (`baseTimeModified`).
     An answer of `409` with the stored item means that item changed elsewhere. When it
-    still holds what the entry last saved, the update is sent again from the stored
-    version. Otherwise the entry keeps its draft, and the conflict notice offers the
-    stored version in a new tab or `keepEntryOverStoredItem`, which saves the draft
+    holds what the entry last saved, what the page sent as it was hidden, or what is
+    being sent, the update is sent again from the stored version. Otherwise the entry
+    keeps its draft, and the conflict notice (`FeedbackNotifications.tsx`) shows the
+    stored text inline and offers `keepEntryOverStoredItem`, which saves the draft
     over it.
   - An update answered `404` means the item was deleted somewhere else. What the user
     is writing is kept: the item is created again under the entry's uid.
@@ -274,21 +276,21 @@ A confirmed bootstrap `401` ends the expired Auth.js session on both cached and 
 
 Several notes are open at once, in a bounded most-recently-used **ring**. Opening a note adds an entry rather than replacing one, so switching never waits for a save.
 
-- `src/stores/openItems.ts` — pure, React-free reducers over the ring. The open sequence is **insert → activate → evict**, and the order is load-bearing: eviction protects the active entry, so evicting first protects the _outgoing_ note and at a cap of 1 leaves nothing droppable. There is a unit test pinned at `cap === 1`; larger caps hide the bug.
-- `src/lib/openItemsStorage.ts` — persists a separate ring per `(userId, workspaceId)` and upgrades the legacy `notes-open-notes-v1` and scoped `notes-open-notes-v2` shapes. It is deliberately **not** part of `itemsCache`, which expires after 14 days and contains only replaceable server data. A transient session-restore failure must not wipe either cache; it would remove the offline view and could destroy unsaved text. `reconcileOpenItems` is pure and takes a lookup rather than the note array.
+- `src/stores/openItems.ts` — pure, React-free reducers over the ring. The open sequence is **insert → activate → evict**, and the order is load-bearing: eviction protects the active entry, so evicting first protects the _outgoing_ note and at a cap of 1 leaves nothing droppable. There is a unit test pinned at `cap === 1`; larger caps hide a wrong order.
+- `src/lib/openItemsStorage.ts` — persists a separate ring per `(userId, workspaceId)` and upgrades the `notes-open-notes-v1` and scoped `notes-open-notes-v2` shapes. It is deliberately **not** part of `itemsCache`, which expires after 14 days and contains only replaceable server data. A transient session-restore failure must not wipe either cache; it would remove the offline view and could destroy unsaved text. `reconcileOpenItems` is pure and takes a lookup rather than the note array.
 - `src/hooks/useOpenItemsAutosave.ts` — one debounce per dirty entry, re-armed only when that entry's own signature changes so typing in one note cannot starve a background save.
 
-The editor has **no submit control** — notes only ever save in the background. `TextCaptureForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so Enter in an expanded date field cannot implicitly submit and reload the page. Do not reintroduce a save mode that resets the editor after saving: it would recycle the ring slot holding the just-saved note, and throw away anything typed while the request was in flight.
+The editor has **no submit control** — notes only ever save in the background. `TextCaptureForm`'s `<form>` exists for grouping and styling; its `onSubmit` only calls `preventDefault()` so Enter in an expanded date field cannot implicitly submit and reload the page. Do not add a save mode that resets the editor after saving: it would recycle the ring slot holding the just-saved note, and throw away anything typed while the request was in flight.
 
 Notes persist through `saveEntry(key, mode)` in `useItemSaveEngine.ts`, keyed by entry:
 
 - `autosave` — trailing debounce (`ITEM_AUTOSAVE_DEBOUNCE_MS`, 3s). Saves for different entries run concurrently; a second save of the _same_ entry queues behind the first.
 - `flush` — awaited save, used where the session, the workspace, or a group is about to change (`handleLogin`, `handleSignup`, `handleLogout`, workspace switch, backup, group actions) via `flushAllPendingSaves()` and `prepareItemGroupAction`. Ordinary note switching does not flush. Both collect entries with `collectSessionFlushEntries`, which waits only for entries that have a save to send. An untouched slot, or a draft its view would not start an item from (in Notes, one holding only tags, a date, or a status), sends nothing and never blocks the change. An entry with a save to send still blocks when that save fails, so nothing the user wrote is lost.
-- `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is not retried. Only the detached save itself forgets its record (`forgetDetachedSave`), and only while the record still holds the text it captured, so a save of the open entry that started earlier cannot erase words typed just before the note was closed.
+- `detached` — an entry that left the ring by eviction, explicit close, or a lowered cap, but was still dirty. Its snapshot moves to `detachedSaves` so the request still lands; closing a note is never discarding it. A detached save waits on any in-flight save for the same key and is not retried. Only the detached save itself forgets its record (`forgetDetachedSave`), and only while the record still holds the text it captured, so a save of the open entry that started earlier cannot erase words typed just before the note was closed. Reopening an item whose unsaved text left the ring finds that record by item id (`useOpenItemEntries.ts`), since an item created in this session left under its draft key; the reopened entry takes the text and the record is dropped.
 
 `pagehide`/`visibilitychange` write the persistence snapshot **first**, while entries are still dirty and including anything in `detachedSaves`. That snapshot is the durable recovery if keepalive bodies are dropped (browsers share a bounded in-flight quota). Keepalive then sends every pending entry: a POST for a never-saved draft, a PATCH for a stored note, and a DELETE for a stored note that was emptied. `visibilitychange` then `pagehide` share a sent-keys set so the same request is not fired twice.
 
-**A create is safe to repeat.** Every entry has a `uid` (`src/lib/publicUid.ts`): its item's, or for a draft the one its create will carry (`newItemRequestBody`). The server stores one item per uid, so a create sent again, after a lost answer or by a reload replaying the draft from its snapshot, finds the item the first one stored and answers `200` instead of `201`. Nothing was written in that case, so `saveEntry` follows a `200` with a PATCH of the same snapshot to that item. Quick-add sends a uid too. The address bar names the open item by uid (`?item=`); an older `?id=` address still opens its item and is rewritten. A link may name an item in a workspace other than the one last open: startup and history navigation resolve the item through authenticated bootstrap before restoring its workspace ring. The item address contains only its UID and any unrelated URL parameters. An unavailable item keeps its address and offers a return to the workspace. The editor's document is named by the entry's uid, because every workspace's ring starts its drafts at the same key.
+**A create is safe to repeat.** Every entry has a `uid` (`src/lib/publicUid.ts`): its item's, or for a draft the one its create will carry (`newItemRequestBody`). The server stores one item per uid, so a create sent again, after a lost answer or by a reload replaying the draft from its snapshot, finds the item the first one stored and answers `200` instead of `201`. Nothing was written in that case, so `saveEntry` follows a `200` with a PATCH of the same snapshot to that item. Quick-add sends a uid too. The address bar names the open item by uid (`?item=`); an `?id=` address also opens its item and is rewritten. A link may name an item in a workspace other than the one last open: startup and history navigation resolve the item through authenticated bootstrap before restoring its workspace ring. The item address contains only its UID and any unrelated URL parameters. An unavailable item keeps its address and offers a return to the workspace. The editor's document is named by the entry's uid, because every workspace's ring starts its drafts at the same key.
 
 **Invariant worth protecting:** a form change the _user_ did not make must never leave an entry dirty. Reconciliation and category/tag repair recompute `savedSignature` alongside the form — otherwise autosave immediately pushes the change back to the server.
 
@@ -306,22 +308,22 @@ Writes go through a 500ms debounced `PATCH /api/session`. Its response must also
 
 ## Anonymous → permanent account (claim or merge, single load path)
 
-Anonymous visitors are real `user_v1` rows (`is_anonymous = true`). Two ways they become permanent, both credentials-based (OAuth login was removed as unfinished):
+Anonymous visitors are real `user_v1` rows (`is_anonymous = true`). Two ways they become permanent, both credentials-based (there is no OAuth login):
 
 Anonymous users see a sign-in / create-account toggle in the header popup
 (`WorkspaceHeader.tsx`). Mode-switch buttons use `type="button"` so they never
 submit the form; the popup closes only after a successful login or signup.
 
 - **Create account (common path, claim-in-place):** `handleSignup` flushes pending saves, POSTs `/api/anon-session/claim` (which sets username/email/hashed password and flips `is_anonymous` on the _same_ row), then re-runs `signIn("credentials")` for the same user id so the JWT's `isAnonymous` flips. No data moves between users, no merge token exists in this path.
-- **Sign in to an existing account (merge path):** to keep this race-free there is exactly **one** writer of post-login session data: the `restoreSession` effect in `useSessionLifecycle.ts`. `handleLogin` only flushes, captures a signed merge token while still anonymous (stashed in `sessionStorage` under `notes-pending-merge-token`), and calls `signIn`. The flush skips entries Notes does not save, so an untouched slot or a draft with only metadata never blocks sign-in. A draft with text is flushed, and it blocks the session change if its save fails. When `restoreSession` next runs for a real (non-anonymous) session and finds a pending token, it POSTs `/api/anon-session/merge`, then loads the account's data once (skipping the stale cache paint). The login handlers must not load data or run the merge themselves — doing so reintroduces the clobber race.
+- **Sign in to an existing account (merge path):** to keep this race-free there is exactly **one** writer of post-login session data: the `restoreSession` effect in `useSessionLifecycle.ts`. `handleLogin` only flushes, captures a signed merge token while still anonymous (stashed in `sessionStorage` under `notes-pending-merge-token`), and calls `signIn`. The flush skips entries Notes does not save, so an untouched slot or a draft with only metadata never blocks sign-in. A draft with text is flushed, and it blocks the session change if its save fails. When `restoreSession` next runs for a real (non-anonymous) session and finds a pending token, it POSTs `/api/anon-session/merge`, then loads the account's data once (skipping the stale cache paint). The login handlers must not load data or run the merge themselves — a second loader can overwrite the merged data with a stale copy.
 
 Merge failure handling (no silent loss): if merge-token capture fails in `handleLogin` while the visitor has notes, the sign-in is aborted with an error so the user retries while still anonymous. If the merge POST itself fails transiently (network/5xx), `restoreSession` re-stashes the token so a page reload retries within the token's 10-minute TTL; a 4xx is permanent (token/anon row invalid) and only shows a warning. Server-side, the merge also carries the visitor's explicitly-set preferences into the real account (per-property, anon wins) — see `lib/db-items`.
 
-`itemSaveStatus` in `itemsAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `WorkspaceHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature.
+`itemSaveStatus` in `itemsAppStore` (`idle | unsaved | saving | saved | error`) drives the header save indicator (`SaveStatusIndicator` in `WorkspaceHeader.tsx`). The save routine owns the status while a request is in flight; otherwise an effect derives it from the draft signature. After a failed save the status stays `error` until the draft changes or a save succeeds.
 
-- UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.claude/skills/`, and the "UI" section below for when to use which.
+- UI uses **Gravity UI** (`@gravity-ui/uikit`) and **Mantine** (`@mantine/core`). No Tailwind. See the Gravity UI agent skills in `.cursor/skills/`, and the "UI" section below for when to use which.
 - `src/components/ui/FilterablePicker.tsx` is the standard content type, workspace, category, subcategory, status, and tag selector. It owns the value-and-icon trigger, popup, optional create input, and selection behavior. `TextCaptureForm` always offers category, subcategory, and tag pickers in More. In the `note` view, the toolbar also shows category and only shows subcategory and tags when selected. The same picker props serve both places. Do not replace these with native selects or prompt dialogs.
-- Routes are wired through `app/api/_lib/items-app-route-handlers.ts` which maps service calls to HTTP responses and translates embedding errors to correct status codes.
+- Routes are wired through `app/api/_lib/items-app-route-handlers.ts` which maps service calls to HTTP responses. Every data route there goes through `route()`: it resolves the user, answers with `Cache-Control: no-store`, and turns a thrown error into `{ error, code }` (`errorResponse`, with the `ErrorCode` values of `@lib/db-items/contracts/items-app`). A server fault answers `500 internal` and is logged. After a create, update, trash restore, or journal combine, the handler embeds the item once the response is sent (`after()`), so a save never waits on Jina. The client calls these routes with plain `fetch`.
 - Backup routes use `_lib/backup-route-handlers.ts`. Before transfers, flush notes
   and pending preference writes. Restore is additive: refresh bootstrap/cache
   without resetting open-note drafts. Keep the restore modal outside the account
@@ -330,10 +332,10 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 - This package consumes item contracts; `@lib/db-items` owns migrations.
   The `note` view lists items of the `note` kind and starts a note only from text (its
   `canCreate` in `src/views/registry.ts`). That rule belongs to this view: the item
-  service accepts an item holding any content, as the capability registry defines it.
-  Canonical requests use `/api/items` and `X-Items-Contract: 2`; the legacy Notes
-  HTTP facade and persisted identity/storage names are rollout compatibility boundaries.
-  See `docs/db/item-core.md`.
+  service accepts an item holding any content, as the item model defines it
+  (`docs/db/item-model.md`). Sessions write the user id as `itemsUserId`;
+  `readItemsUserId` (`src/lib/sessionIdentity.ts`) also reads `notesUserId` from a
+  cookie that names it that way. See `docs/db/item-core.md`.
 
 ## Embedding debug page
 
@@ -345,10 +347,10 @@ Merge failure handling (no silent loss): if merge-token capture fails in `handle
 
 ## Environment variables
 
-| Variable       | Purpose                                                          |
-| -------------- | ---------------------------------------------------------------- |
-| `DB_ITEMS_URL` | PostgreSQL connection string (`DB_NOTES_URL` fallback)           |
-| `JINA_API_KEY` | Jina AI embeddings key (semantic search + embedding maintenance) |
+| Variable       | Purpose                                                           |
+| -------------- | ----------------------------------------------------------------- |
+| `DB_ITEMS_URL` | PostgreSQL connection string (`DB_NOTES_URL` is read when unset)  |
+| `JINA_API_KEY` | Jina AI key for semantic search and embeddings; saving needs none |
 
 ## Password recovery
 
@@ -392,12 +394,6 @@ sidebar, the recent list, and even a page reload will faithfully show a note
 that was never stored on the server. Confirming a note "is there" in the
 browser proves nothing about persistence.
 
-This is not hypothetical. The open-item ring was manually tested across several
-sessions — including recorded demos — while `workspace_item_v1` was empty the whole
-time. Every session ran as a fresh anonymous user, and a brand-new account had
-no category, so every autosave returned before reaching the network. The local
-snapshot reproduced the notes perfectly on reload and nothing looked wrong.
-
 So when testing anything that claims to save:
 
 - **Clear `localStorage` and reload.** Whatever comes back came from the server.
@@ -416,11 +412,10 @@ So when testing anything that claims to save:
   by the node runner (`src/stores/openItems.ts` is the pattern). There is no
   DOM or React testing setup here and none should be added casually.
 - Anything touching persistence belongs in `lib/db-items`' DB-backed suite,
-  which runs against `DB_NOTES_TEST_URL` only.
-- **Check that a new test fails without its fix.** Two tests in this change
-  initially passed either way; one was rewritten after that check, and the
-  `cap === 1` ring test exists precisely because every larger cap hides the bug
-  it guards.
+  which runs against `DB_ITEMS_TEST_URL` only.
+- **Check that a new test fails without its fix.** A test can pass either way: the
+  ring test is pinned at `cap === 1` because every larger cap passes with the wrong
+  eviction order.
 - Never weaken or delete a failing test to get a green run — no `test.skip`,
   no `.only`, no downgrading an assertion, no fixed timeouts to paper over a
   race. If a test fails, either the code is wrong or the test's intent changed

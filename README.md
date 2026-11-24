@@ -7,9 +7,8 @@ Monorepo for the Notes web app and its shared packages:
 `lib/db-items` is the source of truth for the item database schema, generated contracts, and shared item workflows.
 
 The web app presents text items as notes. Internals use `ItemRecord`, item services,
-and `/api/items`; existing clients keep working through compatibility adapters.
-See [the item core design](docs/db/item-core.md). `DB_NOTES_URL` remains a supported
-fallback for deployed environments during rollout.
+and `/api/items`. See [the item core design](docs/db/item-core.md). `DB_NOTES_URL` is
+read when `DB_ITEMS_URL` is unset.
 
 `lib/atomic-editor` is the markdown editor package used by `notes-next`. It is vendored as regular files via **git subtree** (not a submodule), and can optionally be synced with the standalone fork [`paulshorey/atomic-editor`](https://github.com/paulshorey/atomic-editor).
 
@@ -102,7 +101,7 @@ pnpm run deps:install -- notes-next...
 pnpm --filter notes-next dev         # http://localhost:4100
 ```
 
-`notes-next` needs `DB_ITEMS_URL` and `JINA_API_KEY` in its shell (or `apps/notes-next/.env.local`).
+`notes-next` needs `DB_ITEMS_URL` in its shell (or `apps/notes-next/.env.local`), and `JINA_API_KEY` for search and embedding maintenance.
 
 See the package README files for package-specific setup:
 
@@ -219,8 +218,7 @@ pnpm run release:notes:prepare
 
 Deploy `apps/notes-next` on Railway after this preparation. The committed
 pre-deploy command applies tracked item migrations before the release becomes
-healthy; `.railway/railway.ts` owns the desired settings. Existing applied settings
-that still reference `@lib/db-notes` work through its migration-command adapter.
+healthy; `.railway/railway.ts` owns the desired settings.
 
 Manual migration or verification against a deployed database is an intentional
 operational action that requires explicit authorization and confirmation of the
@@ -229,7 +227,7 @@ contract checks belong on an isolated development database before merge. Use
 `db:migrate:baseline` only once for a legacy untracked database that already has
 the baseline schema. Regenerate embeddings separately if search data needs repair.
 
-See [the item core rollout](docs/db/item-core.md) and
+See [the item core design](docs/db/item-core.md) and
 [the environment matrix](docs/operations/notes-environments.md).
 
 ## Troubleshooting

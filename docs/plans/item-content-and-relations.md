@@ -2,8 +2,9 @@
 
 This plan extends the item model so one record can be a note, a task, a checklist, a
 time block, or a journal entry, and so items can relate to each other. It builds on
-[item core](../db/item-core.md) and [item taxonomy](../db/item-taxonomy.md), and each
-phase updates those documents when it ships.
+[item core](../db/item-core.md), [the item model](../db/item-model.md), and
+[item taxonomy](../db/item-taxonomy.md), and each phase updates those documents when
+it ships.
 
 Phases 1 and 2 are built, and so is the storage half of phase 3: journal entries can
 be saved, combined, backed up, and restored. The journal view is next. [Phases](#phases) lists the
@@ -23,9 +24,13 @@ removed are added rule by rule as each type is built and tested.
   whole item. Emptying an item's text is an edit: whatever else it holds stays.
 - **Everything stays inside one workspace.** A parent, a link, a category, a status,
   and a tag always belong to the item's workspace, enforced by composite foreign keys.
-- **Declared once.** Every new column or table is declared in
+- **Declared once.** What an item can hold and what each combination is called is
+  declared in `contracts/item-model.ts`, which the service, the views, and
+  `GET /api/items/model` all read. Every new column or table is also declared in
   `sql/item/stored-capabilities.ts`, so backup, restore, duplicate detection, account
   merge, and the trash carry it, and `db:verify` fails when one is missed.
+- **An update is a patch.** A field a request leaves out stays as stored, so a client
+  that does not know a field cannot clear it. Each new field follows this rule.
 
 ## Content and state
 
@@ -44,8 +49,10 @@ Two rules follow:
 A date alone does not make an item. A location is a later state field that turns a
 dated item into an event.
 
-The item service enforces both rules, and check constraints on the item table repeat
-them, so no path can store an item the rules refuse.
+The item service enforces both rules against the item a write would leave, and check
+constraints on the item table repeat them, so no path can store an item the rules
+refuse. A status belongs to its workspace's workflow and stays when no item holds it;
+a category, subcategory, or tag is removed with the last item that uses it.
 
 ## Kinds and views
 

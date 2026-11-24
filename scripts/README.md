@@ -23,16 +23,16 @@ hashes, vectors, and the migration ledger. The web client's portable JSON backup
 is a separate format and excludes credentials and vectors.
 
 Set `DB_ITEMS_URL` explicitly for the intended source or destination.
-`DB_NOTES_URL` remains a fallback for existing deployments. The tools select
+`DB_NOTES_URL` is read when it is unset. The tools select
 `pg_dump` and `psql` of the server's major version through
 `check-postgres-client-version.sh`. Run from the repository root.
 
-| Script                    | Purpose                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------- |
-| `items-backup-schema.sh`  | Dump selected tables, their item compatibility views, and required item-schema dependencies |
-| `items-backup-data.sh`    | Dump selected rows and owned sequence values from one consistent data snapshot              |
-| `items-restore-schema.sh` | Replace selected tables and their item compatibility views in one transaction               |
-| `items-restore-data.sh`   | Truncate and reload selected tables and sequence values in one transaction                  |
+| Script                    | Purpose                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `items-backup-schema.sh`  | Dump selected tables and required item-schema dependencies                     |
+| `items-backup-data.sh`    | Dump selected rows and owned sequence values from one consistent data snapshot |
+| `items-restore-schema.sh` | Replace selected tables in one transaction                                     |
+| `items-restore-data.sh`   | Truncate and reload selected tables and sequence values in one transaction     |
 
 Defaults are defined in `scripts/db/common.sh`:
 
@@ -44,13 +44,11 @@ Defaults are defined in `scripts/db/common.sh`:
 - `item_tag_link_v1`
 - `schema_migrations_cursor`
 
-Schema backups include the selected tables' legacy SQL compatibility views and,
-when used by those tables, the pgvector extension declaration and the current
-`apply_row_timestamps_v1()` definition. A fresh destination needs the pgvector
+Schema backups include, when used by the selected tables, the pgvector extension
+declaration and the current `apply_row_timestamps_v1()` definition. A fresh destination needs the pgvector
 server extension files installed and a role allowed to create the extension.
-Existing migrated destinations are also supported. Historical sequence names
-such as `user_note_v1_id_seq` remain intentional rolling-server compatibility;
-the dump preserves their ownership and values.
+Existing migrated destinations are also supported. The item id sequence is named
+`user_note_v1_id_seq`; the dump preserves sequence ownership and values.
 
 ## Full copy
 
@@ -93,8 +91,7 @@ restore. Identifier names are quoted, and missing names are rejected.
 
 A custom restore must contain the full set of tables needed by its foreign keys.
 The tools never use `CASCADE`: they refuse to truncate related unselected tables
-or remove outside constraints/views. Known item compatibility views are handled
-explicitly. An incomplete table set fails and leaves the target unchanged.
+or remove outside constraints/views. An incomplete table set fails and leaves the target unchanged.
 
 A leaf relationship table can be copied by itself when its referenced parent
 rows already exist at the destination:
@@ -116,5 +113,5 @@ never accept `-y` because they only read the database.
 regressions. Those tests create disposable source and destination databases on
 the explicit test cluster; the role needs database-creation privileges. They
 verify canonical rows/relations, textless dated items, vectors, timestamps,
-compatibility views, sequence continuation, failed-restore rollback, and partial
+sequence continuation, failed-restore rollback, and partial
 restore boundaries. The DB Contracts CI workflow also watches these scripts.

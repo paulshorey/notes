@@ -36,8 +36,7 @@ parents. Reporting only on that temporary commit can leave the required context
 missing and block an otherwise complete PR. Both revisions are still inspected;
 changing either starts a fresh assessment. The observer re-reads the PR before
 releasing a gate to avoid publishing a result based on obsolete revisions.
-Historical statuses from earlier implementations remain on old commits; new
-heads receive a single aggregate report.
+Each head receives a single aggregate report.
 
 The observer checks all open PRs into `main` and `prod`, including PRs opened
 before the policy was installed. It polls every minute while any are unfinished.
@@ -54,9 +53,8 @@ queued workflow and test job are assessed like other checks. The privileged
 observer never loads PR artifacts, caches, dependencies, or interpolated PR shell
 input. Its token has only read permissions plus `statuses: write`.
 
-This removes the automatic execution of PR-controlled policy with a status-writing
-token identified by the security review. GitHub Actions integration pinning
-identifies an app, not a particular workflow: a repository writer who can create
+PR-controlled policy therefore never runs with a status-writing token. GitHub
+Actions integration pinning identifies an app, not a particular workflow: a repository writer who can create
 arbitrary write-token workflows can still forge the same context using another
 workflow. This is a workflow gate for trusted collaborators, not a security
 boundary against malicious repository writers. Hard enforcement against such

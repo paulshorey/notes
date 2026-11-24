@@ -21,8 +21,12 @@ using it. After merging a PR, return the primary checkout to `main` and run
 An item belongs to one workspace, has a nullable description, and stores no exclusive
 content-type discriminator. A note is an item with nonblank text. Use item terminology
 in generic backend/state/API code; retain note wording in the text capture UI.
-See [item boundaries](docs/db/item-core.md). Keep historical migrations immutable;
-legacy views, session fields, backup formats, and `DB_NOTES_URL` remain compatibility protocols.
+See [item boundaries](docs/db/item-core.md). [The item model](docs/db/item-model.md)
+defines what an item can hold, which combinations are which kinds, and what each write
+does; `lib/db-items/contracts/item-model.ts` is its source, served at
+`GET /api/items/model`. Keep historical migrations immutable. Earlier backup file
+versions, the `notesUserId` field of an existing session cookie, and `DB_NOTES_URL`
+are still read.
 Categories are optional with no default/protected rows; `uncategorized` is display text.
 
 ## Editor and working conventions

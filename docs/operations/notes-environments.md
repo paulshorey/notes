@@ -16,9 +16,9 @@ credentials.
 
 | Environment            | App and API                                                                          | Database                                                                                                                            | Lifecycle                                                         | Migration owner                                                                          |
 | ---------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Local laptop           | `http://localhost:5500`; UI and `/api/*` are served by the same `notes-next` process | `DB_ITEMS_URL` from the process, then `apps/notes-next/.env.local` or `.env`; this may be a persistent Railway development database | App process is disposable; the configured database usually is not | Developer runs `pnpm run db:migrate` intentionally                                       |
+| Local laptop           | `http://localhost:4100`; UI and `/api/*` are served by the same `notes-next` process | `DB_ITEMS_URL` from the process, then `apps/notes-next/.env.local` or `.env`; this may be a persistent Railway development database | App process is disposable; the configured database usually is not | Developer runs `pnpm run db:migrate` intentionally                                       |
 | Cursor Cloud           | `notes-next` runs inside the cloud workspace                                         | `.cursor/environment.json` provides local socket URLs for throwaway `notes` and `notes_test` PostgreSQL 17 databases                | Databases belong to the cloud workspace and start empty           | Run `pnpm run db:migrate` before app or DB work                                          |
-| Other AI agent VMs     | `notes-next` on `http://localhost:6000` after `bash scripts/agent-env-setup.sh`      | Script writes local socket URLs for throwaway `notes` and `notes_test` PostgreSQL 17 databases                                      | Databases belong to the agent VM and start empty                  | The setup script applies `pnpm run db:migrate`                                           |
+| Other AI agent VMs     | `notes-next` on `http://localhost:4100` after `bash scripts/agent-env-setup.sh --dev` | Script writes local socket URLs for throwaway `notes` and `notes_test` PostgreSQL 17 databases                                      | Databases belong to the agent VM and start empty                  | The setup script applies `pnpm run db:migrate`                                           |
 | Railway PR preview     | Preview URL created by the Railway GitHub deployment check                           | Railway injects `DB_ITEMS_URL`; confirm in Railway that the preview references the intended preview database rather than production | Preview app and, when configured, its database are temporary      | Railway `preDeployCommand` applies pending migrations before the preview starts          |
 | Railway production     | Production Railway domain; UI and API deploy together                                | Production `DB_ITEMS_URL`, injected by Railway                                                                                      | Persistent production data                                        | Railway `preDeployCommand` applies pending migrations before the release becomes healthy |
 | GitHub DB Contracts CI | No user-facing app                                                                   | Fresh PostgreSQL 17 service container                                                                                               | Destroyed after the workflow                                      | Workflow runs migrations and contract verification against the fresh database            |
@@ -58,7 +58,7 @@ From the repository root:
 ```bash
 pnpm run deps:install -- notes-next...
 pnpm run db:migrate
-pnpm run dev:app
+pnpm run dev
 ```
 
 In another terminal:
@@ -67,7 +67,7 @@ In another terminal:
 pnpm run diagnose:notes
 ```
 
-The default health check is `http://localhost:5500/api/health`. To inspect a
+The default health check is `http://localhost:4100/api/health`. To inspect a
 preview or production deployment instead:
 
 ```bash
@@ -160,7 +160,7 @@ normal migration command.
 
 ## Logs and optional tooling
 
-- Local Next.js failures: terminal running `pnpm run dev:app`
+- Local Next.js failures: terminal running `pnpm run dev`
 - CI and preview status: `gh pr checks` and the linked check details
 - Railway build, pre-deploy, runtime, and health logs: Railway deployment page
 - Railway CLI, if installed and authenticated: `railway status` and

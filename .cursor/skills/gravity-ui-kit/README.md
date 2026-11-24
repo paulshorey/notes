@@ -5,7 +5,7 @@ A React component library with 60+ production-ready UI components. Built with Ty
 - **Docs**: https://gravity-ui.com/components/uikit
 - **Storybook**: https://preview.gravity-ui.com/uikit/
 - **Themer** (visual theme editor): https://gravity-ui.com/themer
-- **Icons showcase**: https://gravity-ui.com/icons
+- **Icons**: this repository uses `@phosphor-icons/react` (https://phosphoricons.com)
 
 ## Installation
 
@@ -13,8 +13,8 @@ A React component library with 60+ production-ready UI components. Built with Ty
 # Core UI components
 pnpm add @gravity-ui/uikit
 
-# Icon pack (optional but recommended)
-pnpm add @gravity-ui/icons
+# Icons
+pnpm add @phosphor-icons/react
 ```
 
 ### Peer dependencies
@@ -99,7 +99,6 @@ Gravity UI is a family of libraries that work together:
 | Package | Purpose |
 |---------|---------|
 | `@gravity-ui/uikit` | Core UI components |
-| `@gravity-ui/icons` | 400+ SVG icons as React components |
 | `@gravity-ui/date-components` | Calendar, DatePicker, RangeCalendar |
 | `@gravity-ui/navigation` | App-level navigation (AsideHeader, Footer) |
 | `@gravity-ui/chartkit` | Data visualization / charts |
@@ -109,8 +108,7 @@ Gravity UI is a family of libraries that work together:
 
 ```tsx
 import {Button, TextInput, Text, Label} from '@gravity-ui/uikit';
-import {Pencil} from '@gravity-ui/icons';
-import {Icon} from '@gravity-ui/uikit';
+import {PencilSimple} from '@phosphor-icons/react';
 
 function Example() {
   return (
@@ -118,7 +116,7 @@ function Example() {
       <Text variant="header-1">Hello Gravity</Text>
       <TextInput placeholder="Your name" size="m" hasClear />
       <Button view="action" size="l">
-        <Icon data={Pencil} size={18} />
+        <PencilSimple size={18} />
         Edit
       </Button>
       <Label theme="success">Active</Label>

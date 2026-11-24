@@ -53,8 +53,8 @@ pnpm run agent:setup
 Useful variants:
 
 ```bash
-# Default, then start notes-next and wait for /api/health
-# (falls back to port 6100 because Next.js reserves 6000 for X11)
+# Default, then start notes-next on port 4100 and wait for /api/health
+# (NOTES_DEV_PORT overrides the port)
 bash scripts/agent-env-setup.sh --dev
 
 # Default, then the read-only environment diagnostic
@@ -77,15 +77,17 @@ gitignored.
 
 ```bash
 source .agent-env.sh
-bash scripts/agent-env-setup.sh --dev # Next.js 16 rejects port 6000; --dev uses 6100
+bash scripts/agent-env-setup.sh --dev # http://127.0.0.1:4100
 pnpm --filter notes-next test
 pnpm --filter notes-next build
 pnpm --filter @lib/db-items test      # uses DB_ITEMS_TEST_URL
-NOTES_BASE_URL=http://127.0.0.1:6100 pnpm run diagnose:notes
+pnpm run diagnose:notes               # checks http://localhost:4100/api/health
 pnpm run verify:notes-web
 ```
 
-`pnpm --filter notes-next dev` still uses `--port 6000` from `apps/notes-next/package.json` and exits with Next.js's reserved-port error. Prefer `scripts/agent-env-setup.sh --dev` in agent VMs until that package script changes.
+`pnpm --filter notes-next dev` also serves port 4100. `--dev` additionally
+runs it in the background, waits for `/api/health`, and writes
+`.agent-notes-next.log` and `.agent-notes-next.pid`.
 
 ## Requirements
 
