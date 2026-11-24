@@ -180,9 +180,10 @@ registry, so a new capability is kept in the trash without any trash code. Nothi
 lists, counts, searches, moves, or backs up items sees it.
 
 Deleting or moving items removes the categories, subcategories, and tags no item uses
-any more, and a workspace left with no items (`sql/workspace-cleanup.ts`). Statuses are
-kept. The trash therefore belongs to the user, not the workspace: an entry remembers
-its workspace by id while that exists and by label after.
+any more (`sql/workspace-cleanup.ts`). Statuses are kept, and so is a workspace left
+with no items: only the user deletes a workspace. The trash belongs to the user, not
+the workspace, so it outlives a deleted workspace: an entry remembers its workspace by
+id while that exists and by label after.
 
 | Action                | Route                                  | What happens                                            |
 | --------------------- | -------------------------------------- | ------------------------------------------------------- |
@@ -204,8 +205,20 @@ written [after the response](#embeddings).
 An entry is kept for `TRASH_RETENTION_DAYS` (30, exported from
 `contracts/item-model.ts`). Every listing and every deletion first removes the user's
 entries older than that. Account merge moves a visitor's trash to the account. A
-backup carries no trash, and deleting a workspace deletes its items without trashing
-them.
+backup carries no trash.
+
+## Deleting a workspace
+
+`DELETE /api/workspaces` takes `{ workspaceId, confirmation: "delete-workspace",
+expectedItemCount? }` (`sql/workspace-delete.ts`). The workspace's items go to the trash
+first, and its categories, statuses, and tags are removed with it. `expectedItemCount`
+is the number of items the caller reviewed: when the workspace holds a different number,
+nothing is deleted and the answer is `409`. Any workspace can be deleted, and deleting an
+account's last one leaves a fresh `personal` workspace to capture into.
+
+In the web client, the workspace picker has a delete button beside each workspace. A
+workspace with no items is deleted at once. One that holds items first opens a dialog
+that lists them (`DeleteWorkspaceModal`).
 
 Deleting one item runs in a repeatable-read transaction. A serialization failure is
 tried again, up to three attempts, before the request answers `409`.

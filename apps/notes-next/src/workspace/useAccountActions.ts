@@ -6,8 +6,14 @@ import {
   type SessionResponse,
   type UserPreferences,
 } from "@lib/db-items"
-import { type RestoreBackupResponse } from "@lib/db-items/contracts/items-app"
-import { type FormEvent } from "react"
+import {
+  type ItemRecord,
+  type ItemsResponse,
+  type RestoreBackupResponse,
+  type WorkspaceRecord,
+  type WorkspacesResponse,
+} from "@lib/db-items/contracts/items-app"
+import { type FormEvent, useState } from "react"
 import { signIn, signOut } from "next-auth/react"
 import { STORAGE_KEY } from "@/constants/items"
 import { fetchWithTimeout, getErrorMessage, readJson } from "@/lib/api"
@@ -54,6 +60,7 @@ export function useAccountActions(
     rehydrateOpenItems,
     resetItemsAppStore,
     setActiveWorkspaceId,
+    workspaces,
     setAuthPending,
     setCategories,
     setEmbeddingMaintenancePending,
@@ -424,11 +431,21 @@ export function useAccountActions(
       return
     }
     persistOpenItems()
+    await loadWorkspace(workspaceId)
+  }
+
+  /**
+   * Load a workspace and make it the active one. `null` asks the server to choose, as
+   * it does when the active workspace no longer exists.
+   */
+  const loadWorkspace = async (workspaceId: number | null) => {
+    if (!user) return
     setItemsLoading(true)
     try {
-      const response = await fetch(`/api/bootstrap?workspaceId=${workspaceId}`, {
-        cache: "no-store",
-      })
+      const response = await fetch(
+        workspaceId === null ? "/api/bootstrap" : `/api/bootstrap?workspaceId=${workspaceId}`,
+        { cache: "no-store" },
+      )
       const data = await readJson<BootstrapResponse>(response)
       setWorkspaces(data.workspaces)
       setActiveWorkspaceId(data.activeWorkspaceId)
@@ -472,9 +489,10 @@ export function useAccountActions(
       }
       setUserPreferences(nextUserPreferences)
       setSearchQuery("")
-      setStatusMessage(
-        `Switched to “${data.workspaces.find((w) => w.id === data.activeWorkspaceId)?.label ?? "workspace"}”.`,
-      )
+      if (workspaceId !== null)
+        setStatusMessage(
+          `Switched to “${data.workspaces.find((w) => w.id === data.activeWorkspaceId)?.label ?? "workspace"}”.`,
+        )
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
     } finally {
@@ -503,7 +521,92 @@ export function useAccountActions(
     }
   }
 
+  // The workspace whose content is being reviewed before it is deleted.
+  const [workspaceDeletion, setWorkspaceDeletion] = useState<{
+    workspace: WorkspaceRecord
+    items: ItemRecord[]
+    pending: boolean
+    error: string | null
+  } | null>(null)
+
+  /**
+   * Delete a workspace the user reviewed as holding `expectedItemCount` items. The
+   * server refuses when it holds a different number, so nothing unseen is deleted.
+   */
+  const deleteWorkspace = async (workspace: WorkspaceRecord, expectedItemCount: number) => {
+    if (!user) return
+    const wasActive = workspace.id === activeWorkspaceId
+    await readJson<{ ok: true }>(
+      await fetch("/api/workspaces", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.id,
+          workspaceId: workspace.id,
+          confirmation: "delete-workspace",
+          expectedItemCount,
+        }),
+      }),
+    )
+    clearOpenItemsSnapshot(user.id, workspace.id)
+    if (wasActive) {
+      // Its open entries have nowhere to be saved, so they go with it.
+      detachedSavesRef.current.clear()
+      resetItemsAppStore()
+      await loadWorkspace(null)
+    } else {
+      const data = await readJson<WorkspacesResponse>(
+        await fetch("/api/workspaces", { cache: "no-store" }),
+      )
+      setWorkspaces(data.workspaces)
+    }
+    setStatusMessage(
+      expectedItemCount === 0
+        ? `Deleted “${workspace.label}”.`
+        : `Deleted “${workspace.label}”. Its items are in the trash.`,
+    )
+  }
+
+  /**
+   * The picker's delete button. A workspace with no items is deleted at once. One that
+   * holds items opens the review dialog first.
+   */
+  const handleRequestDeleteWorkspace = async (workspaceId: number) => {
+    const workspace = workspaces.find((candidate) => candidate.id === workspaceId)
+    if (!user || !workspace) return
+    try {
+      // What is still unsaved in the active workspace is part of what would be deleted.
+      if (workspaceId === activeWorkspaceId && !(await flushAllPendingSaves())) {
+        setErrorMessage("Couldn't save all notes, so the workspace was not deleted.")
+        return
+      }
+      const data = await readJson<ItemsResponse>(
+        await fetch(`/api/items?workspaceId=${workspaceId}`, { cache: "no-store" }),
+      )
+      if (data.items.length === 0) await deleteWorkspace(workspace, 0)
+      else setWorkspaceDeletion({ workspace, items: data.items, pending: false, error: null })
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    }
+  }
+
+  const handleConfirmDeleteWorkspace = async () => {
+    const review = workspaceDeletion
+    if (!review || review.pending) return
+    setWorkspaceDeletion({ ...review, pending: true, error: null })
+    try {
+      await deleteWorkspace(review.workspace, review.items.length)
+      setWorkspaceDeletion(null)
+    } catch (error) {
+      setWorkspaceDeletion({ ...review, pending: false, error: getErrorMessage(error) })
+    }
+  }
+
   return {
+    workspaceDeletion,
+    handleRequestDeleteWorkspace,
+    handleConfirmDeleteWorkspace,
+    handleCancelDeleteWorkspace: () => setWorkspaceDeletion(null),
     handleRunEmbeddingMaintenance,
     handleLogin,
     handleSignup,

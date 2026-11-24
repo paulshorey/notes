@@ -8,7 +8,9 @@ import { ResultsColumn } from "@/components/items/ResultsColumn"
 import { WorkspaceHeader } from "@/components/items/WorkspaceHeader"
 import { DeleteTagModal } from "@/components/items/modals/DeleteTagModal"
 import { EditTagModal } from "@/components/items/modals/EditTagModal"
+import { DeleteWorkspaceModal } from "@/components/items/modals/DeleteWorkspaceModal"
 import { ItemGroupActionModal } from "@/components/items/modals/ItemGroupActionModal"
+import { TRASH_RETENTION_DAYS } from "@lib/db-items/contracts/item-model"
 import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { useItemsWorkspace } from "@/workspace/ItemsWorkspaceProvider"
@@ -59,6 +61,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     handleCloseOpenItem,
     handleConfirmDeleteTag,
     handleCreateWorkspace,
+    handleRequestDeleteWorkspace,
+    handleConfirmDeleteWorkspace,
+    handleCancelDeleteWorkspace,
+    workspaceDeletion,
     handleDeleteItem,
     handleDownloadBackup,
     handleLogin,
@@ -262,6 +268,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               selectedIds={activeWorkspace ? [activeWorkspace.id] : []}
               onSelectOption={(workspace) => handleSwitchWorkspace(Number(workspace.id))}
               onCreateOption={handleCreateWorkspace}
+              onDeleteOption={(workspace) =>
+                void handleRequestDeleteWorkspace(Number(workspace.id))
+              }
+              deleteOptionAriaLabel={(workspace) => `Delete workspace ${workspace.label}`}
               emptyWithoutQueryMessage="No workspaces yet"
               inputPlaceholder="Enter new workspace..."
               placement={["bottom-start", "bottom-end", "top-start", "top-end"]}
@@ -301,6 +311,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         />
       </div>
 
+      {workspaceDeletion && (
+        <DeleteWorkspaceModal
+          workspace={workspaceDeletion.workspace}
+          items={workspaceDeletion.items}
+          retentionDays={TRASH_RETENTION_DAYS}
+          pending={workspaceDeletion.pending}
+          error={workspaceDeletion.error}
+          onClose={handleCancelDeleteWorkspace}
+          onConfirm={() => void handleConfirmDeleteWorkspace()}
+        />
+      )}
       {user !== null && activeWorkspaceId !== null && (
         <ItemGroupActionModal
           userId={user.id}

@@ -306,7 +306,9 @@ export function ResultsColumn({
       itemLabel={item.description?.trim() || "Untitled"}
       openActionMenuId={openActionMenuId}
       onOpenActionMenuChange={setOpenActionMenuId}
-      onMove={(anchorRef) => setActiveMovePicker({ kind: "filing", itemId: item.id, id, anchorRef })}
+      onMove={(anchorRef) =>
+        setActiveMovePicker({ kind: "filing", itemId: item.id, id, anchorRef })
+      }
       onChangeTag={
         fromTagId === undefined
           ? undefined
@@ -875,12 +877,7 @@ function AccordionSection({
           aria-controls={panelId}
           onClick={onToggle}
         >
-          <CaretRight
-            className={styles.accordionHeadingIcon}
-            size={16}
-            weight="bold"
-            aria-hidden
-          />
+          <CaretRight className={styles.accordionHeadingIcon} size={16} weight="bold" aria-hidden />
           {title}
         </button>
         {action}
@@ -1473,7 +1470,9 @@ function ItemTagPicker({ tags, currentTagId, onClose, onSelect }: ItemTagPickerP
   const [pending, setPending] = useState(false)
   const filteredTags = useMemo(() => {
     const query = normalizeLabel(inputValue)
-    return tags.filter((tag) => tag.id !== currentTagId && normalizeLabel(tag.label).includes(query))
+    return tags.filter(
+      (tag) => tag.id !== currentTagId && normalizeLabel(tag.label).includes(query),
+    )
   }, [currentTagId, inputValue, tags])
 
   const submitLabel = (rawLabel: string) => {

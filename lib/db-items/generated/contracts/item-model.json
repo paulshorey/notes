@@ -140,7 +140,7 @@
     "delete": {
       "destination": "trash",
       "retentionDays": 30,
-      "vocabulary": "Deleting an item removes each category, subcategory, and tag that no item uses any more. Statuses are kept."
+      "vocabulary": "Deleting an item removes each category, subcategory, and tag that no item uses any more. Statuses and the workspace are kept."
     }
   },
   "removals": [

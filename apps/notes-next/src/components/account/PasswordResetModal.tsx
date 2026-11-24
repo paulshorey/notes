@@ -1,7 +1,17 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { Alert, Anchor, Button, Group, Modal, PasswordInput, Stack, Text, TextInput } from "@mantine/core"
+import {
+  Alert,
+  Anchor,
+  Button,
+  Group,
+  Modal,
+  PasswordInput,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core"
 import { completePasswordReset, requestPasswordReset } from "@/lib/passwordResetActions"
 
 export function PasswordResetModal({
@@ -61,8 +71,15 @@ export function PasswordResetModal({
               <>
                 <Text size="sm" role="status">
                   If your account is eligible, Notes sends the code to Paul.{" "}
-                  <Anchor href="https://paulshorey.com/#contact-title" target="_blank" rel="noreferrer">Contact Paul</Anchor>
-                  {" "}with this reference so he can verify your account and share the code. The code expires in 30 minutes.
+                  <Anchor
+                    href="https://paulshorey.com/#contact-title"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Contact Paul
+                  </Anchor>{" "}
+                  with this reference so he can verify your account and share the code. The code
+                  expires in 30 minutes.
                 </Text>
                 <TextInput label="Request reference" value={requestId} readOnly />
                 <TextInput
@@ -75,8 +92,22 @@ export function PasswordResetModal({
                   data-autofocus
                   required
                 />
-                <PasswordInput label="New password" name="password" autoComplete="new-password" minLength={8} maxLength={1024} required />
-                <PasswordInput label="Confirm new password" name="confirmation" autoComplete="new-password" minLength={8} maxLength={1024} required />
+                <PasswordInput
+                  label="New password"
+                  name="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={1024}
+                  required
+                />
+                <PasswordInput
+                  label="Confirm new password"
+                  name="confirmation"
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={1024}
+                  required
+                />
               </>
             ) : (
               <>
@@ -92,7 +123,11 @@ export function PasswordResetModal({
                 />
               </>
             )}
-            {error && <Alert color="red" role="alert">{error}</Alert>}
+            {error && (
+              <Alert color="red" role="alert">
+                {error}
+              </Alert>
+            )}
             <Group justify="space-between">
               {requestId && (
                 <Button

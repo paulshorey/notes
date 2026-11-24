@@ -1481,6 +1481,13 @@
           "kind": "scalar",
           "type": "string",
           "nullable": false
+        },
+        {
+          "name": "expectedItemCount",
+          "optional": true,
+          "kind": "scalar",
+          "type": "number",
+          "nullable": false
         }
       ]
     },

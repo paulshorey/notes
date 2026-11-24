@@ -129,12 +129,12 @@ import {
 } from "../sql/status"
 import {
   createWorkspaceForUser,
-  deleteWorkspaceForUser,
   ensureDefaultWorkspaceForUser,
   getWorkspaceByIdForUser,
   listWorkspacesByUser,
   updateWorkspaceForUser,
 } from "../sql/workspace"
+import { deleteWorkspaceForUser } from "../sql/workspace-delete"
 import {
   CLAIM_IDENTIFIER_TAKEN_ERROR,
   claimAnonymousUser,
@@ -380,6 +380,13 @@ export const parseDeleteWorkspaceRequest = (v: unknown): DeleteWorkspaceRequest 
     userId: parsePositiveInteger(b.userId, "userId"),
     workspaceId: parsePositiveInteger(b.workspaceId, "workspaceId"),
     confirmation: b.confirmation,
+    ...(b.expectedItemCount == null
+      ? {}
+      : {
+          expectedItemCount: parsePositiveInteger(b.expectedItemCount, "expectedItemCount", {
+            min: 0,
+          }),
+        }),
   }
 }
 export const parseCreateItemRequest = (v: unknown): CreateItemRequest => {
@@ -557,7 +564,9 @@ export const updateWorkspaceForItemsApp = async (
 export const deleteWorkspaceForItemsApp = async (
   r: DeleteWorkspaceRequest,
 ): Promise<DeleteResponse | null> =>
-  (await deleteWorkspaceForUser(r.userId, r.workspaceId)) ? { ok: true } : null
+  (await deleteWorkspaceForUser(r.userId, r.workspaceId, r.expectedItemCount ?? null))
+    ? { ok: true }
+    : null
 export const listItemsForItemsApp = async (r: ItemsRequest): Promise<ItemsResponse> => ({
   items: await listItemsByUser(r.userId, r.workspaceId),
 })

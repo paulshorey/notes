@@ -137,7 +137,7 @@ export const ITEM_MODEL = {
       destination: "trash",
       retentionDays: TRASH_RETENTION_DAYS,
       vocabulary:
-        "Deleting an item removes each category, subcategory, and tag that no item uses any more. Statuses are kept.",
+        "Deleting an item removes each category, subcategory, and tag that no item uses any more. Statuses and the workspace are kept.",
     },
   },
 } as const satisfies {

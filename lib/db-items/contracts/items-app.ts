@@ -365,7 +365,13 @@ export interface UpdateWorkspaceRequest {
 export interface DeleteWorkspaceRequest {
   userId: number
   workspaceId: number
+  /** Always `"delete-workspace"`. */
   confirmation: string
+  /**
+   * The number of items the caller reviewed. When the workspace holds a different
+   * number, the deletion is refused with `409` and nothing is deleted.
+   */
+  expectedItemCount?: number
 }
 export interface CreateStatusRequest {
   userId: number

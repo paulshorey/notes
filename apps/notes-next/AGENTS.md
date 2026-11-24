@@ -255,8 +255,11 @@ Submitting a new name creates the workspace in the move transaction. The picker
 blocks background edits while open so the move cannot discard edits made after
 its preview. Apply within-workspace filing changes through
 `applyItemGroupResultToCategories` and `refileAfterGroupResult`. A deletion or
-workspace move refreshes workspace and vocabulary lists after cleanup. When the
-active workspace is removed, carry open unsaved drafts into the fallback workspace.
+workspace move refreshes workspace and vocabulary lists after cleanup. A workspace is
+removed only by the delete button beside it in the workspace picker
+(`handleRequestDeleteWorkspace`): an empty one is deleted at once, and one with items
+first shows them in `DeleteWorkspaceModal`. Deleting the active workspace discards its
+open entries and loads the workspace the server chooses.
 Opening the dialog pauses autosave/exit PATCHes, settles saved entries before
 preview, and excludes unsaved drafts. Apply the committed response to entries and
 caches before refreshing; deleted entries must never become detached saves.

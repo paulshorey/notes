@@ -80,8 +80,10 @@ See `docs/db/item-core.md` for the item domain and `docs/db/item-model.md` for t
   delete items before removing the row that files them. Single and bulk item
   deletion share `sql/item/delete.ts`. Deletions and workspace moves run
   `sql/workspace-cleanup.ts` in the same transaction: it removes the categories,
-  subcategories, and tags no item uses and a workspace left with no items, and keeps
-  statuses. Group actions call no embedding provider. See
+  subcategories, and tags no item uses, and keeps statuses and the workspace itself.
+  Only `deleteWorkspaceForUser` (`sql/workspace-delete.ts`) removes a workspace: it
+  sends the workspace's items to the trash first and refuses when the caller's
+  `expectedItemCount` does not match. Group actions call no embedding provider. See
   `docs/db/item-group-actions.md` at the repository root for semantics and limits.
 
 ## Source of truth

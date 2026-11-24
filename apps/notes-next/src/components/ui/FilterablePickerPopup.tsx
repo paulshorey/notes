@@ -1,7 +1,7 @@
 "use client"
 
 import { Popup } from "@gravity-ui/uikit"
-import { ArrowRight } from "@phosphor-icons/react"
+import { ArrowRight, X } from "@phosphor-icons/react"
 import {
   type ComponentProps,
   type KeyboardEvent,
@@ -39,6 +39,9 @@ export interface FilterablePickerPopupProps {
     onSubmit: () => void
   }
   onSelectOption?: (option: FilterablePickerOption) => void
+  /** Adds a delete button beside each option. The caller confirms and deletes. */
+  onDeleteOption?: (option: FilterablePickerOption) => void
+  deleteOptionAriaLabel?: (option: FilterablePickerOption) => string
   showOptionCheckboxes?: boolean
   isOptionActive?: (option: FilterablePickerOption) => boolean
   isOptionSelected?: (option: FilterablePickerOption) => boolean
@@ -57,6 +60,8 @@ export function FilterablePickerPopup({
   disabled = false,
   input,
   onSelectOption,
+  onDeleteOption,
+  deleteOptionAriaLabel,
   showOptionCheckboxes = false,
   isOptionActive,
   isOptionSelected,
@@ -116,7 +121,7 @@ export function FilterablePickerPopup({
             ) : (
               options?.map((option) => {
                 const selected = isOptionSelected?.(option) ?? false
-                return (
+                const optionButton = (
                   <button
                     key={option.id}
                     type="button"
@@ -140,6 +145,21 @@ export function FilterablePickerPopup({
                     ) : null}
                     <span className={styles.optionLabel}>{option.label}</span>
                   </button>
+                )
+                if (!onDeleteOption) return optionButton
+                return (
+                  <div key={option.id} className={styles.optionRow}>
+                    {optionButton}
+                    <button
+                      type="button"
+                      className={styles.optionDelete}
+                      disabled={optionsDisabled}
+                      onClick={() => onDeleteOption(option)}
+                      aria-label={deleteOptionAriaLabel?.(option) ?? `Delete ${option.label}`}
+                    >
+                      <X size={14} weight="regular" />
+                    </button>
+                  </div>
                 )
               })
             )}
