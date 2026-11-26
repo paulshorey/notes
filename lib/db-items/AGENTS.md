@@ -57,7 +57,7 @@ See `docs/db/item-core.md` for the item domain and `docs/db/item-model.md` for t
 - A kind (`note`, `task`, `time`, `journal`) names what an item holds. It is computed
   by `contracts/item-kinds.ts` from the item model, never stored, and an item can be
   several kinds. Write a view's selection with `isKind` instead of testing fields.
-- `updateItemForItemsApp` accepts `expectedTimeModified`, the version the caller edited.
+- `updateItemForItemsApp` and `deleteItemForItemsApp` accept `expectedTimeModified`, the version the caller edited.
   A stale one throws `ItemChangedError` with the stored item (HTTP `409 item_changed`)
   and writes nothing; the comparison is made on the locked row, at millisecond precision. See
   Concurrent edits in `docs/db/item-core.md`.

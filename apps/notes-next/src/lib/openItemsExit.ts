@@ -1,5 +1,3 @@
-import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
-import type { TextCaptureFormState } from "@/types/items"
 import {
   isEmptyDraft,
   type OpenItemEntry,
@@ -7,28 +5,18 @@ import {
   type OpenItemsState,
 } from "@/stores/openItems"
 
-/**
- * The slice of a detached save that persistence and the exit flush need.
- * Keep this free of React so the merge and keepalive rules can be unit-tested.
- */
-export interface DetachedSaveSnapshot {
-  itemId: number | null
-  uid: string
-  form: TextCaptureFormState
-  savedSignature: string | null
-  /** The view the entry belonged to when it left the ring. */
-  view: ItemKindKey
-}
+export type DetachedSaveSnapshot = Pick<
+  OpenItemEntry,
+  "itemId" | "uid" | "form" | "savedSignature" | "baseTimeModified" | "view"
+>
 
 /** What a view's save rule looks at: the entry's view and its draft. */
 type SaveCandidate = Pick<OpenItemEntry, "view" | "form" | "itemId">
 
-export interface ExitFlushItem {
-  key: OpenItemKey
-  itemId: number | null
-  uid: string
-  form: TextCaptureFormState
-}
+export type ExitFlushItem = Pick<
+  OpenItemEntry,
+  "key" | "itemId" | "uid" | "form" | "baseTimeModified"
+>
 
 /**
  * Dirty ring entries that must land before the session, the workspace, or a group
@@ -73,7 +61,7 @@ export const stateWithDetachedSaves = (
       key,
       itemId: save.itemId,
       uid: save.uid,
-      baseTimeModified: null,
+      baseTimeModified: save.baseTimeModified,
       form: save.form,
       view: save.view,
       savedSignature: save.savedSignature,
@@ -104,12 +92,24 @@ export const collectExitFlushItems = (
   for (const entry of openItems) {
     if (!isSaveable(entry) || !isDirty(entry)) continue
     seen.add(entry.key)
-    items.push({ key: entry.key, itemId: entry.itemId, uid: entry.uid, form: entry.form })
+    items.push({
+      key: entry.key,
+      itemId: entry.itemId,
+      uid: entry.uid,
+      form: entry.form,
+      baseTimeModified: entry.baseTimeModified,
+    })
   }
 
   for (const [key, save] of detached) {
     if (seen.has(key) || !isSaveable(save)) continue
-    items.push({ key, itemId: save.itemId, uid: save.uid, form: save.form })
+    items.push({
+      key,
+      itemId: save.itemId,
+      uid: save.uid,
+      form: save.form,
+      baseTimeModified: save.baseTimeModified,
+    })
   }
 
   return items

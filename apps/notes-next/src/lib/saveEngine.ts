@@ -1,6 +1,6 @@
 import type { ItemRecord } from "@lib/db-items"
 import { draftHoldsContent } from "@/capabilities/draftParts"
-import { RequestError, getErrorMessage, readJson } from "@/lib/api"
+import { getErrorMessage, readJson, RequestError } from "@/lib/api"
 import {
   itemRequestBody,
   newItemRequestBody,
@@ -33,7 +33,7 @@ interface SaveDependencies {
   queuedAutosaveKeys: Set<OpenItemKey>
   groupDeferredSaveKeys: Set<OpenItemKey>
   exitKeepaliveKeys: Set<OpenItemKey>
-  exitSentSignatures: Map<OpenItemKey, string>
+  unconfirmedSignatures: Map<string, string>
   failedSignatures: Map<OpenItemKey, string>
   patchEntry: PatchEntry
   persistOpenItems: () => void
@@ -42,8 +42,7 @@ interface SaveDependencies {
   forgetDeletedItem: (userId: number, workspaceId: number, itemId: number) => void
   scheduleTaxonomyRefresh: (userId: number) => void
   setErrorMessage: (message: string) => void
-  setSaveConflictUid: (uid: string | null) => void
-  setSaveConflictText: (text: string | null) => void
+  setSaveConflictItem: (item: ItemRecord | null) => void
   setStatusMessage: (message: string) => void
 }
 
@@ -52,6 +51,23 @@ const ITEM_SAVE_TIMEOUT_MS = 30_000
 function settledSaveStatus(entry: OpenItemEntry) {
   if (entry.itemId === null && !canSaveEntry(entry)) return "idle"
   return isEntryDirty(entry) ? "unsaved" : "saved"
+}
+
+class SaveConflict extends Error {
+  constructor(readonly item: ItemRecord) {
+    super("The saved item changed since this edit began.")
+  }
+}
+
+async function readWriteResult<T>(response: Response): Promise<T> {
+  if (response.status === 409) {
+    const conflict = await response
+      .clone()
+      .json()
+      .catch(() => null)
+    if (conflict?.code === "item_changed" && conflict.item) throw new SaveConflict(conflict.item)
+  }
+  return readJson<T>(response)
 }
 
 export function createSaveEngine({
@@ -67,7 +83,7 @@ export function createSaveEngine({
   queuedAutosaveKeys,
   groupDeferredSaveKeys,
   exitKeepaliveKeys,
-  exitSentSignatures,
+  unconfirmedSignatures,
   failedSignatures,
   patchEntry,
   persistOpenItems,
@@ -76,29 +92,30 @@ export function createSaveEngine({
   forgetDeletedItem,
   scheduleTaxonomyRefresh,
   setErrorMessage,
-  setSaveConflictUid,
-  setSaveConflictText,
+  setSaveConflictItem,
   setStatusMessage,
 }: SaveDependencies) {
   const getEntry = (key: OpenItemKey) => getOpenItems().find((entry) => entry.key === key)
 
   function detachRemovedEntries(removed: OpenItemEntry[]) {
+    let captured = false
     for (const entry of removed) {
-      if (!isEntryDirty(entry)) continue
-
-      // A draft its view does not save holds nothing to send.
-      if (!canSaveEntry(entry)) continue
+      // An earlier request may still replace what currently looks clean, or create
+      // the item after the user has cleared the draft.
+      if (!saveInFlight.has(entry.key) && !(isEntryDirty(entry) && canSaveEntry(entry))) continue
+      captured = true
 
       detachedSaves.set(entry.key, {
         itemId: entry.itemId,
         form: snapshotTextCaptureForm(entry.form),
         savedSignature: entry.savedSignature,
+        baseTimeModified: entry.baseTimeModified,
         view: entry.view,
         uid: entry.uid,
       })
       void saveEntry(entry.key, "detached")
     }
-    if (removed.some((entry) => isEntryDirty(entry))) {
+    if (captured) {
       persistOpenItems()
     }
   }
@@ -128,65 +145,46 @@ export function createSaveEngine({
     // a success either — a sign-in flush must not read this as "all stored".
     if (!currentUser || workspaceId === null) return false
 
-    // Snapshot before awaiting anything. For a detached entry the snapshot is
-    // all that is left of it; for a live one this pins the version being sent
-    // so later keystrokes belong to the next save, not this one.
-    const detached = detachedSaves.get(key)
-    const entry = getEntry(key)
-
-    const source = detached ?? entry
-    // Nothing left to save: the entry was closed and its work already landed.
-    if (!source) return true
-
-    let formSnapshot = snapshotTextCaptureForm(source.form)
-    let itemId = source.itemId
-    let draftSignature = serializeItemDraft(itemId, formSnapshot)
-
-    if (!canSaveEntry({ view: source.view, form: formSnapshot, itemId })) return false
-    if (entry && !detached && draftSignature === entry.savedSignature) return true
-
-    const inFlight = saveInFlight.get(key)
-    if (inFlight) {
+    const pending = saveInFlight.get(key)
+    if (pending) {
       if (mode === "autosave") {
         queuedAutosaveKeys.add(key)
         return true
       }
-
-      // A second POST for a never-saved entry would create a second note, so
-      // even a detached save has to wait for the in-flight one — which is
-      // also the save that learns the new note id.
-      await inFlight.catch(() => undefined)
-
-      // Re-read the address afterwards. If that save created the row, this
-      // one has to PATCH it; carrying the original `itemId: null` through
-      // would POST a second copy. The detached record is checked first
-      // because an evicted entry has no store slot to have been written to.
-      const settled = detachedSaves.get(key) ?? getEntry(key)
-      if (!settled) return true
-
-      itemId = settled.itemId
-      draftSignature = serializeItemDraft(itemId, formSnapshot)
-      if (draftSignature === settled.savedSignature) {
-        // The save this one waited for already stored the same content, so the
-        // record of what left the ring has nothing more to send.
-        if (detached) forgetDetachedSave(key, detached)
-        return true
-      }
+      await pending.catch(() => undefined)
+      if (getUser()?.id !== currentUser.id || getWorkspaceId() !== workspaceId) return false
+      // Another waiter may already be sending newer text. Read the slot and its
+      // address again only when the preceding request has finished.
+      return saveEntry(key, mode)
     }
 
-    // Decided once the item's address is settled: the save that was in flight may
-    // have created the item, or deleted it.
+    const detached = detachedSaves.get(key)
+    const source = detached ?? getEntry(key)
+    if (!source) return true
+    const formSnapshot = snapshotTextCaptureForm(source.form)
+    const itemId = source.itemId
+    const draftSignature = serializeItemDraft(itemId, formSnapshot)
     const action = entrySaveAction({ view: source.view, form: formSnapshot, itemId })
-    if (action === null) return true
+    if (draftSignature === source.savedSignature || action === null) {
+      if (detached) forgetDetachedSave(key, detached)
+      return draftSignature === source.savedSignature || mode !== "autosave"
+    }
 
     if (!detached) patchEntry(key, { saveStatus: "saving" })
 
-    // The stored item of an update refused as a conflict, for the notice.
-    let conflicting: ItemRecord | null = null
-    // What this save stored, and whether it went on from the hide-time request.
-    let landedSignature: string | null = null
-    let reconciledExitSave = false
-
+    // A detached request can finish after the draft reopened under its item key.
+    // Apply only the server acknowledgment to the entry that now owns this uid.
+    const uid = source.uid
+    function acknowledge(
+      baseline: Pick<OpenItemEntry, "itemId" | "savedSignature" | "baseTimeModified">,
+    ) {
+      const live = getOpenItems().find((entry) => entry.uid === uid)
+      if (live) patchEntry(live.key, baseline)
+      for (const [pendingKey, record] of detachedSaves) {
+        if (record.uid === uid) detachedSaves.set(pendingKey, { ...record, ...baseline })
+      }
+    }
+    const sentSignature = unconfirmedSignatures.get(source.uid)
     const savePromise = (async () => {
       const send = (method: "POST" | "PATCH" | "DELETE", body: object) =>
         fetch("/api/items", {
@@ -197,121 +195,111 @@ export function createSaveEngine({
           // behind it. Ending it reports a failed save, which is tried again.
           signal: timeoutSignal(ITEM_SAVE_TIMEOUT_MS),
         })
-      const update = (id: number, expectedTimeModified?: string | null) =>
-        send("PATCH", {
-          itemId: id,
-          item: itemRequestBody(formSnapshot, workspaceId),
-          ...(expectedTimeModified ? { expectedTimeModified } : {}),
-        })
-      // An open entry edits the item as it was last loaded or saved here, and says
-      // so, which lets the server refuse to write over a change made elsewhere. An
-      // entry that left the ring has no such record and is stored as it is.
-      const liveEntry = () => (detachedSaves.has(key) ? undefined : getEntry(key))
+      let acknowledgedForm = formSnapshot
+      const writeExisting = async (id: number, version: string) => {
+        const response =
+          action === "delete"
+            ? await send("DELETE", { itemId: id, workspaceId, expectedTimeModified: version })
+            : await send("PATCH", {
+                itemId: id,
+                item: itemRequestBody(formSnapshot, workspaceId),
+                expectedTimeModified: version,
+              })
+        if (response.status === 404) return null
+        if (action === "delete") {
+          await readWriteResult<{ ok: true }>(response)
+          return null
+        }
+        return (await readWriteResult<{ item: ItemRecord }>(response)).item
+      }
 
-      // The edit left the item holding nothing, and an item without content is not
-      // kept. The entry stays open as an unsaved draft: if the user types again, it
-      // is created anew under the same uid.
-      if (action === "delete" && itemId !== null) {
-        // This snapshot may be older than the entry: a flush or a queued save pins
-        // it before waiting its turn. If the user has typed since, the item is not
-        // empty any more, and this save sends what it holds now instead.
-        const current = detachedSaves.get(key) ?? getEntry(key)
-        if (current && draftHoldsContent(current.form)) {
-          formSnapshot = snapshotTextCaptureForm(current.form)
-        } else {
-          // Already gone is the outcome asked for: the exit keepalive may have sent
-          // this deletion, or an earlier answer was lost.
-          const response = await send("DELETE", { itemId, workspaceId })
-          if (response.status !== 404) await readJson<{ ok: true }>(response)
-          if (getUser()?.id !== currentUser.id) return
-          forgetDeletedItem(currentUser.id, workspaceId, itemId)
-          scheduleTaxonomyRefresh(currentUser.id)
-          patchEntry(key, { itemId: null, baseTimeModified: null, savedSignature: null })
-          const detachedRecord = detachedSaves.get(key)
-          if (detachedRecord) {
-            detachedSaves.set(key, {
-              ...detachedRecord,
-              itemId: null,
-              savedSignature: null,
-            })
+      const matchesBaseline = (stored: ItemRecord) => {
+        const signature = serializeItemDraft(stored.id, itemToFormState(stored))
+        return (
+          signature === source.savedSignature ||
+          (signature === sentSignature && signature === unconfirmedSignatures.get(uid)) ||
+          signature === draftSignature
+        )
+      }
+
+      const updateOrDelete = async (id: number) => {
+        let version = source.baseTimeModified
+        if (!version) {
+          // A dirty draft from an older browser snapshot may have only its saved
+          // signature. Recover its version only if the content still matches.
+          const response = await fetch(
+            `/api/items?userId=${currentUser.id}&workspaceId=${workspaceId}`,
+            {
+              signal: timeoutSignal(ITEM_SAVE_TIMEOUT_MS),
+              cache: "no-store",
+            },
+          )
+          const { items } = await readJson<{ items: ItemRecord[] }>(response)
+          const stored = items.find((item) => item.id === id)
+          if (!stored) return null
+          if (!matchesBaseline(stored)) throw new SaveConflict(stored)
+          version = stored.timeModified
+        }
+        try {
+          return await writeExisting(id, version)
+        } catch (error) {
+          if (!(error instanceof SaveConflict)) throw error
+          const storedForm = itemToFormState(error.item)
+          const signature = serializeItemDraft(id, storedForm)
+          if (signature === unconfirmedSignatures.get(uid) && signature !== sentSignature) {
+            // A later hide-time write beat this request. Adopt that acknowledgment
+            // and leave any subsequent keystrokes dirty for their own save.
+            acknowledgedForm = storedForm
+            return error.item
           }
-          setStatusMessage("The empty note was removed.")
-          return
+          if (!matchesBaseline(error.item)) throw error
+          return writeExisting(id, error.item.timeModified)
         }
       }
 
-      const create = () =>
-        send("POST", { item: newItemRequestBody(formSnapshot, workspaceId, source.uid) })
-
-      let creating = itemId === null
-      let response =
-        itemId === null ? await create() : await update(itemId, liveEntry()?.baseTimeModified)
-      // The stored item is newer than the one this entry began from. When it holds
-      // what this entry last saved, or what this page itself sent as it was hidden,
-      // nothing changed that the user did not write here, so the edit goes on from
-      // that version. Otherwise the answer stays a conflict and the entry keeps its
-      // draft.
-      if (itemId !== null && response.status === 409) {
-        const conflict = (await response
-          .clone()
-          .json()
-          .catch(() => null)) as { item?: ItemRecord } | null
-        const stored = conflict?.item
-        const storedSignature = stored
-          ? serializeItemDraft(stored.id, itemToFormState(stored))
-          : null
-        if (
-          stored &&
-          (storedSignature === liveEntry()?.savedSignature ||
-            storedSignature === exitSentSignatures.get(key) ||
-            storedSignature === serializeItemDraft(itemId, formSnapshot))
-        ) {
-          reconciledExitSave = storedSignature === exitSentSignatures.get(key)
-          response = await update(itemId, stored.timeModified)
-        } else {
-          conflicting = stored ?? null
-        }
-      }
-      // The item was deleted somewhere else while this entry was open. What the user
-      // is writing is kept: it is created again under the entry's uid.
-      if (!creating && response.status === 404) {
-        // Not when the user deleted it here: the entry is about to close.
+      let stored = itemId === null ? null : await updateOrDelete(itemId)
+      if (action !== "delete" && !stored) {
         if (itemId !== null && wasItemDeletedByUser(itemId)) return
-        creating = true
-        response = await create()
-      }
-      let data = await readJson<{ item: ItemRecord }>(response)
-
-      // A create answered with 200 found the item an earlier attempt had stored, so
-      // this version was not written. It goes to that item as an update.
-      if (creating && response.status === 200) {
-        response = await update(data.item.id)
-        data = await readJson<{ item: ItemRecord }>(response)
-      }
-
-      if (getUser()?.id !== currentUser.id) return
-
-      mergeSavedItem(currentUser.id, data.item)
-      scheduleTaxonomyRefresh(currentUser.id)
-
-      landedSignature = serializeItemDraft(data.item.id, formSnapshot)
-      patchEntry(key, {
-        itemId: data.item.id,
-        baseTimeModified: data.item.timeModified,
-        savedSignature: landedSignature,
-      })
-
-      // Keep any detached record for this key in step. Without this, an entry
-      // evicted mid-create keeps `itemId: null` and the next detached save or
-      // exit keepalive POSTs a second copy of the same note.
-      const pendingDetached = detachedSaves.get(key)
-      if (pendingDetached) {
-        detachedSaves.set(key, {
-          ...pendingDetached,
-          itemId: data.item.id,
-          savedSignature: landedSignature,
+        const createSignature = serializeItemDraft(null, formSnapshot)
+        const createResponse = await send("POST", {
+          item: newItemRequestBody(formSnapshot, workspaceId, uid),
         })
+        stored = (await readWriteResult<{ item: ItemRecord }>(createResponse)).item
+        if (createResponse.status === 200) {
+          const existing = serializeItemDraft(null, itemToFormState(stored))
+          if (existing === unconfirmedSignatures.get(uid) && existing !== sentSignature) {
+            acknowledgedForm = itemToFormState(stored)
+          } else if (existing !== createSignature) {
+            if (existing !== sentSignature || existing !== unconfirmedSignatures.get(uid))
+              throw new SaveConflict(stored)
+            stored = await writeExisting(stored.id, stored.timeModified)
+            if (!stored) throw new Error("The item was removed during the save. Try again.")
+          }
+        }
       }
+
+      if (getUser()?.id !== currentUser.id || getWorkspaceId() !== workspaceId) return
+      if (stored) {
+        mergeSavedItem(currentUser.id, stored)
+        acknowledge({
+          itemId: stored.id,
+          baseTimeModified: stored.timeModified,
+          savedSignature: serializeItemDraft(stored.id, acknowledgedForm),
+        })
+      } else if (itemId !== null) {
+        forgetDeletedItem(currentUser.id, workspaceId, itemId)
+        acknowledge({ itemId: null, baseTimeModified: null, savedSignature: null })
+        setStatusMessage("The empty note was removed.")
+      }
+      scheduleTaxonomyRefresh(currentUser.id)
+      // Only discharge evidence observed by this save. A page hide while it
+      // was in flight can have sent a later draft.
+      const unconfirmed = unconfirmedSignatures.get(uid)
+      if (
+        unconfirmed === sentSignature ||
+        unconfirmed === serializeItemDraft(itemId, acknowledgedForm)
+      )
+        unconfirmedSignatures.delete(uid)
     })()
 
     saveInFlight.set(key, savePromise)
@@ -322,10 +310,6 @@ export function createSaveEngine({
       await savePromise
       persisted = true
       failedSignatures.delete(key)
-      // The hide-time request is settled once a save went on from what it stored, or
-      // stored the same thing. An earlier save finishing says nothing about it.
-      if (reconciledExitSave || exitSentSignatures.get(key) === (landedSignature as string | null))
-        exitSentSignatures.delete(key)
       // A view may be waiting to take this entry until its edits are stored.
       finishViewClaim(key)
       if (getUser()?.id === currentUser.id && !detached) {
@@ -337,11 +321,34 @@ export function createSaveEngine({
         }
       }
     } catch (error) {
-      if (getUser()?.id === currentUser.id) {
-        if (error instanceof RequestError && error.status === 409 && itemId !== null) {
+      if (getUser()?.id === currentUser.id && getWorkspaceId() === workspaceId) {
+        if (
+          !(error instanceof SaveConflict) &&
+          (!(error instanceof RequestError) || error.status >= 500)
+        ) {
+          // The server may have committed before the reply was lost. If the user
+          // already reverted, its apparently clean draft still needs reconciliation.
+          if (unconfirmedSignatures.get(uid) === sentSignature)
+            unconfirmedSignatures.set(uid, draftSignature)
+          const current =
+            detachedSaves.get(key) ?? getOpenItems().find((entry) => entry.uid === uid)
+          if (
+            current &&
+            current.itemId === itemId &&
+            current.savedSignature === serializeItemDraft(itemId, current.form) &&
+            current.savedSignature !== draftSignature
+          ) {
+            acknowledge({
+              itemId,
+              baseTimeModified: current.baseTimeModified,
+              savedSignature: draftSignature,
+            })
+            persistOpenItems()
+          }
+        }
+        if (error instanceof SaveConflict) {
           persistOpenItems()
-          setSaveConflictText((conflicting as ItemRecord | null)?.description ?? null)
-          setSaveConflictUid(source.uid)
+          setSaveConflictItem(error.item)
         } else {
           setErrorMessage(getErrorMessage(error))
         }
@@ -377,33 +384,42 @@ export function createSaveEngine({
    * Notes draft holding only a tag, is skipped: it must never block the change.
    */
   async function flushAllPendingSaves() {
-    const entries = collectSessionFlushEntries(getOpenItems(), isEntryDirty, canSaveEntry)
-    // Detached work counts too: text that left the ring is exactly the text
-    // nobody is looking at, so it is the easiest to lose in a session change.
-    const detachedKeys = [...detachedSaves.keys()]
-
-    const results = await Promise.allSettled([
-      ...entries.map((entry) => saveEntry(entry.key, "flush")),
-      ...detachedKeys.map((key) => saveEntry(key, "detached")),
-      ...directWrites,
-    ])
-
-    // Reports failure rather than swallowing it. Callers are about to tear down
-    // or replace the session, so proceeding past a failed save destroys the
-    // draft it was carrying.
-    return results.every((result) => result.status === "fulfilled" && result.value)
+    const userId = getUser()?.id
+    const workspaceId = getWorkspaceId()
+    while (getUser()?.id === userId && getWorkspaceId() === workspaceId) {
+      const entries = collectSessionFlushEntries(getOpenItems(), isEntryDirty, canSaveEntry)
+      const keys = new Set([...saveInFlight.keys(), ...detachedSaves.keys()])
+      for (const entry of entries) {
+        if (entry.itemId === null || !wasItemDeletedByUser(entry.itemId)) keys.add(entry.key)
+      }
+      if (!keys.size && !directWrites.size) return true
+      const results = await Promise.allSettled([
+        ...Array.from(keys, (key) => saveEntry(key, "flush")),
+        ...directWrites,
+      ])
+      if (results.some((result) => result.status === "rejected" || !result.value)) return false
+      // The user could still type or undo while the flush waited for its replies.
+    }
+    return false
   }
 
-  /**
-   * The user chose their own version over the one stored since their edit began. The
-   * entry forgets which version it started from, so its next save is not refused.
-   */
-  function keepEntryOverStoredItem(uid: string) {
-    setSaveConflictUid(null)
-    const entry = getOpenItems().find((item) => item.uid === uid)
-    if (!entry) return
-    patchEntry(entry.key, { baseTimeModified: null })
-    void saveEntry(entry.key, "flush")
+  function keepEntryOverStoredItem(stored: ItemRecord) {
+    setSaveConflictItem(null)
+    const baseline = {
+      itemId: stored.id,
+      baseTimeModified: stored.timeModified,
+      savedSignature: serializeItemDraft(stored.id, itemToFormState(stored)),
+    }
+    const entry = getOpenItems().find((item) => item.uid === stored.uid)
+    if (entry) {
+      patchEntry(entry.key, baseline)
+      return saveEntry(entry.key, "flush")
+    }
+    for (const [key, record] of detachedSaves) {
+      if (record.uid !== stored.uid) continue
+      detachedSaves.set(key, { ...record, ...baseline })
+      return saveEntry(key, "flush")
+    }
   }
 
   function syncSaveStatuses(openItems: OpenItemEntry[]) {
@@ -433,20 +449,32 @@ export function createSaveEngine({
     const pending = collectExitFlushItems(getOpenItems(), detachedSaves, isEntryDirty, canSaveEntry)
     const keepalive = selectKeepaliveExitItems(pending, exitKeepaliveKeys)
 
-    for (const { key, itemId, uid, form } of keepalive) {
+    for (const { key, itemId, uid, form, baseTimeModified } of keepalive) {
+      // A legacy snapshot must reconcile in the foreground before it can write.
+      if (itemId !== null && !baseTimeModified) continue
       exitKeepaliveKeys.add(key)
 
       // The same three outcomes as a save: a new item, an update, or the deletion of
       // an item whose content was removed.
       const removing = itemId !== null && !draftHoldsContent(form)
-      if (itemId !== null && !removing)
-        exitSentSignatures.set(key, serializeItemDraft(itemId, form))
+      const signature = serializeItemDraft(itemId, form)
+      if (!removing) unconfirmedSignatures.set(uid, signature)
       const requestBody =
         itemId === null
           ? { userId: currentUser.id, item: newItemRequestBody(form, workspaceId, uid) }
           : removing
-            ? { userId: currentUser.id, itemId, workspaceId }
-            : { userId: currentUser.id, itemId, item: itemRequestBody(form, workspaceId) }
+            ? {
+                userId: currentUser.id,
+                itemId,
+                workspaceId,
+                expectedTimeModified: baseTimeModified,
+              }
+            : {
+                userId: currentUser.id,
+                itemId,
+                item: itemRequestBody(form, workspaceId),
+                expectedTimeModified: baseTimeModified,
+              }
 
       try {
         void fetch("/api/items", {
@@ -454,7 +482,16 @@ export function createSaveEngine({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(requestBody),
           keepalive: true,
-        }).catch(() => undefined)
+        })
+          .then((response) => {
+            if (
+              response.status >= 400 &&
+              response.status < 500 &&
+              unconfirmedSignatures.get(uid) === signature
+            )
+              unconfirmedSignatures.delete(uid)
+          })
+          .catch(() => undefined)
       } catch {
         // Ignore — this is a best-effort save during teardown.
       }
@@ -477,7 +514,6 @@ type ReopenDependencies = Pick<
 > & {
   openExistingItem: (item: ItemRecord) => OpenItemEntry[]
   detachRemovedEntries: (entries: OpenItemEntry[]) => void
-  getStoredItem: (id: number) => ItemRecord | undefined
   saveEntry: (key: OpenItemKey, mode: ItemSaveMode) => Promise<boolean>
 }
 
@@ -490,7 +526,6 @@ export function openItemWithDetachedSave(
     patchEntry,
     openExistingItem,
     detachRemovedEntries,
-    getStoredItem,
     saveEntry,
   }: ReopenDependencies,
 ) {
@@ -507,16 +542,12 @@ export function openItemWithDetachedSave(
   // Ownership returns to the ring: the reopened entry holds the text, so the record
   // is dropped and nothing sends the older copy again.
   detachedSaves.delete(detachedKey)
-  if (detachedKey === key) {
-    // A save still in flight is keyed the same way and writes its result back
-    // into this entry.
-    patchEntry(key, { form: detached.form, savedSignature: detached.savedSignature })
-    return
-  }
-
-  // The entry is the item as last known here, holding the text that left the ring.
-  // Its saves name that version, so a change made elsewhere is never written over.
-  patchEntry(key, { form: detached.form })
+  patchEntry(key, {
+    form: detached.form,
+    savedSignature: detached.savedSignature,
+    baseTimeModified: detached.baseTimeModified,
+  })
+  if (detachedKey === key) return
   const inFlight = saveInFlight.get(detachedKey)
   if (!inFlight) return
 
@@ -525,12 +556,6 @@ export function openItemWithDetachedSave(
   const settled: Promise<void> = inFlight
     .catch(() => undefined)
     .then(() => {
-      const stored = getStoredItem(item.id)
-      if (stored)
-        patchEntry(key, {
-          baseTimeModified: stored.timeModified,
-          savedSignature: serializeItemDraft(stored.id, itemToFormState(stored)),
-        })
       if (saveInFlight.get(key) === settled) saveInFlight.delete(key)
       if (queuedAutosaveKeys.delete(key)) void saveEntry(key, "autosave")
     })

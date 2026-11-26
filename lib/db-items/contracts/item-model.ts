@@ -134,6 +134,8 @@ export const ITEM_MODEL = {
         "An update that would leave a state without a capability it requires is refused with requirement_missing. Clear that state in the same request.",
     },
     delete: {
+      version:
+        "A delete may name expectedTimeModified. A stale version leaves the item in place and answers 409 with the stored item.",
       destination: "trash",
       retentionDays: TRASH_RETENTION_DAYS,
       vocabulary:

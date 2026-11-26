@@ -1148,6 +1148,13 @@
           "kind": "scalar",
           "type": "number",
           "nullable": false
+        },
+        {
+          "name": "expectedTimeModified",
+          "optional": true,
+          "kind": "scalar",
+          "type": "string",
+          "nullable": false
         }
       ]
     },

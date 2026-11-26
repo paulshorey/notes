@@ -36,17 +36,15 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
     saveInFlightRef,
     scheduleTaxonomyRefresh,
     setErrorMessage,
-    setSaveConflictUid,
-    setSaveConflictText,
+    setSaveConflictItem,
     setMaxOpenItemsInStore,
     setStatusMessage,
     user,
     userRef,
   } = ctx
 
-  // What the request sent as the page was hidden held, by entry. That request's answer
-  // is not waited for, so a later save may find the stored item already holds it.
-  const exitSentSignaturesRef = useRef(new Map<OpenItemKey, string>())
+  // A hide-time request or a create with a lost reply may have landed under this uid.
+  const unconfirmedSignaturesRef = useRef(new Map<string, string>())
   // The draft a failed save could not store, by entry. Its status stays "error" until
   // the draft changes or a save succeeds.
   const failedSignaturesRef = useRef(new Map<OpenItemKey, string>())
@@ -72,7 +70,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         queuedAutosaveKeys: queuedAutosaveKeysRef.current,
         groupDeferredSaveKeys: groupDeferredSaveKeysRef.current,
         exitKeepaliveKeys: exitKeepaliveKeysRef.current,
-        exitSentSignatures: exitSentSignaturesRef.current,
+        unconfirmedSignatures: unconfirmedSignaturesRef.current,
         failedSignatures: failedSignaturesRef.current,
         directWrites: directWritesRef.current,
         patchEntry,
@@ -82,8 +80,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
         forgetDeletedItem,
         scheduleTaxonomyRefresh,
         setErrorMessage,
-        setSaveConflictText,
-        setSaveConflictUid,
+        setSaveConflictItem,
         setStatusMessage,
       }),
     [
@@ -100,8 +97,7 @@ export function useItemSaveEngine(ctx: WorkspaceStateOutput & WorkspaceDataOutpu
       saveInFlightRef,
       scheduleTaxonomyRefresh,
       setErrorMessage,
-      setSaveConflictText,
-      setSaveConflictUid,
+      setSaveConflictItem,
       setStatusMessage,
       userRef,
     ],

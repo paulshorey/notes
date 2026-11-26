@@ -394,23 +394,26 @@ export const parseCreateItemRequest = (v: unknown): CreateItemRequest => {
   const b = object(v)
   return { userId: parsePositiveInteger(b.userId, "userId"), item: parseItemInput(b.item) }
 }
-export const parseUpdateItemRequest = (v: unknown): UpdateItemRequest => {
-  const b = object(v)
-  const expected = b.expectedTimeModified
+const parseExpectedVersion = (expected: unknown) => {
   if (expected != null && (typeof expected !== "string" || Number.isNaN(Date.parse(expected))))
     throw new InvalidRequestError("expectedTimeModified must be a valid date.")
+  return typeof expected === "string"
+    ? { expectedTimeModified: new Date(expected).toISOString() }
+    : {}
+}
+export const parseUpdateItemRequest = (v: unknown): UpdateItemRequest => {
+  const b = object(v)
   return {
     userId: parsePositiveInteger(b.userId, "userId"),
     itemId: parsePositiveInteger(b.itemId, "itemId"),
     item: parseItemPatch(b.item),
-    ...(typeof expected === "string"
-      ? { expectedTimeModified: new Date(expected).toISOString() }
-      : {}),
+    ...parseExpectedVersion(b.expectedTimeModified),
   }
 }
 export const parseDeleteItemRequest = (v: unknown): DeleteItemRequest => {
   const b = object(v)
   return {
+    ...parseExpectedVersion(b.expectedTimeModified),
     userId: parsePositiveInteger(b.userId, "userId"),
     itemId: parsePositiveInteger(b.itemId, "itemId"),
     ...(b.workspaceId === undefined
@@ -748,7 +751,8 @@ export const embedItemForItemsApp = async (r: ItemEmbeddingRequest): Promise<boo
 export const deleteItemForItemsApp = async (
   r: DeleteItemRequest,
 ): Promise<DeleteResponse | null> => {
-  if (await deleteItemForUser(r.itemId, r.userId, r.workspaceId)) return { ok: true }
+  if (await deleteItemForUser(r.itemId, r.userId, r.workspaceId, r.expectedTimeModified))
+    return { ok: true }
   if (r.workspaceId !== undefined) {
     const workspaceId = await findWorkspaceIdByItem(r.userId, r.itemId)
     if (workspaceId !== null && workspaceId !== r.workspaceId) {

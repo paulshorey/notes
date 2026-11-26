@@ -22,7 +22,6 @@ import {
   createEmptyOpenItemsState,
 } from "@/stores/openItems"
 import { useItemsAppStore } from "@/stores/itemsAppStore"
-import { useWorkspaceStore } from "@/stores/workspaceStore"
 import { existingFiling, filingLabel, isSameFiling, itemFilingLabel } from "@/lib/itemFiling"
 import {
   readItemTarget,
@@ -75,7 +74,6 @@ export function useOpenItemEntries(ctx: WorkspaceStateOutput & ItemSaveEngineOut
         openExistingItem: openExistingItemInStore,
         patchEntry,
         detachRemovedEntries,
-        getStoredItem: (id) => useWorkspaceStore.getState().items.find((known) => known.id === id),
         saveEntry: (key, mode) => saveEntryRef.current(key, mode),
       }),
     [

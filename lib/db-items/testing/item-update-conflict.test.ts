@@ -4,9 +4,11 @@ import { after, describe, test } from "node:test"
 import type { ItemInput } from "../contracts/items-app"
 import { getDb } from "../lib/db/postgres"
 import {
+  deleteItemForItemsApp,
   getItemsAppErrorStatus,
   ITEM_CHANGED_ERROR,
   ItemChangedError,
+  parseDeleteItemRequest,
   parseUpdateItemRequest,
   updateItemForItemsApp,
 } from "../services/items-app"
@@ -53,8 +55,8 @@ describe("an update that names a stale version is refused (DB)", { skip: !testDb
     const workspace = await createWorkspaceForUser(userId, "personal")
     await getDb().query(
       `INSERT INTO public.workspace_item_v1
-       (workspace_id,description,description_embedding,embedding_model,embedding_updated_at)
-       VALUES($1,'call the bank',$2::vector,$3,now())`,
+       (workspace_id,description,description_embedding,embedding_model,embedding_updated_at,time_modified)
+       VALUES($1,'call the bank',$2::vector,$3,now(),'2026-01-01T00:00:00Z')`,
       [workspace.id, `[${Array(1024).fill(0.01).join(",")}]`, CURRENT_ITEM_EMBEDDING_MODEL],
     )
     const item = (await listItemsByUser(userId, workspace.id))[0]!
@@ -130,6 +132,28 @@ describe("an update that names a stale version is refused (DB)", { skip: !testDb
     })
     assert.equal(forced?.item.timeDue, null)
     assert.equal(forced?.item.timeRemind, due)
+  })
+
+  test("a stale delete returns the current item and the confirmed version can be trashed", async () => {
+    const { userId, item, input } = await seed()
+    const changed = await updateItemForItemsApp({
+      userId,
+      itemId: item.id,
+      item: input({ timeDue: due }),
+    })
+    const body = { userId, workspaceId: item.workspaceId, itemId: item.id }
+    await assert.rejects(
+      deleteItemForItemsApp(
+        parseDeleteItemRequest({ ...body, expectedTimeModified: item.timeModified }),
+      ),
+      (error) => error instanceof ItemChangedError && error.item.timeDue === due,
+    )
+    assert.equal((await listItemsByUser(userId, item.workspaceId))[0]?.timeDue, due)
+    assert.deepEqual(
+      await deleteItemForItemsApp({ ...body, expectedTimeModified: changed!.item.timeModified }),
+      { ok: true },
+    )
+    assert.deepEqual(await listItemsByUser(userId, item.workspaceId), [])
   })
 
   test("a deleted item is still reported as gone, not as changed", async () => {

@@ -1,4 +1,4 @@
-import type { ItemKindKey } from "@lib/db-items/contracts/item-kinds"
+import type { DetachedSaveSnapshot } from "@/lib/openItemsExit"
 import { type CategoryRecord, type TagRecord } from "@lib/db-items"
 import { createDefaultTextCaptureForm, type TextCaptureFormState } from "@/types/items"
 import { serializeItemDraft } from "@/lib/itemDraft"
@@ -50,15 +50,7 @@ export type ItemSaveMode = "autosave" | "flush" | "detached"
  * server. `savedSignature` tracks what has already landed for it, because a
  * save that completes after the entry is gone has no store slot to write to.
  */
-export interface DetachedSave {
-  itemId: number | null
-  /** The uid the entry's create carries, so a late create still finds its item. */
-  uid: string
-  form: TextCaptureFormState
-  savedSignature: string | null
-  /** The view the entry belonged to when it left the ring; its rule still applies. */
-  view: ItemKindKey
-}
+export type DetachedSave = DetachedSaveSnapshot
 
 export const entrySignature = (entry: OpenItemEntry) => serializeItemDraft(entry.itemId, entry.form)
 
