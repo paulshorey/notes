@@ -10,23 +10,11 @@ fields, and both depend on the client writing through one tested path.
 
 ## 1. Client writes
 
-The web client writes items from five places, and the code that decides what a save
-does is inside React hooks that no test imports.
-
-1. **Move the save engine out of its hook.**
-   - Change: turn `saveEntry`, the exit keepalive, and the conflict rules of
-     `src/workspace/useItemSaveEngine.ts` into a plain module that takes its
-     dependencies (fetch, the entry store, a clock) as arguments. The hook becomes the
-     wiring.
-   - Tests, with a fake fetch:
-     - a create answered `200` is followed by an update;
-     - a `409` continues when the stored item holds what the entry last saved, what
-       the page sent as it was hidden, or what is being sent, and stops otherwise;
-     - a save of A in flight, B sent as the page hides, A acknowledged first, then C
-       saved;
-     - an entry that left the ring with a failed save, reopened, while another tab
-       edited the item;
-     - a `404` creates the item again under the entry's uid.
+1. **Move the save engine out of its hook (complete).**
+   `src/lib/saveEngine.ts` handles entry saves, exit keepalive, conflicts, and
+   reopening detached saves. `test/save-engine.test.ts` exercises these paths
+   with a fake fetch. The workspace hooks connect the engine to the stores and
+   browser events.
 2. **One write function for every caller.**
    - Change: list actions (`patchStoredItem`), quick-add, and the time form
      (`handleSaveTimeBlock`) in `useTaxonomyActions.ts` call the engine with a field

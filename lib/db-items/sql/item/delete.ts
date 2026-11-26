@@ -3,6 +3,8 @@ import type { PoolClient } from "pg"
 import { lockUserWorkspaces } from "../workspace"
 import { pruneEmptyWorkspaceTaxonomy } from "../workspace-cleanup"
 import { ItemGroupConflictError } from "../item-group-errors"
+import { ItemChangedError } from "./update"
+import { selectItemById } from "./shared"
 import { TRASH_ITEMS_SQL } from "./stored-capabilities"
 import { purgeExpiredTrashWithClient } from "./trash"
 
@@ -34,10 +36,11 @@ export const deleteItemForUser = async (
   itemId: number,
   userId: number,
   expectedWorkspaceId: number | null = null,
+  expectedTimeModified?: string,
 ) => {
   for (let attempt = 1; ; attempt++) {
     try {
-      return await deleteItemOnce(itemId, userId, expectedWorkspaceId)
+      return await deleteItemOnce(itemId, userId, expectedWorkspaceId, expectedTimeModified)
     } catch (error) {
       if (!isSerializationFailure(error)) throw error
       if (attempt === DELETE_ATTEMPTS)
@@ -50,18 +53,29 @@ const deleteItemOnce = async (
   itemId: number,
   userId: number,
   expectedWorkspaceId: number | null,
+  expectedTimeModified?: string,
 ) => {
   const client = await getDb().connect()
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ")
     await lockUserWorkspaces(client, userId)
-    const { rows } = await client.query<{ workspace_id: number }>(
-      `SELECT n.workspace_id FROM public.workspace_item_v1 n
+    const { rows } = await client.query<{ workspace_id: number; time_modified: Date }>(
+      `SELECT n.workspace_id, n.time_modified FROM public.workspace_item_v1 n
        JOIN public.user_workspace_v1 w ON w.id=n.workspace_id
-       WHERE n.id=$1 AND w.user_id=$2 AND ($3::int IS NULL OR w.id=$3)`,
+       WHERE n.id=$1 AND w.user_id=$2 AND ($3::int IS NULL OR w.id=$3) FOR UPDATE OF n`,
       [itemId, userId, expectedWorkspaceId],
     )
-    const workspaceId = rows[0]?.workspace_id
+    const stored = rows[0]
+    if (
+      stored &&
+      expectedTimeModified &&
+      stored.time_modified.toISOString() !== expectedTimeModified
+    ) {
+      const current = await selectItemById(client, itemId, userId)
+      if (!current) throw new Error("Could not load the locked item.")
+      throw new ItemChangedError(current)
+    }
+    const workspaceId = stored?.workspace_id
     const deleted =
       workspaceId !== undefined &&
       (await deleteItemsForUserWithClient(client, userId, [itemId], workspaceId)).length > 0

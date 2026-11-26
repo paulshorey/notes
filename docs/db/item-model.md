@@ -74,7 +74,9 @@ writes nothing and answers `409` with the stored item.
 
 **Delete** (`DELETE /api/items`) sends the whole item to the trash for 30 days. It also
 removes each category, subcategory, and tag that no item uses any more. Statuses are
-kept, because they are the columns of a workflow, and so is the workspace.
+kept, because they are the columns of a workflow, and so is the workspace. An optional
+`expectedTimeModified` guards the deletion. A stale version returns the stored item
+with `409 item_changed` and leaves it in place.
 
 ## Removing one capability
 

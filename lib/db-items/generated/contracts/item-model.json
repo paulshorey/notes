@@ -138,6 +138,7 @@
       "requirementMissing": "An update that would leave a state without a capability it requires is refused with requirement_missing. Clear that state in the same request."
     },
     "delete": {
+      "version": "A delete may name expectedTimeModified. A stale version leaves the item in place and answers 409 with the stored item.",
       "destination": "trash",
       "retentionDays": 30,
       "vocabulary": "Deleting an item removes each category, subcategory, and tag that no item uses any more. Statuses and the workspace are kept."

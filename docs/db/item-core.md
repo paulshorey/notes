@@ -149,21 +149,17 @@ belongs to that category.
 
 ## Concurrent edits
 
-An update may name the version it edited: `expectedTimeModified`, the `timeModified` of
-the item as the caller last saw it. Every change to an item moves `time_modified`, so
-it identifies a version; an embedding write is not a change and leaves it alone. When
-the stored item has moved on, the update writes nothing and answers `409 item_changed`
-with the stored item (`ItemConflictResponse`). An update that names no version is
-applied over whatever is stored.
+Updates and individual deletes may include `expectedTimeModified`, the item's
+`timeModified` as last seen by the caller. The service compares it at millisecond
+precision while holding the item row lock. A stale write returns `409 item_changed`
+with the stored item and preserves its contents. Embedding updates preserve this timestamp.
 
-The web editor names the version for every open entry, and the time view's form names
-it for the block it changes. On a `409` the save engine compares the stored item with
-what the entry last saved, what the page sent as it was hidden, and what it is sending
-now. If any of them matches, nothing changed that the user did not write here, and the
-save is sent again from the stored version. Otherwise the entry keeps its draft and a
-notice shows the stored text and offers saving the user's version over it. List actions
-send only the fields they change and name no version; neither does an entry that left
-the open ring or the request sent as the page closes.
+Editor autosaves, detached saves, and exit requests carry the version the user edited.
+A detached draft retains that version when reopened. If a stored draft has only a saved
+signature, the foreground save checks it against the stored item before writing.
+A matching version conflict can continue from a known local write. An unrelated edit
+stays available for comparison, and choosing the local draft saves against the version
+displayed in the notice. List actions send the fields they change without a version.
 
 ## Embeddings
 

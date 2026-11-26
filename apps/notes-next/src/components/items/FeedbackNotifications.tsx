@@ -1,15 +1,14 @@
 "use client"
 
+import type { ItemRecord } from "@lib/db-items"
 import { Notification } from "@mantine/core"
 import { useState } from "react"
 import styles from "./FeedbackNotifications.module.css"
 
 interface FeedbackNotificationsProps {
-  saveConflictUid: string | null
-  /** The text stored for the conflicting item, as the server answered it. */
-  saveConflictText: string | null
+  saveConflictItem: ItemRecord | null
   onDismissConflict: () => void
-  onKeepConflictingEdits: (uid: string) => void
+  onKeepConflictingEdits: (item: ItemRecord) => void
   statusMessage: string | null
   errorMessage: string | null
   searchErrorMessage: string | null
@@ -19,8 +18,7 @@ interface FeedbackNotificationsProps {
 }
 
 export function FeedbackNotifications({
-  saveConflictUid,
-  saveConflictText,
+  saveConflictItem,
   onDismissConflict,
   onKeepConflictingEdits,
   statusMessage,
@@ -32,13 +30,13 @@ export function FeedbackNotifications({
 }: FeedbackNotificationsProps) {
   const [showsSavedText, setShowsSavedText] = useState(false)
 
-  if (!saveConflictUid && !statusMessage && !errorMessage && !searchErrorMessage) {
+  if (!saveConflictItem && !statusMessage && !errorMessage && !searchErrorMessage) {
     return null
   }
 
   return (
     <div className={styles.feedback}>
-      {saveConflictUid && (
+      {saveConflictItem && (
         <Notification
           className={styles.feedbackNotification}
           color="orange"
@@ -58,13 +56,15 @@ export function FeedbackNotifications({
           <button
             type="button"
             className={styles.feedbackAction}
-            onClick={() => onKeepConflictingEdits(saveConflictUid)}
+            onClick={() => onKeepConflictingEdits(saveConflictItem)}
           >
             save your version over it
           </button>
           .
           {showsSavedText && (
-            <pre className={styles.savedText}>{saveConflictText?.trim() || "(no text)"}</pre>
+            <pre className={styles.savedText}>
+              {saveConflictItem.description?.trim() || "(no text)"}
+            </pre>
           )}
         </Notification>
       )}

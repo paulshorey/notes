@@ -121,6 +121,7 @@ test("stateWithDetachedSaves appends evicted drafts the ring no longer holds", (
       "note:2",
       {
         itemId: 2,
+        baseTimeModified: "2026-01-01T00:00:00.000Z",
         form: formWith("evicted unsaved text"),
         savedSignature: JSON.stringify({ d: "older" }),
         view: "note",
@@ -135,6 +136,7 @@ test("stateWithDetachedSaves appends evicted drafts the ring no longer holds", (
     merged.openItems.map((item) => item.key),
     ["note:1", "note:2"],
   )
+  assert.equal(merged.openItems[1]?.baseTimeModified, "2026-01-01T00:00:00.000Z")
   assert.equal(merged.openItems[1]?.form.description, "evicted unsaved text")
   assert.equal(merged.openItems[1]?.savedSignature, JSON.stringify({ d: "older" }))
 })
@@ -151,6 +153,7 @@ test("stateWithDetachedSaves does not duplicate a key still in the ring", () => 
       "note:1",
       {
         itemId: 1,
+        baseTimeModified: live.baseTimeModified,
         form: formWith("stale detached copy"),
         savedSignature: live.savedSignature,
         view: "note",
@@ -177,6 +180,7 @@ test("the exit keepalive sends every pending entry once, never-saved drafts incl
         "note:2",
         {
           itemId: 2,
+          baseTimeModified: "2026-01-01T00:00:00.000Z",
           form: formWith("evicted"),
           savedSignature: JSON.stringify({ d: "older" }),
           view: "note",

@@ -152,9 +152,7 @@ export function useWorkspaceState() {
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
-  const [saveConflictUid, setSaveConflictUid] = useState<string | null>(null)
-  // The text stored for the item of that conflict, shown beside the notice.
-  const [saveConflictText, setSaveConflictText] = useState<string | null>(null)
+  const [saveConflictItem, setSaveConflictItem] = useState<ItemRecord | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [searchErrorMessage, setSearchErrorMessage] = useState<string | null>(null)
@@ -373,10 +371,8 @@ export function useWorkspaceState() {
     setStatusMessage,
     errorMessage,
     setErrorMessage,
-    saveConflictUid,
-    setSaveConflictUid,
-    saveConflictText,
-    setSaveConflictText,
+    saveConflictItem,
+    setSaveConflictItem,
     searchErrorMessage,
     setSearchErrorMessage,
     editingTag,

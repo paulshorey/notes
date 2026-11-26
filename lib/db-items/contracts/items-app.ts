@@ -261,7 +261,7 @@ export interface UpdateItemRequest {
   expectedTimeModified?: string
 }
 
-/** The body of a `409` for an update that named a stale `expectedTimeModified`. */
+/** The body of a `409` for a write that named a stale `expectedTimeModified`. */
 export interface ItemConflictResponse {
   error: string
   code: ErrorCode
@@ -273,6 +273,8 @@ export interface DeleteItemRequest {
   userId: number
   itemId: number
   workspaceId?: number
+  /** Refuse deletion if the item changed since this version. */
+  expectedTimeModified?: string
 }
 
 export interface TrashRequest {
