@@ -270,3 +270,14 @@ test("copying an open item keeps its identity across filing changes", async () =
     else Reflect.deleteProperty(globalThis, "window")
   }
 })
+
+test("opening a sidebar item from Time keeps unrelated query parameters and the hash", async () => {
+  const { itemsSelectionPath } = await import("../src/lib/itemsUrlSelection")
+  const href =
+    "https://notes.test/time?ref=mail&ref=work&id=41&workspaceId=3&category=5&subcategory=6&tags=12#origin"
+  const itemUid = "0b6f1c1e-8f0a-4c56-9d3e-2a7b5c9e4f10"
+  assert.equal(
+    itemsSelectionPath(href, { itemUid, categoryId: null, subcategoryId: null, tagIds: [] }, "/"),
+    `/?ref=mail&ref=work&item=${itemUid}#origin`,
+  )
+})

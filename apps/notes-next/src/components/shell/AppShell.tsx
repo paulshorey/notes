@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 import { isKind } from "@lib/db-items/contracts/item-kinds"
 import type { ReactNode } from "react"
 import { Button, Text } from "@gravity-ui/uikit"
-import { readItemsUrlSelection } from "@/lib/itemsUrlSelection"
+import { itemsSelectionPath, readItemsUrlSelection } from "@/lib/itemsUrlSelection"
 import { FeedbackNotifications } from "@/components/items/FeedbackNotifications"
 import { ResultsColumn } from "@/components/items/ResultsColumn"
 import { WorkspaceHeader } from "@/components/items/WorkspaceHeader"
@@ -295,8 +295,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           activeTagIds={activeForm.selectedTagIds}
           onEditItem={(item) => {
             handleOpenItemFromResults(item)
-            if (activeView.kind === "time" && !isKind(item, "time"))
-              router.push(`/?item=${item.uid}`)
+            if (activeView.kind === "time" && !isKind(item, "time")) {
+              router.push(
+                itemsSelectionPath(
+                  window.location.href,
+                  {
+                    itemUid: item.uid,
+                    categoryId: null,
+                    subcategoryId: null,
+                    tagIds: [],
+                  },
+                  "/",
+                ),
+              )
+            }
           }}
           onAddItemForCategory={handleAddItemForCategory}
           onAddItemForTag={handleAddItemForTag}
