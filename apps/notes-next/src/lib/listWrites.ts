@@ -1,5 +1,33 @@
 import type { ItemRecord } from "@lib/db-items"
+import type { OpenItemKey } from "@/stores/openItems"
 import type { ItemDraft } from "@/capabilities/draftParts"
+
+/** Hold the editor's save slot through vocabulary creation, the item PATCH, and reconciliation. */
+export async function runListWrite(
+  key: OpenItemKey,
+  inFlight: Map<OpenItemKey, Promise<void>>,
+  write: () => Promise<ItemRecord | null>,
+  resumeAutosave: () => void,
+): Promise<ItemRecord | null> {
+  let previous = inFlight.get(key)
+  while (previous) {
+    await previous.catch(() => undefined)
+    previous = inFlight.get(key)
+  }
+  const request = Promise.resolve().then(write)
+  const settled = request
+    .then(
+      () => undefined,
+      () => undefined,
+    )
+    .finally(() => {
+      if (inFlight.get(key) !== settled) return
+      inFlight.delete(key)
+      resumeAutosave()
+    })
+  inFlight.set(key, settled)
+  return request
+}
 
 /** The fields a list action may change on a stored item; the rest are sent as stored. */
 export type StoredItemChange = Partial<{
@@ -47,8 +75,6 @@ export const draftAfterListWrite = (
   change: StoredItemChange,
   sent: ItemDraft = draft,
 ): ItemDraft => {
-  const sameTags = (left: number[], right: number[]) =>
-    [...left].sort((a, b) => a - b).join() === [...right].sort((a, b) => a - b).join()
   const refiledSince =
     draft.selectedCategoryId !== sent.selectedCategoryId ||
     draft.selectedSubcategoryId !== sent.selectedSubcategoryId
@@ -69,8 +95,18 @@ export const draftAfterListWrite = (
     ...("timeRemind" in change && draft.timeRemind === sent.timeRemind
       ? { timeRemind: stored.timeRemind, remindExpanded: stored.remindExpanded }
       : {}),
-    ...("tagIds" in change && sameTags(draft.selectedTagIds, sent.selectedTagIds)
-      ? { selectedTagIds: stored.selectedTagIds }
+    ...("tagIds" in change
+      ? {
+          // Apply the editor's additions and removals since the click to the stored set.
+          selectedTagIds: [
+            ...stored.selectedTagIds.filter(
+              (id) => !sent.selectedTagIds.includes(id) || draft.selectedTagIds.includes(id),
+            ),
+            ...draft.selectedTagIds.filter(
+              (id) => !sent.selectedTagIds.includes(id) && !stored.selectedTagIds.includes(id),
+            ),
+          ],
+        }
       : {}),
   }
 }

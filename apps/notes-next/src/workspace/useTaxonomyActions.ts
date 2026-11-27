@@ -43,6 +43,7 @@ import {
   type StoredItemChange,
   changesNothing,
   draftAfterListWrite,
+  runListWrite,
   storedItemFields,
 } from "@/lib/listWrites"
 import { collectSessionFlushEntries, stateWithDetachedSaves } from "@/lib/openItemsExit"
@@ -543,9 +544,11 @@ export function useTaxonomyActions(
     if (detached && !(await saveEntry(detached[0], "detached")))
       throw new Error("Couldn't save your changes to this item first. Try again.")
     const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
-    if (!entry && detached)
-      return useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? null
-    if (!entry || !isEntryDirty(entry) || !canSaveEntry(entry)) return item
+    if (!entry || !isEntryDirty(entry) || !canSaveEntry(entry)) {
+      return detached
+        ? (useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? null)
+        : item
+    }
     if (!(await saveEntry(entry.key, "flush")))
       throw new Error("Couldn't save your changes to this item first. Try again.")
     return useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? null
@@ -582,14 +585,19 @@ export function useTaxonomyActions(
     change: (current: ItemRecord) => StoredItemChange | Promise<StoredItemChange>,
   ) => {
     if (!user) return null
-    // An earlier write in the queue may have changed the item since it was listed.
-    const item = await readItemForSidebarWrite(listedItem)
-    if (!item) return null
-    // Decided against the item as it is now, not as the list showed it when the
-    // action started: an earlier write or a saved edit may have changed it since.
-    const changed = await change(item)
-    if (changesNothing(item, changed)) return item
-    const request = (async () => {
+    const entry = useItemsAppStore
+      .getState()
+      .openItems.find((open) => open.itemId === listedItem.id)
+    const sentForm = entry?.form ?? itemToFormState(listedItem)
+    const settled = await readItemForSidebarWrite(listedItem)
+    if (!settled) return null
+
+    const key = entry?.key ?? itemEntryKey(settled.id)
+    const write = async () => {
+      const item =
+        useWorkspaceStore.getState().items.find((stored) => stored.id === settled.id) ?? settled
+      const changed = await change(item)
+      if (changesNothing(item, changed)) return item
       const response = await fetch("/api/items", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -597,68 +605,56 @@ export function useTaxonomyActions(
           userId: user.id,
           itemId: item.id,
           expectedTimeModified: item.timeModified,
-          // Only the fields the action changes: the item's text and everything else
-          // stay as stored, whatever this page last loaded.
           item: { workspaceId: activeWorkspaceId, ...changed },
         }),
       })
-      return readJson<{ item: ItemRecord }>(response)
-    })()
-
-    // Register under the entry's key so an autosave for the same note queues
-    // behind this write instead of racing it. Without this, moving an open,
-    // dirty note from the sidebar could land in either order.
-    const openEntry = useItemsAppStore
-      .getState()
-      .openItems.find((entry) => entry.itemId === item.id)
-    const openKey = openEntry?.key
-    if (openKey) {
-      saveInFlightRef.current.set(
-        openKey,
-        request.then(
-          () => undefined,
-          () => undefined,
-        ),
-      )
+      const data = await readJson<{ item: ItemRecord }>(response)
+      applyListWriteToEntry(data.item, changed, sentForm)
+      mergeSavedItem(user.id, data.item)
+      scheduleTaxonomyRefresh(user.id)
+      return data.item
     }
-
-    let data: { item: ItemRecord }
-    try {
-      data = await request
-    } finally {
-      if (openKey && saveInFlightRef.current.has(openKey)) {
-        saveInFlightRef.current.delete(openKey)
-      }
-    }
-    applyListWriteToEntry(data.item, changed, openEntry?.form)
-    mergeSavedItem(user.id, data.item)
-    scheduleTaxonomyRefresh(user.id)
-    return data.item
+    return runListWrite(key, saveInFlightRef.current, write, () => {
+      if (queuedAutosaveKeysRef.current.delete(key)) void saveEntry(key, "autosave")
+    })
   }
 
-  /**
-   * Bring an open entry in line with a list write to its item. If the user edited the
-   * entry while the write was in flight, those edits stay and only the fields the
-   * write changed are taken, with the stored state as the new baseline.
-   */
+  /** Update both the open editor and drafts detached while the list write was pending. */
   const applyListWriteToEntry = (
     item: ItemRecord,
     changed: StoredItemChange,
-    sentForm?: TextCaptureFormState,
+    sentForm: TextCaptureFormState,
   ) => {
-    const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
-    if (!entry) return
-    if (!isEntryDirty(entry)) {
-      applyServerItemToEntry(item)
-      return
-    }
     const stored = itemToFormState(item)
-    const refiled = "categoryId" in changed || "subcategoryId" in changed
-    patchEntry(entry.key, {
-      form: draftAfterListWrite(entry.form, stored, changed, sentForm),
+    const baseline = {
       baseTimeModified: item.timeModified,
       savedSignature: serializeItemDraft(item.id, stored),
-      ...(refiled ? { categoryInputValue: itemFilingLabel(item) } : {}),
+    }
+    for (const [key, pending] of detachedSavesRef.current) {
+      if (pending.itemId !== item.id) continue
+      detachedSavesRef.current.set(key, {
+        ...pending,
+        ...baseline,
+        form: draftAfterListWrite(pending.form, stored, changed, sentForm),
+      })
+    }
+    const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
+    if (!entry) return
+    const form = isEntryDirty(entry)
+      ? draftAfterListWrite(entry.form, stored, changed, sentForm)
+      : stored
+    const refiled = "categoryId" in changed || "subcategoryId" in changed
+    patchEntry(entry.key, {
+      ...baseline,
+      form,
+      ...(refiled
+        ? {
+            categoryInputValue: filingLabel(useWorkspaceStore.getState().categories, {
+              categoryId: form.selectedCategoryId,
+              subcategoryId: form.selectedSubcategoryId,
+            }),
+          }
+        : {}),
     })
   }
 
