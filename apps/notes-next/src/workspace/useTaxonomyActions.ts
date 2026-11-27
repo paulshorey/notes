@@ -43,6 +43,7 @@ import {
   type StoredItemChange,
   changesNothing,
   draftAfterListWrite,
+  runListWrite,
   storedItemFields,
 } from "@/lib/listWrites"
 import { collectSessionFlushEntries, stateWithDetachedSaves } from "@/lib/openItemsExit"
@@ -50,9 +51,9 @@ import { isPreferencesObject } from "@/lib/userPreferences"
 import { canSaveEntry } from "@/views/registry"
 import {
   type ItemFiling,
+  isSameFiling,
   existingFiling,
   filingLabel,
-  isSameFiling,
   itemFilingLabel,
   upsertCategory,
 } from "@/lib/itemFiling"
@@ -178,20 +179,14 @@ export function useTaxonomyActions(
     })
   }
 
-  const handleCreateStatus = async (
-    rawLabel: string,
-    targetKey: OpenItemKey | null = activeKey,
-  ) => {
-    if (!user || activeWorkspaceId === null || targetKey === null) return
+  const createWorkspaceStatus = async (rawLabel: string) => {
+    if (!user || activeWorkspaceId === null) return null
     const label = rawLabel.trim().toLocaleLowerCase()
-    if (!label) return
+    if (!label) return null
     const existingStatus = statuses.find(
       (status) => normalizeLabel(status.label) === normalizeLabel(label),
     )
-    if (existingStatus) {
-      patchEntryForm(targetKey, (form) => ({ ...form, selectedStatusId: existingStatus.id }))
-      return
-    }
+    if (existingStatus) return existingStatus.id
     setCreateStatusPending(true)
     try {
       const response = await fetch("/api/statuses", {
@@ -200,17 +195,30 @@ export function useTaxonomyActions(
         body: JSON.stringify({ userId: user.id, workspaceId: activeWorkspaceId, label }),
       })
       const data = await readJson<import("@lib/db-items").StatusResponse>(response)
+      if (useWorkspaceStore.getState().activeWorkspaceId !== activeWorkspaceId) return null
       setStatuses((current) =>
         [...current.filter((s) => s.id !== data.status.id), data.status].sort(
           (a, b) => a.position - b.position,
         ),
       )
-      patchEntryForm(targetKey, (form) => ({ ...form, selectedStatusId: data.status.id }))
       setStatusMessage(`Status “${data.status.label}” added.`)
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
+      return data.status.id
     } finally {
       setCreateStatusPending(false)
+    }
+  }
+
+  const handleCreateStatus = async (
+    rawLabel: string,
+    targetKey: OpenItemKey | null = activeKey,
+  ) => {
+    if (targetKey === null) return
+    try {
+      const statusId = await createWorkspaceStatus(rawLabel)
+      if (statusId !== null)
+        patchEntryForm(targetKey, (form) => ({ ...form, selectedStatusId: statusId }))
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
     }
   }
 
@@ -248,33 +256,17 @@ export function useTaxonomyActions(
     closeIfDrawer()
   }
 
-  const handleSelectCategory = (rawId: string) => {
-    if (rawId === "") {
-      if (activeKey === null) return
-      patchEntry(activeKey, (entry) => ({
-        form: { ...entry.form, selectedCategoryId: null, selectedSubcategoryId: null },
-        categoryInputValue: "",
-      }))
-      return
-    }
-    const id = Number.parseInt(rawId, 10)
-    if (!Number.isInteger(id) || id < 1) {
-      return
-    }
-    const category = categories.find((item) => item.id === id)
-    if (!category) {
-      return
-    }
+  const handleSelectFiling = (destination: ItemFiling) => {
     if (activeKey === null) return
-    patchEntry(activeKey, (entry) => {
-      // Choosing the current category again clears it. Either way the subcategory
-      // goes: it belongs to the category that is no longer selected.
-      const next = entry.form.selectedCategoryId === category.id ? null : category.id
-      return {
-        form: { ...entry.form, selectedCategoryId: next, selectedSubcategoryId: null },
-        categoryInputValue: next === null ? "" : category.label,
-      }
-    })
+    const filing = existingFiling(categories, destination)
+    patchEntry(activeKey, (entry) => ({
+      form: {
+        ...entry.form,
+        selectedCategoryId: filing.categoryId,
+        selectedSubcategoryId: filing.subcategoryId,
+      },
+      categoryInputValue: filingLabel(categories, filing),
+    }))
   }
 
   const handleSelectSubcategory = (rawId: string) => {
@@ -444,47 +436,20 @@ export function useTaxonomyActions(
     }
   }
 
-  /** Create a subcategory of the entry's category, or select it if it exists. */
-  const handleCreateSubcategory = async (
-    rawLabel: string,
-    targetKey: OpenItemKey | null = activeKey,
-  ) => {
-    if (!user) {
-      setErrorMessage("Sign in before adding subcategories.")
-      return
-    }
+  const createWorkspaceSubcategory = async (categoryId: number | null, rawLabel: string) => {
+    if (!user) return null
     const label = rawLabel.trim()
     const nameError = getCategoryNameError(label)
-    if (nameError) {
-      setErrorMessage(nameError)
-      return
-    }
-    if (label === "" || targetKey === null) return
-    // Captured before awaiting: the entry may be filed elsewhere by the time this returns.
-    const categoryId =
-      useItemsAppStore.getState().openItems.find((entry) => entry.key === targetKey)?.form
-        .selectedCategoryId ?? null
-    const category = categories.find((entry) => entry.id === categoryId)
-    if (!category) {
-      setErrorMessage("Choose a category before adding a subcategory.")
-      return
-    }
-    const selectSubcategory = (subcategoryId: number, list: CategoryRecord[]) =>
-      patchEntry(targetKey, (entry) =>
-        entry.form.selectedCategoryId === category.id
-          ? {
-              form: { ...entry.form, selectedSubcategoryId: subcategoryId },
-              categoryInputValue: filingLabel(list, { categoryId: category.id, subcategoryId }),
-            }
-          : {},
-      )
+    if (nameError) throw new Error(nameError)
+    if (!label) return null
+    const category = useWorkspaceStore
+      .getState()
+      .categories.find((entry) => entry.id === categoryId)
+    if (!category) throw new Error("Choose a category before adding a subcategory.")
     const existing = category.subcategories.find(
-      (subcategory) => normalizeLabel(subcategory.label) === normalizeLabel(label),
+      (child) => normalizeLabel(child.label) === normalizeLabel(label),
     )
-    if (existing) {
-      selectSubcategory(existing.id, categories)
-      return
-    }
+    if (existing) return existing.id
     clearMessages()
     setCreateCategoryPending(true)
     try {
@@ -500,20 +465,46 @@ export function useTaxonomyActions(
       })
       const data = await readJson<CreateCategoryResponse>(response)
       if (!data.subcategory) throw new Error("The subcategory was not created.")
-      const latest = upsertCategory(categoriesRef.current, data.category)
-      setCategories(latest)
-      selectSubcategory(data.subcategory.id, latest)
+      if (useWorkspaceStore.getState().activeWorkspaceId !== category.workspaceId) return null
+      setCategories((current) => upsertCategory(current, data.category))
       setStatusMessage(`Subcategory “${data.subcategory.label}” added to “${data.category.label}”.`)
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
+      return data.subcategory.id
     } finally {
       setCreateCategoryPending(false)
     }
   }
 
-  const resolveTagForSidebarMove = async (rawLabel: string): Promise<TagRecord | null> => {
+  const handleCreateSubcategory = async (
+    rawLabel: string,
+    targetKey: OpenItemKey | null = activeKey,
+  ) => {
+    if (targetKey === null) return
+    const categoryId = useItemsAppStore
+      .getState()
+      .openItems.find((entry) => entry.key === targetKey)?.form.selectedCategoryId
+    if (categoryId == null) return
+    try {
+      const subcategoryId = await createWorkspaceSubcategory(categoryId, rawLabel)
+      if (subcategoryId === null) return
+      patchEntry(targetKey, (entry) =>
+        entry.form.selectedCategoryId === categoryId
+          ? {
+              form: { ...entry.form, selectedSubcategoryId: subcategoryId },
+              categoryInputValue: filingLabel(useWorkspaceStore.getState().categories, {
+                categoryId,
+                subcategoryId,
+              }),
+            }
+          : {},
+      )
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    }
+  }
+
+  const resolveWorkspaceTag = async (rawLabel: string): Promise<TagRecord | null> => {
     if (!user) {
-      setErrorMessage("Sign in before moving notes.")
+      setErrorMessage("Sign in before adding tags.")
       return null
     }
     const label = normalizeLabel(rawLabel)
@@ -547,8 +538,17 @@ export function useTaxonomyActions(
    * the edit had emptied it, and then there is nothing for the list action to change.
    */
   const settleOpenEntryFor = async (item: ItemRecord): Promise<ItemRecord | null> => {
+    const detached = [...detachedSavesRef.current].find(
+      ([, snapshot]) => snapshot.itemId === item.id,
+    )
+    if (detached && !(await saveEntry(detached[0], "detached")))
+      throw new Error("Couldn't save your changes to this item first. Try again.")
     const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
-    if (!entry || !isEntryDirty(entry) || !canSaveEntry(entry)) return item
+    if (!entry || !isEntryDirty(entry) || !canSaveEntry(entry)) {
+      return detached
+        ? (useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? null)
+        : item
+    }
     if (!(await saveEntry(entry.key, "flush")))
       throw new Error("Couldn't save your changes to this item first. Try again.")
     return useWorkspaceStore.getState().items.find((stored) => stored.id === item.id) ?? null
@@ -559,12 +559,6 @@ export function useTaxonomyActions(
    * item run in the order they were asked for: a list keeps showing the item where it
    * was until its write lands, so a second change can start before the first is done.
    */
-  const patchItemFromSidebar = (
-    listedItem: ItemRecord,
-    change: (current: ItemRecord) => StoredItemChange,
-  ): Promise<ItemRecord | null> =>
-    enqueueSidebarWrite(listedItem.id, () => patchStoredItem(listedItem, change))
-
   const enqueueSidebarWrite = (itemId: number, action: () => Promise<ItemRecord | null>) => {
     const queue = listWritesByItemRef.current
     const previous = queue.get(itemId) ?? Promise.resolve()
@@ -588,137 +582,80 @@ export function useTaxonomyActions(
 
   const patchStoredItem = async (
     listedItem: ItemRecord,
-    change: (current: ItemRecord) => StoredItemChange,
+    change: (current: ItemRecord) => StoredItemChange | Promise<StoredItemChange>,
   ) => {
     if (!user) return null
-    // An earlier write in the queue may have changed the item since it was listed.
-    const item = await readItemForSidebarWrite(listedItem)
-    if (!item) return null
-    // Decided against the item as it is now, not as the list showed it when the
-    // action started: an earlier write or a saved edit may have changed it since.
-    const changed = change(item)
-    if (changesNothing(item, changed)) return item
-    const request = (async () => {
+    const entry = useItemsAppStore
+      .getState()
+      .openItems.find((open) => open.itemId === listedItem.id)
+    const sentForm = entry?.form ?? itemToFormState(listedItem)
+    const settled = await readItemForSidebarWrite(listedItem)
+    if (!settled) return null
+
+    const key = entry?.key ?? itemEntryKey(settled.id)
+    const write = async () => {
+      const item =
+        useWorkspaceStore.getState().items.find((stored) => stored.id === settled.id) ?? settled
+      const changed = await change(item)
+      if (changesNothing(item, changed)) return item
       const response = await fetch("/api/items", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: user.id,
           itemId: item.id,
-          // Only the fields the action changes: the item's text and everything else
-          // stay as stored, whatever this page last loaded.
+          expectedTimeModified: item.timeModified,
           item: { workspaceId: activeWorkspaceId, ...changed },
         }),
       })
-      return readJson<{ item: ItemRecord }>(response)
-    })()
-
-    // Register under the entry's key so an autosave for the same note queues
-    // behind this write instead of racing it. Without this, moving an open,
-    // dirty note from the sidebar could land in either order.
-    const openEntry = useItemsAppStore
-      .getState()
-      .openItems.find((entry) => entry.itemId === item.id)
-    const openKey = openEntry?.key
-    if (openKey) {
-      saveInFlightRef.current.set(
-        openKey,
-        request.then(
-          () => undefined,
-          () => undefined,
-        ),
-      )
+      const data = await readJson<{ item: ItemRecord }>(response)
+      applyListWriteToEntry(data.item, changed, sentForm)
+      mergeSavedItem(user.id, data.item)
+      scheduleTaxonomyRefresh(user.id)
+      return data.item
     }
-
-    let data: { item: ItemRecord }
-    try {
-      data = await request
-    } finally {
-      if (openKey && saveInFlightRef.current.has(openKey)) {
-        saveInFlightRef.current.delete(openKey)
-      }
-    }
-    applyListWriteToEntry(data.item, changed, openEntry?.form)
-    await refreshResults(user.id)
-    return data.item
-  }
-
-  /**
-   * Bring an open entry in line with a list write to its item. If the user edited the
-   * entry while the write was in flight, those edits stay and only the fields the
-   * write changed are taken, with the stored state as the new baseline.
-   */
-  const applyListWriteToEntry = (
-    item: ItemRecord,
-    changed: StoredItemChange,
-    sentForm?: TextCaptureFormState,
-  ) => {
-    const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
-    if (!entry) return
-    if (!isEntryDirty(entry)) {
-      applyServerItemToEntry(item)
-      return
-    }
-    const stored = itemToFormState(item)
-    const refiled = "categoryId" in changed || "subcategoryId" in changed
-    patchEntry(entry.key, {
-      form: draftAfterListWrite(entry.form, stored, changed, sentForm),
-      baseTimeModified: item.timeModified,
-      savedSignature: serializeItemDraft(item.id, stored),
-      ...(refiled ? { categoryInputValue: itemFilingLabel(item) } : {}),
+    return runListWrite(key, saveInFlightRef.current, write, () => {
+      if (queuedAutosaveKeysRef.current.delete(key)) void saveEntry(key, "autosave")
     })
   }
 
-  const handleMoveItemFiling = (item: ItemRecord, destination: ItemFiling) => {
-    if (!user) return Promise.resolve(false)
-    clearMessages()
-    let filingChanged = false
-    return trackDirectWrite(
-      patchItemFromSidebar(item, (current) => {
-        if (current.workspaceId !== activeWorkspaceIdRef.current) {
-          throw new Error("The item's workspace changed. Open the move picker again.")
-        }
-        const filing = existingFiling(categoriesRef.current, destination)
-        if (!isSameFiling(filing, destination)) {
-          throw new Error("The destination changed. Choose another category or subcategory.")
-        }
-        filingChanged = !changesNothing(current, filing)
-        return filing
-      }).then(
-        (moved) => {
-          if (!moved) return false
-          if (!filingChanged) return true
-          const label = itemFilingLabel(moved)
-          setStatusMessage(label ? `Item moved to “${label}”.` : "Item moved to uncategorized.")
-          return true
-        },
-        (error) => {
-          setErrorMessage(getErrorMessage(error))
-          return false
-        },
-      ),
-    )
-  }
-
-  const handleMoveItemTag = async (item: ItemRecord, fromTagId: number, tagLabel: string) => {
-    if (!user) return
-    clearMessages()
-    try {
-      const tag = await resolveTagForSidebarMove(tagLabel)
-      if (!tag) return
-
-      const retagged = await patchItemFromSidebar(item, (current) => ({
-        tagIds: [
-          ...current.tags
-            .filter((itemTag) => itemTag.id !== fromTagId && itemTag.id !== tag.id)
-            .map((itemTag) => itemTag.id),
-          tag.id,
-        ],
-      }))
-      if (retagged) setStatusMessage(`Note tag changed to “${tag.label}”.`)
-    } catch (error) {
-      setErrorMessage(getErrorMessage(error))
+  /** Update both the open editor and drafts detached while the list write was pending. */
+  const applyListWriteToEntry = (
+    item: ItemRecord,
+    changed: StoredItemChange,
+    sentForm: TextCaptureFormState,
+  ) => {
+    const stored = itemToFormState(item)
+    const baseline = {
+      baseTimeModified: item.timeModified,
+      savedSignature: serializeItemDraft(item.id, stored),
     }
+    for (const [key, pending] of detachedSavesRef.current) {
+      if (pending.itemId !== item.id) continue
+      detachedSavesRef.current.set(key, {
+        ...pending,
+        ...baseline,
+        form: draftAfterListWrite(pending.form, stored, changed, sentForm),
+      })
+    }
+    const entry = useItemsAppStore.getState().openItems.find((open) => open.itemId === item.id)
+    if (!entry) return
+    const form = isEntryDirty(entry)
+      ? draftAfterListWrite(entry.form, stored, changed, sentForm)
+      : stored
+    const refiled = "categoryId" in changed || "subcategoryId" in changed
+    patchEntry(entry.key, {
+      ...baseline,
+      form,
+      ...(refiled
+        ? {
+            categoryInputValue: filingLabel(useWorkspaceStore.getState().categories, {
+              categoryId: form.selectedCategoryId,
+              subcategoryId: form.selectedSubcategoryId,
+            }),
+          }
+        : {}),
+    })
   }
 
   /** Register a write made from a list, so a session change waits for it to land. */
@@ -728,22 +665,31 @@ export function useTaxonomyActions(
     return write
   }
 
-  /** Set or clear an item's status from a list, as a board does when a card moves. */
-  const handleSetItemStatus = (item: ItemRecord, statusId: number | null) => {
-    if (!user) return Promise.resolve(false)
+  const changeSidebarItem = (
+    item: ItemRecord,
+    change: (current: ItemRecord) => StoredItemChange | Promise<StoredItemChange>,
+  ) => {
     clearMessages()
     return trackDirectWrite(
-      (async () => {
-        try {
-          await patchItemFromSidebar(item, () => ({ statusId }))
-          return true
-        } catch (error) {
+      enqueueSidebarWrite(item.id, () => patchStoredItem(item, change)).then(
+        (stored) => stored !== null,
+        async (error) => {
+          if (
+            user &&
+            error instanceof RequestError &&
+            (error.status === 409 || error.status === 404)
+          ) {
+            await loadItems(user.id, item.workspaceId).catch(() => undefined)
+          }
           setErrorMessage(getErrorMessage(error))
           return false
-        }
-      })(),
+        },
+      ),
     )
   }
+
+  const handleSetItemStatus = (item: ItemRecord, statusId: number | null) =>
+    changeSidebarItem(item, () => ({ statusId }))
 
   /**
    * Create an item from one line typed into a list, with the defaults of the view it
@@ -1335,19 +1281,19 @@ export function useTaxonomyActions(
     handleOpenItemFromResults,
     handleAddItemForCategory,
     handleAddItemForTag,
-    handleSelectCategory,
+    handleSelectFiling,
     handleSelectSubcategory,
     handleSelectStatus,
     handleCreateTag,
     createWorkspaceCategory,
     handleCreateCategory,
     handleCreateSubcategory,
-    resolveTagForSidebarMove,
-    patchItemFromSidebar,
+    createWorkspaceSubcategory,
+    createWorkspaceStatus,
+    resolveWorkspaceTag,
+    changeSidebarItem,
     handleSetItemStatus,
     handleQuickAddItem,
-    handleMoveItemFiling,
-    handleMoveItemTag,
     prepareItemGroupAction,
     applyItemGroupAction,
     openEditTag,

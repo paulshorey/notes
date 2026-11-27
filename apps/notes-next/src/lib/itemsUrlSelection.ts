@@ -72,20 +72,19 @@ export const readItemsUrlSelection = (): ItemsUrlSelection => {
   }
 }
 
-export const writeItemsUrlSelection = (
-  {
-    itemUid,
-    categoryId,
-    subcategoryId,
-    tagIds,
-  }: Omit<ItemsUrlSelection, "hasItemTarget" | "hasState" | "itemId">,
-  push = false,
-) => {
-  if (typeof window === "undefined") {
-    return
-  }
+type WritableSelection = Pick<
+  ItemsUrlSelection,
+  "itemUid" | "categoryId" | "subcategoryId" | "tagIds"
+>
 
-  const url = new URL(window.location.href)
+/** Build the selected item's or draft's address, optionally opening it in another view. */
+export const itemsSelectionPath = (
+  href: string,
+  { itemUid, categoryId, subcategoryId, tagIds }: WritableSelection,
+  pathname?: string,
+) => {
+  const url = new URL(href)
+  if (pathname !== undefined) url.pathname = pathname
   // An address names an item by its uid, which is the same on every device.
   // A record painted from a cache written before items had a uid has none until the
   // server copy arrives; it gets no address rather than a wrong one.
@@ -120,7 +119,12 @@ export const writeItemsUrlSelection = (
     url.searchParams.set(ITEM_URL_TAGS_PARAM, nextTagIds.join(","))
   }
 
-  const nextPath = `${url.pathname}${url.search}${url.hash}`
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
+export const writeItemsUrlSelection = (selection: WritableSelection, push = false) => {
+  if (typeof window === "undefined") return
+  const nextPath = itemsSelectionPath(window.location.href, selection)
   const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
   if (nextPath !== currentPath) {
     if (push) window.history.pushState(null, "", nextPath)

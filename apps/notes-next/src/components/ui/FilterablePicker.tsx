@@ -35,6 +35,8 @@ export interface FilterablePickerProps {
   excludeSelected?: boolean
   emptyWithoutQueryMessage?: string | null
   inputPlaceholder?: string
+  /** Typed text creates a top-level value unless its name already exists. */
+  createOnNewLabel?: boolean
   validateInput?: (value: string) => string | null
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -66,6 +68,7 @@ export function FilterablePicker({
   excludeSelected = false,
   emptyWithoutQueryMessage = null,
   inputPlaceholder = "Enter new...",
+  createOnNewLabel = false,
   validateInput,
   open: controlledOpen,
   onOpenChange,
@@ -90,7 +93,11 @@ export function FilterablePicker({
     const query = inputValue.trim().toLocaleLowerCase()
     return options.filter((option) => {
       if (excludeSelected && selectedIdSet.has(String(option.id))) return false
-      return query === "" || option.label.trim().toLocaleLowerCase().includes(query)
+      return (
+        query === "" ||
+        option.label.trim().toLocaleLowerCase().includes(query) ||
+        Boolean(option.parentLabel?.toLocaleLowerCase().includes(query))
+      )
     })
   }, [excludeSelected, inputValue, options, selectedIdSet])
 
@@ -127,20 +134,16 @@ export function FilterablePicker({
     const label = inputValue.trim()
     if (!onCreateOption || label === "" || interactionDisabled || inputError) return
     const normalized = label.toLocaleLowerCase()
-    const matchingOption = filteredOptions.find(
-      (option) => option.label.trim().toLocaleLowerCase() === normalized,
-    )
+    const matchesTypedLabel = (option: FilterablePickerOption) =>
+      (!createOnNewLabel || !option.parentLabel) &&
+      option.label.trim().toLocaleLowerCase() === normalized
+    const matchingOption = filteredOptions.find(matchesTypedLabel)
     if (matchingOption) {
       selectOption(matchingOption)
       return
     }
-    // An exact option excluded because it is already selected should not be
-    // submitted as a duplicate. Otherwise Enter follows the list the user can
-    // see, choosing its first match and creating only when there are no matches.
-    if (options.some((option) => option.label.trim().toLocaleLowerCase() === normalized)) {
-      return
-    }
-    if (filteredOptions[0]) {
+    if (options.some(matchesTypedLabel)) return
+    if (!createOnNewLabel && filteredOptions[0]) {
       selectOption(filteredOptions[0])
       return
     }

@@ -21,7 +21,6 @@ import {
   getStoredResultsColumnWidth,
   normalizeUserPreferences,
   serializeUserPreferences,
-  withNotesViewKindVisibility,
   withPasteUrlAsMarkdownPreference,
 } from "@/lib/userPreferences"
 import { TAXONOMY_REFRESH_DEBOUNCE_MS } from "@/workspace/shared"
@@ -57,17 +56,6 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
   const notesViewHiddenKinds = useMemo(
     () => (hiddenKindsKey === "" ? [] : (hiddenKindsKey.split(",") as ItemKindKey[])),
     [hiddenKindsKey],
-  )
-
-  const handleNotesViewKindVisibilityChange = useCallback(
-    (kind: ItemKindKey, visible: boolean) => {
-      setUserPreferences((current) =>
-        getNotesViewHiddenKindsPreference(current).includes(kind) === !visible
-          ? current
-          : withNotesViewKindVisibility(current, kind, visible),
-      )
-    },
-    [setUserPreferences],
   )
 
   const handlePasteUrlAsMarkdownChange = useCallback(
@@ -254,7 +242,6 @@ export function useWorkspaceData(ctx: WorkspaceStateOutput & ResultsColumnLayout
 
   return {
     notesViewHiddenKinds,
-    handleNotesViewKindVisibilityChange,
     pasteUrlAsMarkdown,
     preferredMaxOpenItems,
     handlePasteUrlAsMarkdownChange,

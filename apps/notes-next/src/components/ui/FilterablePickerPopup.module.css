@@ -186,3 +186,7 @@
   color: var(--g-color-text-danger, #e5484d);
   outline: none;
 }
+
+.option[data-nested] {
+  padding-inline-start: 24px;
+}

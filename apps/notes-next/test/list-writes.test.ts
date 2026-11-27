@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import type { ItemRecord } from "@lib/db-items"
 import { itemDraftFromItem } from "../src/capabilities/draftParts"
-import { changesNothing, draftAfterListWrite } from "../src/lib/listWrites"
+import { changesNothing, draftAfterListWrite, runListWrite } from "../src/lib/listWrites"
 
 const item = (overrides: Partial<ItemRecord> = {}): ItemRecord => ({
   id: 1,
@@ -84,16 +84,84 @@ test("a field the user changed after the write was sent keeps the later choice",
   )
   assert.equal(merged.selectedCategoryId, 3)
 
-  const retaggedLater = { ...sent, selectedTagIds: [5] }
-  const retagged = itemDraftFromItem(item({ tags: [{ id: 40, label: "new" }] }))
+  const retaggedLater = { ...sent, selectedTagIds: [5, 42] }
+  const retagged = itemDraftFromItem(item({ tags: [...item().tags, { id: 40, label: "new" }] }))
   assert.deepEqual(
-    draftAfterListWrite(retaggedLater, retagged, { tagIds: [40] }, sent).selectedTagIds,
-    [5],
+    draftAfterListWrite(retaggedLater, retagged, { tagIds: [31, 5, 40] }, sent).selectedTagIds,
+    [5, 40, 42],
   )
   assert.deepEqual(
-    draftAfterListWrite({ ...sent, selectedTagIds: [5, 31] }, retagged, { tagIds: [40] }, sent)
-      .selectedTagIds,
-    [40],
+    draftAfterListWrite(
+      { ...sent, selectedTagIds: [5, 31] },
+      retagged,
+      { tagIds: [31, 5, 40] },
+      sent,
+    ).selectedTagIds,
+    [31, 5, 40],
     "the same tags in another order are not a later choice",
   )
+})
+
+test("sidebar dates change independently and keep later editor input", () => {
+  const due = "2027-03-12T16:30:00.000Z"
+  const reminder = "2027-03-12T16:00:00.000Z"
+  const original = item({ timeRemind: reminder })
+  const updated = item({ ...original, timeDue: due })
+  assert.equal(changesNothing(original, { timeDue: due }), false)
+  assert.equal(changesNothing(updated, { timeDue: due }), true)
+  assert.equal(changesNothing(updated, { timeRemind: null }), false)
+  const sent = itemDraftFromItem(original)
+  const stored = itemDraftFromItem(updated)
+  assert.deepEqual(draftAfterListWrite(sent, stored, { timeDue: due }, sent), stored)
+  const later = { ...sent, dueExpanded: true, timeDue: "2027-03-14T09:00" }
+  assert.deepEqual(draftAfterListWrite(later, stored, { timeDue: due }, sent), later)
+})
+
+test("list writes hold the editor slot through creation and release it after reconciliation", async () => {
+  const key = "note:1"
+  const slots = new Map<string, Promise<void>>()
+  const events: string[] = []
+  let finishCreation!: () => void
+  const creation = new Promise<void>((resolve) => {
+    finishCreation = resolve
+  })
+  const request = runListWrite(
+    key,
+    slots,
+    async () => {
+      events.push("creating")
+      await creation
+      events.push("reconciled")
+      return item()
+    },
+    () => events.push("resume editor"),
+  )
+  const slot = slots.get(key)
+  assert.ok(slot, "the slot is already reserved when creation starts")
+  await Promise.resolve()
+  assert.deepEqual(events, ["creating"])
+  finishCreation()
+  await request
+  await slot
+  assert.deepEqual(events, ["creating", "reconciled", "resume editor"])
+  assert.equal(slots.has(key), false)
+})
+
+test("a list write leaves a newer slot in place", async () => {
+  const key = "note:1"
+  const slots = new Map<string, Promise<void>>()
+  const newer = Promise.resolve()
+  const request = runListWrite(
+    key,
+    slots,
+    async () => {
+      slots.set(key, newer)
+      throw new Error("write failed")
+    },
+    () => assert.fail("the newer slot owns the editor queue"),
+  )
+  const originalSlot = slots.get(key)
+  await assert.rejects(request, /write failed/)
+  await originalSlot
+  assert.equal(slots.get(key), newer)
 })

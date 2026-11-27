@@ -57,3 +57,25 @@ export const upsertCategory = (
   [...categories.filter((entry) => entry.id !== category.id), category].sort((a, b) =>
     a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
   )
+
+export const filingOptionId = ({ categoryId, subcategoryId }: ItemFiling) =>
+  `${categoryId ?? ""}/${subcategoryId ?? ""}`
+
+export const categoryOptions = (categories: readonly CategoryRecord[]) => [
+  { id: filingOptionId(NO_FILING), label: "uncategorized", filing: NO_FILING },
+  ...categories.flatMap((category) => {
+    const filing = { categoryId: category.id, subcategoryId: null }
+    return [
+      { id: filingOptionId(filing), label: category.label, filing },
+      ...category.subcategories.map((child) => {
+        const childFiling = { categoryId: category.id, subcategoryId: child.id }
+        return {
+          id: filingOptionId(childFiling),
+          label: child.label,
+          parentLabel: category.label,
+          filing: childFiling,
+        }
+      }),
+    ]
+  }),
+]

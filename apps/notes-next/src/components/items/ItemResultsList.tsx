@@ -1,6 +1,8 @@
 "use client"
 
 import type { ItemRecord } from "@lib/db-items"
+import { CalendarBlank, Clock } from "@phosphor-icons/react"
+import { isKind } from "@lib/db-items/contracts/item-kinds"
 import { Text } from "@gravity-ui/uikit"
 import type { ReactNode } from "react"
 import { itemListLabel } from "@/capabilities/draftParts"
@@ -55,6 +57,9 @@ export function ItemResultsList({
     <div className={styles.itemList}>
       {items.map(({ item, relevance }) => {
         const label = itemListLabel(item)
+        const task = isKind(item, "task")
+        const time = isKind(item, "time")
+        const kinds = [task && "task", time && "time"].filter(Boolean).join(", ")
         const isActive = activeItemId === item.id
         const isOpen = openItemIds.includes(item.id)
         const relevanceLabel = formatSimilarity(relevance)
@@ -65,30 +70,21 @@ export function ItemResultsList({
               isOpen ? styles.itemItemOpen : ""
             }`}
             key={item.id}
-            onClick={() => onEdit(item)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                onEdit(item)
-              }
-            }}
-            aria-label={`Edit note: ${label}`}
           >
-            <div className={styles.itemLine}>
-              <div className={styles.itemTitleCollapsed}>{label}</div>
+            <button
+              type="button"
+              className={styles.itemLine}
+              onClick={() => onEdit(item)}
+              aria-label={`Edit item: ${label}${kinds ? `, ${kinds}` : ""}`}
+            >
+              <span className={styles.itemTitleCollapsed}>{label}</span>
+              {task && (
+                <CalendarBlank className={styles.kindIcon} size={14} aria-label="Task" role="img" />
+              )}
+              {time && <Clock className={styles.kindIcon} size={14} aria-label="Time" role="img" />}
               {relevanceLabel && <span className={styles.similarityBadge}>{relevanceLabel}</span>}
-              <div
-                className={styles.itemAction}
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") event.stopPropagation()
-                }}
-              >
-                {renderAction(item)}
-              </div>
-            </div>
+            </button>
+            {renderAction(item)}
           </div>
         )
       })}

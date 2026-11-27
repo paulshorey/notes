@@ -15,6 +15,7 @@ import styles from "./FilterablePickerPopup.module.css"
 export interface FilterablePickerOption {
   id: number | string
   label: string
+  parentLabel?: string
 }
 
 export interface FilterablePickerPopupProps {
@@ -126,6 +127,10 @@ export function FilterablePickerPopup({
                     key={option.id}
                     type="button"
                     className={styles.option}
+                    data-nested={Boolean(option.parentLabel) || undefined}
+                    aria-label={
+                      option.parentLabel ? `${option.parentLabel} › ${option.label}` : undefined
+                    }
                     data-active={isOptionActive?.(option) || undefined}
                     data-checked={selected || undefined}
                     disabled={optionsDisabled}
@@ -143,7 +148,10 @@ export function FilterablePickerPopup({
                         {selected ? <span className={styles.optionCheckMark} /> : null}
                       </span>
                     ) : null}
-                    <span className={styles.optionLabel}>{option.label}</span>
+                    <span className={styles.optionLabel}>
+                      {option.parentLabel && trimmedInputValue ? `${option.parentLabel} › ` : ""}
+                      {option.label}
+                    </span>
                   </button>
                 )
                 if (!onDeleteOption) return optionButton

@@ -1,3 +1,4 @@
+import { toInstant } from "@/lib/dates"
 import { itemDraftRequest } from "@/capabilities/draftParts"
 import type { TextCaptureFormState } from "@/types/items"
 import type { ItemRef } from "@/stores/openItems"
@@ -20,6 +21,8 @@ export const serializeItemDraft = (itemId: ItemRef | null, form: TextCaptureForm
 export const itemRequestBody = (form: TextCaptureFormState, workspaceId: number) => ({
   workspaceId,
   ...itemDraftRequest(form),
+  timeDue: form.dueExpanded ? toInstant(form.timeDue) : null,
+  timeRemind: form.remindExpanded ? toInstant(form.timeRemind) : null,
 })
 
 /**

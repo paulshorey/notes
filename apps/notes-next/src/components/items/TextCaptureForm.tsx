@@ -1,52 +1,31 @@
 "use client"
 
 import { Button, Popup } from "@gravity-ui/uikit"
-import { FilterablePicker, type FilterablePickerProps } from "@/components/ui/FilterablePicker"
+import { FilterablePicker } from "@/components/ui/FilterablePicker"
 import { DotsThree, FolderOpen, FolderSimple, Plus, Tag, X } from "@phosphor-icons/react"
-import {
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-  useMemo,
-  useRef,
-  useState,
-} from "react"
-import { getCategoryNameError } from "@lib/db-items/contracts/category-name"
-import type { CategoryRecord, StatusRecord, TagRecord } from "@lib/db-items"
+import { type Dispatch, type SetStateAction, useRef, useState } from "react"
+import { useItemPickers, type ItemPickerProps } from "./useItemPickers"
+import { ItemOptionsPanel } from "./ItemOptionsPanel"
+import type { StatusRecord } from "@lib/db-items"
 import type { TextCaptureFormState } from "@/types/items"
-import { normalizeLabel } from "@/lib/strings"
 import { ScheduleField, isScheduleFieldExpanded } from "@/capabilities/schedule/ScheduleField"
 import type { EditorPart } from "@/views/registry"
 import { StatusPicker } from "@/capabilities/status/StatusPicker"
 import { TextEditorControl } from "@/capabilities/text/TextEditorControl"
 import styles from "./TextCaptureForm.module.css"
 
-interface TextCaptureFormProps {
-  form: TextCaptureFormState
+interface TextCaptureFormProps extends ItemPickerProps {
   setForm: Dispatch<SetStateAction<TextCaptureFormState>>
   editingItemId: number | null
-  userPresent: boolean
   pasteUrlAsMarkdown?: boolean
-  categories: CategoryRecord[]
   statuses: StatusRecord[]
-  tags: TagRecord[]
-  pendingTagLabels: string[]
   descriptionEditorSessionId: string | number
   editorAutofocus: boolean
   editorRevealText?: string | null
-  createCategoryPending: boolean
   createStatusPending: boolean
-  createTagPending: boolean
-  onSelectCategoryId: (rawId: string) => void
-  onSelectSubcategoryId: (rawId: string) => void
   onSelectStatusId: (rawId: string) => void
-  onCreateCategory: (label: string) => void | Promise<void>
-  onCreateSubcategory: (label: string) => void | Promise<void>
   onCreateStatus: (label: string) => void | Promise<void>
-  onTagValuesChange: (values: string[]) => void
   onCancelEdit: () => void
-  onMoveEditingItem: (anchorRef: RefObject<HTMLElement | null>) => void
-  onDeleteEditingItem: () => void
   onAddItem: () => void
   onAddItemInCategory: () => void
   /**
@@ -61,15 +40,6 @@ interface TextCaptureFormProps {
 }
 
 const NOTE_PARTS: readonly EditorPart[] = ["filing", "tags"]
-
-const MENU_PICKER_PLACEMENT: FilterablePickerProps["placement"] = [
-  "left-start",
-  "right-start",
-  "top-start",
-  "bottom-start",
-]
-
-type MorePicker = "status" | "tag" | "category" | "subcategory"
 
 export function TextCaptureForm({
   form,
@@ -87,7 +57,7 @@ export function TextCaptureForm({
   createCategoryPending,
   createStatusPending,
   createTagPending,
-  onSelectCategoryId,
+  onSelectFiling,
   onSelectSubcategoryId,
   onSelectStatusId,
   onCreateCategory,
@@ -95,8 +65,6 @@ export function TextCaptureForm({
   onCreateStatus,
   onTagValuesChange,
   onCancelEdit,
-  onMoveEditingItem,
-  onDeleteEditingItem,
   onAddItem,
   onAddItemInCategory,
   prominent = NOTE_PARTS,
@@ -105,39 +73,33 @@ export function TextCaptureForm({
   const moreTriggerRef = useRef<HTMLButtonElement | null>(null)
   const [morePickerOpen, setMorePickerOpen] = useState(false)
   const [toolbarTagPickerOpen, setToolbarTagPickerOpen] = useState(false)
-  const [activeMorePicker, setActiveMorePicker] = useState<MorePicker | null>(null)
   const inToolbar = (part: EditorPart) => prominent.includes(part)
 
-  const selectedCategory = categories.find((category) => category.id === form.selectedCategoryId)
-  const selectedSubcategory = selectedCategory?.subcategories.find(
-    (subcategory) => subcategory.id === form.selectedSubcategoryId,
-  )
-  const selectedCategoryLabel = selectedCategory?.label ?? ""
-  const selectedSubcategoryLabel = selectedSubcategory?.label ?? ""
-  const addItemLabel = selectedCategory
-    ? `Add new note in current category ${[selectedCategory.label, selectedSubcategory?.label].filter(Boolean).join(" › ")}`
+  const pickers = useItemPickers({
+    form,
+    userPresent,
+    categories,
+    tags,
+    pendingTagLabels,
+    createCategoryPending,
+    createTagPending,
+    onSelectFiling,
+    onSelectSubcategoryId,
+    onCreateCategory,
+    onCreateSubcategory,
+    onTagValuesChange,
+  })
+  const {
+    selectedCategoryLabel,
+    selectedSubcategoryLabel,
+    selectedTagLabels,
+    categoryPicker,
+    subcategoryPicker,
+    tagPicker,
+  } = pickers
+  const addItemLabel = selectedCategoryLabel
+    ? `Add new note in current category ${[selectedCategoryLabel, selectedSubcategoryLabel].filter(Boolean).join(" › ")}`
     : "Add new note"
-
-  const selectedTagLabels = useMemo(() => {
-    const next = [
-      ...form.selectedTagIds.map((id) => tags.find((tag) => tag.id === id)?.label ?? `Tag #${id}`),
-      ...pendingTagLabels,
-    ]
-    const seen = new Set<string>()
-    return next.filter((label) => {
-      const normalized = normalizeLabel(label)
-      if (normalized === "" || seen.has(normalized)) {
-        return false
-      }
-      seen.add(normalized)
-      return true
-    })
-  }, [form.selectedTagIds, pendingTagLabels, tags])
-
-  const selectedTagLabelSet = useMemo(() => {
-    return new Set(selectedTagLabels.map((label) => normalizeLabel(label)))
-  }, [selectedTagLabels])
-
   const newItemHasUserInput =
     form.description !== "" ||
     form.selectedCategoryId !== null ||
@@ -152,77 +114,7 @@ export function TextCaptureForm({
   const cancelLabel =
     onClose !== undefined ? "Close" : editingItemId !== null ? "Cancel editing" : "Cancel changes"
 
-  const closeMoreDropdown = () => {
-    setMorePickerOpen(false)
-    setActiveMorePicker(null)
-  }
-
-  const updateMorePicker = (picker: MorePicker, open: boolean) => {
-    setActiveMorePicker((current) => (open ? picker : current === picker ? null : current))
-  }
-
-  const addTagLabel = (label: string) => {
-    const normalized = normalizeLabel(label)
-    if (normalized === "" || selectedTagLabelSet.has(normalized)) {
-      return
-    }
-    onTagValuesChange([...selectedTagLabels, label])
-  }
-
-  const toggleTagLabel = (label: string) => {
-    const normalized = normalizeLabel(label)
-    if (normalized === "") {
-      return
-    }
-    if (selectedTagLabelSet.has(normalized)) {
-      onTagValuesChange(
-        selectedTagLabels.filter((selectedLabel) => normalizeLabel(selectedLabel) !== normalized),
-      )
-      return
-    }
-    addTagLabel(label)
-  }
-
-  // What each picker offers is the same wherever the view places it.
-  const categoryPicker = {
-    triggerAriaLabel: "Categories",
-    listboxAriaLabel: "Category options",
-    options: [{ id: "", label: "uncategorized" }, ...categories],
-    selectedIds: [form.selectedCategoryId ?? ""],
-    disabled: !userPresent,
-    pending: createCategoryPending,
-    onSelectOption: (category: { id: number | string }) => onSelectCategoryId(String(category.id)),
-    onCreateOption: onCreateCategory,
-    validateInput: (label: string) =>
-      normalizeLabel(label) === "uncategorized" ? null : getCategoryNameError(label),
-    emptyWithoutQueryMessage: "No categories yet",
-    inputPlaceholder: "Enter new category...",
-  }
-  const subcategoryPicker = {
-    triggerAriaLabel: "Subcategory",
-    listboxAriaLabel: "Subcategory options",
-    options: [{ id: "", label: "no subcategory" }, ...(selectedCategory?.subcategories ?? [])],
-    selectedIds: [form.selectedSubcategoryId ?? ""],
-    disabled: !userPresent || !selectedCategory,
-    pending: createCategoryPending,
-    onSelectOption: (subcategory: { id: number | string }) =>
-      onSelectSubcategoryId(String(subcategory.id)),
-    onCreateOption: onCreateSubcategory,
-    validateInput: getCategoryNameError,
-    inputPlaceholder: "Enter new subcategory...",
-  }
-  const tagPicker = {
-    triggerAriaLabel: "Tags",
-    listboxAriaLabel: "Tag options",
-    options: tags,
-    selectedIds: form.selectedTagIds,
-    pending: createTagPending,
-    multiple: true,
-    onSelectOption: (tag: { label: string }) => toggleTagLabel(tag.label),
-    onCreateOption: addTagLabel,
-    emptyWithoutQueryMessage: "No tags yet",
-    inputPlaceholder: "Enter new tag...",
-  }
+  const closeMoreDropdown = () => setMorePickerOpen(false)
 
   /** Each capability control changes its own slice of the form. */
   const patchForm = (patch: (current: TextCaptureFormState) => Partial<TextCaptureFormState>) =>
@@ -294,7 +186,7 @@ export function TextCaptureForm({
               />
             </div>
           )}
-          {inToolbar("filing") && selectedSubcategory && (
+          {inToolbar("filing") && selectedSubcategoryLabel && (
             <FilterablePicker
               variant="inline"
               value={selectedSubcategoryLabel}
@@ -336,8 +228,7 @@ export function TextCaptureForm({
               {...tagPicker}
             />
           )}
-          {/* A date the item has stands in the toolbar. Where the view is about dates,
-              the missing ones are offered there too; elsewhere they are in the menu. */}
+          {/* Dates also appear inline when set or prominent in this view. */}
           {(["due", "remind"] as const).map(
             (field) =>
               (isScheduleFieldExpanded(form, field) || inToolbar("schedule")) && (
@@ -360,7 +251,6 @@ export function TextCaptureForm({
               className={styles.moreTrigger}
               onClick={() => {
                 setMorePickerOpen((open) => !open)
-                setActiveMorePicker(null)
               }}
               disabled={!userPresent}
               aria-label="More note settings"
@@ -379,94 +269,19 @@ export function TextCaptureForm({
               offset={6}
               role="menu"
             >
-              <div className={styles.morePanel} aria-label="More note settings">
-                {editingItemId !== null && (
-                  <button
-                    type="button"
-                    className={styles.moreMenuItem}
-                    role="menuitem"
-                    onClick={() => {
-                      closeMoreDropdown()
-                      onMoveEditingItem(moreTriggerRef)
-                    }}
-                  >
-                    <span>Move to workspace</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className={`${styles.moreMenuItem} ${styles.moreMenuDeleteItem}`}
-                  onClick={() => {
-                    closeMoreDropdown()
-                    onDeleteEditingItem()
-                  }}
-                  disabled={!userPresent || editingItemId === null}
-                  role="menuitem"
-                >
-                  <span>Delete</span>
-                </button>
-                <div className={styles.moreMenuDivider} aria-hidden="true" />
-                {!inToolbar("schedule") &&
-                  (["due", "remind"] as const).map(
-                    (field) =>
-                      !isScheduleFieldExpanded(form, field) && (
-                        <ScheduleField
-                          key={field}
-                          field={field}
-                          draft={form}
-                          onChange={patchForm}
-                          onExpand={() => setMorePickerOpen(false)}
-                        />
-                      ),
-                  )}
-                {!inToolbar("status") && (
-                  <StatusPicker
-                    variant="menu"
-                    draft={form}
-                    statuses={statuses}
-                    pending={createStatusPending}
-                    open={activeMorePicker === "status"}
-                    onOpenChange={(open) => updateMorePicker("status", open)}
-                    onSelectStatusId={onSelectStatusId}
-                    onCreateStatus={onCreateStatus}
-                  />
-                )}
-                <FilterablePicker
-                  {...categoryPicker}
-                  variant="menu"
-                  triggerLabel="Category"
-                  triggerAriaLabel="Category"
-                  triggerRole="menuitem"
-                  value={selectedCategoryLabel}
-                  open={activeMorePicker === "category"}
-                  onOpenChange={(open) => updateMorePicker("category", open)}
-                  placement={MENU_PICKER_PLACEMENT}
+              {morePickerOpen && (
+                <ItemOptionsPanel
+                  key={descriptionEditorSessionId}
+                  itemId={editingItemId}
+                  form={form}
+                  pickers={pickers}
+                  onScheduleChange={patchForm}
+                  onSelectStatusId={onSelectStatusId}
+                  onCreateStatus={onCreateStatus}
+                  anchorRef={moreTriggerRef}
+                  onClose={closeMoreDropdown}
                 />
-                <FilterablePicker
-                  {...subcategoryPicker}
-                  variant="menu"
-                  triggerLabel="Subcategory"
-                  triggerRole="menuitem"
-                  value={selectedSubcategoryLabel}
-                  open={activeMorePicker === "subcategory"}
-                  onOpenChange={(open) => updateMorePicker("subcategory", open)}
-                  placement={MENU_PICKER_PLACEMENT}
-                />
-                <FilterablePicker
-                  {...tagPicker}
-                  variant="menu"
-                  triggerLabel="Tag"
-                  triggerAriaLabel="Tag"
-                  triggerRole="menuitem"
-                  value={selectedTagLabels.join(", ")}
-                  triggerIcon={
-                    <Tag size={14} weight="regular" className={styles.propertyPickerIcon} />
-                  }
-                  open={activeMorePicker === "tag"}
-                  onOpenChange={(open) => updateMorePicker("tag", open)}
-                  placement={MENU_PICKER_PLACEMENT}
-                />
-              </div>
+              )}
             </Popup>
           </div>
         </div>
