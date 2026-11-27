@@ -97,3 +97,18 @@ test("a field the user changed after the write was sent keeps the later choice",
     "the same tags in another order are not a later choice",
   )
 })
+
+test("sidebar dates change independently and keep later editor input", () => {
+  const due = "2027-03-12T16:30:00.000Z"
+  const reminder = "2027-03-12T16:00:00.000Z"
+  const original = item({ timeRemind: reminder })
+  const updated = item({ ...original, timeDue: due })
+  assert.equal(changesNothing(original, { timeDue: due }), false)
+  assert.equal(changesNothing(updated, { timeDue: due }), true)
+  assert.equal(changesNothing(updated, { timeRemind: null }), false)
+  const sent = itemDraftFromItem(original)
+  const stored = itemDraftFromItem(updated)
+  assert.deepEqual(draftAfterListWrite(sent, stored, { timeDue: due }, sent), stored)
+  const later = { ...sent, dueExpanded: true, timeDue: "2027-03-14T09:00" }
+  assert.deepEqual(draftAfterListWrite(later, stored, { timeDue: due }, sent), later)
+})

@@ -2,7 +2,6 @@
 
 import { TextCaptureForm } from "@/components/items/TextCaptureForm"
 import { useItemsWorkspace } from "@/workspace/ItemsWorkspaceProvider"
-import { useItemsAppStore } from "@/stores/itemsAppStore"
 import { EMPTY_PENDING_TAG_LABELS } from "@/workspace/shared"
 
 /**
@@ -24,8 +23,7 @@ export function ItemEditor({ onClose }: { onClose?: () => void }) {
     handleCreateCategory,
     handleCreateStatus,
     handleCreateSubcategory,
-    handleDeleteItem,
-    handleSelectCategory,
+    handleSelectFiling,
     handleSelectStatus,
     handleSelectSubcategory,
     handleTagValuesChange,
@@ -58,7 +56,7 @@ export function ItemEditor({ onClose }: { onClose?: () => void }) {
       createCategoryPending={createCategoryPending}
       createStatusPending={createStatusPending}
       createTagPending={createTagPending}
-      onSelectCategoryId={handleSelectCategory}
+      onSelectFiling={handleSelectFiling}
       onSelectSubcategoryId={handleSelectSubcategory}
       onCreateSubcategory={handleCreateSubcategory}
       onSelectStatusId={handleSelectStatus}
@@ -68,17 +66,6 @@ export function ItemEditor({ onClose }: { onClose?: () => void }) {
       onCancelEdit={handleCancelEdit}
       onAddItem={handleCancelEdit}
       onAddItemInCategory={handleAddItemInCategory}
-      onMoveEditingItem={(anchorRef) => {
-        if (activeEntry?.itemId == null) return
-        useItemsAppStore
-          .getState()
-          .openWorkspaceMovePicker({ kind: "item", itemId: activeEntry.itemId }, anchorRef)
-      }}
-      onDeleteEditingItem={() => {
-        if (activeEntry?.itemId != null) {
-          void handleDeleteItem(activeEntry.itemId)
-        }
-      }}
     />
   )
 }

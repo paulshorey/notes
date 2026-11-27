@@ -3,3 +3,6 @@ export const toDateTimeLocalValue = (value: string | Date) => {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
   return localDate.toISOString().slice(0, 16)
 }
+
+export const toInstant = (local: string | null | undefined) =>
+  local ? new Date(local).toISOString() : null

@@ -6,6 +6,8 @@ export type StoredItemChange = Partial<{
   categoryId: number | null
   subcategoryId: number | null
   statusId: number | null
+  timeDue: string | null
+  timeRemind: string | null
   tagIds: number[]
 }>
 
@@ -13,6 +15,8 @@ export const storedItemFields = (item: ItemRecord): Required<StoredItemChange> =
   categoryId: item.category?.id ?? null,
   subcategoryId: item.subcategory?.id ?? null,
   statusId: item.status?.id ?? null,
+  timeDue: item.timeDue,
+  timeRemind: item.timeRemind,
   tagIds: item.tags.map((tag) => tag.id),
 })
 
@@ -25,6 +29,8 @@ export const changesNothing = (item: ItemRecord, change: StoredItemChange): bool
     next.categoryId === stored.categoryId &&
     next.subcategoryId === stored.subcategoryId &&
     next.statusId === stored.statusId &&
+    next.timeDue === stored.timeDue &&
+    next.timeRemind === stored.timeRemind &&
     tags(next.tagIds) === tags(stored.tagIds)
   )
 }
@@ -56,6 +62,12 @@ export const draftAfterListWrite = (
       : {}),
     ...("statusId" in change && draft.selectedStatusId === sent.selectedStatusId
       ? { selectedStatusId: stored.selectedStatusId }
+      : {}),
+    ...("timeDue" in change && draft.timeDue === sent.timeDue
+      ? { timeDue: stored.timeDue, dueExpanded: stored.dueExpanded }
+      : {}),
+    ...("timeRemind" in change && draft.timeRemind === sent.timeRemind
+      ? { timeRemind: stored.timeRemind, remindExpanded: stored.remindExpanded }
       : {}),
     ...("tagIds" in change && sameTags(draft.selectedTagIds, sent.selectedTagIds)
       ? { selectedTagIds: stored.selectedTagIds }

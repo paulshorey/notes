@@ -104,15 +104,6 @@ export function useItemLists(
     user,
   ])
 
-  /**
-   * Point every open entry at a category that still exists. Runs where
-   * categories actually change rather than on the save path.
-   *
-   * A change made here is not a user edit, so a clean entry has to stay clean:
-   * its signature moves with the form, otherwise autosave would immediately
-   * push the remap back to the server as if the user had made it.
-   */
-
   const matchesSelectedTag = useCallback(
     (item: ItemRecord) =>
       selectedTagId === null || item.tags.some((tag) => tag.id === selectedTagId),
@@ -130,23 +121,23 @@ export function useItemLists(
     }
 
     return [...searchResults]
-      .filter((result) => selectsItem(result.item) && matchesSelectedTag(result.item))
+      .filter((result) => matchesSelectedTag(result.item))
       .sort((left, right) => right.similarity - left.similarity)
       .map((result) => ({
         item: result.item,
         relevance: result.similarity,
       }))
-  }, [matchesSelectedTag, searchMode, searchResults, selectsItem])
+  }, [matchesSelectedTag, searchMode, searchResults])
 
-  // The workspace holds every item; a view lists the ones it selects.
+  // Only the main view filters by kind. Navigation always spans the workspace.
   const viewItems = useMemo(() => items.filter(selectsItem), [items, selectsItem])
 
   const allItemItems = useMemo<DisplayItemItem[]>(
     () =>
-      [...viewItems]
+      [...items]
         .sort((left, right) => getItemSortTime(right) - getItemSortTime(left))
         .map((item) => ({ item })),
-    [viewItems],
+    [items],
   )
 
   const allCategoryItems = useMemo<DisplayItemItem[]>(

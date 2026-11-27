@@ -99,7 +99,7 @@ test("the signature and the request keep their stored field order", () => {
   assert.equal(
     JSON.stringify(itemRequestBody(draft, 3)),
     '{"workspaceId":3,"categoryId":7,"subcategoryId":9,"statusId":4,"tagIds":[5,31],' +
-      '"description":"text","timeDue":"2026-03-04T10:30","timeRemind":null}',
+      `"description":"text","timeDue":"${new Date(draft.timeDue).toISOString()}","timeRemind":null}`,
   )
   assert.deepEqual(draft.selectedTagIds, [31, 5])
 })

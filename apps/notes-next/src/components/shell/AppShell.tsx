@@ -1,5 +1,7 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+import { isKind } from "@lib/db-items/contracts/item-kinds"
 import type { ReactNode } from "react"
 import { Button, Text } from "@gravity-ui/uikit"
 import { readItemsUrlSelection } from "@/lib/itemsUrlSelection"
@@ -22,7 +24,9 @@ import styles from "./AppShell.module.css"
  * in the main column.
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  const router = useRouter()
   const {
+    activeView,
     activateEntryInStore,
     activeEntry,
     activeForm,
@@ -42,7 +46,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     createCategoryPending,
     createWorkspaceCategory,
     deleteTagPending,
-    deletingItemId,
     deletingTag,
     editTagLabel,
     editTagPending,
@@ -64,17 +67,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     handleConfirmDeleteWorkspace,
     handleCancelDeleteWorkspace,
     workspaceDeletion,
-    handleDeleteItem,
     handleDownloadBackup,
     handleLogin,
     handleLogout,
     handleMaxOpenItemsChange,
-    handleMoveItemFiling,
-    handleMoveItemTag,
     handleOpenItemFromResults,
     handlePasteUrlAsMarkdownChange,
-    handleNotesViewKindVisibilityChange,
-    notesViewHiddenKinds,
     handleResizePointerCancel,
     handleResizePointerDown,
     handleResizePointerMove,
@@ -194,8 +192,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               resultsListVisible={resultsListVisible}
               pasteUrlAsMarkdown={pasteUrlAsMarkdown}
               onPasteUrlAsMarkdownChange={handlePasteUrlAsMarkdownChange}
-              notesViewHiddenKinds={notesViewHiddenKinds}
-              onNotesViewKindVisibilityChange={handleNotesViewKindVisibilityChange}
               onAddItem={handleCancelEdit}
               onLogout={handleLogout}
               maxOpenItems={maxOpenItems}
@@ -297,13 +293,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           activeCategoryId={activeForm.selectedCategoryId}
           activeSubcategoryId={activeForm.selectedSubcategoryId}
           activeTagIds={activeForm.selectedTagIds}
-          onEditItem={handleOpenItemFromResults}
+          onEditItem={(item) => {
+            handleOpenItemFromResults(item)
+            if (activeView.kind === "time" && !isKind(item, "time"))
+              router.push(`/?item=${item.uid}`)
+          }}
           onAddItemForCategory={handleAddItemForCategory}
           onAddItemForTag={handleAddItemForTag}
-          onMoveItemFiling={handleMoveItemFiling}
-          onMoveItemTag={handleMoveItemTag}
-          onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
-          deletingItemId={deletingItemId}
           onEditTag={openEditTag}
           onDeleteTag={openDeleteTag}
         />

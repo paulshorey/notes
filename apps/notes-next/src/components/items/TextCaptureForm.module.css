@@ -259,7 +259,9 @@
 
 .morePanel {
   display: flex;
-  min-width: 132px;
+  width: min(276px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
   flex-direction: column;
   gap: 1px;
   padding: 6px;
@@ -308,8 +310,16 @@
   background: var(--g-color-base-danger-light, rgba(255, 99, 99, 0.16));
 }
 
-.moreMenuDivider {
-  height: 8px;
+.morePanel .dateField {
+  flex: none;
+  width: 100%;
+}
+
+.workspaceValue {
+  color: var(--g-color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dateInput {
